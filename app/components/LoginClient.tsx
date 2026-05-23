@@ -1119,8 +1119,8 @@ const LoginClient: React.FC = () => {
                 ))}
               </div>
               <p className="text-blue-200 text-xs lg:text-sm">
-                <span className="text-white font-bold">Más de 5,000</span>{" "}
-                empresas peruanas <br /> ya confían en FactuFly.
+                <span className="text-white font-bold">Muchas empresas</span>{" "}
+                 peruanas <br /> ya confían en FactuFly.
               </p>
             </div>
           </div>

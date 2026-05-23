@@ -221,7 +221,8 @@ export default function VerComprobantesPage() {
     if (!user || !accessToken) return;
     setOffset(0);
     cargarComprobantes(0);
-  }, [user, accessToken, cargarComprobantes]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.ruc, user?.sucursalID, accessToken, cargarComprobantes]);
 
   const obtenerPdf = useCallback(
     async (c: ComprobanteListado) => {
