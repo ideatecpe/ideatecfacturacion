@@ -32,12 +32,198 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
     setState((prev) => ({ ...prev, fechaEmision: fecha }));
   }, []);
 
-  // ── Descargar plantilla ─────────────────────────────────────────────────────
-  const descargarPlantilla = useCallback(() => {
-    const link = document.createElement("a");
-    link.href = "/Plantilla Carga Masiva Comprobantes.xlsx";
-    link.download = "Plantilla Carga Masiva Comprobantes.xlsx";
-    link.click();
+  // ── Descargar plantilla (generada con ExcelJS) ──────────────────────────────
+  const descargarPlantilla = useCallback(async () => {
+    const { default: ExcelJS } = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "FactuFly";
+    wb.created = new Date();
+
+    const ws = wb.addWorksheet("Comprobantes", {
+      pageSetup: { paperSize: 9, orientation: "landscape" },
+    });
+
+    ws.columns = [
+      { key: "A", width: 16 },
+      { key: "B", width: 42 },
+      { key: "C", width: 11 },
+      { key: "D", width: 22 },
+      { key: "E", width: 10 },
+      { key: "F", width: 18 },
+      { key: "G", width: 10 },
+      { key: "H", width: 30 },
+      { key: "I", width: 18 },
+    ];
+
+    const AZUL   = "2563EB";
+    const OSCURO = "1E3A5F";
+    const BLANCO = "FFFFFF";
+    const PALE   = "EFF6FF";
+    const AMBER  = "FEF3C7";
+
+    // ── Fila 1: Título ──────────────────────────────────────────────────────
+    ws.mergeCells("A1:I1");
+    ws.getRow(1).height = 34;
+    const t = ws.getCell("A1");
+    t.value = "CARGA MASIVA DE COMPROBANTES — FACTUFLY";
+    t.font = { name: "Calibri", bold: true, size: 14, color: { argb: `FF${BLANCO}` } };
+    t.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${OSCURO}` } };
+    t.alignment = { horizontal: "center", vertical: "middle" };
+
+    // ── Fila 2: Instrucción + Fecha en I2 ──────────────────────────────────
+    ws.getRow(2).height = 26;
+    ws.mergeCells("A2:G2");
+    const instr = ws.getCell("A2");
+    instr.value =
+      "Una fila por ítem. Para múltiples ítems del mismo comprobante, deje RUC/DNI vacío en las filas siguientes. La Razón Social se autocompleta con el RUC/DNI.";
+    instr.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF92400E" } };
+    instr.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${AMBER}` } };
+    instr.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+
+    const labelF = ws.getCell("H2");
+    labelF.value = "Fecha Emisión:";
+    labelF.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FF1E293B" } };
+    labelF.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${PALE}` } };
+    labelF.alignment = { horizontal: "right", vertical: "middle" };
+
+    const hoy = new Date();
+    const dd = String(hoy.getDate()).padStart(2, "0");
+    const mm = String(hoy.getMonth() + 1).padStart(2, "0");
+    const yyyy = hoy.getFullYear();
+
+    const dateC = ws.getCell("I2");
+    dateC.value = `${dd}/${mm}/${yyyy}`;
+    dateC.font = { name: "Calibri", size: 11, bold: true, color: { argb: `FF${AZUL}` } };
+    dateC.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${PALE}` } };
+    dateC.alignment = { horizontal: "center", vertical: "middle" };
+    dateC.border = {
+      top:    { style: "medium", color: { argb: `FF${AZUL}` } },
+      bottom: { style: "medium", color: { argb: `FF${AZUL}` } },
+      left:   { style: "medium", color: { argb: `FF${AZUL}` } },
+      right:  { style: "medium", color: { argb: `FF${AZUL}` } },
+    };
+
+    // ── Fila 3: Encabezados de columnas ────────────────────────────────────
+    ws.getRow(3).height = 30;
+    const hdrs = [
+      "RUC / DNI", "Detalle / Descripción", "Cantidad",
+      "Precio Unit. (c/IGV)", "IGV %", "Unidad de Medida",
+      "Moneda", "Correo Electrónico", "WhatsApp",
+    ];
+    hdrs.forEach((h, i) => {
+      const c = ws.getCell(3, i + 1);
+      c.value = h;
+      c.font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${BLANCO}` } };
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${AZUL}` } };
+      c.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      c.border = {
+        top:    { style: "thin", color: { argb: "FFFFFFFF" } },
+        bottom: { style: "thin", color: { argb: "FFFFFFFF" } },
+        left:   { style: "thin", color: { argb: "FFFFFFFF" } },
+        right:  { style: "thin", color: { argb: "FFFFFFFF" } },
+      };
+    });
+
+    // ── Filas 4-8: Datos de ejemplo ────────────────────────────────────────
+    const ejemplos = [
+      ["20100454523", "Servicio de consultoría empresarial", 2,   590.00, 18, "ZZ",  "PEN", "empresa@cliente.com", ""],
+      ["",            "Licencia de software mensual",        1,   236.00, 18, "ZZ",  "PEN", "",                    ""],
+      ["12345678",    "Venta de notebook HP 15\" i5",        1,  3540.00, 18, "NIU", "PEN", "jose@gmail.com, pepito@gmail.com",       "987654321"],
+      ["20601234567", "Exportación de servicios TI",         5,   100.00, 18, "ZZ",  "USD", "corp@export.com",      ""],
+      ["87654321",    "Alquiler de equipos de cómputo",      3,   177.00, 18, "ZZ",  "PEN", "",                    "961234567"],
+    ];
+
+    ejemplos.forEach((row, ri) => {
+      const isPrimary = !!row[0];
+      const bg = isPrimary
+        ? (ri % 2 === 0 ? "FFF0F9FF" : "FFEFF6FF")
+        : (ri % 2 === 0 ? "FFFAFAFA" : "FFF8FAFC");
+      ws.getRow(ri + 4).height = 22;
+      row.forEach((v, ci) => {
+        const c = ws.getCell(ri + 4, ci + 1);
+        c.value = v === "" ? null : v;
+        c.font = { name: "Calibri", size: 10, color: { argb: "FF1E293B" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+        c.border = {
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+          right:  { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+        if (ci === 2) {
+          c.alignment = { horizontal: "center", vertical: "middle" };
+        } else if (ci === 3) {
+          c.numFmt = "#,##0.00";
+          c.alignment = { horizontal: "right", vertical: "middle" };
+        } else if (ci === 4) {
+          c.alignment = { horizontal: "center", vertical: "middle" };
+        } else {
+          c.alignment = { vertical: "middle" };
+        }
+      });
+    });
+
+    // Congelar encabezados
+    ws.views = [{ state: "frozen", xSplit: 0, ySplit: 3, topLeftCell: "A4" }];
+
+    // ── Hoja de instrucciones ───────────────────────────────────────────────
+    const wsI = wb.addWorksheet("Instrucciones");
+    wsI.columns = [{ width: 90 }];
+
+    const lines: [string, boolean, string][] = [
+      ["INSTRUCCIONES — CARGA MASIVA DE COMPROBANTES", true,  `FF${OSCURO}`],
+      ["", false, "FF1E293B"],
+      ["COLUMNAS:", true, `FF${AZUL}`],
+      ["A - RUC / DNI: 8 dígitos = DNI (genera Boleta) | 11 dígitos = RUC (genera Factura).", false, "FF1E293B"],
+      ["B - Detalle / Descripción: Producto o servicio facturado.", false, "FF1E293B"],
+      ["C - Cantidad: Número mayor a 0.", false, "FF1E293B"],
+      ["D - Precio Unitario con IGV incluido: precio de venta al público.", false, "FF1E293B"],
+      ["E - IGV %: Solo se aceptan los valores 18 o 10.5", false, "FF1E293B"],
+      ["F - Unidad de Medida: ZZ (servicio), NIU (unidad), KGM (kilo), GAL (galón), etc.", false, "FF1E293B"],
+      ["G - Moneda: PEN (soles) o USD (dólares).", false, "FF1E293B"],
+      ["H - Correo Electrónico (opcional): varios correos separados por coma.", false, "FF1E293B"],
+      ["I - WhatsApp (opcional): 9 dígitos empezando con 9. Ej: 987654321", false, "FF1E293B"],
+      ["", false, "FF1E293B"],
+      ["FECHA DE EMISIÓN:", true, `FF${AZUL}`],
+      ["• Escriba la fecha en la celda I2 en formato DD/MM/YYYY. Ej: 20/05/2026", false, "FF1E293B"],
+      ["• No puede ser futura ni mayor a 2 días antes de hoy.", false, "FF1E293B"],
+      ["", false, "FF1E293B"],
+      ["RAZÓN SOCIAL:", true, `FF${AZUL}`],
+      ["• No necesita ingresar la Razón Social. El sistema la obtiene automáticamente por RUC/DNI.", false, "FF1E293B"],
+      ["• Si el DNI no se encuentra en la API, el comprobante se guardará con advertencia.", false, "FF1E293B"],
+      ["", false, "FF1E293B"],
+      ["MÚLTIPLES ÍTEMS EN UN MISMO COMPROBANTE:", true, `FF${AZUL}`],
+      ["• Para añadir más ítems al mismo comprobante, deje la columna A (RUC/DNI) en BLANCO.", false, "FF1E293B"],
+      ["• Correo, WhatsApp y Moneda solo se leen en la primera fila del comprobante.", false, "FF1E293B"],
+      ["", false, "FF1E293B"],
+      ["IMPORTANTE:", true, "FFDC2626"],
+      ["• Los comprobantes se guardan como PENDIENTE. Envíelos a SUNAT desde el módulo de comprobantes.", false, "FF1E293B"],
+      ["• No modifique la estructura del archivo (columnas, filas de encabezado, celda I2).", false, "FF1E293B"],
+      ["• Solo se aceptan archivos .xlsx", false, "FF1E293B"],
+    ];
+
+    lines.forEach(([text, bold, color], i) => {
+      const r = wsI.getRow(i + 1);
+      r.height = i === 0 ? 34 : 20;
+      const c = wsI.getCell(i + 1, 1);
+      c.value = text;
+      c.font = { name: "Calibri", size: i === 0 ? 13 : 11, bold, color: { argb: color } };
+      c.alignment = { wrapText: true, vertical: "top" };
+      if (i === 0) {
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${OSCURO}` } };
+        c.font = { name: "Calibri", size: 13, bold: true, color: { argb: "FFFFFFFF" } };
+      }
+    });
+
+    // ── Descarga ────────────────────────────────────────────────────────────
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Plantilla Carga Masiva Comprobantes.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
   }, []);
 
   // ── Consultar API por RUC o DNI ─────────────────────────────────────────────

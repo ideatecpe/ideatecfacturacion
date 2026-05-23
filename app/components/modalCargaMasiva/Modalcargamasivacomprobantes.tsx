@@ -34,7 +34,7 @@ const BadgeTipo = ({ tipo }: { tipo: "03" | "01" }) => (
 
 // ─── Fila comprobante ─────────────────────────────────────────────────────────
 const FilaComprobante = ({ comp, idx }: { comp: ComprobanteAgrupado; idx: number }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const { igv, importeTotal } = calcularTotales(comp);
 
   const esAdvertencia = (comp as any).tieneAdvertencia === true;
@@ -343,6 +343,24 @@ export function ModalCargaMasivaComprobantes({
             </div>
           </div>
 
+          {/* ── Errores de parseo del Excel (siempre visibles) ── */}
+          {erroresGlobales.length > 0 && (
+            <div className="mx-6 mt-4 bg-red-50 border border-red-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 text-red-700 font-semibold text-sm mb-2">
+                <AlertCircle size={15} />
+                Errores en el Excel ({erroresGlobales.length}) — corrija el archivo y vuelva a cargarlo
+              </div>
+              <ul className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                {erroresGlobales.map((err, i) => (
+                  <li key={i} className="text-xs text-red-600 flex items-start gap-2 py-0.5 border-b border-red-100 last:border-0">
+                    <span className="shrink-0 font-bold text-red-400 mt-0.5">{i + 1}.</span>
+                    <span>{err}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* ── Zona sin comprobantes: drag area central ── */}
           {!hayComprobantes && (
             <div className="px-6 pt-4">
@@ -417,22 +435,6 @@ export function ModalCargaMasivaComprobantes({
                 </div>
               </div>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
-
-              {/* Errores globales */}
-              {erroresGlobales.length > 0 && (
-                <div className="mx-6 mt-3 bg-red-50 border border-red-200 rounded-xl p-3 space-y-1">
-                  <div className="flex items-center gap-2 text-red-700 font-semibold text-xs">
-                    <AlertCircle size={14} /> Errores en el Excel — corrija y vuelva a cargar
-                  </div>
-                  <ul className="space-y-0.5">
-                    {erroresGlobales.map((err, i) => (
-                      <li key={i} className="text-xs text-red-600 flex items-start gap-1.5">
-                        <span className="shrink-0 mt-0.5">•</span> {err}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
 
               {/* Tabla */}
               <div className="px-6 pt-3 pb-2">

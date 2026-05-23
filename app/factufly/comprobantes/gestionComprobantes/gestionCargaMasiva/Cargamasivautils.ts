@@ -103,28 +103,29 @@ export async function parsearExcel(file: File): Promise<{
   const ws = wb.Sheets[wb.SheetNames[0]];
   const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) as any[][];
 
-  // ── Leer fecha de J2 directamente desde la celda ──────────────────────────
+  // ── Leer fecha de I2 directamente desde la celda ──────────────────────────
   let fechaEmision = "";
-  const celdaJ2 = ws["J2"];
-  if (celdaJ2) {
-    fechaEmision = parsearFechaCelda(celdaJ2.v);
+  const celdaI2 = ws["I2"];
+  if (celdaI2) {
+    fechaEmision = parsearFechaCelda(celdaI2.v);
   }
-  // Fallback: buscar en raw[1][9]
-  if (!fechaEmision && raw[1]?.[9]) {
-    fechaEmision = parsearFechaCelda(raw[1][9]);
+  // Fallback: buscar en raw[1][8]
+  if (!fechaEmision && raw[1]?.[8]) {
+    fechaEmision = parsearFechaCelda(raw[1][8]);
   }
 
   if (!fechaEmision) {
-    erroresGlobales.push("No se encontró la fecha de emisión en la celda J2 del Excel");
+    erroresGlobales.push("No se encontró la fecha de emisión en la celda I2 del Excel");
   }
 
   // ── Buscar fila de cabeceras dinámicamente ────────────────────────────────
+  // Usa startsWith para no confundir celdas de instrucción que contengan "RUC/DNI" en su texto
   let filaInicioDatos = 3; // default fila 4
   for (let i = 0; i < Math.min(raw.length, 10); i++) {
     const row = raw[i];
     if (!row) continue;
-    const primeraCelda = String(row[0] ?? "").toUpperCase();
-    if (primeraCelda.includes("RUC") || primeraCelda.includes("DNI")) {
+    const primeraCelda = String(row[0] ?? "").trim().toUpperCase();
+    if (primeraCelda.startsWith("RUC") || primeraCelda.startsWith("DNI")) {
       filaInicioDatos = i + 1;
       break;
     }
@@ -147,17 +148,16 @@ export async function parsearExcel(file: File): Promise<{
           : rucDniRaw).trim()
       : "";
 
-    const razonSocial = celdaAString(row[1]);
-    const detalle = celdaAString(row[2]);
-    const cantidad = Number(row[3]) || 0;
-    const precioUnitario = Number(row[4]) || 0;
-    const igv = Number(row[5]) || 18;
-    const unidadMedida = celdaAString(row[6]) || "ZZ";
-    const moneda = celdaAString(row[7]) || "PEN";
-    const correoRaw = celdaAString(row[8]);
+    const detalle = celdaAString(row[1]);
+    const cantidad = Number(row[2]) || 0;
+    const precioUnitario = Number(row[3]) || 0;
+    const igv = Number(row[4]) || 18;
+    const unidadMedida = celdaAString(row[5]) || "ZZ";
+    const moneda = celdaAString(row[6]) || "PEN";
+    const correoRaw = celdaAString(row[7]);
     const correo = correoRaw || null;
     // WhatsApp puede venir como número — convertir
-    const whatsappRaw = row[9];
+    const whatsappRaw = row[8];
     const whatsapp = whatsappRaw !== null && whatsappRaw !== undefined && whatsappRaw !== ""
       ? String(typeof whatsappRaw === "number" ? Math.floor(whatsappRaw) : whatsappRaw).trim()
       : null;
@@ -175,7 +175,6 @@ export async function parsearExcel(file: File): Promise<{
         if (error) erroresFila.push(`Fila ${i + 1}: ${error}`);
         ultimoRucDni = rucDni;
       }
-      if (!razonSocial) erroresFila.push(`Fila ${i + 1}: Razón social vacía`);
 
       const errCorreo = validarCorreos(correo);
       if (errCorreo) erroresFila.push(`Fila ${i + 1}: ${errCorreo}`);
@@ -193,7 +192,6 @@ export async function parsearExcel(file: File): Promise<{
 
     filas.push({
       rucDni,
-      razonSocial,
       detalle,
       cantidad,
       precioUnitario,
@@ -242,7 +240,7 @@ export function agruparComprobantes(filas: FilaExcel[]): ComprobanteAgrupado[] {
     grupoActual = {
       id: crypto.randomUUID(),
       rucDni: rucDniActual,
-      razonSocial: fila.razonSocial,
+      razonSocial: "",
       tipoDoc,
       tipoComprobante,
       moneda: fila.moneda || "PEN",

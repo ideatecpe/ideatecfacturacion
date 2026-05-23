@@ -1,7 +1,6 @@
 // ─── Fila cruda del Excel ────────────────────────────────────────────────────
 export interface FilaExcel {
   rucDni: string;
-  razonSocial: string;
   detalle: string;
   cantidad: number;
   precioUnitario: number;
