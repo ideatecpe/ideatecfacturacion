@@ -156,11 +156,7 @@ export const EditarClienteModal: React.FC<Props> = ({
         const d = form.direccion[0];
         const tieneDatos = esDni
           ? d.direccionLineal || d.tipoDireccion
-          : d.direccionLineal ||
-            d.distrito ||
-            d.provincia ||
-            d.departamento ||
-            d.ubigeo;
+          : d.direccionLineal
 
         if (tieneDatos) {
           const payloadDireccion = esDni
@@ -297,6 +293,7 @@ export const EditarClienteModal: React.FC<Props> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InputBase
               label="Ubigeo"
+              labelOptional="(opcional)"
               value={form.direccion?.[0]?.ubigeo ?? ""}
               onChange={(e) => updateDireccion("ubigeo", e.target.value)}
               showError={false}
@@ -311,18 +308,21 @@ export const EditarClienteModal: React.FC<Props> = ({
             />
             <InputBase
               label="Distrito"
+              labelOptional="(opcional)"
               value={form.direccion?.[0]?.distrito ?? ""}
               onChange={(e) => updateDireccion("distrito", e.target.value)}
               showError={false}
             />
             <InputBase
               label="Provincia"
+              labelOptional="(opcional)"
               value={form.direccion?.[0]?.provincia ?? ""}
               onChange={(e) => updateDireccion("provincia", e.target.value)}
               showError={false}
             />
             <InputBase
               label="Departamento"
+              labelOptional="(opcional)"
               value={form.direccion?.[0]?.departamento ?? ""}
               onChange={(e) => updateDireccion("departamento", e.target.value)}
               showError={false}

@@ -112,11 +112,7 @@ export default function ClientesPage() {
       return [
         { key: "numeroDocumento", label: "Número de Documento", minLength: 11 },
         { key: "razonSocialNombre", label: "Razón Social" },
-        { key: "direccion.ubigeo", label: "Ubigeo" },
         { key: "direccion.direccionLineal", label: "Dirección" },
-        { key: "direccion.distrito", label: "Distrito" },
-        { key: "direccion.provincia", label: "Provincia" },
-        { key: "direccion.departamento", label: "Departamento" },
       ];
     }
     return [];

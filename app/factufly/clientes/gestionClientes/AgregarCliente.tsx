@@ -280,15 +280,13 @@ export const AgregarCliente: React.FC<AgregarClienteProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <InputBase
             label="Ubigeo"
+            labelOptional="(opcional)"
             value={nuevoCliente.direccion.ubigeo}
             onChange={(e) => {
               setNuevoCliente((f: any) => ({ ...f, direccion: { ...f.direccion, ubigeo: e.target.value} }));
-              if (errors["direccion.ubigeo"]) {
-                setErrors((prev) => ({ ...prev, ["direccion.ubigeo"]: false }));
-              }
             }}
             placeholder="Ubigeo"
-            showError={!!errors["direccion.ubigeo"]}
+            showError={false}
           />
 
           <InputBase
@@ -306,41 +304,35 @@ export const AgregarCliente: React.FC<AgregarClienteProps> = ({
 
           <InputBase
             label="Distrito"
+            labelOptional="(opcional)"
             value={nuevoCliente.direccion.distrito}
             onChange={(e) => {
               setNuevoCliente((f: any) => ({ ...f, direccion: { ...f.direccion, distrito: e.target.value } }));
-              if (errors["direccion.distrito"]) {
-                setErrors((prev) => ({ ...prev, ["direccion.distrito"]: false }));
-              }
             }}
             placeholder="Distrito"
-            showError={!!errors["direccion.distrito"]}
+            showError={false}
           />
 
           <InputBase
             label="Provincia"
+            labelOptional="(opcional)"
             value={nuevoCliente.direccion.provincia}
             onChange={(e) => {
               setNuevoCliente((f: any) => ({  ...f, direccion: { ...f.direccion, provincia: e.target.value } }));
-              if (errors["direccion.provincia"]) {
-                setErrors((prev) => ({ ...prev, ["direccion.provincia"]: false }));
-              }
             }}
             placeholder="Provincia"
-            showError={!!errors["direccion.provincia"]}
+            showError={false}
           />
 
           <InputBase
             label="Departamento"
+            labelOptional="(opcional)"
             value={nuevoCliente.direccion.departamento}
             onChange={(e) => {
               setNuevoCliente((f: any) => ({ ...f, direccion: { ...f.direccion, departamento: e.target.value } }));
-              if (errors["direccion.departamento"]) {
-                setErrors((prev) => ({ ...prev, ["direccion.departamento"]: false }));
-              }
             }}
             placeholder="Departamento"
-            showError={!!errors["direccion.departamento"]}
+            showError={false}
           />
 
           <InputBase
