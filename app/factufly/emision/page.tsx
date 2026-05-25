@@ -12,6 +12,7 @@ import {
   Building2,
   Hash,
   UserCircle,
+  Car,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -32,6 +33,7 @@ import { sharedVentaStore } from "../operaciones/sharedVentaStore";
 import { cn } from "@/app/utils/cn";
 import { ModalGuardarClienteBoleta } from "../operaciones/boleta/gestionBoletas/Modalguardarclienteboleta";
 import { useTrabajadoresSucursal } from "../trabajadores/gestionTrabajadores/useTrabajadoresSucursal";
+import { ModalItemsMonitoreo } from "@/app/components/modalEmision/Modalitemsmonitoreo";
 
 // ── Tipos ──────────────────────────────────────────────────────
 type TipoComprobante = "boleta" | "factura";
@@ -119,6 +121,9 @@ export default function EmisionRapidaPage({
 
   //emitir nueva factura
   const [emitido, setEmitido] = useState(false);
+
+  //emision items por monitoreo
+  const [showModalMonitoreo, setShowModalMonitoreo] = useState(false);
 
   // ── Hooks cliente ──────────────────────────────────────────
   const {
@@ -575,6 +580,29 @@ export default function EmisionRapidaPage({
       }),
     );
   }, [tipoMoneda]);
+
+  const agregarItemsMonitoreo = (itemsGenerados: { descripcion: string; precio: number }[]) => {
+    itemsGenerados.forEach((it) => {
+      const precioBase = parseFloat((it.precio / (1 + IGV_DEFAULT / 100)).toFixed(6));
+      const nuevo: ItemRapido = {
+        id: crypto.randomUUID(),
+        descripcion: it.descripcion,
+        cantidad: 1,
+        precioUnitario: precioBase,
+        precioVentaConIGV: it.precio,
+        porcentajeIGV: IGV_DEFAULT,
+        tipoAfectacionIGV: "10",
+        productoId: null,
+        unidadMedida: "ZZ",
+        codigo: null,
+      };
+      setItems((prev) => [...prev.filter((i) => !i._esIcbper), nuevo, ...prev.filter((i) => i._esIcbper)]);
+      setBusquedaProducto((prev) => [...prev, it.descripcion]);
+      setShowDropdownProducto((prev) => [...prev, false]);
+      inputRefs.current = [...inputRefs.current, null];
+    });
+    setShowModalMonitoreo(false);
+  };
 
   const agregarItem = () => {
     const nuevo: ItemRapido = {
@@ -1910,6 +1938,16 @@ export default function EmisionRapidaPage({
                     <Plus className="w-3.5 h-3.5" /> Agregar ítem
                   </button>
                 )}
+                {!porConsumo && user?.ruc == "20512134832" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowModalMonitoreo(true)}
+                    disabled={sinSucursal}
+                    className={`flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <Car className="w-3.5 h-3.5" /> Ítems por servicio
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2642,6 +2680,13 @@ export default function EmisionRapidaPage({
           }}
           onGuardar={guardarCliente}
           onCerrar={() => setShowModalCliente(false)}
+        />
+      )}
+      {showModalMonitoreo && (
+        <ModalItemsMonitoreo
+          igvPorcentaje={IGV_DEFAULT}
+          onGuardar={agregarItemsMonitoreo}
+          onCerrar={() => setShowModalMonitoreo(false)}
         />
       )}
     </div>
