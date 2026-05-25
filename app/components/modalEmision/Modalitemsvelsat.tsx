@@ -89,7 +89,11 @@ const nuevaFila = (): FilaMonitoreo => {
 };
 
 // ── Componente ─────────────────────────────────────────────────
-export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Props) {
+export function ModalItemsVelsat({
+  igvPorcentaje = 18,
+  onGuardar,
+  onCerrar,
+}: Props) {
   const [filas, setFilas] = useState<FilaMonitoreo[]>([nuevaFila()]);
   const [errores, setErrores] = useState<Record<string, string>>({});
 
@@ -133,8 +137,18 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
   const handleGuardar = () => {
     const nuevosErrores: Record<string, string> = {};
     filas.forEach((f) => {
-      if (!f.placa.trim()) nuevosErrores[`${f.id}-placa`] = "Requerido";
-      if (!f.precio || f.precio <= 0) nuevosErrores[`${f.id}-precio`] = "Requerido";
+      // En handleGuardar, dentro del forEach:
+      if (!f.placa.trim()) {
+        nuevosErrores[`${f.id}-placa`] = "Requerido";
+      } else {
+        const valor = f.placa.trim();
+        const esImei = /^\d{10,}$/.test(valor); // ¿parece IMEI?
+        if (esImei && !/^\d{15}$/.test(valor)) {
+          nuevosErrores[`${f.id}-placa`] = "IMEI debe tener 15 dígitos";
+        }
+      }
+      if (!f.precio || f.precio <= 0)
+        nuevosErrores[`${f.id}-precio`] = "Requerido";
     });
     if (Object.keys(nuevosErrores).length > 0) {
       setErrores(nuevosErrores);
@@ -144,10 +158,11 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
     const items: ItemGenerado[] = filas.map((f) => {
       let descBien = `Venta de equipo GPS`;
       if (f.marca?.trim()) descBien += ` marca ${f.marca.trim().toUpperCase()}`;
-      if (f.modelo?.trim()) descBien += ` modelo ${f.modelo.trim().toUpperCase()}`;
-      
+      if (f.modelo?.trim())
+        descBien += ` modelo ${f.modelo.trim().toUpperCase()}`;
+
       const placaOImei = f.placa.trim().toUpperCase();
-      const esImei = /^\d{10,}$/.test(placaOImei); // Si tiene 10 o más dígitos puros, asumimos que es un IMEI
+      const esImei = /^\d{15}$/.test(placaOImei); // exactamente 15
 
       if (esImei) {
         descBien += ` con imei ${placaOImei}`;
@@ -156,16 +171,16 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
       }
 
       return {
-        descripcion: f.tipo === "servicio"
-          ? `Servicio de monitoreo ${PERIODO_LABEL[f.periodo]}, desde ${formatFechaDisplay(f.desde)} al ${formatFechaDisplay(f.hasta)}, placa: ${placaOImei}`
-          : descBien,
+        descripcion:
+          f.tipo === "servicio"
+            ? `Servicio de monitoreo ${PERIODO_LABEL[f.periodo]}, desde ${formatFechaDisplay(f.desde)} al ${formatFechaDisplay(f.hasta)}, placa: ${placaOImei}`
+            : descBien,
         precio: f.precio,
         tipo: f.tipo,
       };
     });
     onGuardar(items);
   };
-
 
   // ── Render ─────────────────────────────────────────────────
   const tieneServicios = filas.some((f) => f.tipo === "servicio");
@@ -174,7 +189,6 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col border border-gray-100 overflow-hidden">
-
         {/* ── Header ── */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-linear-to-r from-blue-50 to-white shrink-0">
           <div className="flex items-center gap-3">
@@ -182,8 +196,12 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
               <Car className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-gray-900">Ítems por Monitoreo</h2>
-              <p className="text-[10px] text-gray-400">Agrega un ítem por cada vehículo a monitorear</p>
+              <h2 className="text-sm font-bold text-gray-900">
+                Ítems por Defecto
+              </h2>
+              <p className="text-[10px] text-gray-400">
+                Agrega un ítem por cada vehículo a monitorear
+              </p>
             </div>
           </div>
           <button
@@ -200,22 +218,52 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
             <table className="w-full text-xs" style={{ minWidth: "800px" }}>
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-8">#</th>
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-32">Tipo</th>
-                  {tieneServicios && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Periodo</th>}
-                  {tieneServicios && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Desde</th>}
-                  {tieneServicios && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Hasta</th>}
-                  {tieneBienes && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Marca</th>}
-                  {tieneBienes && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Modelo</th>}
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Placa / IMEI</th>
-                  <th className="px-2 py-2 text-left text-gray-400 font-semibold w-32">Precio (S/)</th>
+                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-8">
+                    #
+                  </th>
+                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-32">
+                    Tipo
+                  </th>
+                  {tieneServicios && (
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
+                      Periodo
+                    </th>
+                  )}
+                  {tieneServicios && (
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
+                      Desde
+                    </th>
+                  )}
+                  {tieneServicios && (
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
+                      Hasta
+                    </th>
+                  )}
+                  {tieneBienes && (
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
+                      Marca
+                    </th>
+                  )}
+                  {tieneBienes && (
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
+                      Modelo
+                    </th>
+                  )}
+                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
+                    Placa / IMEI
+                  </th>
+                  <th className="px-2 py-2 text-left text-gray-400 font-semibold w-32">
+                    Precio (S/)
+                  </th>
                   <th className="px-3 py-3 w-8"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filas.map((fila, i) => (
-                  <tr key={fila.id} className="hover:bg-blue-50/30 transition-colors group">
-
+                  <tr
+                    key={fila.id}
+                    className="hover:bg-blue-50/30 transition-colors group"
+                  >
                     {/* # */}
                     <td className="px-3 py-3 text-gray-300 font-mono text-[10px]">
                       {String(i + 1).padStart(2, "0")}
@@ -225,7 +273,13 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                     <td className="px-3 py-3">
                       <select
                         value={fila.tipo}
-                        onChange={(e) => actualizar(fila.id, "tipo", e.target.value as TipoItem)}
+                        onChange={(e) =>
+                          actualizar(
+                            fila.id,
+                            "tipo",
+                            e.target.value as TipoItem,
+                          )
+                        }
                         className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
                       >
                         <option value="servicio">Servicio (Monitoreo)</option>
@@ -239,7 +293,13 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                         {fila.tipo === "servicio" ? (
                           <select
                             value={fila.periodo}
-                            onChange={(e) => actualizar(fila.id, "periodo", e.target.value as Periodo)}
+                            onChange={(e) =>
+                              actualizar(
+                                fila.id,
+                                "periodo",
+                                e.target.value as Periodo,
+                              )
+                            }
                             className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
                           >
                             <option value="mensual">Mensual</option>
@@ -260,7 +320,9 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                           <input
                             type="date"
                             value={fila.desde}
-                            onChange={(e) => actualizar(fila.id, "desde", e.target.value)}
+                            onChange={(e) =>
+                              actualizar(fila.id, "desde", e.target.value)
+                            }
                             className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
                           />
                         ) : (
@@ -274,10 +336,10 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                       <td className="px-3 py-3">
                         {fila.tipo === "servicio" ? (
                           <input
-                              type="date"
-                              value={fila.hasta}
-                              disabled
-                              className="w-full py-1.5 px-2 bg-gray-100 border border-gray-200 rounded-lg text-xs outline-none opacity-70"
+                            type="date"
+                            value={fila.hasta}
+                            disabled
+                            className="w-full py-1.5 px-2 bg-gray-100 border border-gray-200 rounded-lg text-xs outline-none opacity-70"
                           />
                         ) : (
                           <span className="text-gray-300 text-xs">-</span>
@@ -291,9 +353,11 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                         {fila.tipo === "bien" ? (
                           <input
                             type="text"
-                            placeholder="Ej. RUPTELA"
+                            placeholder="Ej. Concox"
                             value={fila.marca || ""}
-                            onChange={(e) => actualizar(fila.id, "marca", e.target.value)}
+                            onChange={(e) =>
+                              actualizar(fila.id, "marca", e.target.value)
+                            }
                             className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
                           />
                         ) : (
@@ -308,9 +372,11 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                         {fila.tipo === "bien" ? (
                           <input
                             type="text"
-                            placeholder="Ej. ECO4"
+                            placeholder="Ej. RT07"
                             value={fila.modelo || ""}
-                            onChange={(e) => actualizar(fila.id, "modelo", e.target.value)}
+                            onChange={(e) =>
+                              actualizar(fila.id, "modelo", e.target.value)
+                            }
                             className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
                           />
                         ) : (
@@ -320,49 +386,65 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                     )}
 
                     {/* Placa / IMEI */}
-                      <td className="px-2 py-2">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={fila.placa}
-                            onChange={(e) => actualizar(fila.id, "placa", e.target.value)}
-                            placeholder="Ej. ABC-123 o 12345..."
-                            className={`w-full py-1.5 px-2 bg-gray-50 border rounded-lg text-xs outline-none focus:ring-1 transition-all uppercase placeholder:normal-case
-                              ${errores[`${fila.id}-placa`]
-                                ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100"
-                                : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
+                    <td className="px-2 py-2">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={fila.placa}
+                          onChange={(e) =>
+                            actualizar(fila.id, "placa", e.target.value)
+                          }
+                          placeholder="Ej. ABC-123 o 12345..."
+                          className={`w-full py-1.5 px-2 bg-gray-50 border rounded-lg text-xs outline-none focus:ring-1 transition-all uppercase placeholder:normal-case
+                              ${
+                                errores[`${fila.id}-placa`]
+                                  ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100"
+                                  : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
                               }`}
-                          />
-                          {errores[`${fila.id}-placa`] && (
-                            <div className="absolute -bottom-3.5 left-0 flex items-center gap-1">
-                              <AlertCircle className="w-2.5 h-2.5 text-red-400" />
-                              <span className="text-[9px] text-red-400">Requerido</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
+                        />
+                        {errores[`${fila.id}-placa`] && (
+                          <div className="absolute -bottom-3.5 left-0 flex items-center gap-1">
+                            <AlertCircle className="w-2.5 h-2.5 text-red-400" />
+                            <span className="text-[9px] text-red-400">
+                              Requerido
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
 
                     {/* Precio */}
                     <td className="px-3 py-3">
                       <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-mono">S/</span>
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-mono">
+                          S/
+                        </span>
                         <input
                           type="number"
                           min={0}
                           step="0.01"
                           value={fila.precio === 0 ? "" : fila.precio}
-                          onChange={(e) => actualizar(fila.id, "precio", parseFloat(e.target.value) || 0)}
+                          onChange={(e) =>
+                            actualizar(
+                              fila.id,
+                              "precio",
+                              parseFloat(e.target.value) || 0,
+                            )
+                          }
                           placeholder="0.00"
                           className={`w-full py-1.5 pl-7 pr-2 bg-gray-50 border rounded-lg text-xs text-right outline-none focus:ring-1 transition-all font-mono
-                            ${errores[`${fila.id}-precio`]
-                              ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100"
-                              : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
+                            ${
+                              errores[`${fila.id}-precio`]
+                                ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100"
+                                : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
                             }`}
                         />
                         {errores[`${fila.id}-precio`] && (
                           <div className="absolute -bottom-4 right-0 flex items-center gap-1">
                             <AlertCircle className="w-2.5 h-2.5 text-red-400" />
-                            <span className="text-[9px] text-red-400">Requerido</span>
+                            <span className="text-[9px] text-red-400">
+                              Requerido
+                            </span>
                           </div>
                         )}
                       </div>
@@ -372,7 +454,9 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                     <td className="px-3 py-3">
                       <button
                         type="button"
-                        onClick={() => filas.length > 1 && eliminarFila(fila.id)}
+                        onClick={() =>
+                          filas.length > 1 && eliminarFila(fila.id)
+                        }
                         disabled={filas.length === 1}
                         className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       >
@@ -395,7 +479,9 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                     </button>
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Total</span>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                      Total
+                    </span>
                   </td>
                   <td className="px-3 py-3 text-right">
                     <span className="text-sm font-bold text-blue-700 font-mono">
@@ -412,11 +498,23 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
           {total > 0 && (
             <div className="mt-3 flex justify-end">
               <div className="flex items-center gap-4 text-[10px] text-gray-400 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
-                <span>Valor venta: <span className="text-gray-600 font-mono font-medium">S/ {(total / (1 + igvPorcentaje / 100)).toFixed(2)}</span></span>
+                <span>
+                  Valor venta:{" "}
+                  <span className="text-gray-600 font-mono font-medium">
+                    S/ {(total / (1 + igvPorcentaje / 100)).toFixed(2)}
+                  </span>
+                </span>
                 <span className="text-gray-200">|</span>
-                <span>IGV ({igvPorcentaje}%): <span className="text-gray-600 font-mono font-medium">S/ {(total - total / (1 + igvPorcentaje / 100)).toFixed(2)}</span></span>
+                <span>
+                  IGV ({igvPorcentaje}%):{" "}
+                  <span className="text-gray-600 font-mono font-medium">
+                    S/ {(total - total / (1 + igvPorcentaje / 100)).toFixed(2)}
+                  </span>
+                </span>
                 <span className="text-gray-200">|</span>
-                <span className="font-bold text-blue-600">Total: S/ {total.toFixed(2)}</span>
+                <span className="font-bold text-blue-600">
+                  Total: S/ {total.toFixed(2)}
+                </span>
               </div>
             </div>
           )}
@@ -425,7 +523,8 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
         {/* ── Footer ── */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50 shrink-0">
           <p className="text-[10px] text-gray-400">
-            {filas.length} vehículo{filas.length !== 1 ? "s" : ""} · Cada fila se agrega como un ítem independiente
+            {filas.length} vehículo{filas.length !== 1 ? "s" : ""} · Cada fila
+            se agrega como un ítem independiente
           </p>
           <div className="flex items-center gap-2">
             <button
