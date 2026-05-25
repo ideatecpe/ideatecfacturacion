@@ -52,7 +52,7 @@ import { sharedVentaStore } from "../sharedVentaStore";
 import { useComprobanteUnicoId } from "../../comprobantes/gestionComprobantes/UseComprobanteUnicoId";
 import { useTrabajadoresSucursal } from "../../trabajadores/gestionTrabajadores/useTrabajadoresSucursal";
 import { UserCircle, Car } from "lucide-react";
-import { ModalItemsMonitoreo } from "@/app/components/modalEmision/Modalitemsmonitoreo";
+import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 
 // ── Tipos afectación gratuita ────────────────────────────────
 const TIPOS_GRATUITOS = ["11", "21", "31"];
@@ -4511,7 +4511,7 @@ function FacturaContent() {
       )}
 
       {showModalMonitoreo && (
-        <ModalItemsMonitoreo
+        <ModalItemsVelsat
           igvPorcentaje={IGV_DEFAULT}
           onGuardar={agregarItemsMonitoreo}
           onCerrar={() => setShowModalMonitoreo(false)}

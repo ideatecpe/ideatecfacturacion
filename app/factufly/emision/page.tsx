@@ -33,7 +33,7 @@ import { sharedVentaStore } from "../operaciones/sharedVentaStore";
 import { cn } from "@/app/utils/cn";
 import { ModalGuardarClienteBoleta } from "../operaciones/boleta/gestionBoletas/Modalguardarclienteboleta";
 import { useTrabajadoresSucursal } from "../trabajadores/gestionTrabajadores/useTrabajadoresSucursal";
-import { ModalItemsMonitoreo } from "@/app/components/modalEmision/Modalitemsmonitoreo";
+import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 
 // ── Tipos ──────────────────────────────────────────────────────
 type TipoComprobante = "boleta" | "factura";
@@ -2695,7 +2695,7 @@ export default function EmisionRapidaPage({
         />
       )}
       {showModalMonitoreo && (
-        <ModalItemsMonitoreo
+        <ModalItemsVelsat
           igvPorcentaje={IGV_DEFAULT}
           onGuardar={agregarItemsMonitoreo}
           onCerrar={() => setShowModalMonitoreo(false)}

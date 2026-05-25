@@ -80,7 +80,7 @@ const nuevaFila = (): FilaMonitoreo => {
 };
 
 // ── Componente ─────────────────────────────────────────────────
-export function ModalItemsMonitoreo({ igvPorcentaje = 18, onGuardar, onCerrar }: Props) {
+export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Props) {
   const [filas, setFilas] = useState<FilaMonitoreo[]>([nuevaFila()]);
   const [errores, setErrores] = useState<Record<string, string>>({});
 
