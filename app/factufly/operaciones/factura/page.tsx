@@ -51,7 +51,8 @@ import { ModalGuardarCliente } from "./gestionFacturas/ModalGuardarCliente";
 import { sharedVentaStore } from "../sharedVentaStore";
 import { useComprobanteUnicoId } from "../../comprobantes/gestionComprobantes/UseComprobanteUnicoId";
 import { useTrabajadoresSucursal } from "../../trabajadores/gestionTrabajadores/useTrabajadoresSucursal";
-import { UserCircle } from "lucide-react";
+import { UserCircle, Car } from "lucide-react";
+import { ModalItemsMonitoreo } from "@/app/components/modalEmision/Modalitemsmonitoreo";
 
 // ── Tipos afectación gratuita ────────────────────────────────
 const TIPOS_GRATUITOS = ["11", "21", "31"];
@@ -168,6 +169,8 @@ function FacturaContent() {
   const [trabajadoresPorItem, setTrabajadoresPorItem] = useState<
     Record<string, number>
   >({});
+
+  const [showModalMonitoreo, setShowModalMonitoreo] = useState(false);
 
   useEffect(() => {
     if (!trabajadorIdGlobal) return;
@@ -544,7 +547,9 @@ function FacturaContent() {
   const [showDropdownProducto, setShowDropdownProducto] = useState<boolean[]>(
     [],
   );
-  const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | null)[]>([]);
+  const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | null)[]>(
+    [],
+  );
 
   // ── ICBPER y bolsa plástica ───────────────────────────────────
   const [cantidadBolsa, setCantidadBolsa] = useState(0);
@@ -2331,6 +2336,51 @@ function FacturaContent() {
     console.log("sucursal seleccionada:", sucursal);
   }, [factura]);
 
+  const agregarItemsMonitoreo = (
+    itemsGenerados: { descripcion: string; precio: number }[],
+  ) => {
+    itemsGenerados.forEach((it) => {
+      const precioBase = parseFloat(
+        (it.precio / (1 + IGV_DEFAULT / 100)).toFixed(6),
+      );
+      const nuevaFila: DetalleLocal = {
+        item: detalles.filter((d) => !d._esIcbper).length + 1,
+        _id: crypto.randomUUID(),
+        productoId: null,
+        codigo: null,
+        descripcion: it.descripcion,
+        cantidad: 1,
+        unidadMedida: "ZZ",
+        precioUnitario: precioBase,
+        tipoAfectacionIGV: "10",
+        porcentajeIGV: IGV_DEFAULT,
+        montoIGV: parseFloat((precioBase * (IGV_DEFAULT / 100)).toFixed(2)),
+        baseIgv: precioBase,
+        codigoTipoDescuento: "00",
+        descuentoUnitario: 0,
+        descuentoTotal: 0,
+        valorVenta: precioBase,
+        precioVenta: it.precio,
+        totalVentaItem: it.precio,
+        icbper: 0,
+        factorIcbper: 0,
+        _incluirIGV: true,
+        _precioBase: precioBase,
+        _precioVentaConIGV: it.precio,
+        _precioBaseOriginal: precioBase,
+      };
+      setDetalles((prev) => [
+        ...prev.filter((d) => !d._esIcbper),
+        nuevaFila,
+        ...prev.filter((d) => d._esIcbper),
+      ]);
+      setBusquedaProducto((prev) => [...prev, it.descripcion]);
+      setShowDropdownProducto((prev) => [...prev, false]);
+      inputRefs.current = [...inputRefs.current, null];
+    });
+    setShowModalMonitoreo(false);
+  };
+
   // ── Render ───────────────────────────────────────────────────
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
@@ -3426,6 +3476,16 @@ function FacturaContent() {
                         <Plus className="w-3 h-3 mr-1" /> Agregar ítem
                       </Button>
                     )}
+                    {!porConsumo && user?.ruc == "20512134832" && (
+                      <button
+                        type="button"
+                        onClick={() => setShowModalMonitoreo(true)}
+                        disabled={sinSucursal}
+                        className={`flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                      >
+                        <Car className="w-3.5 h-3.5" /> Ítems por servicio
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -4440,6 +4500,14 @@ function FacturaContent() {
           }}
           onGuardar={guardarCliente}
           onCerrar={() => setShowModalCliente(false)}
+        />
+      )}
+
+      {showModalMonitoreo && (
+        <ModalItemsMonitoreo
+          igvPorcentaje={IGV_DEFAULT}
+          onGuardar={agregarItemsMonitoreo}
+          onCerrar={() => setShowModalMonitoreo(false)}
         />
       )}
     </div>
