@@ -2118,6 +2118,15 @@ function BoletaContent() {
       const precioBase = parseFloat(
         (it.precio / (1 + IGV_DEFAULT / 100)).toFixed(6),
       );
+      const calc = calcularDetalle(
+        precioBase,
+        it.precio,
+        1,
+        IGV_DEFAULT,
+        "10",
+        "01", // codigoDescuento "01" — no afecta base, calcula desde totalVentaItem
+        0,
+      );
       const nuevaFila: DetalleLocal = {
         item: detalles.filter((d) => !d._esIcbper).length + 1,
         _id: crypto.randomUUID(),
@@ -2126,23 +2135,17 @@ function BoletaContent() {
         descripcion: it.descripcion,
         cantidad: 1,
         unidadMedida: "ZZ",
-        precioUnitario: precioBase,
         tipoAfectacionIGV: "10",
         porcentajeIGV: IGV_DEFAULT,
-        montoIGV: parseFloat((precioBase * (IGV_DEFAULT / 100)).toFixed(2)),
-        baseIgv: precioBase,
-        codigoTipoDescuento: "00",
+        codigoTipoDescuento: "01",
         descuentoUnitario: 0,
-        descuentoTotal: 0,
-        valorVenta: precioBase,
-        precioVenta: it.precio,
-        totalVentaItem: it.precio,
         icbper: 0,
         factorIcbper: 0,
         _incluirIGV: true,
         _precioBase: precioBase,
         _precioVentaConIGV: it.precio,
         _precioBaseOriginal: precioBase,
+        ...calc, // incluye: precioUnitario, precioVenta, baseIgv, montoIGV, totalVentaItem, valorVenta, descuentoTotal
       };
       setDetalles((prev) => [
         ...prev.filter((d) => !d._esIcbper),
