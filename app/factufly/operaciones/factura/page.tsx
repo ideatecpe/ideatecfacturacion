@@ -1041,11 +1041,14 @@ function FacturaContent() {
     if (codigoTipoDescGlobal === "02" && descuentoGlobal > 0) {
       const porcentaje =
         detalles.find((d) => d.tipoAfectacionIGV === "10")?.porcentajeIGV ?? 18;
-      const descuentoBaseGlobal = descuentoGlobal / (1 + porcentaje / 100);
+      const descuentoBaseGlobal = parseFloat((descuentoGlobal / (1 + porcentaje / 100)).toFixed(2));
+      const descuentoIgvGlobal = parseFloat((descuentoGlobal - descuentoBaseGlobal).toFixed(2));
       gravadas = parseFloat(
         Math.max(0, gravadas_bruto - descuentoBaseGlobal).toFixed(2),
       );
-      igv = parseFloat(((gravadas * porcentaje) / 100).toFixed(2));
+      igv = parseFloat(
+        Math.max(0, igv_bruto - descuentoIgvGlobal).toFixed(2),
+      );
     }
     if (codigoTipoDescGlobal === "03" && descuentoGlobal > 0) {
       descGlobalEnTotales = descuentoGlobal;
