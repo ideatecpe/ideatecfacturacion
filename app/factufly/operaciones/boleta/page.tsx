@@ -3007,21 +3007,25 @@ function BoletaContent() {
                     </label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <label
-                      className={`flex items-center gap-1.5 select-none ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={porConsumo}
-                        onChange={(e) => {
-                          if (sinSucursal) return;
-                          setPorConsumo(e.target.checked);
-                        }}
-                        disabled={sinSucursal}
-                        className="w-3.5 h-3.5 accent-brand-blue"
-                      />
-                      <span className="text-xs text-gray-500">Por Consumo</span>
-                    </label>
+                    {user?.ruc !== "20512134832" && (
+                      <label
+                        className={`flex items-center gap-1.5 select-none ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={porConsumo}
+                          onChange={(e) => {
+                            if (sinSucursal) return;
+                            setPorConsumo(e.target.checked);
+                          }}
+                          disabled={sinSucursal}
+                          className="w-3.5 h-3.5 accent-brand-blue"
+                        />
+                        <span className="text-xs text-gray-500">
+                          Por Consumo
+                        </span>
+                      </label>
+                    )}
                     {!porConsumo && (
                       <Button
                         type="button"

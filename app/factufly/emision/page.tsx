@@ -516,7 +516,9 @@ export default function EmisionRapidaPage({
   const [showDropdownProducto, setShowDropdownProducto] = useState<boolean[]>(
     [],
   );
-  const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | null)[]>([]);
+  const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | null)[]>(
+    [],
+  );
 
   // guard: skip porConsumo else-branch on first render
   const porConsumoMountedRef = useRef(false);
@@ -581,9 +583,13 @@ export default function EmisionRapidaPage({
     );
   }, [tipoMoneda]);
 
-  const agregarItemsMonitoreo = (itemsGenerados: { descripcion: string; precio: number }[]) => {
+  const agregarItemsMonitoreo = (
+    itemsGenerados: { descripcion: string; precio: number }[],
+  ) => {
     itemsGenerados.forEach((it) => {
-      const precioBase = parseFloat((it.precio / (1 + IGV_DEFAULT / 100)).toFixed(6));
+      const precioBase = parseFloat(
+        (it.precio / (1 + IGV_DEFAULT / 100)).toFixed(6),
+      );
       const nuevo: ItemRapido = {
         id: crypto.randomUUID(),
         descripcion: it.descripcion,
@@ -596,7 +602,11 @@ export default function EmisionRapidaPage({
         unidadMedida: "ZZ",
         codigo: null,
       };
-      setItems((prev) => [...prev.filter((i) => !i._esIcbper), nuevo, ...prev.filter((i) => i._esIcbper)]);
+      setItems((prev) => [
+        ...prev.filter((i) => !i._esIcbper),
+        nuevo,
+        ...prev.filter((i) => i._esIcbper),
+      ]);
       setBusquedaProducto((prev) => [...prev, it.descripcion]);
       setShowDropdownProducto((prev) => [...prev, false]);
       inputRefs.current = [...inputRefs.current, null];
@@ -1913,21 +1923,23 @@ export default function EmisionRapidaPage({
               </div>
               <div className="flex items-center gap-2">
                 {/* Checkbox por consumo */}
-                <label
-                  className={`flex items-center gap-1.5 select-none ml-2 ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={porConsumo}
-                    onChange={(e) => {
-                      if (sinSucursal) return;
-                      setPorConsumo(e.target.checked);
-                    }}
-                    disabled={sinSucursal}
-                    className="w-3.5 h-3.5 accent-brand-blue"
-                  />
-                  <span className="text-xs text-gray-500">Por Consumo</span>
-                </label>
+                {user?.ruc !== "20512134832" && (
+                  <label
+                    className={`flex items-center gap-1.5 select-none ml-2 ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={porConsumo}
+                      onChange={(e) => {
+                        if (sinSucursal) return;
+                        setPorConsumo(e.target.checked);
+                      }}
+                      disabled={sinSucursal}
+                      className="w-3.5 h-3.5 accent-brand-blue"
+                    />
+                    <span className="text-xs text-gray-500">Por Consumo</span>
+                  </label>
+                )}
                 {!porConsumo && (
                   <button
                     type="button"
