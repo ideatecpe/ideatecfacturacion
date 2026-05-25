@@ -4108,12 +4108,13 @@ function FacturaContent() {
                       <span className="text-sm text-gray-500">
                         Desc. Global:
                       </span>
+                      {/* Select oculto según requerimiento de usar solo "02" */}
                       <select
                         value={codigoTipoDescGlobal}
                         onChange={(e) =>
                           setCodigoTipoDescGlobal(e.target.value)
                         }
-                        className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                        className="hidden"
                       >
                         <option value="02">02 - Afecta base gravada</option>
                         <option value="03">03 - No afecta base</option>
