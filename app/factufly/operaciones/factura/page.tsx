@@ -1039,17 +1039,13 @@ function FacturaContent() {
     let descGlobalEnTotales = 0;
 
     if (codigoTipoDescGlobal === "02" && descuentoGlobal > 0) {
+      const porcentaje =
+        detalles.find((d) => d.tipoAfectacionIGV === "10")?.porcentajeIGV ?? 18;
+      const descuentoBaseGlobal = descuentoGlobal / (1 + porcentaje / 100);
       gravadas = parseFloat(
-        Math.max(0, gravadas_bruto - descuentoGlobal).toFixed(2),
+        Math.max(0, gravadas_bruto - descuentoBaseGlobal).toFixed(2),
       );
-      igv = parseFloat(
-        (
-          (gravadas *
-            (detalles.find((d) => d.tipoAfectacionIGV === "10")
-              ?.porcentajeIGV ?? 18)) /
-          100
-        ).toFixed(2),
-      );
+      igv = parseFloat(((gravadas * porcentaje) / 100).toFixed(2));
     }
     if (codigoTipoDescGlobal === "03" && descuentoGlobal > 0) {
       descGlobalEnTotales = descuentoGlobal;
@@ -1318,10 +1314,7 @@ function FacturaContent() {
       if (tipoAfectacion === "10") {
         if (codigoDescuento === "00") {
           precioVenta = parseFloat(
-            (
-              (precioBase - descuentoUnitario) *
-              (1 + porcentajeIGV / 100)
-            ).toFixed(2),
+            (precioVentaConIGV - descuentoUnitario).toFixed(2),
           );
           totalVentaItem = parseFloat((precioVenta * cantidad).toFixed(2));
           montoIGV = parseFloat(
@@ -1332,8 +1325,11 @@ function FacturaContent() {
           );
           baseIgv = parseFloat((totalVentaItem - montoIGV).toFixed(2));
           valorVenta = baseIgv;
+          const descBase = parseFloat(
+            (descuentoUnitario / (1 + porcentajeIGV / 100)).toFixed(6),
+          );
           descuentoTotal = parseFloat(
-            (descuentoUnitario * cantidad).toFixed(2),
+            (descBase * cantidad).toFixed(2),
           );
         } else {
           totalVentaItem = parseFloat(
@@ -1356,10 +1352,10 @@ function FacturaContent() {
         }
       } else {
         if (codigoDescuento === "00") {
-          baseIgv = parseFloat(
-            ((precioBase - descuentoUnitario) * cantidad).toFixed(2),
+          precioVenta = parseFloat(
+            (precioVentaConIGV - descuentoUnitario).toFixed(2),
           );
-          precioVenta = parseFloat((precioBase - descuentoUnitario).toFixed(2));
+          baseIgv = parseFloat((precioVenta * cantidad).toFixed(2));
           totalVentaItem = parseFloat(baseIgv.toFixed(2));
           descuentoTotal = parseFloat(
             (descuentoUnitario * cantidad).toFixed(2),
@@ -2349,7 +2345,7 @@ function FacturaContent() {
         1,
         IGV_DEFAULT,
         "10",
-        "01", // codigoDescuento "01" — no afecta base, calcula desde totalVentaItem
+        "00",
         0,
       );
       const nuevaFila: DetalleLocal = {
@@ -2362,7 +2358,7 @@ function FacturaContent() {
         unidadMedida: "ZZ",
         tipoAfectacionIGV: "10",
         porcentajeIGV: IGV_DEFAULT,
-        codigoTipoDescuento: "01",
+        codigoTipoDescuento: "00",
         descuentoUnitario: 0,
         icbper: 0,
         factorIcbper: 0,
@@ -3530,14 +3526,11 @@ function FacturaContent() {
                         <th className="px-2 py-2 text-center text-gray-500 w-16">
                           %IGV
                         </th>
-                        <th className="px-2 py-2 text-center text-gray-500 w-16">
-                          T.Desc
-                        </th>
                         <th className="px-2 py-2 text-right text-gray-500 w-18">
                           Desc.Unit
                         </th>
                         <th className="px-2 py-2 text-right text-gray-500 w-18">
-                          P.Final
+                          Sub Total
                         </th>
                         <th className="px-2 py-2 text-right text-gray-500 w-18">
                           Total
@@ -3878,44 +3871,8 @@ function FacturaContent() {
                                 )}
                               </td>
 
-                              {/* T.Desc */}
-                              <td className="px-2 py-1.5">
-                                <div className="relative w-full">
-                                  <select
-                                    value={d.codigoTipoDescuento ?? "01"}
-                                    onChange={(e) =>
-                                      actualizarCodigoDescuento(
-                                        i,
-                                        e.target.value,
-                                      )
-                                    }
-                                    disabled={!!d._esIcbper || esPorConsumo}
-                                    style={{ color: "transparent" }}
-                                    className={`w-full py-1 pl-1 pr-4 border rounded-lg text-xs outline-none focus:border-brand-blue appearance-none ${
-                                      d._esIcbper || esPorConsumo
-                                        ? "bg-gray-100 border-gray-100 cursor-not-allowed"
-                                        : "bg-gray-50 border-gray-200"
-                                    }`}
-                                  >
-                                    <option
-                                      style={{ color: "#374151" }}
-                                      value="00"
-                                    >
-                                      00 - Afecta base
-                                    </option>
-                                    <option
-                                      style={{ color: "#374151" }}
-                                      value="01"
-                                    >
-                                      01 - No afecta base
-                                    </option>
-                                  </select>
-                                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-mono text-gray-700">
-                                    {d.codigoTipoDescuento ?? "01"}
-                                  </span>
-                                </div>
-                              </td>
-
+                              {/* T.Desc removido visualmente */}
+                              
                               {/* Descuento unitario */}
                               <td className="px-2 py-1.5">
                                 <input
@@ -3937,14 +3894,14 @@ function FacturaContent() {
                                 />
                               </td>
 
-                              {/* Precio final */}
+                              {/* Sub Total */}
                               <td className="px-2 py-1.5 text-right font-mono text-gray-700 text-xs">
                                 {esGratuito ? (
                                   <span className="text-green-500 text-[10px]">
                                     GRATUITO
                                   </span>
                                 ) : (
-                                  (d.precioVenta ?? 0).toFixed(2)
+                                  (d.baseIgv ?? 0).toFixed(2)
                                 )}
                               </td>
 
