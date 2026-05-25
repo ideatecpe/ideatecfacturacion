@@ -2111,7 +2111,7 @@ function BoletaContent() {
     detalles.filter((d) => !d._esIcbper).length > 0;
 
   const agregarItemsMonitoreo = (
-    itemsGenerados: { descripcion: string; precio: number }[],
+    itemsGenerados: { descripcion: string; precio: number; tipo: "servicio" | "bien" }[],
   ) => {
     itemsGenerados.forEach((it) => {
       const precioBase = parseFloat(
@@ -2133,7 +2133,7 @@ function BoletaContent() {
         codigo: null,
         descripcion: it.descripcion,
         cantidad: 1,
-        unidadMedida: "ZZ",
+        unidadMedida: it.tipo === "bien" ? "NIU" : "ZZ",
         tipoAfectacionIGV: "10",
         porcentajeIGV: IGV_DEFAULT,
         codigoTipoDescuento: "00",

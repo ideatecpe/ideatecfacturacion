@@ -5,18 +5,24 @@ import { X, Plus, Trash2, Car, Save, AlertCircle } from "lucide-react";
 // ── Tipos ──────────────────────────────────────────────────────
 type Periodo = "mensual" | "trimestral" | "semestral" | "anual";
 
+type TipoItem = "servicio" | "bien";
+
 interface FilaMonitoreo {
   id: string;
+  tipo: TipoItem;
   periodo: Periodo;
   desde: string;
   hasta: string;
   placa: string;
   precio: number;
+  marca?: string;
+  modelo?: string;
 }
 
 interface ItemGenerado {
   descripcion: string;
   precio: number;
+  tipo: TipoItem;
 }
 
 interface Props {
@@ -71,11 +77,14 @@ const nuevaFila = (): FilaMonitoreo => {
   const desdeStr = toInputDate(hoy());
   return {
     id: crypto.randomUUID(),
+    tipo: "servicio",
     periodo: "mensual",
     desde: desdeStr,
     hasta: calcHasta(desdeStr, "mensual"),
     placa: "",
     precio: 0,
+    marca: "",
+    modelo: "",
   };
 };
 
@@ -132,14 +141,36 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
       return;
     }
 
-    const items: ItemGenerado[] = filas.map((f) => ({
-      descripcion: `Servicio de monitoreo ${PERIODO_LABEL[f.periodo]}, desde ${formatFechaDisplay(f.desde)} al ${formatFechaDisplay(f.hasta)}, placa: ${f.placa.trim().toUpperCase()}`,
-      precio: f.precio,
-    }));
+    const items: ItemGenerado[] = filas.map((f) => {
+      let descBien = `Venta de equipo GPS`;
+      if (f.marca?.trim()) descBien += ` marca ${f.marca.trim().toUpperCase()}`;
+      if (f.modelo?.trim()) descBien += ` modelo ${f.modelo.trim().toUpperCase()}`;
+      
+      const placaOImei = f.placa.trim().toUpperCase();
+      const esImei = /^\d{10,}$/.test(placaOImei); // Si tiene 10 o más dígitos puros, asumimos que es un IMEI
+
+      if (esImei) {
+        descBien += ` con imei ${placaOImei}`;
+      } else {
+        descBien += ` para la unidad ${placaOImei}`;
+      }
+
+      return {
+        descripcion: f.tipo === "servicio"
+          ? `Servicio de monitoreo ${PERIODO_LABEL[f.periodo]}, desde ${formatFechaDisplay(f.desde)} al ${formatFechaDisplay(f.hasta)}, placa: ${placaOImei}`
+          : descBien,
+        precio: f.precio,
+        tipo: f.tipo,
+      };
+    });
     onGuardar(items);
   };
 
+
   // ── Render ─────────────────────────────────────────────────
+  const tieneServicios = filas.some((f) => f.tipo === "servicio");
+  const tieneBienes = filas.some((f) => f.tipo === "bien");
+
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col border border-gray-100 overflow-hidden">
@@ -170,11 +201,13 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="px-3 py-3 text-left text-gray-400 font-semibold w-8">#</th>
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-48">Servicio</th>
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Periodo</th>
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Desde</th>
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Hasta</th>
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Placa</th>
+                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-32">Tipo</th>
+                  {tieneServicios && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Periodo</th>}
+                  {tieneServicios && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Desde</th>}
+                  {tieneServicios && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Hasta</th>}
+                  {tieneBienes && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Marca</th>}
+                  {tieneBienes && <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Modelo</th>}
+                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Placa / IMEI</th>
                   <th className="px-2 py-2 text-left text-gray-400 font-semibold w-32">Precio (S/)</th>
                   <th className="px-3 py-3 w-8"></th>
                 </tr>
@@ -188,56 +221,112 @@ export function ModalItemsVelsat({ igvPorcentaje = 18, onGuardar, onCerrar }: Pr
                       {String(i + 1).padStart(2, "0")}
                     </td>
 
-                    {/* Servicio — texto fijo */}
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-blue-700 font-medium text-[10px] leading-tight">
-                        <Car className="w-3 h-3 shrink-0" />
-                        Servicio de monitoreo
-                      </span>
-                    </td>
-
-                    {/* Periodo */}
+                    {/* Tipo */}
                     <td className="px-3 py-3">
                       <select
-                        value={fila.periodo}
-                        onChange={(e) => actualizar(fila.id, "periodo", e.target.value as Periodo)}
+                        value={fila.tipo}
+                        onChange={(e) => actualizar(fila.id, "tipo", e.target.value as TipoItem)}
                         className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
                       >
-                        <option value="mensual">Mensual</option>
-                        <option value="trimestral">Trimestral</option>
-                        <option value="semestral">Semestral</option>
-                        <option value="anual">Anual</option>
+                        <option value="servicio">Servicio (Monitoreo)</option>
+                        <option value="bien">Bien (GPS)</option>
                       </select>
                     </td>
 
+                    {/* Periodo */}
+                    {tieneServicios && (
+                      <td className="px-3 py-3">
+                        {fila.tipo === "servicio" ? (
+                          <select
+                            value={fila.periodo}
+                            onChange={(e) => actualizar(fila.id, "periodo", e.target.value as Periodo)}
+                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
+                          >
+                            <option value="mensual">Mensual</option>
+                            <option value="trimestral">Trimestral</option>
+                            <option value="semestral">Semestral</option>
+                            <option value="anual">Anual</option>
+                          </select>
+                        ) : (
+                          <span className="text-gray-300 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+
                     {/* Desde */}
-                    <td className="px-3 py-3">
-                      <input
-                        type="date"
-                        value={fila.desde}
-                        onChange={(e) => actualizar(fila.id, "desde", e.target.value)}
-                        className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
-                      />
-                    </td>
+                    {tieneServicios && (
+                      <td className="px-3 py-3">
+                        {fila.tipo === "servicio" ? (
+                          <input
+                            type="date"
+                            value={fila.desde}
+                            onChange={(e) => actualizar(fila.id, "desde", e.target.value)}
+                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
+                          />
+                        ) : (
+                          <span className="text-gray-300 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
 
                     {/* Hasta — solo lectura */}
-                    <td className="px-3 py-3">
-                    <input
-                        type="date"
-                        value={fila.hasta}
-                        onChange={(e) => actualizar(fila.id, "hasta", e.target.value)}
-                        className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
-                    />
-                    </td>
+                    {tieneServicios && (
+                      <td className="px-3 py-3">
+                        {fila.tipo === "servicio" ? (
+                          <input
+                              type="date"
+                              value={fila.hasta}
+                              disabled
+                              className="w-full py-1.5 px-2 bg-gray-100 border border-gray-200 rounded-lg text-xs outline-none opacity-70"
+                          />
+                        ) : (
+                          <span className="text-gray-300 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
 
-                    {/* Placa */}
+                    {/* Marca */}
+                    {tieneBienes && (
+                      <td className="px-3 py-3">
+                        {fila.tipo === "bien" ? (
+                          <input
+                            type="text"
+                            placeholder="Ej. RUPTELA"
+                            value={fila.marca || ""}
+                            onChange={(e) => actualizar(fila.id, "marca", e.target.value)}
+                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
+                          />
+                        ) : (
+                          <span className="text-gray-300 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Modelo */}
+                    {tieneBienes && (
+                      <td className="px-3 py-3">
+                        {fila.tipo === "bien" ? (
+                          <input
+                            type="text"
+                            placeholder="Ej. ECO4"
+                            value={fila.modelo || ""}
+                            onChange={(e) => actualizar(fila.id, "modelo", e.target.value)}
+                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
+                          />
+                        ) : (
+                          <span className="text-gray-300 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* Placa / IMEI */}
                       <td className="px-2 py-2">
                         <div className="relative">
                           <input
                             type="text"
                             value={fila.placa}
                             onChange={(e) => actualizar(fila.id, "placa", e.target.value)}
-                            placeholder="ABC-123"
+                            placeholder="Ej. ABC-123 o 12345..."
                             className={`w-full py-1.5 px-2 bg-gray-50 border rounded-lg text-xs outline-none focus:ring-1 transition-all uppercase placeholder:normal-case
                               ${errores[`${fila.id}-placa`]
                                 ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100"

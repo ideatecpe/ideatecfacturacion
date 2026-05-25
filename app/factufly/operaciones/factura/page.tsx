@@ -2336,7 +2336,7 @@ function FacturaContent() {
   }, [factura]);
 
   const agregarItemsMonitoreo = (
-    itemsGenerados: { descripcion: string; precio: number }[],
+    itemsGenerados: { descripcion: string; precio: number; tipo: "servicio" | "bien" }[],
   ) => {
     itemsGenerados.forEach((it) => {
       const precioBase = parseFloat(
@@ -2358,7 +2358,7 @@ function FacturaContent() {
         codigo: null,
         descripcion: it.descripcion,
         cantidad: 1,
-        unidadMedida: "ZZ",
+        unidadMedida: it.tipo === "bien" ? "NIU" : "ZZ",
         tipoAfectacionIGV: "10",
         porcentajeIGV: IGV_DEFAULT,
         codigoTipoDescuento: "00",
