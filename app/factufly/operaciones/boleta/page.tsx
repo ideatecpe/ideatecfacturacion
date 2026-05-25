@@ -3175,6 +3175,8 @@ function BoletaContent() {
                                   onBlur={(e) => {
                                     const target = e.target;
                                     const blurredIndex = i;
+                                    // Resetear height inline para que la clase h-6 tome efecto
+                                    target.style.height = "";
                                     setTimeout(() => {
                                       // Solo limpiar el foco si no se movió ya a otro ítem
                                       if (focusedItemIndexRef.current === blurredIndex) {
@@ -3210,7 +3212,7 @@ function BoletaContent() {
                                   className={`w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-[border-color,box-shadow] duration-200 ${
                                     focusedItemIndex === i
                                       ? "overflow-y-hidden whitespace-pre-wrap"
-                                      : "h-8 overflow-hidden whitespace-nowrap text-ellipsis"
+                                      : "h-6 overflow-hidden whitespace-nowrap text-ellipsis"
                                   }`}
                                 />
                                 {showDropdownProducto[i] &&
