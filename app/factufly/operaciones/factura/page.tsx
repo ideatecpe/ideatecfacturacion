@@ -3489,7 +3489,7 @@ function FacturaContent() {
                         disabled={sinSucursal}
                         className={`flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
                       >
-                        <Car className="w-3.5 h-3.5" /> Ítems por servicio
+                        <Car className="w-3.5 h-3.5" /> Ítems por defecto
                       </button>
                     )}
                   </div>
