@@ -34,6 +34,7 @@ import { cn } from "@/app/utils/cn";
 import { ModalGuardarClienteBoleta } from "../operaciones/boleta/gestionBoletas/Modalguardarclienteboleta";
 import { useTrabajadoresSucursal } from "../trabajadores/gestionTrabajadores/useTrabajadoresSucursal";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
+import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 
 // ── Tipos ──────────────────────────────────────────────────────
 type TipoComprobante = "boleta" | "factura";
@@ -503,9 +504,32 @@ export default function EmisionRapidaPage({
 
   // ── Moneda ─────────────────────────────────────────────────
   const [tipoMoneda, setTipoMoneda] = useState("PEN");
-  const [tipoCambio] = useState(3.75);
+  const [tipoCambio, setTipoCambio] = useState(3.75);
+  const [cargandoTipoCambio, setCargandoTipoCambio] = useState(false);
   const simbolo = tipoMoneda === "USD" ? "$" : "S/";
   const monedaAnteriorRef = useRef("PEN");
+
+  useEffect(() => {
+    let cancelado = false;
+    const fechaConsulta = formatoFechaActual().fecha;
+
+    const cargarTipoCambio = async () => {
+      setCargandoTipoCambio(true);
+      try {
+        const venta = await obtenerTipoCambioVenta(fechaConsulta);
+        if (!cancelado) setTipoCambio(venta);
+      } catch (error) {
+        console.warn("No se pudo obtener el tipo de cambio JSON.PE", error);
+      } finally {
+        if (!cancelado) setCargandoTipoCambio(false);
+      }
+    };
+
+    cargarTipoCambio();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   // ── Medio de pago ──────────────────────────────────────────
   const [medioPago, setMedioPago] = useState("Efectivo");
@@ -581,7 +605,7 @@ export default function EmisionRapidaPage({
         return { ...item, precioUnitario: pb, precioVentaConIGV: pv };
       }),
     );
-  }, [tipoMoneda]);
+  }, [items.length, tipoCambio, tipoMoneda]);
 
   const agregarItemsMonitoreo = (
     itemsGenerados: { descripcion: string; precio: number }[],
@@ -2462,7 +2486,7 @@ export default function EmisionRapidaPage({
                 >
                   <option value="PEN">PEN — Soles</option>
                   <option value="USD">
-                    USD — Dólares ({tipoCambio.toFixed(2)})
+                    USD — Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})
                   </option>
                 </select>
               </div>

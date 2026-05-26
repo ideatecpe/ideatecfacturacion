@@ -166,7 +166,7 @@ export default function AgregarProducto({
     (field: keyof NuevoProducto) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const target = e.target as HTMLInputElement;
-      let value: string | number | boolean =
+      const value: string | number | boolean =
         target.type === "checkbox"
           ? target.checked
           : target.type === "number"
@@ -183,9 +183,11 @@ export default function AgregarProducto({
         return;
       }
       if (field === "tipoProducto") {
+        const tipoProducto = value as string;
         setForm((prev) => ({
           ...prev,
-          tipoProducto: value as string,
+          tipoProducto,
+          unidadMedida: tipoProducto === "SERVICIO" ? "ZZ" : "NIU",
         }));
         return;
       }
@@ -256,7 +258,7 @@ export default function AgregarProducto({
   const soloSucursal = !!productoExistente;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Registrar Nuevo Producto">
+    <Modal isOpen={isOpen} onClose={onClose} title="Registrar nuevo producto / servicio">
       <form className="space-y-4" onSubmit={handleGuardar}>
         {/* ── Selector sucursal (solo superAdmin) ── */}
         {isSuperAdmin && (
@@ -288,6 +290,22 @@ export default function AgregarProducto({
                 Debe seleccionar una sucursal
               </p>
             )}
+          </div>
+        )}
+
+        {!soloSucursal && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">
+              Tipo Producto
+            </label>
+            <select
+              value={form.tipoProducto}
+              onChange={handleFormChange("tipoProducto")}
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+            >
+              <option value="BIEN">Bien</option>
+              <option value="SERVICIO">Servicio</option>
+            </select>
           </div>
         )}
 
@@ -324,21 +342,7 @@ export default function AgregarProducto({
         {/* ── Campos base ── */}
         {!soloSucursal && (
           <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-500 uppercase">
-                  Tipo Producto
-                </label>
-                <select
-                  value={form.tipoProducto}
-                  onChange={handleFormChange("tipoProducto")}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
-                >
-                  <option value="BIEN">Bien</option>
-                  <option value="SERVICIO">Servicio</option>
-                </select>
-              </div>
-
+            <div className="grid grid-cols-1 gap-4">
               {/* ── Categoría con error ── */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
