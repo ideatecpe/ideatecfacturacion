@@ -433,8 +433,16 @@ export default function AgregarProducto({
                   className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
                 >
                   <option value="NIU">NIU - Unidad</option>
+                  <option value="ZZ">ZZ - Servicio</option>
                   <option value="KGM">KGM - Kilogramo</option>
+                  <option value="GRM">GRM - Gramo</option>
+                  <option value="TNE">TNE - Tonelada métrica</option>
                   <option value="LTR">LTR - Litro</option>
+                  <option value="MLT">MLT - Mililitro</option>
+                  <option value="MTR">MTR - Metro</option>
+                  <option value="MTK">MTK - Metro cuadrado</option>
+                  <option value="MTQ">MTQ - Metro cúbico</option>
+                  <option value="BX">BX - Caja</option>
                 </select>
               </div>
             </div>
