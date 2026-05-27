@@ -8,6 +8,8 @@ export const consultaRuc = async (ruc: string) => {
     body: JSON.stringify({ ruc }),
   });
 
+  if (!res.ok) return null;
+
   const data = await res.json();
 
   if (!data.success || !data.data) return null;

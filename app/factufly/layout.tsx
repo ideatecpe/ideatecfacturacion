@@ -15,6 +15,7 @@ import {
   Truck,
   DollarSign,
   Wallet,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
@@ -79,13 +80,14 @@ export default function DashboardLayout({
       try {
         const response = await originalFetch(...args);
         if (!response.ok) {
-          console.error(`❌ [FETCH ERR] ${response.status} ${url}`);
+          // Usar warn (no error) para que Next.js no muestre el overlay en dev
+          console.warn(`⚠️ [FETCH ${response.status}] ${method} ${url}`);
         } else {
           console.log(`✅ [FETCH RES] ${response.status} ${url}`);
         }
         return response;
       } catch (error) {
-        console.error(`❌ [FETCH FAIL] ${url}`, error);
+        console.warn(`❌ [FETCH FAIL] ${url}`, error);
         throw error;
       }
     };
@@ -98,10 +100,14 @@ export default function DashboardLayout({
   }, [pathname]);
 
 
+  const esUsuarioVelsat =
+    user?.username?.toLowerCase() === "velsat" || user?.ruc === "10073587382";
+
   const todosLosMenuItems: MenuItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "operaciones", label: "Emisión", icon: Grip },
     { id: "comprobantes", label: "Comprobantes", icon: FileText },
+    { id: "carga-comprobantes", label: "Carga Comprobantes", icon: FileSpreadsheet },
     { id: "guiasremision", label: "Guias de Remisión", icon: Truck },
     { id: "deudasporcobrar", label: "Deudas por Cobrar", icon: Wallet },
     { id: "cuentasporcobrar", label: "Cuentas por Cobrar", icon: DollarSign },
@@ -117,6 +123,7 @@ export default function DashboardLayout({
 
   const menuItems = todosLosMenuItems.filter((item) => {
     if (item.id === "trabajadores") return user?.ruc === "10073587382";
+    if (item.id === "carga-comprobantes") return esUsuarioVelsat;
     return true;
   });
 

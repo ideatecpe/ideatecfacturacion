@@ -8,6 +8,8 @@ export const consultaDni = async (dni: string) => {
     body: JSON.stringify({ dni }),
   });
 
+  if (!res.ok) return null;
+
   const data = await res.json();
 
   if (!data.success || !data.data) return null;
