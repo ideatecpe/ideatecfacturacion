@@ -293,7 +293,6 @@ export default function ClientesPage() {
 
   return (
   <div className="space-y-3 animate-in fade-in duration-500">
-
     {/* ── Modales ────────────────────────────────────────────────────────── */}
     {clienteCorreo && (
       <EnviarCorreoCliente
