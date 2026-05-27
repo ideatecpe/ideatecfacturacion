@@ -20,6 +20,7 @@ import { DropdownFiltro } from '@/app/components/ui/DropdownFiltro';
 import { useClientesRuc } from './gestionClientes/useClientesRuc';
 import { useClientesSucursal } from './gestionClientes/useClientesSucursal';
 import { useSucursalRuc } from '../operaciones/boleta/gestionBoletas/useSucursalRuc';
+import RellenoMasivoRuc from './gestionClientes/RellenoMasivoRuc';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const formatDireccion = (direcciones: Direccion[], tipoDocumentoId: string): string => {
@@ -293,7 +294,8 @@ export default function ClientesPage() {
 
   return (
   <div className="space-y-3 animate-in fade-in duration-500">
-
+  {/* ── TEMPORAL: borrar después de usar ── */}
+        <RellenoMasivoRuc />
     {/* ── Modales ────────────────────────────────────────────────────────── */}
     {clienteCorreo && (
       <EnviarCorreoCliente
