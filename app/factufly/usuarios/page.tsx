@@ -602,7 +602,7 @@ export default function UsuariosPage() {
             </div>
           )}
           {/* Usuario */}
-          // Busca el campo "Usuario" en el modal y reemplázalo por esto:
+         
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-500 uppercase">
               Usuario

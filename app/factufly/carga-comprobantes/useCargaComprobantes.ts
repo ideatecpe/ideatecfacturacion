@@ -181,6 +181,11 @@ export function useCargaComprobantes() {
     persistirFilas([...filas, nueva]);
   };
 
+  // ── Eliminar fila ──
+  const eliminarFila = (id: string) => {
+    persistirFilas(filas.filter((f) => f.id !== id));
+  };
+
   // ── Limpiar carga ──
   const limpiarCarga = () => {
     setFilas([]);
@@ -456,6 +461,10 @@ export function useCargaComprobantes() {
 
   // ── Emitir → POST /api/Comprobantes/GenerarMasivo ──
   const emitir = async () => {
+    if (tabActiva === "todos") {
+      showToast("Selecciona un período específico antes de emitir", "error");
+      return;
+    }
     if (!filasFiltradas.length || !gruposFiltrados.length) {
       showToast("Carga una plantilla antes de emitir", "error");
       return;
@@ -665,6 +674,7 @@ export function useCargaComprobantes() {
     descargarPlantilla,
     actualizarFila,
     agregarFila,
+    eliminarFila,
     emitir,
     limpiarCarga,
     togglePeriodo,

@@ -12,6 +12,8 @@ import {
   Building2,
   Plus,
   Check,
+  FileText,
+  DollarSign,
 } from "lucide-react";
 import { Modal }    from "@/app/components/ui/Modal";
 import { Button }   from "@/app/components/ui/Button";
@@ -26,9 +28,11 @@ import {
   generarConcepto,
   toLocalIso,
   validarFila,
+  calcItemVelsat,
+  periodoLabel,
 } from "./helpers";
 
-// ─── Opciones de período disponibles ─────────────────────────────────────────
+// ─── Opciones de período predefinidas ────────────────────────────────────────
 
 const PERIODO_OPTS = [
   { value: "1/2", key: "quincenal"  },
@@ -124,6 +128,23 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
   const errores  = intentoGuardar ? validarFila({ ...form, id: "" }) : {} as Record<string, string>;
   const hayError = Object.keys(validarFila({ ...form, id: "" })).length > 0;
 
+  // Desglose IGV
+  const calcIgv  = form.importe > 0 ? calcItemVelsat(form.importe, 18) : null;
+  const simbolo  = form.moneda === "USD" ? "$" : "S/";
+
+  // Preview del período personalizado
+  const periodoPreview = (() => {
+    if (!form.periodo) return "";
+    const limpio = form.periodo.trim().toLowerCase();
+    if (limpio.endsWith("d")) {
+      const n = Number(limpio.replace(/\D/g, ""));
+      return n > 0 ? `${n} día${n !== 1 ? "s" : ""}` : "valor inválido";
+    }
+    const n = Number(limpio);
+    if (!isNaN(n) && n > 0) return periodoLabel(form.periodo);
+    return "valor inválido";
+  })();
+
   const guardar = (cerrar: boolean) => {
     setIntentoGuardar(true);
     if (hayError) {
@@ -154,8 +175,10 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
       <div className="space-y-5">
 
         {/* ── CLIENTE ──────────────────────────────────────────────────── */}
-        <section>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Cliente</p>
+        <section className="space-y-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            1 · Cliente
+          </p>
           <div className="grid grid-cols-2 gap-3">
 
             {/* numdoc */}
@@ -170,7 +193,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                   set("numdoc", e.target.value);
                   if (e.target.value !== form.numdoc) set("razonSocial", "");
                 }}
-                placeholder="DNI (8) o RUC (11)"
+                placeholder="DNI (8 dígitos) o RUC (11 dígitos)"
                 maxLength={11}
                 className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${
                   errores.numdoc
@@ -189,7 +212,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
               {consultando ? (
                 <div className="flex items-center gap-2 px-3 py-2 border border-blue-200 bg-blue-50 rounded-lg h-[38px]">
                   <RefreshCw className="w-3.5 h-3.5 text-blue-400 animate-spin shrink-0" />
-                  <span className="text-xs text-blue-500">Consultando...</span>
+                  <span className="text-xs text-blue-500">Consultando SUNAT...</span>
                 </div>
               ) : (
                 <input
@@ -210,9 +233,9 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
             </div>
           </div>
 
-          {/* Badge tipo (aparece cuando numdoc tiene longitud válida) */}
+          {/* Badge tipo comprobante */}
           {form.numdoc.trim().replace(/\D/g, "").length >= 8 && (
-            <div className={`mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold ${
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold ${
               tipo === "B"
                 ? "bg-blue-50 border-blue-200 text-blue-700"
                 : "bg-emerald-50 border-emerald-200 text-emerald-700"
@@ -221,7 +244,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                 ? <User className="w-3.5 h-3.5" />
                 : <Building2 className="w-3.5 h-3.5" />
               }
-              {tipo === "B" ? "Boleta" : "Factura"}
+              Se emitirá una <strong>{tipo === "B" ? "Boleta" : "Factura"}</strong>
               <span className="font-normal text-[10px] opacity-60 ml-0.5">
                 — {tipo === "B" ? "DNI detectado" : "RUC detectado"}
               </span>
@@ -230,8 +253,10 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
         </section>
 
         {/* ── PERÍODO ──────────────────────────────────────────────────── */}
-        <section>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Período de facturación</p>
+        <section className="space-y-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            2 · Período de facturación
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {PERIODO_OPTS.map(({ value, key }) => {
               const cfg    = PERIODO_CFG[key];
@@ -268,38 +293,45 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
             </button>
           </div>
 
-          {/* Input para período personalizado */}
+          {/* Input período personalizado */}
           {periodoCustom && (
-            <div className="mt-2.5 flex items-center gap-2">
-              <input
-                type="text"
-                value={form.periodo}
-                onChange={(e) => set("periodo", e.target.value)}
-                placeholder="ej: 4  →  4 meses   |   17d  →  17 días"
-                autoFocus
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-gray-700 focus:ring-2 focus:ring-gray-100 transition-all"
-              />
-              {form.periodo && (
-                <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-1.5 rounded-lg font-medium whitespace-nowrap">
-                  {form.periodo.toLowerCase().endsWith("d")
-                    ? `${form.periodo.replace(/\D/g, "")} días`
-                    : Number(form.periodo) > 0
-                      ? `${form.periodo} mes${Number(form.periodo) !== 1 ? "es" : ""}`
-                      : "valor inválido"}
-                </span>
-              )}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={form.periodo}
+                  onChange={(e) => set("periodo", e.target.value)}
+                  placeholder="Ej: 4 → cuatrimestral   |   17d → 17 días"
+                  autoFocus
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-gray-700 focus:ring-2 focus:ring-gray-100 transition-all"
+                />
+                {periodoPreview && (
+                  <span className={`text-[10px] px-2.5 py-1.5 rounded-lg font-bold whitespace-nowrap ${
+                    periodoPreview === "valor inválido"
+                      ? "bg-red-50 text-red-500"
+                      : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {periodoPreview}
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-400 px-0.5">
+                Escribe el número de meses (ej: <strong>4</strong>, <strong>5</strong>, <strong>7</strong>) o días con "d" al final (ej: <strong>15d</strong>, <strong>45d</strong>).
+              </p>
             </div>
           )}
         </section>
 
         {/* ── FECHAS ───────────────────────────────────────────────────── */}
-        <section>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Fechas del servicio</p>
+        <section className="space-y-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            3 · Fechas del servicio
+          </p>
           <div className="grid grid-cols-2 gap-3">
 
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-gray-400" /> Inicio
+                <Calendar className="w-3 h-3 text-gray-400" /> Fecha inicio
               </label>
               <input
                 type="date"
@@ -316,8 +348,10 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
 
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-gray-400" /> Fin
-                <span className="px-1.5 py-px bg-gray-100 text-gray-400 rounded text-[9px] font-medium">auto</span>
+                <Calendar className="w-3 h-3 text-gray-400" /> Fecha fin
+                <span className="px-1.5 py-px bg-emerald-50 text-emerald-600 rounded text-[9px] font-semibold border border-emerald-100">
+                  auto
+                </span>
               </label>
               <input
                 type="date"
@@ -332,11 +366,26 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
               {errores.fechafin && <p className="text-[10px] text-red-500">{errores.fechafin}</p>}
             </div>
           </div>
+
+          {/* Vista previa del concepto generado */}
+          {form.concepto && (
+            <div className="flex items-start gap-2 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg">
+              <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide mb-0.5">
+                  Concepto que aparecerá en el comprobante
+                </p>
+                <p className="text-xs text-gray-600 italic leading-relaxed">"{form.concepto}"</p>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* ── VEHÍCULO + IMPORTE + MONEDA ──────────────────────────────── */}
-        <section>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Vehículo e importe</p>
+        <section className="space-y-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            4 · Vehículo e importe
+          </p>
           <div className="grid grid-cols-3 gap-3">
 
             {/* Placa */}
@@ -360,8 +409,10 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
 
             {/* Importe */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600">
-                Importe <span className="font-normal text-gray-400">(c/ IGV 18%)</span>
+              <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
+                <DollarSign className="w-3 h-3 text-gray-400" />
+                Importe total
+                <span className="text-[10px] font-normal text-amber-600">(inc. IGV 18%)</span>
               </label>
               <input
                 type="number"
@@ -400,24 +451,38 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
               </div>
             </div>
           </div>
+
+          {/* Desglose IGV */}
+          {calcIgv && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-[11px]">
+              <span className="text-gray-500">Base imponible:</span>
+              <span className="font-bold text-gray-700">{simbolo} {calcIgv.baseIgv.toFixed(2)}</span>
+              <span className="text-gray-300 mx-0.5">+</span>
+              <span className="text-amber-600 font-semibold">IGV 18%:</span>
+              <span className="font-bold text-amber-700">{simbolo} {calcIgv.montoIGV.toFixed(2)}</span>
+              <span className="text-gray-300 mx-0.5">=</span>
+              <span className="text-gray-500">Total:</span>
+              <span className="font-black text-gray-800">{simbolo} {calcIgv.totalVentaItem.toFixed(2)}</span>
+            </div>
+          )}
         </section>
 
         {/* ── CONTACTO (opcional) ──────────────────────────────────────── */}
-        <section>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-            Contacto{" "}
-            <span className="normal-case font-normal text-gray-400">(opcional)</span>
+        <section className="space-y-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            5 · Contacto{" "}
+            <span className="normal-case font-normal">(opcional — para envío del comprobante)</span>
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
-                <Mail className="w-3 h-3 text-gray-400" /> Correo
+                <Mail className="w-3 h-3 text-gray-400" /> Correo electrónico
               </label>
               <input
                 type="email"
                 value={form.correo}
                 onChange={(e) => set("correo", e.target.value)}
-                placeholder="cliente@email.com"
+                placeholder="cliente@correo.com"
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
               />
             </div>
@@ -451,7 +516,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
               <Plus className="w-4 h-4" /> Agregar otro
             </Button>
             <Button type="button" onClick={() => guardar(true)}>
-              <Check className="w-4 h-4" /> Guardar
+              <Check className="w-4 h-4" /> Guardar ítem
             </Button>
           </div>
         </div>
