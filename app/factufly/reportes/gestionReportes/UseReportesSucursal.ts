@@ -45,7 +45,6 @@ export const useReportesSucursal = (): UseReportesSucursalReturn => {
       })
       if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`)
       const data: ReportesData = await response.json()
-    console.log('📊 Respuesta API Reportes:', JSON.stringify(data, null, 2))  // ← aquí
       setReportes(data)
       return data
     } catch (err) {

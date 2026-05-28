@@ -46,8 +46,9 @@ export const ServiciosTop: React.FC<Props> = ({ sucursalId }) => {
   const { accessToken } = useAuth();
   const { showToast } = useToast();
 
-  const [fechaDesde, setFechaDesde] = useState("");
-  const [fechaHasta, setFechaHasta] = useState("");
+  const today = new Date().toISOString().split("T")[0];
+  const [fechaDesde, setFechaDesde] = useState(today);
+  const [fechaHasta, setFechaHasta] = useState(today);
   const [servicios, setServicios] = useState<ServicioTopDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [buscado, setBuscado] = useState(false);

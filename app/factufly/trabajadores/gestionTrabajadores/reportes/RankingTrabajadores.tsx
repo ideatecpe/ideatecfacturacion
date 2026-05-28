@@ -15,8 +15,9 @@ export const RankingTrabajadores: React.FC<Props> = ({ sucursalId }) => {
   const { accessToken } = useAuth();
   const { showToast } = useToast();
 
-  const [fechaDesde, setFechaDesde] = useState("");
-  const [fechaHasta, setFechaHasta] = useState("");
+  const today = new Date().toISOString().split("T")[0];
+  const [fechaDesde, setFechaDesde] = useState(today);
+  const [fechaHasta, setFechaHasta] = useState(today);
   const [ranking, setRanking] = useState<RankingTrabajadorDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [buscado, setBuscado] = useState(false);

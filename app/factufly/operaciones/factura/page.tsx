@@ -2331,11 +2331,6 @@ function FacturaContent() {
     correlativoActual ?? sucursal?.correlativoFactura ?? "",
   ).padStart(8, "0");
 
-  useEffect(() => {
-    console.log("factura:", factura);
-    console.log("sucursal seleccionada:", sucursal);
-  }, [factura]);
-
   const agregarItemsMonitoreo = (
     itemsGenerados: { descripcion: string; precio: number; tipo: "servicio" | "bien" }[],
   ) => {

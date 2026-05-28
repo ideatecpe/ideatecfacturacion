@@ -210,7 +210,6 @@ export default function ClientesPage() {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
       );
-      console.log("Cliente creado:", response.data);
       showToast('Cliente guardado exitosamente', 'success');
       setClientes(prev => [response.data, ...prev]);
       setNuevoCliente(nuevoClienteInicial);

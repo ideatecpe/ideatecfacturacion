@@ -23,7 +23,6 @@ import { MenuItem, View } from "../types";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 
-
 export default function DashboardLayout({
   children,
 }: {
@@ -41,51 +40,20 @@ export default function DashboardLayout({
       router.push("/factufly/dashboard");
     }
 
-    // Configurar interceptores de Axios
     const requestInterceptor = axios.interceptors.request.use((config) => {
-      console.log(`🚀 [API REQ] ${config.method?.toUpperCase()} ${config.url}`, config.data);
       return config;
     });
 
     const responseInterceptor = axios.interceptors.response.use(
-      (response) => {
-        console.log(`✅ [API RES] ${response.status} ${response.config.url}`, response.data);
-        return response;
-      },
-      (error) => {
-        console.error(`❌ [API ERR] ${error.response?.status || 'Network Error'} ${error.config?.url}`, error.response?.data || error.message);
-        return Promise.reject(error);
-      }
+      (response) => response,
+      (error) => Promise.reject(error),
     );
 
-    // Interceptor para Fetch
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
-      const url = typeof args[0] === 'string' ? args[0] : (args[0] as any).url;
-      const method = (args[1]?.method || 'GET').toUpperCase();
-      let bodyData = '';
       try {
-        if (args[1]?.body && typeof args[1].body === 'string') {
-          bodyData = JSON.parse(args[1].body);
-        } else if (args[1]?.body) {
-          bodyData = '[Non-string body]';
-        }
-      } catch (e) {
-        bodyData = args[1]?.body as any;
-      }
-      
-      console.log(`🚀 [FETCH REQ] ${method} ${url}`, bodyData);
-      
-      try {
-        const response = await originalFetch(...args);
-        if (!response.ok) {
-          console.error(`❌ [FETCH ERR] ${response.status} ${url}`);
-        } else {
-          console.log(`✅ [FETCH RES] ${response.status} ${url}`);
-        }
-        return response;
+        return await originalFetch(...args);
       } catch (error) {
-        console.error(`❌ [FETCH FAIL] ${url}`, error);
         throw error;
       }
     };
@@ -96,7 +64,6 @@ export default function DashboardLayout({
       window.fetch = originalFetch;
     };
   }, [pathname]);
-
 
   const todosLosMenuItems: MenuItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -115,8 +82,13 @@ export default function DashboardLayout({
     { id: "usuarios", label: "Usuarios", icon: UserCircle },
   ];
 
+  const RUCS_GUIAS_REMISION = ["20512134832"];
+
   const menuItems = todosLosMenuItems.filter((item) => {
     if (item.id === "trabajadores") return user?.ruc === "10073587382";
+    if (item.id === "deudasporcobrar") return user?.ruc === "20512134832";
+    if (item.id === "guiasremision")
+      return RUCS_GUIAS_REMISION.includes(user?.ruc ?? "");
     return true;
   });
 
@@ -135,7 +107,7 @@ export default function DashboardLayout({
             toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             activeView={activeView}
           />
-          <main className="flex-1 px-6  overflow-y-auto overflow-x-hidden custom-scrollbar py-2">
+          <main className="flex-1 px-6 overflow-y-auto overflow-x-hidden custom-scrollbar py-2">
             <div className="mx-auto">{children}</div>
           </main>
         </div>
