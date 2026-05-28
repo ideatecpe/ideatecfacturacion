@@ -53,6 +53,7 @@ import { useComprobanteUnicoId } from "../../comprobantes/gestionComprobantes/Us
 import { useTrabajadoresSucursal } from "../../trabajadores/gestionTrabajadores/useTrabajadoresSucursal";
 import { UserCircle, Car } from "lucide-react";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
+import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 
 // ── Tipos afectación gratuita ────────────────────────────────
 const TIPOS_GRATUITOS = ["11", "21", "31"];
@@ -688,6 +689,7 @@ function FacturaContent() {
 
   // ── Tipo de cambio USD ───────────────────────────────────────
   const [tipoCambio, setTipoCambio] = useState(3.75);
+  const [cargandoTipoCambio, setCargandoTipoCambio] = useState(false);
 
   // ── Factura state ─────────────────────────────────────────────
   const [factura, setFactura] = useState<Partial<Factura>>({
@@ -700,6 +702,30 @@ function FacturaContent() {
     fechaVencimiento: fecha,
     tipoPago: "Contado",
   });
+
+  useEffect(() => {
+    let cancelado = false;
+    const fechaConsulta =
+      (factura.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10) ||
+      formatoFechaActual().fecha;
+
+    const cargarTipoCambio = async () => {
+      setCargandoTipoCambio(true);
+      try {
+        const venta = await obtenerTipoCambioVenta(fechaConsulta);
+        if (!cancelado) setTipoCambio(venta);
+      } catch (error) {
+        console.warn("No se pudo obtener el tipo de cambio JSON.PE", error);
+      } finally {
+        if (!cancelado) setCargandoTipoCambio(false);
+      }
+    };
+
+    cargarTipoCambio();
+    return () => {
+      cancelado = true;
+    };
+  }, [factura.fechaEmision]);
 
   // ── PDF ──────────────────────────────────────────────────────
   const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<
@@ -1226,6 +1252,8 @@ function FacturaContent() {
     descuentoGlobal,
     codigoTipoDescGlobal,
     factura.tipoPago,
+    factura.tipoMoneda,
+    tipoCambio,
     totalPagado,
     aplicarDetraccion,
     detraccion,
@@ -2829,7 +2857,7 @@ function FacturaContent() {
                   >
                     <option value="PEN">PEN - Soles</option>
                     <option value="USD">
-                      USD - Dólares ({tipoCambio.toFixed(2)})
+                      USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})
                     </option>
                   </select>
                 </div>

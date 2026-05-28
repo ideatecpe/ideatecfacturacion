@@ -73,11 +73,11 @@ const PERIODO_LABEL: Record<Periodo, string> = {
   anual: "anual",
 };
 
-const nuevaFila = (): FilaMonitoreo => {
+const nuevaFila = (tipo: TipoItem = "servicio"): FilaMonitoreo => {
   const desdeStr = toInputDate(hoy());
   return {
     id: crypto.randomUUID(),
-    tipo: "servicio",
+    tipo,
     periodo: "mensual",
     desde: desdeStr,
     hasta: calcHasta(desdeStr, "mensual"),
@@ -94,12 +94,12 @@ export function ModalItemsVelsat({
   onGuardar,
   onCerrar,
 }: Props) {
-  const [filas, setFilas] = useState<FilaMonitoreo[]>([nuevaFila()]);
+  const [filas, setFilas] = useState<FilaMonitoreo[]>([]);
   const [errores, setErrores] = useState<Record<string, string>>({});
 
   // ── Actualizar campo ───────────────────────────────────────
   const actualizar = useCallback(
-    (id: string, campo: keyof FilaMonitoreo, valor: any) => {
+    (id: string, campo: keyof FilaMonitoreo, valor: string | number) => {
       setFilas((prev) =>
         prev.map((f) => {
           if (f.id !== id) return f;
@@ -108,7 +108,7 @@ export function ModalItemsVelsat({
           // Recalcular "hasta" si cambia periodo o desde
           if (campo === "periodo" || campo === "desde") {
             actualizada.hasta = calcHasta(
-              campo === "desde" ? valor : f.desde,
+              campo === "desde" ? (valor as string) : f.desde,
               campo === "periodo" ? (valor as Periodo) : f.periodo,
             );
           }
@@ -125,7 +125,7 @@ export function ModalItemsVelsat({
     [],
   );
 
-  const agregarFila = () => setFilas((prev) => [...prev, nuevaFila()]);
+  const agregarFila = (tipo: TipoItem) => setFilas((prev) => [...prev, nuevaFila(tipo)]);
 
   const eliminarFila = (id: string) =>
     setFilas((prev) => prev.filter((f) => f.id !== id));
@@ -156,10 +156,10 @@ export function ModalItemsVelsat({
     }
 
     const items: ItemGenerado[] = filas.map((f) => {
-      let descBien = `Venta de equipo GPS`;
-      if (f.marca?.trim()) descBien += ` marca ${f.marca.trim().toUpperCase()}`;
+      let descBien = `Venta de dispositivo Gps`;
+      if (f.marca?.trim()) descBien += `, marca ${f.marca.trim().toUpperCase()}`;
       if (f.modelo?.trim())
-        descBien += ` modelo ${f.modelo.trim().toUpperCase()}`;
+        descBien += `, modelo ${f.modelo.trim().toUpperCase()}`;
 
       const placaOImei = f.placa.trim().toUpperCase();
       const esImei = /^\d{15}$/.test(placaOImei); // exactamente 15
@@ -167,7 +167,7 @@ export function ModalItemsVelsat({
       if (esImei) {
         descBien += ` con imei ${placaOImei}`;
       } else {
-        descBien += ` para la unidad ${placaOImei}`;
+        descBien += `, para placa de rodaje ${placaOImei}`;
       }
 
       return {
@@ -183,9 +183,6 @@ export function ModalItemsVelsat({
   };
 
   // ── Render ─────────────────────────────────────────────────
-  const tieneServicios = filas.some((f) => f.tipo === "servicio");
-  const tieneBienes = filas.some((f) => f.tipo === "bien");
-
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col border border-gray-100 overflow-hidden">
@@ -200,7 +197,7 @@ export function ModalItemsVelsat({
                 Ítems por Defecto
               </h2>
               <p className="text-[10px] text-gray-400">
-                Agrega un ítem por cada vehículo a monitorear
+                Agrega los vehículos a monitorear y equipos GPS a facturar
               </p>
             </div>
           </div>
@@ -212,318 +209,238 @@ export function ModalItemsVelsat({
           </button>
         </div>
 
-        {/* ── Tabla ── */}
-        <div className="overflow-auto flex-1 px-4 py-4">
-          <div className="border border-gray-100 rounded-xl overflow-hidden">
-            <table className="w-full text-xs" style={{ minWidth: "800px" }}>
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-8">
-                    #
-                  </th>
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-32">
-                    Tipo
-                  </th>
-                  {tieneServicios && (
-                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
-                      Periodo
-                    </th>
-                  )}
-                  {tieneServicios && (
-                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
-                      Desde
-                    </th>
-                  )}
-                  {tieneServicios && (
-                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
-                      Hasta
-                    </th>
-                  )}
-                  {tieneBienes && (
-                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
-                      Marca
-                    </th>
-                  )}
-                  {tieneBienes && (
-                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
-                      Modelo
-                    </th>
-                  )}
-                  <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">
-                    Placa / IMEI
-                  </th>
-                  <th className="px-2 py-2 text-left text-gray-400 font-semibold w-32">
-                    Precio (S/)
-                  </th>
-                  <th className="px-3 py-3 w-8"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filas.map((fila, i) => (
-                  <tr
-                    key={fila.id}
-                    className="hover:bg-blue-50/30 transition-colors group"
-                  >
-                    {/* # */}
-                    <td className="px-3 py-3 text-gray-300 font-mono text-[10px]">
-                      {String(i + 1).padStart(2, "0")}
-                    </td>
-
-                    {/* Tipo */}
-                    <td className="px-3 py-3">
-                      <select
-                        value={fila.tipo}
-                        onChange={(e) =>
-                          actualizar(
-                            fila.id,
-                            "tipo",
-                            e.target.value as TipoItem,
-                          )
-                        }
-                        className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
-                      >
-                        <option value="servicio">Servicio (Monitoreo)</option>
-                        <option value="bien">Bien (GPS)</option>
-                      </select>
-                    </td>
-
-                    {/* Periodo */}
-                    {tieneServicios && (
-                      <td className="px-3 py-3">
-                        {fila.tipo === "servicio" ? (
-                          <select
-                            value={fila.periodo}
-                            onChange={(e) =>
-                              actualizar(
-                                fila.id,
-                                "periodo",
-                                e.target.value as Periodo,
-                              )
-                            }
-                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
-                          >
-                            <option value="mensual">Mensual</option>
-                            <option value="trimestral">Trimestral</option>
-                            <option value="semestral">Semestral</option>
-                            <option value="anual">Anual</option>
-                          </select>
-                        ) : (
-                          <span className="text-gray-300 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-
-                    {/* Desde */}
-                    {tieneServicios && (
-                      <td className="px-3 py-3">
-                        {fila.tipo === "servicio" ? (
-                          <input
-                            type="date"
-                            value={fila.desde}
-                            onChange={(e) =>
-                              actualizar(fila.id, "desde", e.target.value)
-                            }
-                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all"
-                          />
-                        ) : (
-                          <span className="text-gray-300 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-
-                    {/* Hasta — solo lectura */}
-                    {tieneServicios && (
-                      <td className="px-3 py-3">
-                        {fila.tipo === "servicio" ? (
-                          <input
-                            type="date"
-                            value={fila.hasta}
-                            disabled
-                            className="w-full py-1.5 px-2 bg-gray-100 border border-gray-200 rounded-lg text-xs outline-none opacity-70"
-                          />
-                        ) : (
-                          <span className="text-gray-300 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-
-                    {/* Marca */}
-                    {tieneBienes && (
-                      <td className="px-3 py-3">
-                        {fila.tipo === "bien" ? (
-                          <input
-                            type="text"
-                            placeholder="Ej. Concox"
-                            value={fila.marca || ""}
-                            onChange={(e) =>
-                              actualizar(fila.id, "marca", e.target.value)
-                            }
-                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
-                          />
-                        ) : (
-                          <span className="text-gray-300 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-
-                    {/* Modelo */}
-                    {tieneBienes && (
-                      <td className="px-3 py-3">
-                        {fila.tipo === "bien" ? (
-                          <input
-                            type="text"
-                            placeholder="Ej. RT07"
-                            value={fila.modelo || ""}
-                            onChange={(e) =>
-                              actualizar(fila.id, "modelo", e.target.value)
-                            }
-                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
-                          />
-                        ) : (
-                          <span className="text-gray-300 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-
-                    {/* Placa / IMEI */}
-                    <td className="px-2 py-2">
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={fila.placa}
-                          onChange={(e) =>
-                            actualizar(fila.id, "placa", e.target.value)
-                          }
-                          placeholder="Ej. ABC-123 o 12345..."
-                          className={`w-full py-1.5 px-2 bg-gray-50 border rounded-lg text-xs outline-none focus:ring-1 transition-all uppercase placeholder:normal-case
-                              ${
-                                errores[`${fila.id}-placa`]
-                                  ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100"
-                                  : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
-                              }`}
-                        />
-                        {errores[`${fila.id}-placa`] && (
-                          <div className="absolute -bottom-3.5 left-0 flex items-center gap-1">
-                            <AlertCircle className="w-2.5 h-2.5 text-red-400" />
-                            <span className="text-[9px] text-red-400">
-                              Requerido
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Precio */}
-                    <td className="px-3 py-3">
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-mono">
-                          S/
-                        </span>
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={fila.precio === 0 ? "" : fila.precio}
-                          onChange={(e) =>
-                            actualizar(
-                              fila.id,
-                              "precio",
-                              parseFloat(e.target.value) || 0,
-                            )
-                          }
-                          placeholder="0.00"
-                          className={`w-full py-1.5 pl-7 pr-2 bg-gray-50 border rounded-lg text-xs text-right outline-none focus:ring-1 transition-all font-mono
-                            ${
-                              errores[`${fila.id}-precio`]
-                                ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100"
-                                : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
-                            }`}
-                        />
-                        {errores[`${fila.id}-precio`] && (
-                          <div className="absolute -bottom-4 right-0 flex items-center gap-1">
-                            <AlertCircle className="w-2.5 h-2.5 text-red-400" />
-                            <span className="text-[9px] text-red-400">
-                              Requerido
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Eliminar */}
-                    <td className="px-3 py-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          filas.length > 1 && eliminarFila(fila.id)
-                        }
-                        disabled={filas.length === 1}
-                        className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-
-                {/* ── Fila totales ── */}
-                <tr className="bg-gray-50 border-t-2 border-gray-200">
-                  <td colSpan={5} className="px-3 py-3">
-                    <button
-                      type="button"
-                      onClick={agregarFila}
-                      className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Agregar vehículo
-                    </button>
-                  </td>
-                  <td className="px-3 py-3 text-right">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
-                      Total
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-right">
-                    <span className="text-sm font-bold text-blue-700 font-mono">
-                      S/ {total.toFixed(2)}
-                    </span>
-                  </td>
-                  <td />
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Info IGV */}
-          {total > 0 && (
-            <div className="mt-3 flex justify-end">
-              <div className="flex items-center gap-4 text-[10px] text-gray-400 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
-                <span>
-                  Valor venta:{" "}
-                  <span className="text-gray-600 font-mono font-medium">
-                    S/ {(total / (1 + igvPorcentaje / 100)).toFixed(2)}
-                  </span>
-                </span>
-                <span className="text-gray-200">|</span>
-                <span>
-                  IGV ({igvPorcentaje}%):{" "}
-                  <span className="text-gray-600 font-mono font-medium">
-                    S/ {(total - total / (1 + igvPorcentaje / 100)).toFixed(2)}
-                  </span>
-                </span>
-                <span className="text-gray-200">|</span>
-                <span className="font-bold text-blue-600">
-                  Total: S/ {total.toFixed(2)}
-                </span>
+        {/* ── Tabla de Ítems ── */}
+        <div className="overflow-auto flex-1 px-6 py-6 bg-gray-50/10">
+          {filas.length === 0 ? (
+            <div className="border border-dashed border-gray-200 bg-gray-50/30 rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-3 h-full min-h-[250px]">
+              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                <Car className="w-6 h-6" />
               </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-600">No hay ítems agregados</p>
+                <p className="text-xs text-gray-400 mt-0.5">Agrega servicios de monitoreo o equipos GPS a facturar</p>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => agregarFila("servicio")}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Agregar Servicio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => agregarFila("bien")}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-xl transition-colors shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Agregar Equipo GPS
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="border border-gray-100 rounded-xl overflow-hidden shadow-xs bg-white">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-10">#</th>
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-40">Tipo</th>
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold">Detalles del Ítem</th>
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-48">Placa / IMEI</th>
+                    <th className="px-3 py-3 text-left text-gray-400 font-semibold w-36">Precio (S/)</th>
+                    <th className="px-3 py-3 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filas.map((fila, index) => (
+                    <tr key={fila.id} className="hover:bg-slate-50/30 transition-colors">
+                      {/* # */}
+                      <td className="px-3 py-3 text-gray-400 font-mono text-[10px]">
+                        {String(index + 1).padStart(2, "0")}
+                      </td>
+
+                      {/* Tipo */}
+                      <td className="px-3 py-3">
+                        <select
+                          value={fila.tipo}
+                          onChange={(e) => actualizar(fila.id, "tipo", e.target.value as TipoItem)}
+                          className="w-37.5 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all font-medium text-gray-700"
+                        >
+                          <option value="servicio">Servicio (Monitoreo)</option>
+                          <option value="bien">Bien (GPS)</option>
+                        </select>
+                      </td>
+
+                      {/* Detalles Dinámicos */}
+                      <td className="px-3 py-3">
+                        {fila.tipo === "servicio" ? (
+                          <div className="flex items-center gap-1.5 w-full">
+                            <select
+                              value={fila.periodo}
+                              onChange={(e) => actualizar(fila.id, "periodo", e.target.value as Periodo)}
+                              className="w-24 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all shrink-0"
+                            >
+                              <option value="mensual">Mensual</option>
+                              <option value="trimestral">Trimestral</option>
+                              <option value="semestral">Semestral</option>
+                              <option value="anual">Anual</option>
+                            </select>
+                            <input
+                              type="date"
+                              value={fila.desde}
+                              onChange={(e) => actualizar(fila.id, "desde", e.target.value)}
+                              className="w-28 py-1.5 px-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all shrink-0"
+                            />
+                            <span className="text-gray-400 text-[10px] shrink-0">al</span>
+                            <input
+                              type="date"
+                              value={fila.hasta}
+                              onChange={(e) => actualizar(fila.id, "hasta", e.target.value)}
+                              className="w-28 py-1.5 px-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all shrink-0"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 w-full">
+                            <input
+                              type="text"
+                              placeholder="Marca (Ej. Concox)"
+                              value={fila.marca || ""}
+                              onChange={(e) => actualizar(fila.id, "marca", e.target.value)}
+                              className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Modelo (Ej. FMB150)"
+                              value={fila.modelo || ""}
+                              onChange={(e) => actualizar(fila.id, "modelo", e.target.value)}
+                              className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
+                            />
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Placa / IMEI */}
+                      <td className="px-3 py-3">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={fila.placa}
+                            onChange={(e) => actualizar(fila.id, "placa", e.target.value)}
+                            placeholder={fila.tipo === "servicio" ? "Ej. ABC-123" : "Ej. ABC-123 o IMEI"}
+                            className={`w-full py-1.5 px-2 bg-gray-50 border rounded-lg text-xs outline-none focus:ring-1 transition-all uppercase placeholder:normal-case
+                              ${errores[`${fila.id}-placa`] ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100" : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"}`}
+                          />
+                          {errores[`${fila.id}-placa`] && (
+                            <div className="absolute -bottom-3.5 left-0 flex items-center gap-1">
+                              <AlertCircle className="w-2.5 h-2.5 text-red-400" />
+                              <span className="text-[9px] text-red-400">{errores[`${fila.id}-placa`]}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Precio */}
+                      <td className="px-3 py-3">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-mono">S/</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={fila.precio === 0 ? "" : fila.precio}
+                            onChange={(e) => actualizar(fila.id, "precio", parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className={`w-full py-1.5 pl-7 pr-2 bg-gray-50 border rounded-lg text-xs text-right outline-none focus:ring-1 transition-all font-mono
+                              ${errores[`${fila.id}-precio`] ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100" : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"}`}
+                          />
+                          {errores[`${fila.id}-precio`] && (
+                            <div className="absolute -bottom-3.5 right-0 flex items-center gap-1">
+                              <AlertCircle className="w-2.5 h-2.5 text-red-400" />
+                              <span className="text-[9px] text-red-400">Requerido</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Eliminar */}
+                      <td className="px-3 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => eliminarFila(fila.id)}
+                          className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* ── Fila de botones y total en pie de tabla ── */}
+                  <tr className="bg-gray-50 border-t border-gray-150">
+                    <td colSpan={3} className="px-3 py-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => agregarFila("servicio")}
+                          className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100/80 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Agregar servicio
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => agregarFila("bien")}
+                          className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Agregar equipo GPS
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                        Total
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <span className="text-sm font-bold text-blue-700 font-mono">
+                        S/ {total.toFixed(2)}
+                      </span>
+                    </td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
             </div>
           )}
         </div>
 
+        {/* Info IGV */}
+        {total > 0 && (
+          <div className="px-6 py-2 flex justify-end bg-white border-t border-gray-100 shrink-0">
+            <div className="flex items-center gap-4 text-[10px] text-gray-400 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
+              <span>
+                Valor venta:{" "}
+                <span className="text-gray-600 font-mono font-medium">
+                  S/ {(total / (1 + igvPorcentaje / 100)).toFixed(2)}
+                </span>
+              </span>
+              <span className="text-gray-200">|</span>
+              <span>
+                IGV ({igvPorcentaje}%):{" "}
+                <span className="text-gray-600 font-mono font-medium">
+                  S/ {(total - total / (1 + igvPorcentaje / 100)).toFixed(2)}
+                </span>
+              </span>
+              <span className="text-gray-200">|</span>
+              <span className="font-bold text-blue-600">
+                Total: S/ {total.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* ── Footer ── */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50 shrink-0">
           <p className="text-[10px] text-gray-400">
-            {filas.length} vehículo{filas.length !== 1 ? "s" : ""} · Cada fila
+            {filas.length} ítem{filas.length !== 1 ? "s" : ""} · Cada fila
             se agrega como un ítem independiente
           </p>
           <div className="flex items-center gap-2">

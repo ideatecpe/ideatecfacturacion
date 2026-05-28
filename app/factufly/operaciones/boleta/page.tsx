@@ -51,6 +51,7 @@ import { useComprobanteUnicoId } from "../../comprobantes/gestionComprobantes/Us
 import { useTrabajadoresSucursal } from "../../trabajadores/gestionTrabajadores/useTrabajadoresSucursal";
 import { UserCircle, Car } from "lucide-react";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
+import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 
 // ── Interfaces locales ───────────────────────────────────────
 interface DetalleLocal extends Partial<BoletaDetalle> {
@@ -608,6 +609,7 @@ function BoletaContent() {
 
   // ── Tipo de cambio USD ───────────────────────────────────────
   const [tipoCambio, setTipoCambio] = useState(3.75);
+  const [cargandoTipoCambio, setCargandoTipoCambio] = useState(false);
 
   // ── Boleta state ─────────────────────────────────────────────
   const [boleta, setBoleta] = useState<Partial<Boleta>>({
@@ -620,6 +622,30 @@ function BoletaContent() {
     fechaVencimiento: fecha,
     tipoPago: "Contado",
   });
+
+  useEffect(() => {
+    let cancelado = false;
+    const fechaConsulta =
+      (boleta.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10) ||
+      formatoFechaActual().fecha;
+
+    const cargarTipoCambio = async () => {
+      setCargandoTipoCambio(true);
+      try {
+        const venta = await obtenerTipoCambioVenta(fechaConsulta);
+        if (!cancelado) setTipoCambio(venta);
+      } catch (error) {
+        console.warn("No se pudo obtener el tipo de cambio JSON.PE", error);
+      } finally {
+        if (!cancelado) setCargandoTipoCambio(false);
+      }
+    };
+
+    cargarTipoCambio();
+    return () => {
+      cancelado = true;
+    };
+  }, [boleta.fechaEmision]);
 
   // ── PDF ──────────────────────────────────────────────────────
   const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<
@@ -1086,6 +1112,8 @@ function BoletaContent() {
     descuentoGlobal,
     codigoTipoDescGlobal,
     boleta.tipoPago,
+    boleta.tipoMoneda,
+    tipoCambio,
     totalPagado,
   ]);
 
@@ -2532,7 +2560,7 @@ function BoletaContent() {
                   >
                     <option value="PEN">PEN - Soles</option>
                     <option value="USD">
-                      USD - Dólares ({tipoCambio.toFixed(2)})
+                      USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})
                     </option>
                   </select>
                 </div>

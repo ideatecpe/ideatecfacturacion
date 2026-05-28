@@ -483,7 +483,7 @@ export default function ProductosPage() {
               onClick={() => setIsNewOpen(true)}
               className="py-2.5 px-3 text-xs rounded-md h-auto"
             >
-              <Plus className="w-3.5 h-3.5" /> Nuevo Producto
+              <Plus className="w-3.5 h-3.5" /> Producto/servicio
             </Button>
           </div>
         </div>

@@ -15,6 +15,7 @@ import {
   Truck,
   DollarSign,
   Wallet,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
@@ -51,9 +52,32 @@ export default function DashboardLayout({
 
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] as any).url;
+      const method = (args[1]?.method || 'GET').toUpperCase();
+      let bodyData = '';
       try {
-        return await originalFetch(...args);
+        if (args[1]?.body && typeof args[1].body === 'string') {
+          bodyData = JSON.parse(args[1].body);
+        } else if (args[1]?.body) {
+          bodyData = '[Non-string body]';
+        }
+      } catch (e) {
+        bodyData = args[1]?.body as any;
+      }
+      
+      console.log(`🚀 [FETCH REQ] ${method} ${url}`, bodyData);
+      
+      try {
+        const response = await originalFetch(...args);
+        if (!response.ok) {
+          // Usar warn (no error) para que Next.js no muestre el overlay en dev
+          console.warn(`⚠️ [FETCH ${response.status}] ${method} ${url}`);
+        } else {
+          console.log(`✅ [FETCH RES] ${response.status} ${url}`);
+        }
+        return response;
       } catch (error) {
+        console.warn(`❌ [FETCH FAIL] ${url}`, error);
         throw error;
       }
     };
@@ -65,10 +89,15 @@ export default function DashboardLayout({
     };
   }, [pathname]);
 
+
+  const esUsuarioVelsat =
+    user?.username?.toLowerCase() === "velsat" || user?.ruc === "10073587382";
+
   const todosLosMenuItems: MenuItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "operaciones", label: "Emisión", icon: Grip },
     { id: "comprobantes", label: "Comprobantes", icon: FileText },
+    { id: "carga-comprobantes", label: "Carga Comprobantes", icon: FileSpreadsheet },
     { id: "guiasremision", label: "Guias de Remisión", icon: Truck },
     { id: "deudasporcobrar", label: "Deudas por Cobrar", icon: Wallet },
     { id: "cuentasporcobrar", label: "Cuentas por Cobrar", icon: DollarSign },
@@ -86,9 +115,7 @@ export default function DashboardLayout({
 
   const menuItems = todosLosMenuItems.filter((item) => {
     if (item.id === "trabajadores") return user?.ruc === "10073587382";
-    if (item.id === "deudasporcobrar") return user?.ruc === "20512134832";
-    if (item.id === "guiasremision")
-      return RUCS_GUIAS_REMISION.includes(user?.ruc ?? "");
+    if (item.id === "carga-comprobantes") return esUsuarioVelsat;
     return true;
   });
 

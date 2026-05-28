@@ -59,6 +59,11 @@ import { useSucursal } from "../operaciones/boleta/gestionBoletas/useSucursal";
 import { ModalEnvioMasivo } from "@/app/components/modalVerComprobantes/Modalenviomasivo";
 import { ModalCargaMasivaComprobantes } from "@/app/components/modalCargaMasiva/Modalcargamasivacomprobantes";
 import { useEmpresaEmisor } from "../operaciones/boleta/gestionBoletas/useEmpresaEmisor";
+import {
+  CargaComprobantePendiente,
+  leerComprobantesCarga,
+  marcarComprobanteCargaEnviado,
+} from "@/app/utils/cargaComprobantesStore";
 
 // ─── Constantes filtros ───────────────────────────────────────────────────────
 const TIPOS_OPTS = [
@@ -82,6 +87,8 @@ export default function VerComprobantesPage() {
   const { accessToken, user } = useAuth();
   const { showToast } = useToast();
   const isSuperAdmin = user?.rol === "superadmin";
+  const esUsuarioVelsat =
+    user?.username?.toLowerCase() === "velsat" || user?.ruc === "10073587382";
   const isBeta = user?.environment === "beta";
   const rucEmpresa: string = user?.ruc ?? "";
   const sucursalId: number = Number(user?.sucursalID ?? 0);
@@ -211,10 +218,13 @@ export default function VerComprobantesPage() {
       } else {
         data = await fetchSucursal({ ...params, sucursalId });
       }
+      if (esUsuarioVelsat && offset === 0 && !showAvanzado) {
+        data = [...leerComprobantesCarga(), ...data];
+      }
       setComprobantes(data);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isSuperAdmin, sucursalFiltro, rucEmpresa, sucursalId, limit],
+    [isSuperAdmin, sucursalFiltro, rucEmpresa, sucursalId, limit, esUsuarioVelsat, showAvanzado],
   );
 
   useEffect(() => {
@@ -266,6 +276,41 @@ export default function VerComprobantesPage() {
     async (c: ComprobanteListado) => {
       setDetalle(c);
       setDetalleCompleto(null);
+      const carga = c as CargaComprobantePendiente;
+      if (carga._cargaEstatica) {
+        setDetalleCompleto({
+          comprobanteId: c.comprobanteId,
+          details: (carga._itemsCarga ?? []).map((item, index) => ({
+            detalleId: c.comprobanteId + index,
+            comprobanteId: c.comprobanteId,
+            item: index + 1,
+            productoId: 0,
+            codigo: item.placa,
+            descripcion: item.concepto,
+            cantidad: 1,
+            unidadMedida: "ZZ",
+            precioUnitario: item.importe,
+            tipoAfectacionIGV: "30",
+            porcentajeIGV: 0,
+            montoIGV: 0,
+            baseIgv: item.importe,
+            codigoTipoDescuento: "01",
+            descuentoUnitario: 0,
+            descuentoTotal: 0,
+            valorVenta: item.importe,
+            precioVenta: item.importe,
+            totalVentaItem: item.importe,
+            icbper: 0,
+            factorIcbper: 0,
+          })),
+          pagos: [],
+          cuotas: [],
+          legends: [],
+          guias: [],
+          detracciones: [],
+        });
+        return;
+      }
       const data = await hookDetalles.fetchDetalles(c.comprobanteId);
       if (data) setDetalleCompleto(data);
     },
@@ -349,32 +394,52 @@ export default function VerComprobantesPage() {
   };
 
   const filtered = useMemo(() => {
-    return comprobantes.filter((c) => {
-      const tipo = tipoLabel(c.tipoComprobante);
-      const matchSearch =
-        (c.cliente?.razonSocial ?? "")
-          .toLowerCase()
-          .includes(search.toLowerCase()) ||
-        (c.cliente?.numeroDocumento ?? "").includes(search) ||
-        (c.numeroCompleto ?? "").toLowerCase().includes(search.toLowerCase());
-      const matchTipo = filtroTipo === "Todos" || tipo === filtroTipo;
-      const estadoLabel =
-        c.estadoSunat === "ACEPTADO"
-          ? "Aceptado"
-          : c.estadoSunat === "RECHAZADO"
-            ? "Rechazado"
-            : c.estadoSunat === "ANULADO"
-              ? "Anulado"
-              : "Pendiente";
-      const matchEstado =
-        filtroEstado === "Todos" || estadoLabel === filtroEstado;
-      return matchSearch && matchTipo && matchEstado;
-    });
+    return comprobantes
+      .filter((c) => {
+        const tipo = tipoLabel(c.tipoComprobante);
+        const matchSearch =
+          (c.cliente?.razonSocial ?? "")
+            .toLowerCase()
+            .includes(search.toLowerCase()) ||
+          (c.cliente?.numeroDocumento ?? "").includes(search) ||
+          (c.numeroCompleto ?? "").toLowerCase().includes(search.toLowerCase());
+        const matchTipo = filtroTipo === "Todos" || tipo === filtroTipo;
+        const estadoLabel =
+          c.estadoSunat === "ACEPTADO"
+            ? "Aceptado"
+            : c.estadoSunat === "RECHAZADO"
+              ? "Rechazado"
+              : c.estadoSunat === "ANULADO"
+                ? "Anulado"
+                : "Pendiente";
+        const matchEstado =
+          filtroEstado === "Todos" || estadoLabel === filtroEstado;
+        return matchSearch && matchTipo && matchEstado;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.fechaCreacion).getTime() -
+          new Date(a.fechaCreacion).getTime(),
+      );
   }, [comprobantes, search, filtroTipo, filtroEstado]);
 
   const paginated = filtered;
 
   const enviarSunat = async (c: ComprobanteListado) => {
+    if ((c as CargaComprobantePendiente)._cargaEstatica) {
+      setLoadingSunatMap((prev) => ({ ...prev, [c.comprobanteId]: true }));
+      const actualizado = marcarComprobanteCargaEnviado(c.comprobanteId);
+      setComprobantes((prev) =>
+        prev.map((comp) =>
+          comp.comprobanteId === c.comprobanteId && actualizado
+            ? actualizado
+            : comp,
+        ),
+      );
+      setLoadingSunatMap((prev) => ({ ...prev, [c.comprobanteId]: false }));
+      showToast("Comprobante estático marcado como enviado a SUNAT", "success");
+      return;
+    }
     setLoadingSunatMap((prev) => ({ ...prev, [c.comprobanteId]: true }));
     try {
       const res = await axios.post(
@@ -1033,9 +1098,12 @@ export default function VerComprobantesPage() {
                       <div className="flex justify-center">
                         <StatusIcon
                           type="pdf"
-                          status="available"
+                          status={(doc as CargaComprobantePendiente)._cargaEstatica ? "pending" : "available"}
                           loading={loadingPdfMap[doc.comprobanteId]}
-                          onClick={() => obtenerPdf(doc)}
+                          onClick={() => {
+                            if ((doc as CargaComprobantePendiente)._cargaEstatica) return;
+                            obtenerPdf(doc);
+                          }}
                         />
                       </div>
                     </td>
