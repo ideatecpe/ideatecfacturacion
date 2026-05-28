@@ -527,10 +527,10 @@ export default function CargaComprobantesPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
-              {
+                {
                 n: "1", color: "blue", title: "Descarga el formato",
                 desc: "Genera un Excel con cabecera, columnas ajustadas y filas de ejemplo.",
-                action: descargarPlantilla, label: "Descargar plantilla", Icon: Download, variant: "default" as const,
+                action: descargarPlantilla, label: "Descargar plantilla", Icon: Download, variant: "primary" as const,
               },
               {
                 n: "2", color: "emerald", title: "Sube el archivo listo",
