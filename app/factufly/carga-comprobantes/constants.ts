@@ -2,7 +2,8 @@ import type { FilaCarga, ColDef } from "./types";
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
-export const STORAGE_FILAS_KEY = "factufly:carga-comprobantes:filas";
+export const STORAGE_FILAS_KEY    = "factufly:carga-comprobantes:filas";
+export const STORAGE_HISTORIAL_KEY = "factufly:carga-comprobantes:historial";
 
 // ─── Períodos ─────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
-import type { FilaCarga, GrupoTotales, FilaErrores } from "./types";
-import { STORAGE_FILAS_KEY } from "./constants";
+import type { FilaCarga, GrupoTotales, FilaErrores, EmisionHistorial } from "./types";
+import { STORAGE_FILAS_KEY, STORAGE_HISTORIAL_KEY } from "./constants";
 
 // ─── Alias de columnas Excel ──────────────────────────────────────────────────
 
@@ -302,6 +302,29 @@ export function validarFila(fila: FilaCarga): FilaErrores {
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
+
+// ─── Historial de emisiones (anti-duplicados) ─────────────────────────────────
+
+export const leerHistorial = (): EmisionHistorial[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_HISTORIAL_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+
+/** Guarda el historial manteniendo los últimos 36 registros */
+export const guardarHistorial = (historial: EmisionHistorial[]): void => {
+  if (typeof window === "undefined") return;
+  const trimmed = historial.slice(-36);
+  localStorage.setItem(STORAGE_HISTORIAL_KEY, JSON.stringify(trimmed));
+};
+
+// ─── localStorage (filas) ─────────────────────────────────────────────────────
 
 export const leerFilasGuardadas = (): FilaCarga[] => {
   if (typeof window === "undefined") return [];

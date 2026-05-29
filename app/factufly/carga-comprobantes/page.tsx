@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import {
   FileSpreadsheet,
   RefreshCw,
@@ -8,7 +8,7 @@ import {
   Upload,
   Download,
   Calendar,
-  Trash2,
+
   ChevronDown,
   AlertCircle,
   User,
@@ -17,6 +17,7 @@ import {
   Plus,
   X,
   CheckCircle2,
+  Search,
 } from "lucide-react";
 import { Button }  from "@/app/components/ui/Button";
 import { Card }    from "@/app/components/ui/Card";
@@ -26,7 +27,7 @@ import { useCargaComprobantes }  from "./useCargaComprobantes";
 import { GrupoCard }             from "./GrupoCard";
 import { ModalAgregarFila }      from "./ModalAgregarFila";
 import { PERIODO_ORDER, PERIODO_CFG, COLUMNAS_EXCEL, columnas } from "./constants";
-import { getTipoDoc, periodoTexto } from "./helpers";
+import { getTipoDoc, periodoTexto, formatFechaEs } from "./helpers";
 import type { FilaCarga } from "./types";
 
 // Etiquetas legibles para cada campo con posible error
@@ -44,8 +45,10 @@ export default function CargaComprobantesPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [opcionId,  setOpcionId]  = useState<string | null>(null);
   const [dropPos,   setDropPos]   = useState({ top: 0, left: 0 });
-  const [modalAgregarOpen,    setModalAgregarOpen]    = useState(false);
-  const [modalConfirmarOpen,  setModalConfirmarOpen]  = useState(false);
+  const [modalAgregarOpen,         setModalAgregarOpen]         = useState(false);
+  const [modalConfirmarOpen,       setModalConfirmarOpen]       = useState(false);
+  const [modalDeshabilitadosOpen,  setModalDeshabilitadosOpen]  = useState(false);
+  const [fechasRehab, setFechasRehab] = useState<Record<string, string>>({});
 
   // tooltip de errores (fixed, escapa el overflow de la tabla)
   const [errorTipId,  setErrorTipId]  = useState<string | null>(null);
@@ -67,18 +70,48 @@ export default function CargaComprobantesPage() {
   };
 
   const {
-    filas, filasFiltradas, gruposFiltrados, periodosPresentes,
+    filas, filasDeshabilitadas, filasFiltradas, gruposFiltrados, periodosPresentes,
     stats, statsPorPeriodo, erroresPorFila,
+    cargandoPlantilla, cargarDesdeApi,
     tabActiva, setTabActiva, fechaEmision, setFechaEmision,
     periodosExpandidos, loadingRazonSocialIds, emitiendo,
     modalPlantillaOpen, setModalPlantillaOpen,
+    modalResultadoOpen, setModalResultadoOpen,
+    resultadoEmision, progresoEmision, advertenciaTemprana,
     esUsuarioVelsat, sucursal, empresa,
     cargarExcel, descargarPlantilla, actualizarFila,
-    agregarFila, eliminarFila, emitir, limpiarCarga, togglePeriodo,
+    agregarFila, deshabilitarFila, habilitarFila, ajustarFechasInicioMes,
+    emitir, recuperarDatos, togglePeriodo,
   } = useCargaComprobantes();
 
   const nErrores = filasFiltradas.filter((f) => erroresPorFila.has(f.id)).length;
   const hayFilas = filas.length > 0;
+
+  // Primer día del mes actual (default para rehabilitar)
+  const primerDiaMes = (() => {
+    const h = new Date();
+    return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}-01`;
+  })();
+
+  const abrirModalDeshabilitados = () => {
+    const defaults: Record<string, string> = {};
+    filasDeshabilitadas.forEach((f) => { defaults[f.id] = primerDiaMes; });
+    setFechasRehab(defaults);
+    setModalDeshabilitadosOpen(true);
+  };
+
+  // ── Búsqueda dentro de la tabla ───────────────────────────────────────────
+  const [busqueda, setBusqueda] = useState("");
+  const filasVisibles = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return filasFiltradas;
+    return filasFiltradas.filter(
+      (f) =>
+        f.numdoc.toLowerCase().includes(q) ||
+        f.razonSocial.toLowerCase().includes(q) ||
+        f.placa.toLowerCase().includes(q),
+    );
+  }, [filasFiltradas, busqueda]);
 
   // ── Guard ──────────────────────────────────────────────────────────────────
   if (!esUsuarioVelsat) {
@@ -106,9 +139,11 @@ export default function CargaComprobantesPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Carga Comprobantes</h1>
           <p className="text-[13px] text-gray-400 mt-0.5">
-            {hayFilas
-              ? `${filas.length} ítem${filas.length !== 1 ? "s" : ""} · revisa y emite cuando estés listo`
-              : "Carga el Excel o agrega ítems manualmente para empezar"}
+            {cargandoPlantilla && !hayFilas
+              ? "Cargando datos del servidor…"
+              : hayFilas
+                ? `${filas.length} ítem${filas.length !== 1 ? "s" : ""} · revisa y emite cuando estés listo`
+                : "Carga el Excel o agrega ítems manualmente para empezar"}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap shrink-0">
@@ -126,17 +161,30 @@ export default function CargaComprobantesPage() {
           <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) cargarExcel(f); e.currentTarget.value = ""; }}
           />
+          <Button
+            variant="outline"
+            onClick={cargarDesdeApi}
+            disabled={cargandoPlantilla || emitiendo}
+            title="Recargar desde servidor"
+            className="!px-2.5"
+          >
+            <RefreshCw className={`w-4 h-4 ${cargandoPlantilla ? "animate-spin" : ""}`} />
+          </Button>
+          {filasDeshabilitadas.length > 0 && (
+            <button
+              onClick={abrirModalDeshabilitados}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50 text-xs font-semibold text-gray-500 hover:text-amber-700 transition-all shadow-sm"
+            >
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-[10px] font-black">{filasDeshabilitadas.length}</span>
+              Deshabilitados
+            </button>
+          )}
           <Button variant="outline" onClick={() => setModalPlantillaOpen(true)}>
             <Upload className="w-4 h-4" /> Cargar Excel
           </Button>
           <Button variant="outline" onClick={() => setModalAgregarOpen(true)}>
             <Plus className="w-4 h-4" /> Agregar ítem
           </Button>
-          {hayFilas && (
-            <Button variant="outline" onClick={limpiarCarga}>
-              <Trash2 className="w-4 h-4" /> Limpiar
-            </Button>
-          )}
           <Button
             onClick={() => setModalConfirmarOpen(true)}
             disabled={emitiendo || tabActiva === "todos" || gruposFiltrados.length === 0 || !sucursal || !empresa}
@@ -243,8 +291,81 @@ export default function CargaComprobantesPage() {
         </div>
       )}
 
+      {/* ── Barra de progreso de emisión ─────────────────────────────────── */}
+      {emitiendo && progresoEmision && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin shrink-0" />
+              <span className="text-xs font-semibold text-blue-700">
+                Emitiendo{" "}
+                <span className="tabular-nums font-black">{progresoEmision.actual}</span>
+                {" "}de{" "}
+                <span className="tabular-nums font-black">{progresoEmision.total}</span>
+                {" "}comprobante{progresoEmision.total !== 1 ? "s" : ""}…
+              </span>
+            </div>
+            <span className="text-xs font-bold text-blue-600 tabular-nums">
+              {Math.round((progresoEmision.actual / progresoEmision.total) * 100)}%
+            </span>
+          </div>
+          <div className="w-full h-1.5 bg-blue-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${(progresoEmision.actual / progresoEmision.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Contenido principal ──────────────────────────────────────────── */}
-      {!hayFilas ? (
+      {cargandoPlantilla && !hayFilas ? (
+
+        /* Skeleton de carga inicial */
+        <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
+          {/* Barra de búsqueda falsa */}
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/60 animate-pulse">
+            <div className="h-7 flex-1 max-w-sm bg-gray-200/60 rounded-lg" />
+            <div className="ml-auto h-7 w-24 bg-gray-200/60 rounded-lg" />
+          </div>
+          {/* Cabecera de tabla falsa */}
+          <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-200 animate-pulse">
+            {[20, 16, 72, 80, 40, "flex-1", 56, 60, 80, 80, 52, 20].map((w, i) => (
+              <div
+                key={i}
+                className={`h-3 bg-gray-100 rounded shrink-0 ${w === "flex-1" ? "flex-1" : ""}`}
+                style={w !== "flex-1" ? { width: w } : undefined}
+              />
+            ))}
+          </div>
+          {/* Filas falsas */}
+          <div className="divide-y divide-gray-100 animate-pulse">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2">
+                <div className={`w-5 h-5 rounded-full shrink-0 ${i % 7 === 0 ? "bg-red-100" : "bg-gray-100"}`} />
+                <div className="w-2 h-2 rounded-full bg-gray-200 shrink-0" />
+                <div className="w-[72px] h-6 bg-gray-100 rounded-md shrink-0" />
+                <div className={`h-6 bg-gray-100 rounded-md shrink-0 ${i % 2 === 0 ? "w-20" : "w-16"}`} />
+                <div className="flex-1 h-6 bg-gray-100 rounded-md min-w-0" style={{ maxWidth: "18%" }} />
+                <div className={`h-6 bg-gray-100 rounded-md shrink-0 ${i % 3 === 0 ? "w-14" : "w-10"}`} />
+                <div className="flex-1 h-6 bg-gray-100 rounded-md min-w-0" style={{ maxWidth: "22%" }} />
+                <div className={`h-6 bg-gray-100 rounded-md shrink-0 ${i % 2 === 0 ? "w-16" : "w-14"}`} />
+                <div className="w-16 h-6 bg-gray-100 rounded-md shrink-0" />
+                <div className="w-[88px] h-6 bg-gray-100 rounded-md shrink-0" />
+                <div className="w-[88px] h-6 bg-gray-100 rounded-md shrink-0" />
+                <div className="w-14 h-6 bg-gray-100 rounded-md shrink-0" />
+                <div className="w-4 h-4 bg-gray-100 rounded-md shrink-0" />
+              </div>
+            ))}
+          </div>
+          {/* Footer de carga */}
+          <div className="flex items-center justify-center gap-2 py-3.5 border-t border-gray-100 bg-gray-50/40">
+            <RefreshCw className="w-3.5 h-3.5 text-gray-300 animate-spin" />
+            <span className="text-[12px] text-gray-300 font-medium">Cargando registros desde el servidor…</span>
+          </div>
+        </div>
+
+      ) : !hayFilas ? (
 
         /* Pantalla de inicio */
         <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
@@ -290,6 +411,18 @@ export default function CargaComprobantesPage() {
                 </p>
               </button>
             </div>
+
+            {/* Recuperar datos borrados */}
+            <div className="max-w-lg mx-auto w-full">
+              <button
+                onClick={recuperarDatos}
+                disabled={cargandoPlantilla}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-gray-200 text-[12px] text-gray-400 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50/50 transition-all disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${cargandoPlantilla ? "animate-spin" : ""}`} />
+                ¿Borraste los datos sin querer? Recuperar registros anteriores
+              </button>
+            </div>
           </div>
         </div>
 
@@ -297,7 +430,50 @@ export default function CargaComprobantesPage() {
 
         /* Tabla editable */
         <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-310px)]">
+
+          {/* Barra de búsqueda */}
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/60">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por numdoc, razón social o placa…"
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 placeholder:text-gray-400 text-gray-800"
+              />
+              {busqueda && (
+                <button
+                  onClick={() => setBusqueda("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {busqueda.trim() && (
+              <span className="text-[11px] text-gray-400 shrink-0">
+                {filasVisibles.length === 0
+                  ? "Sin resultados"
+                  : <><span className="font-semibold text-gray-700">{filasVisibles.length}</span> de {filasFiltradas.length}</>
+                }
+              </span>
+            )}
+
+            {/* Botón ajuste masivo de fecha */}
+            <div className="ml-auto shrink-0">
+              <button
+                onClick={ajustarFechasInicioMes}
+                title={`Poner fechaini al 1° del mes actual en las ${filasFiltradas.length} filas visibles`}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-[11px] font-semibold text-gray-600 hover:text-blue-700 transition-all"
+              >
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                1° del mes
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-350px)]">
             <table className="w-full text-xs" style={{ tableLayout: "fixed", minWidth: 1100 }}>
               <colgroup>
                 <col style={{ width: 28 }} />
@@ -324,16 +500,28 @@ export default function CargaComprobantesPage() {
               </thead>
 
               <tbody className="divide-y divide-gray-100">
-                {filasFiltradas.length === 0 ? (
+                {filasVisibles.length === 0 ? (
                   <tr>
                     <td colSpan={columnas.length + 4} className="px-6 py-12 text-center">
-                      <p className="text-[12px] text-gray-400">
-                        No hay ítems {PERIODO_CFG[tabActiva]?.label?.toLowerCase() ?? ""} en esta carga.
-                      </p>
+                      {busqueda.trim() ? (
+                        <div className="space-y-1.5">
+                          <Search className="w-5 h-5 text-gray-300 mx-auto" />
+                          <p className="text-[12px] text-gray-400">
+                            Sin resultados para <span className="font-semibold text-gray-600">"{busqueda}"</span>
+                          </p>
+                          <button onClick={() => setBusqueda("")} className="text-[11px] text-blue-500 hover:underline">
+                            Limpiar búsqueda
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[12px] text-gray-400">
+                          No hay ítems {PERIODO_CFG[tabActiva]?.label?.toLowerCase() ?? ""} en esta carga.
+                        </p>
+                      )}
                     </td>
                   </tr>
                 ) : (
-                  filasFiltradas.map((fila, idx) => {
+                  filasVisibles.map((fila, idx) => {
                     const pt       = periodoTexto(fila.periodo);
                     const cfg      = PERIODO_CFG[pt];
                     const tipo     = getTipoDoc(fila);
@@ -430,12 +618,12 @@ export default function CargaComprobantesPage() {
                           );
                         })}
 
-                        {/* Eliminar */}
+                        {/* Deshabilitar */}
                         <td className="px-1 py-1.5 text-center">
                           <button
-                            onClick={() => eliminarFila(fila.id)}
-                            title="Eliminar fila"
-                            className="inline-flex items-center justify-center w-5 h-5 rounded-md text-transparent group-hover/row:text-gray-300 hover:!text-red-400 hover:bg-red-50 transition-all"
+                            onClick={() => deshabilitarFila(fila.id)}
+                            title="Deshabilitar (no se emitirá)"
+                            className="inline-flex items-center justify-center w-5 h-5 rounded-md text-transparent group-hover/row:text-gray-300 hover:!text-amber-500 hover:bg-amber-50 transition-all"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -530,7 +718,7 @@ export default function CargaComprobantesPage() {
               {
                 n: "1", color: "blue", title: "Descarga el formato",
                 desc: "Genera un Excel con cabecera, columnas ajustadas y filas de ejemplo.",
-                action: descargarPlantilla, label: "Descargar plantilla", Icon: Download, variant: "default" as const,
+                action: descargarPlantilla, label: "Descargar plantilla", Icon: Download, variant: "primary" as const,
               },
               {
                 n: "2", color: "emerald", title: "Sube el archivo listo",
@@ -667,6 +855,51 @@ export default function CargaComprobantesPage() {
             ) : null;
           })()}
 
+          {/* ⏱ Advertencia temprana: aún no es momento de emitir */}
+          {advertenciaTemprana && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+              <div className="flex items-start gap-3 px-4 py-3">
+                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <Calendar className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-amber-800">
+                    Aún no es momento de emitir estos comprobantes
+                  </p>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    Acabas de emitir los comprobantes <span className="font-semibold">{advertenciaTemprana.periodoLabel}</span>.
+                    Los nuevos tienen fecha de inicio <span className="font-semibold">{formatFechaEs(advertenciaTemprana.fechaIniMin)}</span>,
+                    que es en <span className="font-black text-amber-900">{advertenciaTemprana.diasHasta} día{advertenciaTemprana.diasHasta !== 1 ? "s" : ""}</span>.
+                  </p>
+                  <p className="text-[11px] text-amber-600">
+                    Se recomienda emitir cuando falten 7 días o menos para esa fecha.
+                  </p>
+                </div>
+              </div>
+              {/* barra de progreso visual hacia la fecha */}
+              {(() => {
+                const totalDias = advertenciaTemprana.diasHasta;
+                // estimamos el período en días (7 = ventana mínima, más = período más largo)
+                const periodoEstimado = Math.max(totalDias + 7, 30);
+                const pct = Math.max(5, Math.round(((periodoEstimado - totalDias) / periodoEstimado) * 100));
+                return (
+                  <div className="px-4 pb-3 space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-amber-500 font-medium">
+                      <span>Hoy</span>
+                      <span className="font-bold text-amber-700">{formatFechaEs(advertenciaTemprana.fechaIniMin)}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-amber-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-amber-800 text-center">
+                      Faltan <span className="font-bold">{advertenciaTemprana.diasHasta} días</span> para la ventana de emisión
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* Advertencia si hay errores */}
           {nErrores > 0 && (
             <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg border border-red-200 bg-red-50">
@@ -694,15 +927,138 @@ export default function CargaComprobantesPage() {
                 emitir();
               }}
               disabled={emitiendo}
+              className={advertenciaTemprana ? "!bg-amber-500 hover:!bg-amber-600" : ""}
             >
               {emitiendo
                 ? <><RefreshCw className="w-4 h-4 animate-spin" /> Emitiendo…</>
-                : <><Send className="w-4 h-4" /> Sí, emitir {gruposFiltrados.length} comprobante{gruposFiltrados.length !== 1 ? "s" : ""}</>
+                : advertenciaTemprana
+                  ? <><Send className="w-4 h-4" /> Emitir igual (no recomendado)</>
+                  : <><Send className="w-4 h-4" /> Sí, emitir {gruposFiltrados.length} comprobante{gruposFiltrados.length !== 1 ? "s" : ""}</>
               }
             </Button>
           </div>
 
         </div>
+      </Modal>
+
+      {/* ── Modal resultado post-emisión ────────────────────────────────── */}
+      <Modal
+        isOpen={modalResultadoOpen}
+        onClose={() => setModalResultadoOpen(false)}
+        title="Comprobantes generados"
+      >
+        {resultadoEmision && (
+          <div className="space-y-4">
+
+            {/* Banner resumen */}
+            {(() => {
+              const ok  = resultadoEmision.filter((r) => r.ok).length;
+              const err = resultadoEmision.filter((r) => !r.ok).length;
+              return (
+                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+                  err === 0
+                    ? "bg-emerald-50 border-emerald-200"
+                    : ok === 0
+                      ? "bg-red-50 border-red-200"
+                      : "bg-amber-50 border-amber-200"
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                    err === 0 ? "bg-emerald-100" : ok === 0 ? "bg-red-100" : "bg-amber-100"
+                  }`}>
+                    {err === 0
+                      ? <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      : <AlertCircle className={`w-4 h-4 ${ok === 0 ? "text-red-500" : "text-amber-500"}`} />
+                    }
+                  </div>
+                  <div>
+                    <p className={`text-sm font-bold ${
+                      err === 0 ? "text-emerald-800" : ok === 0 ? "text-red-700" : "text-amber-800"
+                    }`}>
+                      {ok > 0 && `${ok} generado${ok !== 1 ? "s" : ""} correctamente`}
+                      {ok > 0 && err > 0 && " · "}
+                      {err > 0 && `${err} con error`}
+                    </p>
+                    {ok > 0 && (
+                      <p className={`text-xs mt-0.5 ${err === 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                        Estado: <span className="font-semibold">Pendiente</span> · Ve a Comprobantes para enviarlos a SUNAT
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Lista de comprobantes */}
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Detalle</p>
+                <span className="text-[10px] text-gray-400 tabular-nums">
+                  Total: <span className="font-bold text-gray-700">
+                    S/ {resultadoEmision.reduce((s, r) => s + r.importeTotal, 0).toFixed(2)}
+                  </span>
+                </span>
+              </div>
+              <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                {resultadoEmision.map((r) => (
+                  <div key={`${r.serie}-${r.correlativo}`}
+                    className={`flex items-center gap-3 px-3 py-2.5 ${!r.ok ? "bg-red-50/60" : ""}`}
+                  >
+                    {/* ok / error */}
+                    <div className="shrink-0">
+                      {r.ok
+                        ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        : <AlertCircle  className="w-3.5 h-3.5 text-red-400"     />
+                      }
+                    </div>
+
+                    {/* tipo B/F */}
+                    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ring-1 ring-inset shrink-0 ${
+                      r.tipoDoc === "B"
+                        ? "bg-blue-50 text-blue-600 ring-blue-200"
+                        : "bg-emerald-50 text-emerald-600 ring-emerald-200"
+                    }`}>
+                      {r.tipoDoc === "B" ? <User className="w-2.5 h-2.5" /> : <Building2 className="w-2.5 h-2.5" />}
+                      {r.tipoDoc}
+                    </span>
+
+                    {/* serie-correlativo */}
+                    <span className="text-[11px] font-mono font-semibold text-gray-700 shrink-0 w-28">
+                      {r.serie}-{r.correlativo}
+                    </span>
+
+                    {/* cliente */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-semibold text-gray-800 truncate">{r.razonSocial || r.numdoc}</p>
+                      {r.ok
+                        ? <p className="text-[10px] text-gray-400 font-mono">{r.numdoc}</p>
+                        : <p className="text-[10px] text-red-400 truncate" title={r.error}>{r.error}</p>
+                      }
+                    </div>
+
+                    {/* importe + estado */}
+                    <div className="text-right shrink-0">
+                      <p className="text-[11px] font-bold text-gray-800 tabular-nums">
+                        {r.moneda === "USD" ? "$" : "S/"} {r.importeTotal.toFixed(2)}
+                      </p>
+                      {r.ok
+                        ? <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-50 text-amber-600 ring-1 ring-inset ring-amber-100">Pendiente</span>
+                        : <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-red-50 text-red-500 ring-1 ring-inset ring-red-100">Error</span>
+                      }
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Botón cerrar */}
+            <div className="flex justify-end">
+              <Button type="button" onClick={() => setModalResultadoOpen(false)}>
+                <CheckCircle2 className="w-4 h-4" /> Entendido
+              </Button>
+            </div>
+
+          </div>
+        )}
       </Modal>
 
       {/* ── Tooltip de errores (fixed, escapa overflow de la tabla) ───────── */}
@@ -824,6 +1180,100 @@ export default function CargaComprobantesPage() {
           </>
         );
       })()}
+
+      {/* ── Modal registros deshabilitados ──────────────────────────────── */}
+      <Modal
+        isOpen={modalDeshabilitadosOpen}
+        onClose={() => setModalDeshabilitadosOpen(false)}
+        title={`Registros deshabilitados (${filasDeshabilitadas.length})`}
+      >
+        <div className="space-y-4">
+
+          {/* Explicación */}
+          <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-700 leading-relaxed">
+              Estos registros están pausados y <span className="font-semibold">no se emitirán</span>. Para reactivar uno, elige la nueva fecha de inicio y pulsa <span className="font-semibold">Habilitar</span>. Las fechas de fin y el concepto se recalcularán solos.
+            </p>
+          </div>
+
+          {/* Lista */}
+          {filasDeshabilitadas.length === 0 ? (
+            <div className="py-10 text-center">
+              <CheckCircle2 className="w-8 h-8 text-emerald-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">No hay registros deshabilitados</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100 max-h-[420px] overflow-y-auto">
+              {filasDeshabilitadas.map((fila) => {
+                const cfg  = PERIODO_CFG[periodoTexto(fila.periodo)];
+                const tipo = getTipoDoc(fila);
+                const fechaRehab = fechasRehab[fila.id] ?? primerDiaMes;
+                return (
+                  <div key={fila.id} className="px-4 py-3 bg-white hover:bg-gray-50/60 transition-colors">
+                    {/* Info del registro */}
+                    <div className="flex items-start gap-2.5 mb-2.5">
+                      <span className={`mt-1 inline-block w-2 h-2 rounded-full shrink-0 ${cfg?.dotClass ?? "bg-gray-300"}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ring-1 ring-inset ${
+                            tipo === "B" ? "bg-blue-50 text-blue-600 ring-blue-200" : "bg-emerald-50 text-emerald-600 ring-emerald-200"
+                          }`}>
+                            {tipo === "B" ? <User className="w-2.5 h-2.5" /> : <Building2 className="w-2.5 h-2.5" />}
+                            {tipo}
+                          </span>
+                          <span className="text-[11px] font-mono font-semibold text-gray-700 truncate">{fila.placa}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${cfg?.badgeClass ?? "bg-gray-100 text-gray-500"}`}>
+                            {cfg?.label ?? fila.periodo}
+                          </span>
+                        </div>
+                        <p className="text-[12px] font-semibold text-gray-800 truncate mt-0.5">{fila.razonSocial || fila.numdoc}</p>
+                        <p className="text-[11px] text-gray-400 font-mono">{fila.numdoc}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[12px] font-bold text-gray-800 tabular-nums">
+                          {fila.moneda === "USD" ? "$" : "S/"} {Number(fila.importe).toFixed(2)}
+                        </p>
+                        <p className="text-[10px] text-gray-400">por período</p>
+                      </div>
+                    </div>
+
+                    {/* Fecha + botón habilitar */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-1 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+                        <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap">Nueva fecha ini:</span>
+                        <input
+                          type="date"
+                          value={fechaRehab}
+                          onChange={(e) =>
+                            setFechasRehab((prev) => ({ ...prev, [fila.id]: e.target.value }))
+                          }
+                          className="flex-1 min-w-0 outline-none text-[11px] font-semibold text-gray-800 bg-transparent cursor-pointer"
+                        />
+                      </div>
+                      <button
+                        onClick={() => habilitarFila(fila.id, fechaRehab)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold transition-colors shadow-sm shrink-0"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Habilitar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setModalDeshabilitadosOpen(false)}>
+              Cerrar
+            </Button>
+          </div>
+
+        </div>
+      </Modal>
 
     </div>
   );

@@ -416,11 +416,14 @@ export default function VerComprobantesPage() {
           filtroEstado === "Todos" || estadoLabel === filtroEstado;
         return matchSearch && matchTipo && matchEstado;
       })
-      .sort(
-        (a, b) =>
-          new Date(b.fechaCreacion).getTime() -
-          new Date(a.fechaCreacion).getTime(),
-      );
+      .sort((a, b) => {
+        // 1° criterio: fechaEmision DESC  ("YYYY-MM-DD" → comparación lexicográfica exacta)
+        const cmpFecha = b.fechaEmision.localeCompare(a.fechaEmision);
+        if (cmpFecha !== 0) return cmpFecha;
+        // 2° criterio: comprobanteId DESC (ID autoincremental en BD → orden real de emisión
+        //  independiente del tipo de comprobante: B001, F001, notas de crédito, etc.)
+        return b.comprobanteId - a.comprobanteId;
+      });
   }, [comprobantes, search, filtroTipo, filtroEstado]);
 
   const paginated = filtered;

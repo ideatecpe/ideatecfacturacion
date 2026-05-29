@@ -65,3 +65,35 @@ export type GrupoData = {
 
 /** Mapa campo → mensaje de error para una fila */
 export type FilaErrores = Partial<Record<keyof FilaCarga, string>>;
+
+/** Registro de una emisión guardado en localStorage (historial anti-duplicados) */
+export type EmisionHistorial = {
+  id: string;
+  periodoTipo: string;
+  periodoLabel: string;
+  fechaIniMinima: string; // ISO "2026-05-01"
+  fechaEmision: string;   // ISO "2026-05-27"
+  timestamp: number;
+  cantidad: number;       // # comprobantes emitidos
+  total: number;
+};
+
+/** Un comprobante dentro del resultado post-emisión */
+export type ResultadoEmitido = {
+  serie: string;
+  correlativo: string;
+  tipoDoc: "B" | "F";
+  razonSocial: string;
+  numdoc: string;
+  importeTotal: number;
+  moneda: string;
+  periodoTipo: string;
+  ok: boolean;
+  error?: string;
+};
+
+/** Progreso de una emisión en curso */
+export type ProgresoEmision = {
+  actual: number;
+  total: number;
+};
