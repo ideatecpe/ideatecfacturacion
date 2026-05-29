@@ -9,6 +9,9 @@ interface Params {
   fechaInicio?: string | null;
   fechaFin?: string | null;
   clienteNumDoc?: string | null;
+  serie?: string | null;
+  correlativo?: number | null;
+  estadoPago?: 'PENDIENTE' | 'PAGADO' | 'TODOS' | null;
 }
 
 interface UseDeudaContadoReturn {
@@ -33,6 +36,9 @@ export const useDeudaContado = (): UseDeudaContadoReturn => {
       fechaInicio,
       fechaFin,
       clienteNumDoc,
+      serie,
+      correlativo,
+      estadoPago,
     }: Params): Promise<DeudaContado[]> => {
       setLoading(true);
       setError(null);
@@ -47,6 +53,9 @@ export const useDeudaContado = (): UseDeudaContadoReturn => {
         if (fechaFin) url.searchParams.append("fechaFin", fechaFin);
         if (clienteNumDoc)
           url.searchParams.append("clienteNumDoc", clienteNumDoc);
+        if (serie) url.searchParams.append("serie", serie);
+        if (correlativo != null) url.searchParams.append("correlativo", correlativo.toString());
+        if (estadoPago) url.searchParams.append("estadoPago", estadoPago);
 
         const response = await fetch(url.toString(), {
           headers: { Authorization: `Bearer ${accessToken}` },

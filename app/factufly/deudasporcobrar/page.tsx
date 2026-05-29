@@ -48,6 +48,10 @@ export default function DeudasPorCobrarPage() {
   const [avFechaDesde, setAvFechaDesde]   = useState('');
   const [avFechaHasta, setAvFechaHasta]   = useState('');
   const [avClienteDoc, setAvClienteDoc]   = useState('');
+  const [avSerie, setAvSerie]             = useState('');
+  const [avCorrelativo, setAvCorrelativo] = useState('');
+  const [avEstadoPago, setAvEstadoPago]   = useState<'PENDIENTE' | 'PAGADO' | 'TODOS'>('PENDIENTE');
+  const [modoAvanzado, setModoAvanzado]   = useState<'fechas' | 'comprobante'>('fechas');
   const [showModalReporte, setShowModalReporte] = useState(false);
 
   const hoy = new Date().toLocaleDateString('en-CA');
@@ -67,7 +71,21 @@ export default function DeudasPorCobrarPage() {
   }, [user, accessToken, sucursalFiltro, sucursal]);
 
   const buscarAvanzado = async () => {
-    if (!avClienteDoc && !avFechaDesde && !avFechaHasta) {
+    if (modoAvanzado === 'comprobante') {
+      if (!avSerie || !avCorrelativo) {
+        showToast('Ingrese serie y correlativo', 'error');
+        return;
+      }
+      const data = await hookDeudas.fetchDeudas({
+        empresaRuc: rucEmpresa,
+        serie: avSerie,
+        correlativo: Number(avCorrelativo),
+        estadoPago: 'TODOS',
+      });
+      setDeudas(data);
+      return;
+    }
+    if (!avClienteDoc && !avFechaDesde && !avFechaHasta && avEstadoPago === 'PENDIENTE') {
       showToast('Ingrese al menos un criterio de búsqueda', 'error');
       return;
     }
@@ -76,26 +94,42 @@ export default function DeudasPorCobrarPage() {
       fechaInicio: avFechaDesde || null,
       fechaFin: avFechaHasta || null,
       clienteNumDoc: avClienteDoc || null,
+      estadoPago: avEstadoPago,
     });
     setDeudas(data);
   };
 
   const limpiarAvanzado = () => {
+    const habiaFiltro =
+      !!avFechaDesde || !!avFechaHasta || !!avClienteDoc ||
+      !!avSerie || !!avCorrelativo || avEstadoPago !== 'PENDIENTE';
     setAvFechaDesde('');
     setAvFechaHasta('');
     setAvClienteDoc('');
-    cargar();
+    setAvSerie('');
+    setAvCorrelativo('');
+    setAvEstadoPago('PENDIENTE');
+    setModoAvanzado('fechas');
+    if (habiaFiltro) cargar();
   };
 
   const filtered = useMemo(() => {
-    return deudas.filter(d => {
-      const matchSearch =
-        d.clienteRznSocial.toLowerCase().includes(search.toLowerCase()) ||
-        d.clienteNumDoc.includes(search) ||
-        d.numeroCompleto.toLowerCase().includes(search.toLowerCase());
-      const matchTipo = filtroTipo === 'Todos' || tipoComprobanteLabel(d.tipoComprobante) === filtroTipo;
-      return matchSearch && matchTipo;
-    });
+    return deudas
+      .filter(d => {
+        const matchSearch =
+          d.clienteRznSocial.toLowerCase().includes(search.toLowerCase()) ||
+          d.clienteNumDoc.includes(search) ||
+          d.numeroCompleto.toLowerCase().includes(search.toLowerCase());
+        const matchTipo = filtroTipo === 'Todos' || tipoComprobanteLabel(d.tipoComprobante) === filtroTipo;
+        return matchSearch && matchTipo;
+      })
+      .sort((a, b) => {
+        const fechaDiff = new Date(b.fechaEmision).getTime() - new Date(a.fechaEmision).getTime();
+        if (fechaDiff !== 0) return fechaDiff;
+        const serieComp = a.serie.localeCompare(b.serie);
+        if (serieComp !== 0) return serieComp;
+        return b.correlativo - a.correlativo;
+      });
   }, [deudas, search, filtroTipo]);
 
   const handlePagar = async (payload: RegistrarPagoDeudaPayload) => {
@@ -196,34 +230,93 @@ export default function DeudasPorCobrarPage() {
         </div>
 
         {showAvanzado && (
-          <div className="border border-blue-100 bg-blue-50/40 rounded-xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Nº Doc. Cliente</label>
-                <input type="text" value={avClienteDoc} onChange={e => setAvClienteDoc(e.target.value)}
-                  placeholder="RUC o DNI"
-                  className="py-1.5 px-2 bg-white border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 w-64" />
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-in slide-in-from-top-2 duration-200">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-100">
+              {([
+                { key: 'fechas', label: 'Por fechas / cliente' },
+                { key: 'comprobante', label: 'Comprobante exacto' },
+              ] as const).map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setModoAvanzado(tab.key)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-4 py-2 text-xs font-medium border-b-2 transition-all whitespace-nowrap",
+                    modoAvanzado === tab.key
+                      ? "border-blue-600 text-blue-600 bg-blue-50/50"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="px-5 py-4">
+              <div className="flex flex-wrap items-end gap-4">
+                {modoAvanzado === 'fechas' && (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Nº Doc. Cliente</label>
+                      <input type="text" value={avClienteDoc} onChange={e => setAvClienteDoc(e.target.value)}
+                        placeholder="RUC o DNI"
+                        className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-44" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Fecha desde</label>
+                      <input type="date" value={avFechaDesde} max={hoy}
+                        onChange={e => { setAvFechaDesde(e.target.value); if (avFechaHasta && e.target.value > avFechaHasta) setAvFechaHasta(''); }}
+                        className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Fecha hasta</label>
+                      <input type="date" value={avFechaHasta} min={avFechaDesde || undefined} max={hoy}
+                        onChange={e => setAvFechaHasta(e.target.value)}
+                        className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Estado pago</label>
+                      <select
+                        value={avEstadoPago}
+                        onChange={e => setAvEstadoPago(e.target.value as 'PENDIENTE' | 'PAGADO' | 'TODOS')}
+                        className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all"
+                      >
+                        <option value="PENDIENTE">Pendiente</option>
+                        <option value="PAGADO">Pagado</option>
+                        <option value="TODOS">Todos</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {modoAvanzado === 'comprobante' && (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Serie</label>
+                      <input type="text" value={avSerie} onChange={e => setAvSerie(e.target.value.toUpperCase())}
+                        placeholder="F001"
+                        className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-28" />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Correlativo</label>
+                      <input type="number" value={avCorrelativo} onChange={e => setAvCorrelativo(e.target.value)}
+                        placeholder="14730"
+                        className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-32" />
+                    </div>
+                  </>
+                )}
+
+                <div className="flex items-center gap-2 self-end">
+                  <button onClick={buscarAvanzado} disabled={loading}
+                    className="h-8 flex items-center gap-1.5 px-4 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 shadow-sm">
+                    <Search size={13} /> Buscar
+                  </button>
+                  <button onClick={limpiarAvanzado}
+                    className="h-8 flex items-center gap-1.5 px-3 text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-lg transition-all">
+                    <X size={12} /> Limpiar
+                  </button>
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Fecha desde</label>
-                <input type="date" value={avFechaDesde} max={hoy}
-                  onChange={e => { setAvFechaDesde(e.target.value); if (avFechaHasta && e.target.value > avFechaHasta) setAvFechaHasta(''); }}
-                  className="py-1.5 px-2 bg-white border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Fecha hasta</label>
-                <input type="date" value={avFechaHasta} min={avFechaDesde || undefined} max={hoy}
-                  onChange={e => setAvFechaHasta(e.target.value)}
-                  className="py-1.5 px-2 bg-white border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400" />
-              </div>
-              <button onClick={buscarAvanzado} disabled={loading}
-                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors self-end disabled:opacity-50">
-                <Search size={13} /> Buscar
-              </button>
-              <button onClick={limpiarAvanzado}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-md transition-all self-end">
-                <X size={12} /> Limpiar
-              </button>
             </div>
           </div>
         )}
@@ -232,7 +325,7 @@ export default function DeudasPorCobrarPage() {
       {/* Contador */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
-          Total <span className="font-semibold text-gray-900">{filtered.length}</span> comprobantes pendientes de pago
+          Total <span className="font-semibold text-gray-900">{filtered.length}</span> comprobante{filtered.length !== 1 ? 's' : ''}{avEstadoPago === 'PAGADO' ? ' pagados' : avEstadoPago === 'TODOS' ? '' : ' pendientes de pago'}
         </p>
       </div>
 
@@ -249,14 +342,14 @@ export default function DeudasPorCobrarPage() {
           <table className="w-full text-left border-collapse dc-table">
             <thead>
               <tr className="bg-gray-100">
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Fecha</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-44">Comprobante</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Total</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Pagado</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Restante</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28 text-center">Estado</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-36 text-center">Acción</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32">Fecha</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-44">Comprobante</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Total</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Pagado</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Restante</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-28 text-center">Estado</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-36 text-center">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -277,34 +370,37 @@ export default function DeudasPorCobrarPage() {
                 const yaEstaPagado = d.estado === 'PAGADO';
                 return (
                   <tr key={d.comprobanteId} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-5 py-4 text-sm text-gray-900 font-medium whitespace-nowrap w-32">{formatFecha(d.fechaEmision)}</td>
-                    <td className="px-5 py-4 whitespace-nowrap w-44">
+                    <td className="px-5 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-32">{formatFecha(d.fechaEmision)}</td>
+                    <td className="px-5 py-2 whitespace-nowrap w-44">
                       <p className="text-sm font-medium text-gray-900">{d.numeroCompleto}</p>
                       <p className="text-xs text-gray-400">{tipoComprobanteLabel(d.tipoComprobante)}</p>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-2">
                       <p className="text-sm font-semibold text-gray-900">{d.clienteRznSocial}</p>
                       <p className="text-xs text-gray-400">{d.clienteNumDoc}</p>
                     </td>
-                    <td className="px-5 py-4 text-sm font-semibold text-gray-900 text-right whitespace-nowrap w-32">
+                    <td className="px-5 py-2 text-sm font-semibold text-gray-900 text-right whitespace-nowrap w-32">
                       {formatMoneda(d.montoTotal, d.tipoMoneda)}
                     </td>
-                    <td className="px-5 py-4 text-sm font-semibold text-emerald-600 text-right whitespace-nowrap w-32">
+                    <td className="px-5 py-2 text-sm font-semibold text-emerald-600 text-right whitespace-nowrap w-32">
                       {formatMoneda(d.montoPagado, d.tipoMoneda)}
                     </td>
-                    <td className="px-5 py-4 text-sm font-semibold text-blue-700 text-right whitespace-nowrap w-32">
+                    <td className="px-5 py-2 text-sm font-semibold text-blue-700 text-right whitespace-nowrap w-32">
                       {formatMoneda(restante, d.tipoMoneda)}
                     </td>
-                    <td className="px-5 py-4 text-center w-28">
+                    <td className="px-5 py-2 text-center w-28">
                       <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap", colorBadge)}>
                         {d.estado}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-center w-36">
+                    <td className="px-5 py-2 text-center w-36">
                       {yaEstaPagado ? (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 rounded-lg">
-                          <Check size={13} /> Pagado
-                        </div>
+                        <button
+                          onClick={() => setDeudaPagar(d)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          <Check size={13} /> Ver pagos
+                        </button>
                       ) : (
                         <button
                           onClick={() => setDeudaPagar(d)}

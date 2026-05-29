@@ -224,34 +224,38 @@ export default function CuentasPorCobrarPage() {
         </div>
 
         {showAvanzado && (
-          <div className="border border-blue-100 bg-blue-50/40 rounded-xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Nº Doc. Cliente</label>
-                <input type="text" value={avClienteDoc} onChange={e => setAvClienteDoc(e.target.value)}
-                  placeholder="RUC o DNI"
-                  className="py-1.5 px-2 bg-white border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 w-64" />
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-in slide-in-from-top-2 duration-200">
+            <div className="px-5 py-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Nº Doc. Cliente</label>
+                  <input type="text" value={avClienteDoc} onChange={e => setAvClienteDoc(e.target.value)}
+                    placeholder="RUC o DNI"
+                    className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-44" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Fecha desde</label>
+                  <input type="date" value={avFechaDesde} max={hoy}
+                    onChange={e => { setAvFechaDesde(e.target.value); if (avFechaHasta && e.target.value > avFechaHasta) setAvFechaHasta(''); }}
+                    className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Fecha hasta</label>
+                  <input type="date" value={avFechaHasta} min={avFechaDesde || undefined} max={hoy}
+                    onChange={e => setAvFechaHasta(e.target.value)}
+                    className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all" />
+                </div>
+                <div className="flex items-center gap-2 self-end">
+                  <button onClick={buscarAvanzado} disabled={loading}
+                    className="h-8 flex items-center gap-1.5 px-4 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 shadow-sm">
+                    <Search size={13} /> Buscar
+                  </button>
+                  <button onClick={limpiarAvanzado}
+                    className="h-8 flex items-center gap-1.5 px-3 text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-lg transition-all">
+                    <X size={12} /> Limpiar
+                  </button>
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Fecha desde</label>
-                <input type="date" value={avFechaDesde} max={hoy}
-                  onChange={e => { setAvFechaDesde(e.target.value); if (avFechaHasta && e.target.value > avFechaHasta) setAvFechaHasta(''); }}
-                  className="py-1.5 px-2 bg-white border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Fecha hasta</label>
-                <input type="date" value={avFechaHasta} min={avFechaDesde || undefined} max={hoy}
-                  onChange={e => setAvFechaHasta(e.target.value)}
-                  className="py-1.5 px-2 bg-white border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400" />
-              </div>
-              <button onClick={buscarAvanzado} disabled={loading}
-                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors self-end disabled:opacity-50">
-                <Search size={13} /> Buscar
-              </button>
-              <button onClick={limpiarAvanzado}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200 rounded-md transition-all self-end">
-                <X size={12} /> Limpiar
-              </button>
             </div>
           </div>
         )}
@@ -276,13 +280,13 @@ export default function CuentasPorCobrarPage() {
           <table className="w-full text-left border-collapse cpc-table">
             <thead>
               <tr className="bg-gray-100" style={{borderTopLeftRadius: '12px', borderTopRightRadius: '12px', overflow: 'hidden'}}>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Fecha</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-44">Comprobante</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Importe</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Crédito</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-20 text-center">Moneda</th>
-                <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40 text-center">Ver</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32">Fecha</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-44">Comprobante</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Importe</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Crédito</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20 text-center">Moneda</th>
+                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-40 text-center">Ver</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -299,8 +303,8 @@ export default function CuentasPorCobrarPage() {
                 </td></tr>
               ) : filtered.map(c => (
                 <tr key={c.comprobanteId} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-4 text-sm text-gray-900 font-medium whitespace-nowrap w-32">{formatFecha(c.fechaEmision)}</td>
-                  <td className="px-5 py-4 whitespace-nowrap w-44">
+                  <td className="px-5 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-32">{formatFecha(c.fechaEmision)}</td>
+                  <td className="px-5 py-2 whitespace-nowrap w-44">
                     <p className="text-sm font-medium text-gray-900">{c.numeroCompleto}</p>
                     <p className="text-xs text-gray-400">{tipoComprobanteLabel(c.tipoComprobante)}</p>
                   </td>
@@ -308,14 +312,14 @@ export default function CuentasPorCobrarPage() {
                     <p className="text-sm font-semibold text-gray-900">{c.clienteRznSocial}</p>
                     <p className="text-xs text-gray-400">{c.clienteNumDoc}</p>
                   </td>
-                  <td className="px-5 py-4 text-sm font-semibold text-gray-900 text-right whitespace-nowrap w-32">{formatMoneda(c.importeTotal, c.tipoMoneda)}</td>
-                  <td className="px-5 py-4 text-sm font-semibold text-blue-700 text-right whitespace-nowrap w-32">
+                  <td className="px-5 py-2 text-sm font-semibold text-gray-900 text-right whitespace-nowrap w-32">{formatMoneda(c.importeTotal, c.tipoMoneda)}</td>
+                  <td className="px-5 py-2 text-sm font-semibold text-blue-700 text-right whitespace-nowrap w-32">
                     {formatMoneda((!c.montoCredito || c.montoCredito === 0) ? c.importeTotal : c.montoCredito, c.tipoMoneda)}
                   </td>
-                  <td className="px-5 py-4 text-center w-20">
+                  <td className="px-5 py-2 text-center w-20">
                     <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{c.tipoMoneda}</span>
                   </td>
-                  <td className="px-5 py-4 text-center w-36">
+                  <td className="px-5 py-2 text-center w-36">
                     <button
                       onClick={() => verCuotas(c)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
