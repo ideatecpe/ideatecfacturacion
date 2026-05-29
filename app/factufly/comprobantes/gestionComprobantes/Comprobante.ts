@@ -51,6 +51,7 @@ export interface ComprobanteDetalleItem {
   totalVentaItem: number
   icbper: number
   factorIcbper: number
+  trabajadorId?: number | null
 }
 
 export interface ComprobantePagoItem {

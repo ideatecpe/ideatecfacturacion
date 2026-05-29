@@ -24,7 +24,6 @@ import { MenuItem, View } from "../types";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 
-
 export default function DashboardLayout({
   children,
 }: {
@@ -42,41 +41,32 @@ export default function DashboardLayout({
       router.push("/factufly/dashboard");
     }
 
-    // Configurar interceptores de Axios
     const requestInterceptor = axios.interceptors.request.use((config) => {
-      console.log(`🚀 [API REQ] ${config.method?.toUpperCase()} ${config.url}`, config.data);
       return config;
     });
 
     const responseInterceptor = axios.interceptors.response.use(
-      (response) => {
-        console.log(`✅ [API RES] ${response.status} ${response.config.url}`, response.data);
-        return response;
-      },
-      (error) => {
-        console.error(`❌ [API ERR] ${error.response?.status || 'Network Error'} ${error.config?.url}`, error.response?.data || error.message);
-        return Promise.reject(error);
-      }
+      (response) => response,
+      (error) => Promise.reject(error),
     );
 
-    // Interceptor para Fetch
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
-      const url = typeof args[0] === 'string' ? args[0] : (args[0] as any).url;
-      const method = (args[1]?.method || 'GET').toUpperCase();
-      let bodyData = '';
+      const url = typeof args[0] === "string" ? args[0] : (args[0] as any).url;
+      const method = (args[1]?.method || "GET").toUpperCase();
+      let bodyData = "";
       try {
-        if (args[1]?.body && typeof args[1].body === 'string') {
+        if (args[1]?.body && typeof args[1].body === "string") {
           bodyData = JSON.parse(args[1].body);
         } else if (args[1]?.body) {
-          bodyData = '[Non-string body]';
+          bodyData = "[Non-string body]";
         }
       } catch (e) {
         bodyData = args[1]?.body as any;
       }
-      
+
       console.log(`🚀 [FETCH REQ] ${method} ${url}`, bodyData);
-      
+
       try {
         const response = await originalFetch(...args);
         if (!response.ok) {
@@ -99,15 +89,15 @@ export default function DashboardLayout({
     };
   }, [pathname]);
 
-
-  const esUsuarioVelsat =
-    user?.username?.toLowerCase() === "velsat" || user?.ruc === "10073587382";
-
   const todosLosMenuItems: MenuItem[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "operaciones", label: "Emisión", icon: Grip },
     { id: "comprobantes", label: "Comprobantes", icon: FileText },
-    { id: "carga-comprobantes", label: "Carga Comprobantes", icon: FileSpreadsheet },
+    {
+      id: "carga-comprobantes",
+      label: "Carga Comprobantes",
+      icon: FileSpreadsheet,
+    },
     { id: "guiasremision", label: "Guias de Remisión", icon: Truck },
     { id: "deudasporcobrar", label: "Deudas por Cobrar", icon: Wallet },
     { id: "cuentasporcobrar", label: "Cuentas por Cobrar", icon: DollarSign },
@@ -121,9 +111,15 @@ export default function DashboardLayout({
     { id: "usuarios", label: "Usuarios", icon: UserCircle },
   ];
 
+  const RUCS_GUIAS_REMISION = ["20512134832"];
+  const RUCS_VELSAT = ["20512134832"];
+
   const menuItems = todosLosMenuItems.filter((item) => {
     if (item.id === "trabajadores") return user?.ruc === "10073587382";
-    if (item.id === "carga-comprobantes") return esUsuarioVelsat;
+    if (item.id === "guiasremision")
+      return RUCS_GUIAS_REMISION.includes(user?.ruc ?? "");
+    if (["carga-comprobantes", "deudasporcobrar"].includes(item.id))
+      return RUCS_VELSAT.includes(user?.ruc ?? "");
     return true;
   });
 
@@ -142,7 +138,7 @@ export default function DashboardLayout({
             toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             activeView={activeView}
           />
-          <main className="flex-1 px-6  overflow-y-auto overflow-x-hidden custom-scrollbar py-2">
+          <main className="flex-1 px-6 overflow-y-auto overflow-x-hidden custom-scrollbar py-2">
             <div className="mx-auto">{children}</div>
           </main>
         </div>

@@ -612,6 +612,15 @@ export default function VerComprobantesPage() {
           ruc={rucEmpresa}
           accessToken={accessToken ?? ""}
           loadingDetalles={hookDetalles.loading}
+          sucursalId={
+            isSuperAdmin
+              ? (sucursales.find(
+                  (s: any) =>
+                    s.codEstablecimiento ===
+                    detalle.company.establecimientoAnexo,
+                )?.sucursalId ?? sucursalId)
+              : sucursalId
+          }
           nombreSucursal={
             isSuperAdmin
               ? sucursales.find(

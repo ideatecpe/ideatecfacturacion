@@ -47,7 +47,6 @@ async function generateSampleExcel() {
 
   const filePath = path.join(process.cwd(), "productos_prueba_10.xlsx");
   await workbook.xlsx.writeFile(filePath);
-  console.log(`Archivo generado en: ${filePath}`);
 }
 
 generateSampleExcel();

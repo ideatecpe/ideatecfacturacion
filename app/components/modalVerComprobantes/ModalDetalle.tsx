@@ -4,6 +4,7 @@ import { RefreshCw, FileText, X, CheckCircle2, Eye, Download, ChevronDown, Build
 import { cn } from '@/app/utils/cn';
 import { Comprobante } from '@/app/factufly/comprobantes/gestionComprobantes/Comprobante';
 import { padCorrelativo, COLORS, TIPO_PAGO_MAP, tipoLabel, formatFecha, TIPO_GUIA_MAP, limpiarMensajeSunat, PDF_SIZES } from '@/app/factufly/comprobantes/gestionComprobantes/helpers';
+import { useTrabajadoresSucursal } from '@/app/factufly/trabajadores/gestionTrabajadores/useTrabajadoresSucursal';
 
 // ─── DataCard ─────────────────────────────────────────────────────────────────
 const DataCard = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
@@ -19,14 +20,28 @@ export interface ModalDetalleProps {
     accessToken: string;
     loadingDetalles?: boolean;
     nombreSucursal?: string;
+    sucursalId?: number;
     onClose: () => void;
 }
 
-export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, nombreSucursal, onClose }: ModalDetalleProps) => {
+const RUC_SALON = "10073587382";
+
+export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, nombreSucursal, sucursalId, onClose }: ModalDetalleProps) => {
     const [showSizeMenu, setShowSizeMenu] = useState(false);
     const [loadingPdf, setLoadingPdf] = useState(false);
     const sizeRef = useRef<HTMLDivElement>(null);
     const simboloMoneda = comprobante.tipoMoneda === 'USD' ? '$' : 'S/'
+
+    const mostrarTrabajador = ruc === RUC_SALON;
+    const { trabajadores } = useTrabajadoresSucursal(
+        mostrarTrabajador ? (sucursalId ?? 0) : undefined,
+        mostrarTrabajador,
+    );
+    const getNombreTrabajador = (trabajadorId: number | null | undefined) => {
+        if (!trabajadorId) return null;
+        return trabajadores.find(t => t.id === trabajadorId)?.nombreCompleto ?? null;
+    };
+
 
     useEffect(() => {
         const handler = (e: MouseEvent) => { if (sizeRef.current && !sizeRef.current.contains(e.target as Node)) setShowSizeMenu(false); };
@@ -182,6 +197,9 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                                                 <tr>
                                                     <th className="px-3 py-2 text-left text-gray-400 font-semibold w-20">Código</th>
                                                     <th className="px-3 py-2 text-left text-gray-400 font-semibold">Producto</th>
+                                                    {mostrarTrabajador && (
+                                                        <th className="px-3 py-2 text-left text-gray-400 font-semibold">Trabajador</th>
+                                                    )}
                                                     <th className="px-3 py-2 text-left text-gray-400 font-semibold">P. Base</th>
                                                     <th className="px-3 py-2 text-right text-gray-400 font-semibold w-24">Valor Venta</th>
                                                     <th className="px-3 py-2 text-left text-gray-400 font-semibold">IGV({porcentajeIgv}%)</th>
@@ -197,6 +215,11 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                                                             <p className="text-gray-400 mt-0.5">{d.cantidad} × {simboloMoneda} {d.precioVenta.toFixed(2)}</p>
                                                             {d.icbper > 0 && <p className="text-gray-400 mt-0.5">{d.cantidad} × {simboloMoneda} {d.factorIcbper.toFixed(2)}</p>}
                                                         </td>
+                                                        {mostrarTrabajador && (
+                                                            <td className="px-3 py-2.5 align-top text-xs text-gray-700">
+                                                                {getNombreTrabajador(d.trabajadorId) ?? <span className="text-gray-300">—</span>}
+                                                            </td>
+                                                        )}
                                                         <td className="px-3 py-2.5 align-top">
                                                             <p className="font-medium text-gray-800">{d.precioUnitario.toFixed(2)}</p>
                                                             {d.descuentoTotal > 0 && <p className="text-red-400">- {d.descuentoUnitario.toFixed(2)}</p>}

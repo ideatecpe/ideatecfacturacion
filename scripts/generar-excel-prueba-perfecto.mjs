@@ -121,7 +121,6 @@ async function generatePerfectSampleExcel() {
 
   const filePath = path.join(process.cwd(), "productos_prueba_final.xlsx");
   await workbook.xlsx.writeFile(filePath);
-  console.log(`Archivo generado con estilos idénticos en: ${filePath}`);
 }
 
 generatePerfectSampleExcel();

@@ -294,7 +294,6 @@ export default function UsuariosPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/api/Sucursal?ruc=${ruc}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
-      console.log("Sucursales response:", res.data);
       setSucursales(res.data);
     } catch {
       showToast("Error al cargar sucursales", "error");

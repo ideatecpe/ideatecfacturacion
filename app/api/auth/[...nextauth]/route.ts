@@ -22,8 +22,6 @@ export const authOptions: AuthOptions = {
         try {
           const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/Auth/login`;
 
-          console.log("🔵 Intentando conectar a:", apiUrl);
-
           const response = await fetch(apiUrl, {
             method: "POST",
             headers: {
@@ -54,8 +52,6 @@ export const authOptions: AuthOptions = {
           if (!response.ok || !data.success) {
             throw new Error(data.message || "Credenciales inválidas");
           }
-
-          console.log("✅ Login exitoso");
 
           return {
             id: data.user.usuarioID.toString(),
