@@ -37,7 +37,7 @@ export async function GET() {
     { label: "Tipo Producto",         optional: true,  comment: "BIEN  o  SERVICIO\n(por defecto: BIEN)" },
     { label: "Tipo Afectación IGV",   optional: true,  comment: "10 = Gravado\n20 = Exonerado\n30 = Inafecto\n(por defecto: 10)" },
     { label: "Precio Incluye IGV",    optional: true,  comment: "TRUE o FALSE\nSolo aplica si Afectación=10\n(por defecto: TRUE)" },
-    { label: "Unidad de Medida",      optional: true,  comment: "NIU = Unidad\nKGM = Kilogramo\nLTR = Litro\n(por defecto: NIU)" },
+    { label: "Unidad de Medida",      optional: true,  comment: "NIU = Unidad\nKGM = Kilogramo\nLTR = Litro\nZZ = Servicio\n(por defecto: NIU; SERVICIO usa ZZ)" },
     { label: "Categoría",            optional: false, comment: "Nombre de la categoría. Ej: Bebidas, Ferretería, etc." },
     { label: "Código Interno",        optional: true,  comment: "Código interno del producto.\nSi se deja vacío se genera automáticamente." },
   ];
@@ -74,7 +74,7 @@ export async function GET() {
   // ── Filas de ejemplo (3 y 4) ──────────────────────────────────────────────
   const examples = [
     ["Arroz Premium 5kg", 12.5,  "BIEN",     "10", "TRUE",  "KGM", "Abarrotes", ""],
-    ["Servicio de Instalación", 150, "SERVICIO", "10", "TRUE", "NIU", "Servicios", "SVC-001"],
+    ["Servicio de Instalación", 150, "SERVICIO", "10", "TRUE", "ZZ", "Servicios", "SVC-001"],
   ];
 
   examples.forEach((row, ri) => {
@@ -137,7 +137,7 @@ export async function GET() {
     ["Tipo Producto",       "BIEN | SERVICIO",                             "BIEN"],
     ["Tipo Afectación IGV", "10 (Gravado) | 20 (Exonerado) | 30 (Inafecto)", "10"],
     ["Precio Incluye IGV",  "TRUE | FALSE  (solo si IGV=10)",               "TRUE"],
-    ["Unidad de Medida",    "NIU (Unidad) | KGM (Kg) | LTR (Litro)",        "NIU"],
+    ["Unidad de Medida",    "NIU (Unidad) | KGM (Kg) | LTR (Litro) | ZZ (Servicio)",  "NIU / ZZ si SERVICIO"],
     ["Código Interno",      "Texto libre. Vacío = se genera automático.",   "(auto)"],
   ];
 
