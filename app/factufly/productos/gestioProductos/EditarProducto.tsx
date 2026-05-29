@@ -273,6 +273,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             <option value="NIU">NIU - Unidad</option>
             <option value="KGM">KGM - Kilogramo</option>
             <option value="LTR">LTR - Litro</option>
+            <option value="ZZ">ZZ - Servicio</option>
           </select>
         </div>
       </div>
