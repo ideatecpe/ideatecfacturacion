@@ -86,7 +86,7 @@ export function useCargaComprobantes() {
   const [modalPlantillaOpen,    setModalPlantillaOpen]   = useState(false);
   const [tabActiva,             setTabActiva]            = useState<PeriodoKey>("todos");
   const [fechaEmision,          setFechaEmision]         = useState<string>(toLocalIso(new Date()));
-  const [periodosExpandidos,    setPeriodosExpandidos]   = useState<Set<string>>(() => new Set(PERIODO_ORDER));
+  const [periodosExpandidos,    setPeriodosExpandidos]   = useState<Set<string>>(() => new Set());
   const [loadingRazonSocialIds, setLoadingRazonSocialIds] = useState<Set<string>>(new Set());
   const [resultadoEmision,      setResultadoEmision]     = useState<ResultadoEmitido[] | null>(null);
   const [modalResultadoOpen,    setModalResultadoOpen]   = useState(false);
@@ -1026,6 +1026,7 @@ export function useCargaComprobantes() {
     progresoEmision,
     advertenciaTemprana,
     // acceso
+    accessToken,
     esUsuarioVelsat,
     sucursal,
     empresa,
