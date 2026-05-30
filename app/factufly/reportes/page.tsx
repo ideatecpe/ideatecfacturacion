@@ -23,6 +23,7 @@ import { DropdownSucursal } from '@/app/components/ui/DropdownSucursal';
 import { DropdownUsuario } from '@/app/components/ui/DropdownUsuario';
 import { ModalReportes } from '@/app/components/modalReportes/Modalreportes';
 import { useModalReportes } from '@/app/components/modalReportes/UseModalReportes';
+import { FormatoReporte } from './gestionReportes/UseReportesAvanzados';
 
 // ─── Colores donut ────────────────────────────────────────────────────────────
 const DOC_COLORS = {
@@ -263,47 +264,33 @@ export default function ReportesPage() {
     });
   };
 
-  const handleDescargarListado = async () => {
+  const getParamsModal = () => {
     const codEst = isSuperAdmin
       ? (modal.filtros.codEstablecimiento ?? null)
       : getCodEstablecimiento();
-
-    await avanzados.descargarExcelListado(
-      { ...getParamsBase(), ...modal.filtros, codEstablecimiento: codEst },
-      resolverTitulo('Libro Contable')
-    );
+    return { ...getParamsBase(), ...modal.filtros, codEstablecimiento: codEst };
   };
 
-  const handleDescargarProductos = async () => {
-    const codEst = isSuperAdmin
-      ? (modal.filtros.codEstablecimiento ?? null)
-      : getCodEstablecimiento();
-
-    await avanzados.descargarExcelProductos(
-      { ...getParamsBase(), ...modal.filtros, codEstablecimiento: codEst },
-      resolverTitulo('Top Productos')
-    );
+  const handleDescargarListado = async (_filtros: typeof modal.filtros, formato: FormatoReporte) => {
+    await avanzados.descargarExcelListado(getParamsModal(), resolverTitulo('Libro Contable'), formato);
   };
 
-  const handleDescargarControlCaja = async () => {
-    const codEst = isSuperAdmin
-      ? (modal.filtros.codEstablecimiento ?? null)
-      : getCodEstablecimiento();
-
-    await avanzados.descargarExcelControlCaja(
-      { ...getParamsBase(), ...modal.filtros, codEstablecimiento: codEst },
-      resolverTitulo('control-caja')
-    );
+  const handleDescargarProductos = async (_filtros: typeof modal.filtros, formato: FormatoReporte) => {
+    await avanzados.descargarExcelProductos(getParamsModal(), resolverTitulo('Top Productos'), formato);
   };
 
-  const handleDescargarMedios = async () => {
-    const codEst = isSuperAdmin
-      ? (modal.filtros.codEstablecimiento ?? null)
-      : getCodEstablecimiento();
+  const handleDescargarControlCaja = async (_filtros: typeof modal.filtros, formato: FormatoReporte) => {
+    await avanzados.descargarExcelControlCaja(getParamsModal(), resolverTitulo('control-caja'), formato);
+  };
 
-    await avanzados.descargarExcelMedios(
-      { ...getParamsBase(), ...modal.filtros, codEstablecimiento: codEst },
-      resolverTitulo('Medios de Pago mas usados')
+  const handleDescargarMedios = async (_filtros: typeof modal.filtros, formato: FormatoReporte) => {
+    await avanzados.descargarExcelMedios(getParamsModal(), resolverTitulo('Medios de Pago mas usados'), formato);
+  };
+
+  const handleDescargarTicket = async () => {
+    await avanzados.descargarTicketControlCaja(
+      getParamsModal(),
+      user?.name ?? user?.username ?? 'Responsable'
     );
   };
 
@@ -639,10 +626,12 @@ export default function ReportesPage() {
         loadingExcelProductos={avanzados.loadingExcelProductos}
         loadingExcelMedios={avanzados.loadingExcelMedios}
         loadingExcelControlCaja={avanzados.loadingExcelControlCaja}
+        loadingTicketControlCaja={avanzados.loadingTicketControlCaja}
         onDescargarListado={handleDescargarListado}
         onDescargarProductos={handleDescargarProductos}
         onDescargarMedios={handleDescargarMedios}
-        onDescargarControlCaja={handleDescargarControlCaja} 
+        onDescargarControlCaja={handleDescargarControlCaja}
+        onDescargarTicket={handleDescargarTicket}
       />
     </div>
   );

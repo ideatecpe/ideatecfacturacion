@@ -9,6 +9,8 @@ import {
   Periodo
 } from './Reportes'
 
+export type FormatoReporte = 'excel' | 'pdf'
+
 interface UseReportesAvanzadosReturn {
   listado: ListadoReporte[]
   productosTop: ProductoTop[]
@@ -20,13 +22,15 @@ interface UseReportesAvanzadosReturn {
   loadingExcelProductos: boolean
   loadingExcelMedios: boolean
   loadingExcelControlCaja: boolean
+  loadingTicketControlCaja: boolean
   fetchListado: (params: ReportesAvanzadosParams) => Promise<void>
   fetchProductosTop: (params: ReportesAvanzadosParams) => Promise<void>
   fetchMediosPago: (params: ReportesAvanzadosParams) => Promise<void>
-  descargarExcelListado: (params: ReportesAvanzadosParams, titulo: string) => Promise<void>
-  descargarExcelProductos: (params: ReportesAvanzadosParams, titulo: string) => Promise<void>
-  descargarExcelMedios: (params: ReportesAvanzadosParams, titulo: string) => Promise<void>
-  descargarExcelControlCaja: (params: ReportesAvanzadosParams, titulo: string) => Promise<void>
+  descargarExcelListado: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
+  descargarExcelProductos: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
+  descargarExcelMedios: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
+  descargarExcelControlCaja: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
+  descargarTicketControlCaja: (params: ReportesAvanzadosParams, nombreResponsable: string) => Promise<void>
 }
 
 export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
@@ -44,6 +48,7 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
   const [loadingExcelProductos, setLoadingExcelProductos] = useState(false)
   const [loadingExcelMedios, setLoadingExcelMedios] = useState(false)
   const [loadingExcelControlCaja, setLoadingExcelControlCaja] = useState(false)
+  const [loadingTicketControlCaja, setLoadingTicketControlCaja] = useState(false)
 
   const buildUrl = (path: string, params: Record<string, string | number | null | undefined>) => {
     const url = new URL(`${process.env.NEXT_PUBLIC_API_URL}${path}`)
@@ -55,6 +60,19 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
   }
 
   const headers = { Authorization: `Bearer ${accessToken}` }
+
+  // ── Descarga genérica — detecta formato y extensión ───────────────────────────
+  const descargarBlob = async (url: string, nombreArchivo: string, formato: FormatoReporte = 'excel') => {
+    const res = await fetch(url, { headers })
+    if (!res.ok) throw new Error(`Error ${res.status}`)
+    const blob = await res.blob()
+    const ext = formato === 'pdf' ? 'pdf' : 'xlsx'
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `${nombreArchivo}.${ext}`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
 
   // ── Listado comprobantes ───────────────────────────────────────────────────
   const fetchListado = useCallback(async (params: ReportesAvanzadosParams) => {
@@ -126,10 +144,93 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
     }
   }, [accessToken])
 
-  // ── Control de caja ─────────────────────────────────────────────────────────
+  // ── Excel/PDF listado ──────────────────────────────────────────────────────
+  const descargarExcelListado = useCallback(async (
+    params: ReportesAvanzadosParams,
+    titulo: string,
+    formato: FormatoReporte = 'excel'
+  ) => {
+    setLoadingExcelListado(true)
+    try {
+      const url = buildUrl(`/api/Reportes/listado/${params.ruc}/excel`, {
+        titulo,
+        codEstablecimiento: params.codEstablecimiento,
+        fechaDesde:         params.fechaDesde,
+        fechaHasta:         params.fechaHasta,
+        usuarioCreacion:    params.usuarioCreacion,
+        clienteNumDoc:      params.clienteNumDoc,
+        limit:              params.limit,
+        formato,
+      })
+      await descargarBlob(url, titulo, formato)
+      showToast(`${formato === 'pdf' ? 'PDF' : 'Excel'} descargado correctamente`, 'success')
+    } catch {
+      showToast('Error al generar el reporte', 'error')
+    } finally {
+      setLoadingExcelListado(false)
+    }
+  }, [accessToken])
+
+  // ── Excel/PDF productos top ────────────────────────────────────────────────
+  const descargarExcelProductos = useCallback(async (
+    params: ReportesAvanzadosParams,
+    titulo: string,
+    formato: FormatoReporte = 'excel'
+  ) => {
+    setLoadingExcelProductos(true)
+    try {
+      const url = buildUrl(`/api/Reportes/productos-top/${params.ruc}/excel`, {
+        titulo,
+        codEstablecimiento: params.codEstablecimiento,
+        fechaDesde:         params.fechaDesde,
+        fechaHasta:         params.fechaHasta,
+        usuarioCreacion:    params.usuarioCreacion,
+        clienteNumDoc:      params.clienteNumDoc,
+        limit:              params.limit,
+        orderBy:            params.orderBy,
+        formato,
+      })
+      await descargarBlob(url, titulo, formato)
+      showToast(`${formato === 'pdf' ? 'PDF' : 'Excel'} descargado correctamente`, 'success')
+    } catch {
+      showToast('Error al generar el reporte', 'error')
+    } finally {
+      setLoadingExcelProductos(false)
+    }
+  }, [accessToken])
+
+  // ── Excel/PDF medios pago ──────────────────────────────────────────────────
+  const descargarExcelMedios = useCallback(async (
+    params: ReportesAvanzadosParams,
+    titulo: string,
+    formato: FormatoReporte = 'excel'
+  ) => {
+    setLoadingExcelMedios(true)
+    try {
+      const url = buildUrl(`/api/Reportes/medios-pago/${params.ruc}/excel`, {
+        titulo,
+        codEstablecimiento: params.codEstablecimiento,
+        fechaDesde:         params.fechaDesde,
+        fechaHasta:         params.fechaHasta,
+        usuarioCreacion:    params.usuarioCreacion,
+        clienteNumDoc:      params.clienteNumDoc,
+        limit:              params.limit,
+        formato,
+      })
+      await descargarBlob(url, titulo, formato)
+      showToast(`${formato === 'pdf' ? 'PDF' : 'Excel'} descargado correctamente`, 'success')
+    } catch {
+      showToast('Error al generar el reporte', 'error')
+    } finally {
+      setLoadingExcelMedios(false)
+    }
+  }, [accessToken])
+
+  // ── Excel/PDF control de caja ──────────────────────────────────────────────
   const descargarExcelControlCaja = useCallback(async (
     params: ReportesAvanzadosParams,
-    titulo: string
+    titulo: string,
+    formato: FormatoReporte = 'excel'
   ) => {
     setLoadingExcelControlCaja(true)
     try {
@@ -141,37 +242,26 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
         usuarioCreacion:    params.usuarioCreacion,
         clienteNumDoc:      params.clienteNumDoc,
         limit:              params.limit,
+        formato,
       })
-      await descargarBlob(url, titulo)
-      showToast('Excel descargado correctamente', 'success')
+      await descargarBlob(url, titulo, formato)
+      showToast(`${formato === 'pdf' ? 'PDF' : 'Excel'} descargado correctamente`, 'success')
     } catch {
-      showToast('Error al generar el Excel', 'error')
+      showToast('Error al generar el reporte', 'error')
     } finally {
       setLoadingExcelControlCaja(false)
     }
   }, [accessToken])
 
-  // ── Excel helpers ──────────────────────────────────────────────────────────
-  const descargarBlob = async (url: string, nombreArchivo: string) => {
-    const res = await fetch(url, { headers })
-    if (!res.ok) throw new Error(`Error ${res.status}`)
-    const blob = await res.blob()
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `${nombreArchivo}.xlsx`
-    link.click()
-    URL.revokeObjectURL(link.href)
-  }
-
-  // ── Excel listado ──────────────────────────────────────────────────────────
-  const descargarExcelListado = useCallback(async (
+  // ── Ticket PDF control de caja (nuevo endpoint) ────────────────────────────
+  const descargarTicketControlCaja = useCallback(async (
     params: ReportesAvanzadosParams,
-    titulo: string
+    nombreResponsable: string
   ) => {
-    setLoadingExcelListado(true)
+    setLoadingTicketControlCaja(true)
     try {
-      const url = buildUrl(`/api/Reportes/listado/${params.ruc}/excel`, {
-        titulo:             titulo,
+      const url = buildUrl(`/api/Reportes/control-caja/${params.ruc}/ticket`, {
+        nombreResponsable,
         codEstablecimiento: params.codEstablecimiento,
         fechaDesde:         params.fechaDesde,
         fechaHasta:         params.fechaHasta,
@@ -179,63 +269,19 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
         clienteNumDoc:      params.clienteNumDoc,
         limit:              params.limit,
       })
-      await descargarBlob(url, titulo)
-      showToast('Excel descargado correctamente', 'success')
+      const res = await fetch(url, { headers })
+      if (!res.ok) throw new Error(`Error ${res.status}`)
+      const blob = await res.blob()
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `caja-ticket-${params.fechaDesde ?? 'hoy'}.pdf`
+      link.click()
+      URL.revokeObjectURL(link.href)
+      showToast('Ticket PDF descargado correctamente', 'success')
     } catch {
-      showToast('Error al generar el Excel', 'error')
+      showToast('Error al generar el ticket', 'error')
     } finally {
-      setLoadingExcelListado(false)
-    }
-  }, [accessToken])
-
-  // ── Excel productos top ────────────────────────────────────────────────────
-  const descargarExcelProductos = useCallback(async (
-    params: ReportesAvanzadosParams,
-    titulo: string
-  ) => {
-    setLoadingExcelProductos(true)
-    try {
-      const url = buildUrl(`/api/Reportes/productos-top/${params.ruc}/excel`, {
-        titulo:             titulo,
-        codEstablecimiento: params.codEstablecimiento,
-        fechaDesde:         params.fechaDesde,
-        fechaHasta:         params.fechaHasta,
-        usuarioCreacion:    params.usuarioCreacion,
-        clienteNumDoc:      params.clienteNumDoc,
-        limit:              params.limit,
-        orderBy:            params.orderBy,
-      })
-      await descargarBlob(url, titulo)
-      showToast('Excel descargado correctamente', 'success')
-    } catch {
-      showToast('Error al generar el Excel', 'error')
-    } finally {
-      setLoadingExcelProductos(false)
-    }
-  }, [accessToken])
-
-  // ── Excel medios pago ──────────────────────────────────────────────────────
-  const descargarExcelMedios = useCallback(async (
-    params: ReportesAvanzadosParams,
-    titulo: string
-  ) => {
-    setLoadingExcelMedios(true)
-    try {
-      const url = buildUrl(`/api/Reportes/medios-pago/${params.ruc}/excel`, {
-        titulo:             titulo,
-        codEstablecimiento: params.codEstablecimiento,
-        fechaDesde:         params.fechaDesde,
-        fechaHasta:         params.fechaHasta,
-        usuarioCreacion:    params.usuarioCreacion,
-        clienteNumDoc:      params.clienteNumDoc,
-        limit:              params.limit,
-      })
-      await descargarBlob(url, titulo)
-      showToast('Excel descargado correctamente', 'success')
-    } catch {
-      showToast('Error al generar el Excel', 'error')
-    } finally {
-      setLoadingExcelMedios(false)
+      setLoadingTicketControlCaja(false)
     }
   }, [accessToken])
 
@@ -243,8 +289,10 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
     listado, productosTop, mediosPago,
     loadingListado, loadingProductos, loadingMedios,
     loadingExcelListado, loadingExcelProductos, loadingExcelMedios,
+    loadingExcelControlCaja, loadingTicketControlCaja,
     fetchListado, fetchProductosTop, fetchMediosPago,
-    descargarExcelListado, descargarExcelProductos, descargarExcelMedios,
-    loadingExcelControlCaja, descargarExcelControlCaja,
+    descargarExcelListado, descargarExcelProductos,
+    descargarExcelMedios, descargarExcelControlCaja,
+    descargarTicketControlCaja,
   }
 }
