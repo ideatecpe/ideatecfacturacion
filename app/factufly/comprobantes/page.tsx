@@ -136,6 +136,8 @@ export default function VerComprobantesPage() {
   const [loadingCdrMap, setLoadingCdrMap] = useState<Record<string, boolean>>(
     {},
   );
+  const [pdfSizeMap, setPdfSizeMap] = useState<Record<number, string>>({});
+  const getPdfSize = (id: number) => pdfSizeMap[id] ?? "A4";
 
   const tableBodyRef = useRef<HTMLTableSectionElement>(null);
 
@@ -235,7 +237,8 @@ export default function VerComprobantesPage() {
   }, [user?.id, user?.ruc, user?.sucursalID, accessToken, cargarComprobantes]);
 
   const obtenerPdf = useCallback(
-    async (c: ComprobanteListado) => {
+    async (c: ComprobanteListado, tamano?: string) => {
+      const size = tamano ?? getPdfSize(c.comprobanteId);
       setLoadingPdfMap((prev) => ({ ...prev, [c.comprobanteId]: true }));
       let ventana: Window | null = null;
       try {
@@ -253,7 +256,7 @@ export default function VerComprobantesPage() {
           `);
         }
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/pdf?tamano=A4`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/pdf?tamano=${size}`,
           { headers: { Authorization: `Bearer ${accessToken}` } },
         );
         if (!res.ok) throw new Error("Error al generar PDF");
@@ -979,11 +982,16 @@ export default function VerComprobantesPage() {
       </div>
 
       <style>{`
-        .comp-table tbody {
+        .comp-table thead, .comp-table tbody {
           display: block;
-          overflow-y: auto;
-          max-height: calc(100vh - ${offset > 0 || hasMore ? 355 : (isBeta ? 290 : 250)}px);
+          overflow-y: scroll;
           scrollbar-width: thin;
+        }
+        .comp-table thead {
+          scrollbar-color: transparent transparent;
+        }
+        .comp-table tbody {
+          max-height: calc(100vh - ${offset > 0 || hasMore ? 355 : (isBeta ? 290 : 250)}px);
           scrollbar-color: #CBD5E1 transparent;
         }
         .comp-table thead tr,
@@ -992,7 +1000,6 @@ export default function VerComprobantesPage() {
           width: 100%;
           table-layout: fixed;
         }
-        .comp-table thead { width: 100%; }
       `}</style>
 
       <Card className="p-0 overflow-hidden">
@@ -1007,37 +1014,40 @@ export default function VerComprobantesPage() {
                   overflow: "hidden",
                 }}
               >
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32">
+                <th className="px-3 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-24">
                   FECHA
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-52">
+                <th className="px-3 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32">
                   COMPROBANTE
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-60">
+                <th className="px-3 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-72">
                   CLIENTE
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
+                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
+                  TAMAÑO
+                </th>
+                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-14">
                   PDF
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
+                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-12">
                   XML
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
+                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-12">
                   CDR
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-32">
+                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-20">
                   SUNAT
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-24">
+                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-14">
                   CORREO
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-24">
+                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
                   WHATSAPP
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-20">
+                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
                   VER
                 </th>
-                <th className="px-5 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-24">
+                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-20">
                   OPCIONES
                 </th>
               </tr>
@@ -1045,7 +1055,7 @@ export default function VerComprobantesPage() {
             <tbody ref={tableBodyRef} className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-16 text-center">
+                  <td colSpan={12} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <RefreshCw
                         size={24}
@@ -1060,7 +1070,7 @@ export default function VerComprobantesPage() {
               ) : paginated.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={11}
+                    colSpan={12}
                     className="px-6 py-16 text-center text-sm text-gray-400"
                   >
                     No se encontraron comprobantes con ese criterio.
@@ -1072,22 +1082,20 @@ export default function VerComprobantesPage() {
                     key={doc.comprobanteId}
                     className="hover:bg-gray-50/50 transition-colors"
                   >
-                    <td className="px-5 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-32">
+                    <td className="px-3 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-24">
                       {formatFecha(doc.fechaCreacion)}
                     </td>
-               <td className="px-5 py-2 whitespace-nowrap w-52">
-  <p className="text-sm font-medium text-gray-900">
-    {doc.numeroCompleto}
-  </p>
-  <p className="text-xs text-gray-400">
-    {tipoLabel(doc.tipoComprobante)}
-    <span className="mx-1 text-gray-400">-</span>
-    <span className="font-semibold text-gray-700">
-      {doc.tipoMoneda === "USD" ? "$" : "S/"} {Number(doc.importeTotal ?? 0).toFixed(2)}
-    </span>
-  </p>
-</td>
-                    <td className="px-5 py-2 w-60">
+                    <td className="px-3 py-2 whitespace-nowrap w-32">
+                      <p className="text-sm font-medium text-gray-900">{doc.numeroCompleto}</p>
+                      <p className="text-xs text-gray-400">
+                        {tipoLabel(doc.tipoComprobante)}
+                        <span className="mx-1 text-gray-400">-</span>
+                        <span className="font-semibold text-gray-700">
+                          {doc.tipoMoneda === "USD" ? "$" : "S/"} {Number(doc.importeTotal ?? 0).toFixed(2)}
+                        </span>
+                      </p>
+                    </td>
+                    <td className="px-3 py-2 w-72">
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-gray-900">
                           {doc.cliente.numeroDocumento}
@@ -1097,7 +1105,18 @@ export default function VerComprobantesPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-5 py-2 text-center w-16">
+                    <td className="px-1 py-2 text-center w-16">
+                      <select
+                        value={getPdfSize(doc.comprobanteId)}
+                        onChange={(e) => setPdfSizeMap((prev) => ({ ...prev, [doc.comprobanteId]: e.target.value }))}
+                        className="w-full py-1 px-0.5 text-[11px] bg-gray-50 border border-gray-200 rounded-md outline-none focus:border-blue-400 cursor-pointer"
+                      >
+                        <option value="A4">A4</option>
+                        <option value="Ticket58mm">58 mm</option>
+                        <option value="Ticket80mm">80 mm</option>
+                      </select>
+                    </td>
+                    <td className="px-2 py-2 text-center w-14">
                       <div className="flex justify-center">
                         <StatusIcon
                           type="pdf"
@@ -1105,12 +1124,12 @@ export default function VerComprobantesPage() {
                           loading={loadingPdfMap[doc.comprobanteId]}
                           onClick={() => {
                             if ((doc as CargaComprobantePendiente)._cargaEstatica) return;
-                            obtenerPdf(doc);
+                            obtenerPdf(doc, getPdfSize(doc.comprobanteId));
                           }}
                         />
                       </div>
                     </td>
-                    <td className="px-5 py-2 text-center w-16">
+                    <td className="px-2 py-2 text-center w-12">
                       <div className="flex justify-center">
                         <StatusIcon
                           type="xml"
@@ -1127,13 +1146,11 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-5 py-2 text-center w-16">
+                    <td className="px-2 py-2 text-center w-12">
                       <div className="flex justify-center">
                         <StatusIcon
                           type="cdr"
-                          status={
-                            doc.xmlRespuestaSunat ? "available" : "pending"
-                          }
+                          status={doc.xmlRespuestaSunat ? "available" : "pending"}
                           loading={loadingCdrMap[doc.comprobanteId]}
                           onClick={() =>
                             descargarArchivo(
@@ -1146,7 +1163,7 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-5 py-2 text-center w-32">
+                    <td className="px-2 py-2 text-center w-20">
                       <div className="flex justify-center">
                         <BadgeSunat
                           estado={doc.estadoSunat}
@@ -1154,7 +1171,7 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-5 py-2 text-center w-24">
+                    <td className="px-2 py-2 text-center w-14">
                       <div className="flex justify-center">
                         <BtnEnvio
                           tipo="email"
@@ -1166,22 +1183,19 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-5 py-2 text-center w-24">
+                    <td className="px-2 py-2 text-center w-16">
                       <div className="flex justify-center">
                         <BtnEnvio
                           tipo="whatsapp"
                           enviado={doc.cliente.enviadoPorWhatsApp}
                           fecha={formatFechaHora(doc.fechaCreacion)}
                           onClick={() =>
-                            setModalEnvio({
-                              comprobante: doc,
-                              tipo: "whatsapp",
-                            })
+                            setModalEnvio({ comprobante: doc, tipo: "whatsapp" })
                           }
                         />
                       </div>
                     </td>
-                    <td className="px-5 py-2 text-center w-20">
+                    <td className="px-2 py-2 text-center w-16">
                       <button
                         onClick={() => abrirDetalle(doc)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
@@ -1189,7 +1203,7 @@ export default function VerComprobantesPage() {
                         <Eye size={13} /> Ver
                       </button>
                     </td>
-                    <td className="px-5 py-2 text-center w-24">
+                    <td className="px-2 py-2 text-center w-20">
                       <div className="flex justify-center">
                         <DropdownOpciones
                           comprobante={doc}
