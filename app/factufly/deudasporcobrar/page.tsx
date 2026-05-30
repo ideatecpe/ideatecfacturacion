@@ -369,7 +369,7 @@ export default function DeudasPorCobrarPage() {
                 const restante = d.montoTotal - d.montoPagado;
                 const yaEstaPagado = d.estado === 'PAGADO';
                 return (
-                  <tr key={d.comprobanteId} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={d.pagoId} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-5 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-32">{formatFecha(d.fechaEmision)}</td>
                     <td className="px-5 py-2 whitespace-nowrap w-44">
                       <p className="text-sm font-medium text-gray-900">{d.numeroCompleto}</p>
