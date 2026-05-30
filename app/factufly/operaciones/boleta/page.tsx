@@ -1868,9 +1868,17 @@ function BoletaContent() {
       );
       if (resTicket.ok) {
         const blob = await resTicket.blob();
-        setPdfTicketUrl(
-          URL.createObjectURL(new Blob([blob], { type: "application/pdf" })),
-        );
+        const ticketUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+        setPdfTicketUrl(ticketUrl);
+        // ── Imprimir automáticamente en ticket 58mm ──
+        const iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.src = ticketUrl;
+        document.body.appendChild(iframe);
+        iframe.onload = () => {
+          iframe.contentWindow?.print();
+          setTimeout(() => document.body.removeChild(iframe), 1000);
+        };
       }
     } catch {}
 

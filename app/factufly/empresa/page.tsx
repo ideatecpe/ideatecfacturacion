@@ -206,7 +206,7 @@ function SectionHeader({
   subtitle: string;
 }) {
   return (
-    <div className="flex items-center gap-3 border-b border-gray-100  bg-gray-100 rounded-2xl ">
+    <div className="flex items-center gap-3 ">
       <div className="p-2 rounded-lg bg-blue-50 border border-blue-100">
         <Icon className="w-4 h-4 text-brand-blue" />
       </div>
