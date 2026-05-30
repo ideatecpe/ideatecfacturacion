@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Info,
   AlertTriangle,
+  CheckCircle,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -2753,6 +2754,7 @@ function FacturaContent() {
 
               {/* ── Fechas ── */}
               <div className="grid grid-cols-4 gap-4">
+                {/* FECHA DE EMISIÓN — oculto temporalmente, descomentar cuando se requiera
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-gray-500 uppercase">
                     Fecha y Hora de Emisión
@@ -2790,6 +2792,8 @@ function FacturaContent() {
                     </button>
                   )}
                 </div>
+                */}
+                {/* FECHA DE VENCIMIENTO — oculto temporalmente, descomentar cuando se requiera
                 <div className="space-y-1.5">
                   <DatePickerLimitado
                     label="Fecha de Vencimiento"
@@ -2800,7 +2804,9 @@ function FacturaContent() {
                     }
                   />
                 </div>
+                */}
 
+                {/* MONEDA — oculto temporalmente, descomentar cuando se requiera
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-gray-500 uppercase">
                     Moneda
@@ -2868,6 +2874,8 @@ function FacturaContent() {
                     </option>
                   </select>
                 </div>
+                */}
+                {/* TIPO DE PAGO — oculto temporalmente, descomentar cuando se requiera
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-gray-500 uppercase">
                     Tipo de Pago
@@ -2901,6 +2909,7 @@ function FacturaContent() {
                     <option value="CreditoInicial">Crédito con Inicial</option>
                   </select>
                 </div>
+                */}
               </div>
 
               {/* ── Moneda y Tipo Pago ── */}
@@ -2909,201 +2918,90 @@ function FacturaContent() {
               {(factura.tipoPago === "Contado" ||
                 factura.tipoPago === "CreditoInicial") &&
                 !totales.soloGratuitas && (
-                  <div className="border border-gray-100 rounded-xl p-2 space-y-4 bg-gray-50/50">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-gray-700 uppercase">
-                        {factura.tipoPago === "CreditoInicial"
-                          ? "Pago Inicial"
-                          : "Datos de Pago"}
-                      </label>
-                      {mediosUsados.length < todosMedios.length && (
-                        <button
-                          type="button"
-                          onClick={agregarPago}
-                          className="text-xs text-brand-blue hover:underline flex items-center gap-1"
-                        >
-                          <Plus className="w-3 h-3" /> Agregar medio de pago
-                        </button>
-                      )}
-                    </div>
+                  <div className="border border-gray-100 rounded-xl p-2 space-y-2 bg-gray-50/50">
 
-                    <div className="space-y-3">
-                      {pagos.map((pago, i) => (
-                        <div
-                          key={i}
-                          className="pb-3 border-b border-gray-100 last:border-0"
-                        >
-                          <div className="flex items-end gap-3">
-                            <div className="space-y-1.5 w-36 shrink-0">
-                              <label className="text-xs text-gray-500">
-                                Medio de Pago
-                              </label>
-                              <select
-                                value={pago.medioPago}
-                                onChange={(e) =>
-                                  actualizarPago(i, "medioPago", e.target.value)
-                                }
-                                className="w-full py-2 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
-                              >
-                                {todosMedios.map((m) => (
-                                  <option
-                                    key={m}
-                                    value={m}
-                                    disabled={
-                                      mediosUsados.includes(m) &&
-                                      pago.medioPago !== m
-                                    }
-                                  >
-                                    {m}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div className="space-y-1.5 w-32 shrink-0">
-                              <label className="text-xs text-gray-500">
-                                Monto
-                              </label>
-                              <div className="flex gap-2">
-                                <input
-                                  type="number"
-                                  value={pago.monto}
-                                  onChange={(e) => {
-                                    actualizarPago(i, "monto", e.target.value);
-                                    setPagosEditados((prev) => {
-                                      const n = [...prev];
-                                      n[i] = e.target.value !== "";
-                                      if (pagos.length === 2) n[i === 0 ? 1 : 0] = true;
-                                      return n;
-                                    });
-                                  }}
-                                  onBlur={(e) => {
-                                    if (
-                                      e.target.value === "" ||
-                                      e.target.value === "0"
-                                    ) {
-                                      setPagosEditados((prev) => {
-                                        const n = [...prev];
-                                        n[i] = false;
-                                        return n;
-                                      });
-                                      actualizarPago(i, "monto", "");
-                                    }
-                                  }}
-                                  placeholder={montoRestante(i)}
-                                  disabled={
-                                    pago.medioPago === "Efectivo" &&
-                                    pagos.length === 1 &&
-                                    factura.tipoPago !== "CreditoInicial"
-                                  }
-                                  className={`w-full py-2 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm
-                ${pago.medioPago === "Efectivo" && pagos.length === 1 && factura.tipoPago !== "CreditoInicial" ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""}`}
+                    {pagos.length === 1 ? (
+                      /* ── 1 solo medio: simple, sin card ── */
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-gray-700 uppercase">Medio de Pago</label>
+                          {mediosUsados.length < todosMedios.length && (
+                            <button type="button" onClick={agregarPago} className="text-xs text-brand-blue hover:underline flex items-center gap-1">
+                              <Plus className="w-3 h-3" /> Agregar otro medio de pago
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={pagos[0].medioPago}
+                            onChange={(e) => actualizarPago(0, "medioPago", e.target.value)}
+                            className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-sm"
+                          >
+                            {todosMedios.map((m) => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                          {pagos[0].medioPago === "Transferencia" && (<>
+                            <input type="text" value={pagos[0].numeroOperacion} onChange={(e) => actualizarPago(0, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-20 shrink-0 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
+                            <input type="text" value={pagos[0].entidadFinanciera} onChange={(e) => actualizarPago(0, "entidadFinanciera", e.target.value)} placeholder="Banco/entidad" className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
+                          </>)}
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── 2+ medios: cards en fila ── */
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-gray-700 uppercase">Datos de Pago</label>
+                          {mediosUsados.length < todosMedios.length && (
+                            <button type="button" onClick={agregarPago} className="text-xs text-brand-blue hover:underline flex items-center gap-1">
+                              <Plus className="w-3 h-3" /> Agregar otro medio de pago
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {pagos.map((pago, i) => (
+                            <div key={i} className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 flex-1 min-w-fit">
+                              <span className="text-[10px] font-semibold text-gray-400 uppercase block mb-1">Medio #{i + 1}</span>
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={pago.medioPago}
+                                  onChange={(e) => actualizarPago(i, "medioPago", e.target.value)}
+                                  className="w-28 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs"
+                                >
+                                  {todosMedios.map((m) => (
+                                    <option key={m} value={m} disabled={mediosUsados.includes(m) && pago.medioPago !== m}>{m}</option>
+                                  ))}
+                                </select>
+                                <input type="number" min={0} value={pago.monto} placeholder={`${simbolo} 0.00`}
+                                  onChange={(e) => { actualizarPago(i, "monto", e.target.value); setPagosEditados((prev) => { const n = [...prev]; n[i] = e.target.value !== ""; if (pagos.length === 2) n[i === 0 ? 1 : 0] = true; return n; }); }}
+                                  onBlur={(e) => { if (!e.target.value || e.target.value === "0") { setPagosEditados((prev) => { const n = [...prev]; n[i] = false; return n; }); actualizarPago(i, "monto", ""); } }}
+                                  className="w-20 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs"
                                 />
-                                {pagos.length > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => eliminarPago(i)}
-                                    className="text-red-400 hover:text-red-600 px-1"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
+                                {pago.medioPago === "Transferencia" && (<>
+                                  <input type="text" value={pago.numeroOperacion} onChange={(e) => actualizarPago(i, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-16 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
+                                  <input type="text" value={pago.entidadFinanciera} onChange={(e) => actualizarPago(i, "entidadFinanciera", e.target.value)} placeholder="Banco" className="w-20 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
+                                </>)}
+                                <button type="button" onClick={() => eliminarPago(i)} className="text-red-400 hover:text-red-600 shrink-0">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </div>
-
-                            {pago.medioPago !== "Efectivo" && (
-                              <>
-                                <div className="space-y-1.5 w-36 shrink-0">
-                                  <label className="text-xs text-gray-500">
-                                    Nº Operación
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={pago.numeroOperacion}
-                                    onChange={(e) =>
-                                      actualizarPago(
-                                        i,
-                                        "numeroOperacion",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Nº operación"
-                                    className="w-full py-2 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
-                                  />
-                                </div>
-                                <div className="space-y-1.5 w-36 shrink-0">
-                                  <label className="text-xs text-gray-500">
-                                    Entidad Financiera
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={pago.entidadFinanciera}
-                                    onChange={(e) =>
-                                      actualizarPago(
-                                        i,
-                                        "entidadFinanciera",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Banco / entidad"
-                                    className="w-full py-2 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
-                                  />
-                                </div>
-                              </>
-                            )}
-
-                            <div className="space-y-1.5 flex-1">
-                              <label className="text-xs text-gray-500">
-                                Observaciones
-                              </label>
-                              <input
-                                type="text"
-                                value={pago.observaciones}
-                                onChange={(e) =>
-                                  actualizarPago(
-                                    i,
-                                    "observaciones",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="Observaciones (opcional)"
-                                className="w-full py-2 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
-                              />
-                            </div>
-                          </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-
-                    {factura.tipoPago === "CreditoInicial" && (
-                      <div className="flex justify-between text-xs pt-2 border-t border-gray-100">
-                        <p className="text-gray-500">
-                          Total pagado:{" "}
-                          <span className="font-semibold text-gray-800">
-                            {simbolo} {totalPagado.toFixed(2)}
-                          </span>
-                        </p>
-                        <p className="text-gray-500">
-                          Monto a crédito:{" "}
-                          <span className="font-semibold text-brand-blue">
-                            {simbolo}{" "}
-                            {Math.max(0, totales.total - totalPagado).toFixed(2)}
-                          </span>
-                        </p>
+                        {totales.total > 0 && (
+                          <div className="flex justify-end">
+                            <span className={`text-xs font-medium flex items-center gap-1 ${Math.abs(totalPagado - totales.total) <= 0.01 ? "text-green-600" : totalPagado > totales.total ? "text-red-600" : "text-amber-600"}`}>
+                              {Math.abs(totalPagado - totales.total) <= 0.01 ? <><CheckCircle className="w-3.5 h-3.5" /> Cuadra</> : totalPagado > totales.total ? <><AlertTriangle className="w-3.5 h-3.5" /> Sobra {simbolo}{(totalPagado - totales.total).toFixed(2)}</> : <><AlertTriangle className="w-3.5 h-3.5" /> Falta {simbolo}{(totales.total - totalPagado).toFixed(2)}</>}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {/* Alerta diferencia de monto */}
-                    {pagos.length > 1 && totales.total > 0 && Math.abs(totalPagado - totales.total) > 0.01 && (
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${totalPagado > totales.total ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
-                        <AlertTriangle size={13} className={`shrink-0 ${totalPagado > totales.total ? 'text-red-500' : 'text-amber-500'}`} />
-                        <p className={`text-[11px] ${totalPagado > totales.total ? 'text-red-700' : 'text-amber-700'}`}>
-                          {totalPagado > totales.total ? (
-                            <>Sobrepasa el total en <span className="font-semibold">{simbolo} {(totalPagado - totales.total).toFixed(2)}</span>.</>
-                          ) : (
-                            <>Aún falta <span className="font-semibold">{simbolo} {(totales.total - totalPagado).toFixed(2)}</span> para completar el total.</>
-                          )}
-                        </p>
+                    {factura.tipoPago === "CreditoInicial" && (
+                      <div className="flex justify-between text-xs border-t border-gray-100 pt-1">
+                        <p className="text-gray-500">Total pagado: <span className="font-semibold text-gray-800">{simbolo} {totalPagado.toFixed(2)}</span></p>
+                        <p className="text-gray-500">A crédito: <span className="font-semibold text-brand-blue">{simbolo} {Math.max(0, totales.total - totalPagado).toFixed(2)}</span></p>
                       </div>
                     )}
                   </div>
@@ -3223,7 +3121,7 @@ function FacturaContent() {
                   </div>
                 )}
 
-              {/* ── Guías de Remisión ── */}
+              {/* ── Guías de Remisión — oculto temporalmente, descomentar cuando se requiera
               <div className="border border-gray-100 rounded-xl overflow-hidden">
                 <button
                   type="button"
@@ -3309,6 +3207,7 @@ function FacturaContent() {
                   </div>
                 )}
               </div>
+              */}
 
               {/* ── Aviso detracción ── */}
               {sugiereDetraccion && (
@@ -4377,6 +4276,54 @@ function FacturaContent() {
                 <option value="Ticket58mm">Ticket 58mm</option>
                 <option value="MediaCarta">Media Carta</option>
               </select>
+              <div className="mt-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between">
+                <span className="text-[10px] font-bold text-gray-500 uppercase">Tipo de Pago</span>
+                <span className="text-xs font-semibold text-gray-700">Contado</span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase">Fecha y Hora de Emisión</label>
+                  <input
+                    type="datetime-local"
+                    value={fechaEmisionEditada ? (factura.fechaEmision?.slice(0, 16) ?? "") : horaDisplay.slice(0, 16)}
+                    min={(() => { const d = new Date(); d.setDate(d.getDate() - 2); return fechaLocalISO(d); })()}
+                    max={fechaLocalISO()}
+                    onChange={(e) => {
+                      setFechaEmisionEditada(true);
+                      setFactura((prev) => ({ ...prev, fechaEmision: e.target.value + ":00", horaEmision: e.target.value + ":00" }));
+                    }}
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs"
+                  />
+                  {fechaEmisionEditada && (
+                    <button type="button" onClick={() => setFechaEmisionEditada(false)} className="text-[10px] text-brand-blue hover:underline">↺ Usar hora actual</button>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase">Moneda</label>
+                  <select
+                    value={factura.tipoMoneda ?? "PEN"}
+                    onChange={(e) => {
+                      const nuevaMoneda = e.target.value, monedaAnterior = factura.tipoMoneda ?? "PEN";
+                      setFactura((prev) => ({ ...prev, tipoMoneda: nuevaMoneda }));
+                      if (detalles.length > 0) {
+                        setDetalles((prev) => prev.map((d) => {
+                          const precioBase = d._precioBase ?? 0;
+                          const nuevoPrecioBase = nuevaMoneda === "USD" && monedaAnterior === "PEN" ? parseFloat((precioBase / tipoCambio).toFixed(6)) : nuevaMoneda === "PEN" && monedaAnterior === "USD" ? parseFloat((precioBase * tipoCambio).toFixed(6)) : precioBase;
+                          const ta = d.tipoAfectacionIGV ?? "10", pct = d.porcentajeIGV ?? 18;
+                          const esGratuito = TIPOS_GRATUITOS.includes(ta);
+                          const nuevoPrecioVenta = esGratuito ? 0 : ta === "10" ? parseFloat((nuevoPrecioBase * (1 + pct / 100)).toFixed(2)) : nuevoPrecioBase;
+                          const calc = calcularDetalle(nuevoPrecioBase, nuevoPrecioVenta, d.cantidad ?? 1, pct, ta, d.codigoTipoDescuento ?? "00", d.descuentoUnitario ?? 0);
+                          return { ...d, _precioBase: nuevoPrecioBase, _precioVentaConIGV: nuevoPrecioVenta, ...calc };
+                        }));
+                      }
+                    }}
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs"
+                  >
+                    <option value="PEN">PEN - Soles</option>
+                    <option value="USD">USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             {pdfA4Url && !cargandoPreview ? (
