@@ -11,6 +11,7 @@ import {
   ExternalLink,
   UserRound,
   ClipboardList,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -36,7 +37,7 @@ import {
 import { useClienteBoleta } from "./gestionBoletas/useClienteBoleta";
 import { Cliente } from "../../clientes/gestionClientes/typesCliente";
 import { useSucursal } from "./gestionBoletas/useSucursal";
-import { formatoFechaActual } from "@/app/components/ui/formatoFecha";
+import { formatoFechaActual, fechaLocalISO } from "@/app/components/ui/formatoFecha";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
 import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
 import axios from "axios";
@@ -387,17 +388,18 @@ function BoletaContent() {
   const agregarPago = () => {
     const disponibles = todosMedios.filter((m) => !mediosUsados.includes(m));
     if (!disponibles.length) return;
+    const restante = Math.max(0, totales.total - totalPagado).toFixed(2);
     setPagos((prev) => [
       ...prev,
       {
         medioPago: disponibles[0],
-        monto: "",
+        monto: restante,
         numeroOperacion: "",
         entidadFinanciera: "",
         observaciones: "",
       },
     ]);
-    setPagosEditados((prev) => [...prev, false]);
+    setPagosEditados((prev) => [...prev, true]);
   };
   const eliminarPago = (i: number) => {
     if (pagos.length === 1) return;
@@ -408,6 +410,11 @@ function BoletaContent() {
     setPagos((prev) => {
       const n = [...prev];
       n[i] = { ...n[i], [campo]: valor };
+      if (campo === "monto" && prev.length === 2) {
+        const otroIdx = i === 0 ? 1 : 0;
+        const restante = Math.max(0, totales.total - (parseFloat(valor) || 0)).toFixed(2);
+        n[otroIdx] = { ...n[otroIdx], monto: restante };
+      }
       return n;
     });
   };
@@ -2478,9 +2485,9 @@ function BoletaContent() {
                     min={(() => {
                       const d = new Date();
                       d.setDate(d.getDate() - 2);
-                      return d.toISOString().slice(0, 16);
+                      return fechaLocalISO(d);
                     })()}
-                    max={new Date().toISOString().slice(0, 16)}
+                    max={fechaLocalISO()}
                     onChange={(e) => {
                       setFechaEmisionEditada(true);
                       setBoleta((prev) => ({
@@ -2571,9 +2578,13 @@ function BoletaContent() {
                   <select
                     value={boleta.tipoPago ?? "Contado"}
                     onChange={(e) => {
+                      const nuevoTipo = e.target.value;
                       setBoleta((prev) => ({
                         ...prev,
-                        tipoPago: e.target.value,
+                        tipoPago: nuevoTipo,
+                        ...(nuevoTipo === "Contado" && {
+                          fechaVencimiento: (prev.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10),
+                        }),
                       }));
                       setPagos([
                         {
@@ -2746,6 +2757,7 @@ function BoletaContent() {
                                 setPagosEditados((prev) => {
                                   const n = [...prev];
                                   n[i] = e.target.value !== "";
+                                  if (pagos.length === 2) n[i === 0 ? 1 : 0] = true;
                                   return n;
                                 });
                               }}
@@ -2847,6 +2859,20 @@ function BoletaContent() {
                           {simbolo}{" "}
                           {Math.max(0, totales.total - totalPagado).toFixed(2)}
                         </span>
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Alerta diferencia de monto */}
+                  {pagos.length > 1 && totales.total > 0 && Math.abs(totalPagado - totales.total) > 0.01 && (
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${totalPagado > totales.total ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+                      <AlertTriangle size={13} className={`shrink-0 ${totalPagado > totales.total ? 'text-red-500' : 'text-amber-500'}`} />
+                      <p className={`text-[11px] ${totalPagado > totales.total ? 'text-red-700' : 'text-amber-700'}`}>
+                        {totalPagado > totales.total ? (
+                          <>Sobrepasa el total en <span className="font-semibold">{simbolo} {(totalPagado - totales.total).toFixed(2)}</span>.</>
+                        ) : (
+                          <>Aún falta <span className="font-semibold">{simbolo} {(totales.total - totalPagado).toFixed(2)}</span> para completar el total.</>
+                        )}
                       </p>
                     </div>
                   )}
@@ -3374,6 +3400,7 @@ function BoletaContent() {
                                         type="number"
                                         min={1}
                                         value={d.cantidad ?? 1}
+                                        onFocus={(e) => e.target.select()}
                                         onChange={(e) =>
                                           actualizarCantidad(
                                             i,
@@ -3424,6 +3451,7 @@ function BoletaContent() {
                                   value={
                                     d._precioVentaConIGV ?? d.precioVenta ?? 0
                                   }
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) =>
                                     actualizarPrecioVenta(
                                       i,
@@ -3468,6 +3496,7 @@ function BoletaContent() {
                                   min={0}
                                   step="0.01"
                                   value={d.descuentoUnitario ?? 0}
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) =>
                                     actualizarDescuento(
                                       i,
@@ -3651,6 +3680,7 @@ function BoletaContent() {
                         min={0}
                         step="0.01"
                         value={descuentoGlobal}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) =>
                           setDescuentoGlobal(Number(e.target.value))
                         }

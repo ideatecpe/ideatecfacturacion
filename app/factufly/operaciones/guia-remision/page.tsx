@@ -12,6 +12,7 @@ import {
   Check,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
+import { formatoFechaActual, fechaLocalISO } from "@/app/components/ui/formatoFecha";
 import { Card } from "@/app/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState, Suspense } from "react";
@@ -197,7 +198,7 @@ function GuiaRemisionContent() {
   const editarGuiaId = searchParams.get("editarGuiaId");
   const [placaM1L, setPlacaM1L] = useState("");
   const [fechaTraslado, setFechaTraslado] = useState(
-    new Date().toISOString().split("T")[0],
+    formatoFechaActual().fecha,
   );
 
   const isSuperAdmin = user?.rol === "superadmin";
@@ -247,7 +248,7 @@ function GuiaRemisionContent() {
     setSucursal(null);
     setRefreshSucursal((prev) => prev + 1);
     setPlacaM1L("");
-    setFechaTraslado(new Date().toISOString().split("T")[0]);
+    setFechaTraslado(formatoFechaActual().fecha);
   };
 
   useEffect(() => {
@@ -839,7 +840,7 @@ function GuiaRemisionContent() {
         tipoDoc: tipoGuia === "remitente" ? "09" : "31",
         serie: serieActual ?? "",
         correlativo: String(correlativoActual ?? ""),
-        fechaEmision: new Date().toISOString(),
+        fechaEmision: formatoFechaActual().fechaHora,
 
         company: {
           ruc: empresa.ruc,
@@ -889,7 +890,7 @@ function GuiaRemisionContent() {
             MOTIVOS_TRASLADO.find((m) => m.codigo === motivoCodigo)?.label ??
             "",
           modTraslado: modalidad,
-          fecTraslado: new Date(fechaTraslado).toISOString(),
+          fecTraslado: `${fechaTraslado}T00:00:00`,
           codPuerto: null,
           indTransbordo: transbordo,
           pesoTotal,

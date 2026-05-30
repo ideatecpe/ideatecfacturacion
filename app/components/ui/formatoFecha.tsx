@@ -9,6 +9,15 @@ export function formatoFechaActual() {
   return { fecha, hora, fechaHora }
 }
 
+/**
+ * Convierte una Date a string local YYYY-MM-DDTHH:MM (sin UTC).
+ * Útil para atributos min/max de inputs datetime-local.
+ */
+export function fechaLocalISO(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 // Recibe "2024-10-30T19:51:00" y devuelve { fecha, hora, fechaHora }
 export function separarFechaHora(fechaHora: string) {
   const [fecha, hora] = fechaHora.split('T')

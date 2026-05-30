@@ -2190,6 +2190,7 @@ export default function EmisionRapidaPage({
                                   type="number"
                                   min={1}
                                   value={item.cantidad}
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => {
                                     const v = Number(e.target.value);
                                     if (v < 1) return;
@@ -2245,6 +2246,7 @@ export default function EmisionRapidaPage({
                               step="0.01"
                               value={item.precioVentaConIGV}
                               disabled={item._esIcbper}
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) =>
                                 actualizarCampo(
                                   i,
