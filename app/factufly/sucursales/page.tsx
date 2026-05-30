@@ -207,7 +207,7 @@ function SeriesBadge({ label, value }: { label: string; value?: string }) {
 interface SucursalCardProps {
   sucursal: Sucursal;
   canManage: boolean;
-  isSuperadmin: boolean; 
+  isSuperadmin: boolean;
   onEditar: () => void;
   onSeries: () => void;
   onToggle: () => void;
@@ -365,7 +365,7 @@ export default function SucursalesPage() {
   const isAdmin = user?.rol === "admin";
   const canManage = isSuperadmin || isAdmin;
 
-  const visibleSucursales = isSuperadmin ? sucursales : sucursales.slice(0, 1);
+  const visibleSucursales = sucursales;
   const filtered = visibleSucursales.filter(
     (s) =>
       s.nombre.toLowerCase().includes(search.toLowerCase()) ||
@@ -389,41 +389,23 @@ export default function SucursalesPage() {
   const fetchSucursales = async () => {
     setLoading(true);
     try {
-      const url = isSuperadmin
-        ? `${process.env.NEXT_PUBLIC_API_URL}/api/Sucursal/todas`
-        : `${process.env.NEXT_PUBLIC_API_URL}/api/Sucursal`;
+      let data;
 
-      const res = await axios.get(url, {
-        params: isSuperadmin
-          ? undefined
-          : { ruc: user?.ruc, sucursalID: user?.sucursalID },
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      // ... resto igual
-      const data = res.data.map((s: any) => ({
-        id: s.sucursalId.toString(),
-        codigo: s.codEstablecimiento,
-        nombre: s.nombre ?? s.codEstablecimiento,
-        direccion: s.direccion ?? "",
-        habilitado: s.estado, // ← viene del backend
-        usuario: "",
-        serieFactura: s.serieFactura,
-        correlativoFactura: s.correlativoFactura ?? 1,
-        serieBoleta: s.serieBoleta,
-        correlativoBoleta: s.correlativoBoleta ?? 1,
-        serieNotaCreditoFactura: s.serieNotaCreditoFactura,
-        correlativoNotaCreditoFactura: s.correlativoNotaCreditoFactura ?? 1,
-        serieNotaCreditoBoleta: s.serieNotaCreditoBoleta,
-        correlativoNotaCreditoBoleta: s.correlativoNotaCreditoBoleta ?? 1,
-        serieNotaDebitoFactura: s.serieNotaDebitoFactura,
-        correlativoNotaDebitoFactura: s.correlativoNotaDebitoFactura ?? 1,
-        serieNotaDebitoBoleta: s.serieNotaDebitoBoleta,
-        correlativoNotaDebitoBoleta: s.correlativoNotaDebitoBoleta ?? 1,
-        serieGuiaRemision: s.serieGuiaRemision,
-        correlativoGuiaRemision: s.correlativoGuiaRemision ?? 1,
-        serieGuiaTransportista: s.serieGuiaTransportista,
-        correlativoGuiaTransportista: s.correlativoGuiaTransportista ?? 1,
-      }));
+      if (isSuperadmin) {
+        const res = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Sucursal/todas`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        data = res.data.map((s: any) => mapSucursal(s));
+      } else {
+        // ✅ Usa el endpoint por ID directamente
+        const res = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Sucursal/${user?.sucursalID}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        data = [mapSucursal(res.data)]; // devuelve un objeto, lo envolvemos en array
+      }
+
       setSucursales(data);
     } catch {
       showToast("Error al cargar sucursales", "error");
@@ -432,6 +414,34 @@ export default function SucursalesPage() {
     }
   };
 
+  function mapSucursal(s: any): Sucursal {
+    return {
+      id: s.sucursalId.toString(),
+      codigo: s.codEstablecimiento,
+      nombre: s.nombre ?? s.codEstablecimiento,
+      direccion: s.direccion ?? "",
+      habilitado: s.estado,
+      usuario: "",
+      serieFactura: s.serieFactura,
+      correlativoFactura: s.correlativoFactura ?? 1,
+      serieBoleta: s.serieBoleta,
+      correlativoBoleta: s.correlativoBoleta ?? 1,
+      serieNotaCreditoFactura: s.serieNotaCreditoFactura,
+      correlativoNotaCreditoFactura: s.correlativoNotaCreditoFactura ?? 1,
+      serieNotaCreditoBoleta: s.serieNotaCreditoBoleta,
+      correlativoNotaCreditoBoleta: s.correlativoNotaCreditoBoleta ?? 1,
+      serieNotaDebitoFactura: s.serieNotaDebitoFactura,
+      correlativoNotaDebitoFactura: s.correlativoNotaDebitoFactura ?? 1,
+      serieNotaDebitoBoleta: s.serieNotaDebitoBoleta,
+      correlativoNotaDebitoBoleta: s.correlativoNotaDebitoBoleta ?? 1,
+      serieGuiaRemision: s.serieGuiaRemision,
+      correlativoGuiaRemision: s.correlativoGuiaRemision ?? 1,
+      serieGuiaTransportista: s.serieGuiaTransportista,
+      correlativoGuiaTransportista: s.correlativoGuiaTransportista ?? 1,
+    };
+  }
+
+  // ANTES
   useEffect(() => {
     if (accessToken && user) fetchSucursales();
   }, [accessToken, user]);

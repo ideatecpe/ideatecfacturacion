@@ -71,7 +71,9 @@ export async function POST(req: NextRequest) {
       const tipoProducto     = ["BIEN", "SERVICIO"].includes(tipoProductoRaw) ? tipoProductoRaw : "BIEN";
       const tipoAfectacionIGV = ["10", "20", "30"].includes(afectacionRaw) ? afectacionRaw : "10";
       const incluirIGV       = incluirIGVRaw === "" ? true : ["TRUE", "1", "SI", "SÍ", "S"].includes(incluirIGVRaw);
-      const unidadMedida     = ["NIU", "KGM", "LTR"].includes(unidadRaw) ? unidadRaw : "NIU";
+      const unidadMedida     = tipoProducto === "SERVICIO"
+        ? (["ZZ", "NIU", "KGM", "LTR"].includes(unidadRaw) ? unidadRaw : "ZZ")
+        : (["NIU", "KGM", "LTR"].includes(unidadRaw) ? unidadRaw : "NIU");
 
       // Validaciones básicas
       let errorValidacion: string | undefined;
