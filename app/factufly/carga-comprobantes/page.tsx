@@ -8,7 +8,7 @@ import {
   Upload,
   Download,
   Calendar,
-
+  Bell,
   ChevronDown,
   AlertCircle,
   User,
@@ -24,8 +24,10 @@ import { Card }    from "@/app/components/ui/Card";
 import { Modal }   from "@/app/components/ui/Modal";
 
 import { useCargaComprobantes }  from "./useCargaComprobantes";
+import { useNotificaciones }     from "./useNotificaciones";
 import { GrupoCard }             from "./GrupoCard";
 import { ModalAgregarFila }      from "./ModalAgregarFila";
+import { ModalNotificaciones }   from "./ModalNotificaciones";
 import { PERIODO_ORDER, PERIODO_CFG, COLUMNAS_EXCEL, columnas } from "./constants";
 import { getTipoDoc, periodoTexto, formatFechaEs } from "./helpers";
 import type { FilaCarga } from "./types";
@@ -48,6 +50,7 @@ export default function CargaComprobantesPage() {
   const [modalAgregarOpen,         setModalAgregarOpen]         = useState(false);
   const [modalConfirmarOpen,       setModalConfirmarOpen]       = useState(false);
   const [modalDeshabilitadosOpen,  setModalDeshabilitadosOpen]  = useState(false);
+  const [modalNotificacionesOpen,  setModalNotificacionesOpen]  = useState(false);
   const [fechasRehab, setFechasRehab] = useState<Record<string, string>>({});
 
   // tooltip de errores (fixed, escapa el overflow de la tabla)
@@ -70,7 +73,7 @@ export default function CargaComprobantesPage() {
   };
 
   const {
-    filas, filasDeshabilitadas, filasFiltradas, gruposFiltrados, periodosPresentes,
+    filas, filasDeshabilitadas, filasFiltradas, gruposFiltrados, grupos, periodosPresentes,
     stats, statsPorPeriodo, erroresPorFila,
     cargandoPlantilla, cargarDesdeApi,
     tabActiva, setTabActiva, fechaEmision, setFechaEmision,
@@ -78,11 +81,21 @@ export default function CargaComprobantesPage() {
     modalPlantillaOpen, setModalPlantillaOpen,
     modalResultadoOpen, setModalResultadoOpen,
     resultadoEmision, progresoEmision, advertenciaTemprana,
-    esUsuarioVelsat, sucursal, empresa,
+    accessToken, esUsuarioVelsat, sucursal, empresa,
     cargarExcel, descargarPlantilla, actualizarFila,
     agregarFila, deshabilitarFila, habilitarFila, ajustarFechasInicioMes,
     emitir, recuperarDatos, togglePeriodo,
   } = useCargaComprobantes();
+
+  // ── Notificaciones de vencimiento ─────────────────────────────────────────
+  const {
+    diasAviso, setDiasAviso,
+    gruposParaNotificar,
+    estadoEmail, estadoWsp,
+    enviandoBulk, progresoBulk,
+    getDiasRestantes, getFirstFechaFin,
+    enviarEmail, abrirWhatsApp, enviarTodosEmail,
+  } = useNotificaciones(grupos, accessToken);
 
   const nErrores = filasFiltradas.filter((f) => erroresPorFila.has(f.id)).length;
   const hayFilas = filas.length > 0;
@@ -179,6 +192,25 @@ export default function CargaComprobantesPage() {
               Deshabilitados
             </button>
           )}
+          {/* Notificaciones de vencimiento */}
+          <button
+            onClick={() => setModalNotificacionesOpen(true)}
+            title="Notificaciones de vencimiento de servicio"
+            className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold transition-all shadow-sm ${
+              gruposParaNotificar.length > 0
+                ? "border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700"
+                : "border-gray-200 bg-white hover:border-gray-300 text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Bell className={`w-3.5 h-3.5 ${gruposParaNotificar.length > 0 ? "text-amber-500" : ""}`} />
+            {gruposParaNotificar.length > 0 ? (
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black">
+                {gruposParaNotificar.length}
+              </span>
+            ) : null}
+            Avisos
+          </button>
+
           <Button variant="outline" onClick={() => setModalPlantillaOpen(true)}>
             <Upload className="w-4 h-4" /> Cargar Excel
           </Button>
@@ -273,6 +305,31 @@ export default function CargaComprobantesPage() {
               </span>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Banner de notificaciones de vencimiento ──────────────────────── */}
+      {gruposParaNotificar.length > 0 && (
+        <div className="flex items-center gap-3 pl-4 pr-3 py-3 bg-amber-50 border border-amber-200 border-l-4 border-l-amber-400 rounded-xl">
+          <Bell className="w-4 h-4 text-amber-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-amber-800">
+              {gruposParaNotificar.filter((g) => getDiasRestantes(getFirstFechaFin(g)) < 0).length > 0
+                ? `${gruposParaNotificar.filter((g) => getDiasRestantes(getFirstFechaFin(g)) < 0).length} vencido${gruposParaNotificar.filter((g) => getDiasRestantes(getFirstFechaFin(g)) < 0).length !== 1 ? "s" : ""} · `
+                : ""}
+              {gruposParaNotificar.length} cliente{gruposParaNotificar.length !== 1 ? "s" : ""} próximo{gruposParaNotificar.length !== 1 ? "s" : ""} a vencer
+            </p>
+            <p className="text-[11px] text-amber-600/80 mt-0.5 truncate">
+              Envía recordatorios por email o WhatsApp antes de que venzan.
+            </p>
+          </div>
+          <button
+            onClick={() => setModalNotificacionesOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold transition-colors shrink-0 shadow-sm"
+          >
+            <Bell className="w-3 h-3" />
+            Ver avisos
+          </button>
         </div>
       )}
 
@@ -1180,6 +1237,24 @@ export default function CargaComprobantesPage() {
           </>
         );
       })()}
+
+      {/* ── Modal notificaciones de vencimiento ─────────────────────────── */}
+      <ModalNotificaciones
+        isOpen={modalNotificacionesOpen}
+        onClose={() => setModalNotificacionesOpen(false)}
+        diasAviso={diasAviso}
+        setDiasAviso={setDiasAviso}
+        gruposParaNotificar={gruposParaNotificar}
+        estadoEmail={estadoEmail}
+        estadoWsp={estadoWsp}
+        enviandoBulk={enviandoBulk}
+        progresoBulk={progresoBulk}
+        getDiasRestantes={getDiasRestantes}
+        getFirstFechaFin={getFirstFechaFin}
+        enviarEmail={enviarEmail}
+        abrirWhatsApp={abrirWhatsApp}
+        enviarTodosEmail={enviarTodosEmail}
+      />
 
       {/* ── Modal registros deshabilitados ──────────────────────────────── */}
       <Modal

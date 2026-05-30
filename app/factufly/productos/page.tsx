@@ -37,6 +37,7 @@ import { useSucursalRuc } from "../operaciones/boleta/gestionBoletas/useSucursal
 import { useRegistrarCategoria } from "./gestioProductos/useRegistrarCategoria";
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import ModalReporteProductos from "@/app/components/modalProductos/Modalreporteproductos";
+import { generarCodigoProducto } from "./gestioProductos/generarCodigoProducto";
 
 export default function ProductosPage() {
   const { showToast } = useToast();
@@ -331,6 +332,9 @@ export default function ProductosPage() {
               c.categoriaNombre.toLowerCase() === f.categoria.toLowerCase(),
           )?.categoriaId ?? 0;
 
+        const codigoFinal = f.codigo ||
+          generarCodigoProducto(f.nomProducto, productosEmpresa.length + i);
+
         const payload = {
           nomProducto: f.nomProducto,
           precioUnitario: f.precioUnitario,
@@ -338,7 +342,7 @@ export default function ProductosPage() {
           tipoAfectacionIGV: f.tipoAfectacionIGV,
           incluirIGV: f.incluirIGV,
           unidadMedida: f.unidadMedida,
-          codigo: f.codigo || "",
+          codigo: codigoFinal,
           categoriaId: catId,
           sucursalId,
         };
@@ -363,11 +367,14 @@ export default function ProductosPage() {
             setProductos((prev) => [...prev, res.data]);
           }
         } catch (err) {
-          const msg = axios.isAxiosError(err)
-            ? (err.response?.data?.mensaje ??
-              err.response?.data?.message ??
-              `Error ${err.response?.status}`)
-            : "Error desconocido";
+          let msg = "Error desconocido";
+          if (axios.isAxiosError(err)) {
+            const data = err.response?.data;
+            msg = data?.mensaje ?? data?.message ?? data?.title ?? data?.errors
+              ? JSON.stringify(data?.errors ?? data)
+              : `Error ${err.response?.status}`;
+            console.error("Import error fila", f.fila, JSON.stringify(data));
+          }
           errores.push({ fila: f.fila, nombre: f.nomProducto, error: msg });
         }
 
