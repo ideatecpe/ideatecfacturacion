@@ -530,6 +530,57 @@ export default function VerComprobantesPage() {
   const anularComprobante = async (_c: ComprobanteListado) => {};
   const agregarResumen = async (_c: ComprobanteListado) => {};
 
+  // ── Detalles Adicionales (RUC 20512134832, solo factura) ──
+  const RUC_DETALLES_ADICIONALES = "20512134832";
+  const esRucDetallesAdicionales = rucEmpresa === RUC_DETALLES_ADICIONALES;
+  const [modalDetallesAdicionales, setModalDetallesAdicionales] = useState<{
+    comprobanteId: number;
+    serie: string;
+    correlativo: string;
+    ordenServicio: string;
+    spot: boolean;
+  } | null>(null);
+  const [guardandoDetalles, setGuardandoDetalles] = useState(false);
+
+  const abrirDetallesAdicionales = (c: ComprobanteListado) => {
+    setModalDetallesAdicionales({
+      comprobanteId: c.comprobanteId,
+      serie: c.serie,
+      correlativo: c.correlativo,
+      ordenServicio: "",
+      spot: false,
+    });
+  };
+
+  const guardarDetallesAdicionales = async () => {
+    if (!modalDetallesAdicionales) return;
+    setGuardandoDetalles(true);
+    try {
+      const body: Record<string, string | boolean> = {};
+      if (modalDetallesAdicionales.ordenServicio)
+        body.ordenServicio = modalDetallesAdicionales.ordenServicio;
+      if (modalDetallesAdicionales.spot)
+        body.spot = modalDetallesAdicionales.spot;
+
+      if (Object.keys(body).length === 0) {
+        showToast("Selecciona al menos una opción", "error");
+        return;
+      }
+
+      await axios.patch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/comprobantes/${rucEmpresa}/${modalDetallesAdicionales.serie}/${modalDetallesAdicionales.correlativo}/orden-spot`,
+        body,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      showToast("Detalles guardados correctamente", "success");
+      setModalDetallesAdicionales(null);
+    } catch {
+      showToast("Error al guardar los detalles", "error");
+    } finally {
+      setGuardandoDetalles(false);
+    }
+  };
+
   const descargarArchivo = async (
     ruta: string | null,
     nombre: string,
@@ -558,6 +609,83 @@ export default function VerComprobantesPage() {
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500">
+      {/* ── Modal Detalles Adicionales ── */}
+      {modalDetallesAdicionales && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-gray-800">Detalles Adicionales</h2>
+              <button
+                onClick={() => setModalDetallesAdicionales(null)}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Orden de Servicio */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  id="chk-os"
+                  type="checkbox"
+                  checked={modalDetallesAdicionales.ordenServicio !== ""}
+                  onChange={(e) => {
+                    if (!e.target.checked)
+                      setModalDetallesAdicionales((prev) => prev ? { ...prev, ordenServicio: "" } : prev);
+                  }}
+                  className="w-4 h-4 accent-brand-blue cursor-pointer"
+                />
+                <label htmlFor="chk-os" className="text-xs font-semibold text-gray-700 cursor-pointer">
+                  Orden de Servicio
+                </label>
+              </div>
+              <input
+                type="text"
+                value={modalDetallesAdicionales.ordenServicio}
+                onChange={(e) =>
+                  setModalDetallesAdicionales((prev) => prev ? { ...prev, ordenServicio: e.target.value } : prev)
+                }
+                placeholder="N° de orden de servicio"
+                className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+              />
+            </div>
+
+            {/* Operación sujeta al SPOT */}
+            <div className="flex items-center gap-2">
+              <input
+                id="chk-spot"
+                type="checkbox"
+                checked={modalDetallesAdicionales.spot}
+                onChange={(e) =>
+                  setModalDetallesAdicionales((prev) => prev ? { ...prev, spot: e.target.checked } : prev)
+                }
+                className="w-4 h-4 accent-brand-blue cursor-pointer"
+              />
+              <label htmlFor="chk-spot" className="text-xs font-semibold text-gray-700 cursor-pointer">
+                Operación sujeta al SPOT
+              </label>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setModalDetallesAdicionales(null)}
+                className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarDetallesAdicionales}
+                disabled={guardandoDetalles}
+                className="flex-1 py-2 rounded-xl bg-brand-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+              >
+                {guardandoDetalles ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModalEnvioMasivo && (
         <ModalEnvioMasivo
           pendientes={pendientes}
@@ -1213,6 +1341,8 @@ export default function VerComprobantesPage() {
                           onAnular={() => anularComprobante(doc)}
                           onGenerarNotaCredito={() => generarNotaCredito(doc)}
                           onGenerarNotaDebito={() => generarNotaDebito(doc)}
+                          mostrarDetallesAdicionales={esRucDetallesAdicionales}
+                          onDetallesAdicionales={() => abrirDetallesAdicionales(doc)}
                         />
                       </div>
                     </td>
@@ -1450,6 +1580,8 @@ interface DropdownOpcionesProps {
   onAnular: () => void;
   onGenerarNotaCredito: () => void;
   onGenerarNotaDebito: () => void;
+  mostrarDetallesAdicionales?: boolean;
+  onDetallesAdicionales?: () => void;
 }
 
 const DropdownOpciones = ({
@@ -1460,6 +1592,8 @@ const DropdownOpciones = ({
   onAnular,
   onGenerarNotaCredito,
   onGenerarNotaDebito,
+  mostrarDetallesAdicionales = false,
+  onDetallesAdicionales,
 }: DropdownOpcionesProps) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -1566,6 +1700,18 @@ const DropdownOpciones = ({
                   <FileText size={14} className="text-orange-500" /> Generar
                   Nota de Débito
                 </button>
+                {mostrarDetallesAdicionales && comprobante.tipoComprobante === "01" && (
+                  <button
+                    onClick={() => {
+                      onDetallesAdicionales?.();
+                      setOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50"
+                  >
+                    <FileText size={14} className="text-blue-500" /> Detalles
+                    Adicionales
+                  </button>
+                )}
                 <div className="border-t border-gray-100" />
                 <button
                   onClick={() => {
