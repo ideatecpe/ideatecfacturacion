@@ -695,6 +695,7 @@ function FacturaContent() {
 
   // ── Descuento global — default 02 ────────────────────────────
   const [descuentoGlobal, setDescuentoGlobal] = useState(0);
+  const [precioInputValues, setPrecioInputValues] = useState<Record<number, string>>({});
   const [codigoTipoDescGlobal, setCodigoTipoDescGlobal] = useState("02");
 
   // ── Tipo de cambio USD ───────────────────────────────────────
@@ -3730,7 +3731,7 @@ function FacturaContent() {
                                             Number(e.target.value),
                                           )
                                         }
-                                        className="w-10 py-1 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue"
+                                        className="w-10 py-1 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       />
                                       <button
                                         type="button"
@@ -3780,19 +3781,30 @@ function FacturaContent() {
                               {/* Precio venta con IGV */}
                               <td className="px-2 py-1.5">
                                 <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
+                                  type="text"
+                                  inputMode="decimal"
                                   value={
-                                    d._precioVentaConIGV ?? d.precioVenta ?? 0
+                                    precioInputValues[i] !== undefined
+                                      ? precioInputValues[i]
+                                      : String(d._precioVentaConIGV ?? d.precioVenta ?? 0)
                                   }
-                                  onFocus={(e) => e.target.select()}
-                                  onChange={(e) =>
-                                    actualizarPrecioVenta(
-                                      i,
-                                      Number(e.target.value),
-                                    )
-                                  }
+                                  onFocus={(e) => {
+                                    setPrecioInputValues(prev => ({ ...prev, [i]: e.target.value }));
+                                    e.target.select();
+                                  }}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    setPrecioInputValues(prev => ({ ...prev, [i]: raw }));
+                                    const num = Number(raw.replace(",", "."));
+                                    if (!isNaN(num) && raw !== "" && !raw.replace(",", ".").endsWith(".")) {
+                                      actualizarPrecioVenta(i, num);
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const num = Number(e.target.value.replace(",", "."));
+                                    if (!isNaN(num)) actualizarPrecioVenta(i, num);
+                                    setPrecioInputValues(prev => { const n = { ...prev }; delete n[i]; return n; });
+                                  }}
                                   disabled={esGratuito}
                                   className={`w-full py-1 px-1 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono
                                     ${esGratuito ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
