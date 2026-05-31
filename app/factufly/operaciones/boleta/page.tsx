@@ -3038,9 +3038,11 @@ function BoletaContent() {
                         >
                           Producto
                         </th>
+                        {/* CÓD. — oculto temporalmente
                         <th className="px-2 py-2 text-left text-gray-500 w-14">
                           Cód.
                         </th>
+                        */}
                         <th className="px-2 py-2 text-center text-gray-500 w-16">
                           U.M.
                         </th>
@@ -3109,14 +3111,15 @@ function BoletaContent() {
                                     const nd = [...showDropdownProducto];
                                     nd[i] = true;
                                     setShowDropdownProducto(nd);
-                                    if (!d.productoId) {
-                                      const n = [...detalles];
-                                      n[i] = {
-                                        ...n[i],
-                                        descripcion: e.target.value,
-                                      };
-                                      setDetalles(n);
-                                    }
+                                    // Siempre actualizar descripción y limpiar productoId
+                                    // para que el usuario pueda editar U.M. libremente
+                                    const n = [...detalles];
+                                    n[i] = {
+                                      ...n[i],
+                                      descripcion: e.target.value,
+                                      productoId: null,
+                                    };
+                                    setDetalles(n);
 
                                     // Auto-grow height dynamically
                                     e.target.style.height = "auto";
@@ -3184,7 +3187,7 @@ function BoletaContent() {
                                   className={`w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-[border-color,box-shadow] duration-200 ${
                                     focusedItemIndex === i
                                       ? "overflow-y-hidden whitespace-pre-wrap"
-                                      : "h-6 overflow-hidden whitespace-nowrap text-ellipsis"
+                                      : "h-7 overflow-hidden whitespace-nowrap text-ellipsis"
                                   }`}
                                 />
                                 {showDropdownProducto[i] &&
@@ -3262,9 +3265,11 @@ function BoletaContent() {
                                   })()}
                               </td>
 
+                              {/* CÓD. — oculto temporalmente
                               <td className="px-2 py-1.5 text-gray-500 font-mono text-[10px]">
                                 {d.codigo || "-"}
                               </td>
+                              */}
 
                               {/* U.M. */}
                               <td className="px-2 py-1.5">
@@ -3619,7 +3624,7 @@ function BoletaContent() {
         </div>
 
         {/* ── Sidebar ── */}
-        <div className="space-y-6 ">
+        <div className="space-y-6 lg:sticky lg:top-4 lg:self-start">
           <Card
             title="Vista Previa"
             subtitle="Representación gráfica del comprobante"

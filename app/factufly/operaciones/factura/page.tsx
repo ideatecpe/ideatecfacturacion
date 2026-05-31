@@ -3458,9 +3458,11 @@ function FacturaContent() {
                         >
                           Producto
                         </th>
+                        {/* CÓD. — oculto temporalmente
                         <th className="px-2 py-2 text-left text-gray-500 w-14">
                           Cód.
                         </th>
+                        */}
                         <th className="px-2 py-2 text-center text-gray-500 w-16">
                           U.M.
                         </th>
@@ -3535,15 +3537,15 @@ function FacturaContent() {
                                     const nd = [...showDropdownProducto];
                                     nd[i] = true;
                                     setShowDropdownProducto(nd);
-                                    // edición manual de descripción si no tiene producto
-                                    if (!d.productoId) {
-                                      const nuevos = [...detalles];
-                                      nuevos[i] = {
-                                        ...nuevos[i],
-                                        descripcion: e.target.value,
-                                      };
-                                      setDetalles(nuevos);
-                                    }
+                                    // Siempre actualizar descripción y limpiar productoId
+                                    // para que el usuario pueda editar U.M. libremente
+                                    const nuevos = [...detalles];
+                                    nuevos[i] = {
+                                      ...nuevos[i],
+                                      descripcion: e.target.value,
+                                      productoId: null,
+                                    };
+                                    setDetalles(nuevos);
 
                                     // Auto-grow height dynamically
                                     e.target.style.height = "auto";
@@ -3679,9 +3681,11 @@ function FacturaContent() {
                                   })()}
                               </td>
 
+                              {/* CÓD. — oculto temporalmente
                               <td className="px-2 py-1.5 text-gray-500 font-mono text-[10px]">
                                 {d.codigo || "-"}
                               </td>
+                              */}
 
                               {/* Unidad de medida */}
                               <td className="px-2 py-1.5">
@@ -4112,7 +4116,7 @@ function FacturaContent() {
         </div>
 
         {/* ── Sidebar ── */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-4 lg:self-start">
           <Card
             title="Vista Previa"
             subtitle="Representación gráfica del comprobante"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
@@ -12,98 +12,83 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function BoletaFacturaElectronicaPage() {
   const { user } = useAuth();
-
   const router = useRouter();
   const [tipo, setTipo] = useState<"boleta" | "factura">("boleta");
-  const [complejidad, setComplejidad] = useState<"simple" | "compleja">("compleja");
+  // MODO SIMPLE — oculto temporalmente, descomentar cuando se requiera
+  // const [complejidad, setComplejidad] = useState<"simple" | "compleja">("compleja");
 
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     if (user !== null && user !== undefined && !isReady) {
-      setComplejidad(user.tipoEmision ? "simple" : "compleja");
       setIsReady(true);
     }
   }, [user, isReady]);
 
   useEffect(() => {
     sharedVentaStore.clear();
-    return () => {
-      sharedVentaStore.clear();
-    };
+    return () => { sharedVentaStore.clear(); };
   }, []);
 
   if (!isReady) return null;
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      {/* Cabecera Unificada */}
-      <div className="flex items-center justify-between mb-2 animate-in fade-in duration-500 py-2 rounded-xl ">
-        <div className="flex items-center gap-4  ">
+      {/* Cabecera — mismo grid que el contenido (3 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-500">
+        {/* Col izquierda: volver + título (ocupa 2/3) */}
+        <div className="lg:col-span-2 flex items-center gap-3">
           <Button
             variant="ghost"
             onClick={() => router.push("/factufly/operaciones")}
-            className="h-10 w-10 p-0 rounded-xl bg-gray-200 hover:bg-gray-300"
+            className="h-10 w-10 p-0 rounded-xl bg-gray-200 hover:bg-gray-300 shrink-0"
           >
             <ChevronLeft className="w-6 h-6" />
           </Button>
           <div>
             <h3 className="text-xl font-bold text-gray-900">
-              {tipo === "boleta"
-                ? "Nueva Boleta de Venta"
-                : "Nueva Factura Electrónica"}
+              {tipo === "boleta" ? "Nueva Boleta de Venta" : "Nueva Factura Electrónica"}
             </h3>
-            <p className="text-sm text-gray-500">
-              Regresar a selección de comprobante
-            </p>
+            <p className="text-sm text-gray-500">Regresar a selección de comprobante</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center">
-            <label
-              htmlFor="complejidad-comprobante"
-              className="mr-3 font-semibold text-gray-700"
-            >
-              Modo:
-            </label>
-            <select
-              id="complejidad-comprobante"
-              value={complejidad}
-              onChange={(e) => {
-                setComplejidad(e.target.value as "simple" | "compleja");
-              }}
-              className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-brand-blue focus:border-brand-blue bg-white shadow-sm"
-            >
-              <option value="simple">Emisión Simple</option>
-              <option value="compleja">Emisión Detallada</option>
-            </select>
-          </div>
+        {/* Col derecha: toggle alineado con Vista Previa (ocupa 1/3) */}
 
-          <div className="flex items-center">
-            <label
-              htmlFor="tipo-comprobante"
-              className="mr-3 font-semibold text-gray-700"
-            >
-              Tipo:
-            </label>
-            <select
-              id="tipo-comprobante"
-              value={tipo}
-              onChange={(e) => {
-                setTipo(e.target.value as "boleta" | "factura");
-              }}
-              className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-brand-blue focus:border-brand-blue bg-white shadow-sm"
-            >
-              <option value="boleta">Boleta de Venta</option>
-              <option value="factura">Factura Electrónica</option>
-            </select>
-          </div>
-        </div>
+
+
+
+<div className="flex w-full bg-gray-100 rounded-2xl p-1 gap-0.5">
+  <button
+    type="button"
+    onClick={() => setTipo("boleta")}
+    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+      tipo === "boleta"
+        ? "bg-brand-blue text-white shadow-md"
+        : "text-gray-400 hover:text-gray-600 hover:bg-white/50"
+    }`}
+  >
+    Boleta
+  </button>
+  <button
+    type="button"
+    onClick={() => setTipo("factura")}
+    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+      tipo === "factura"
+        ? "bg-brand-blue text-white shadow-md"
+        : "text-gray-400 hover:text-gray-600 hover:bg-white/50"
+    }`}
+  >
+    Factura
+  </button>
+</div>
+
+
       </div>
 
-      {/* Contenido Dinámico */}
+      {/* Contenido */}
       <div className="flex-1">
+        {/* MODO SIMPLE — oculto temporalmente
         {complejidad === "simple" ? (
           <EmisionRapidaPage tipoExterno={tipo} />
         ) : tipo === "boleta" ? (
@@ -111,8 +96,9 @@ export default function BoletaFacturaElectronicaPage() {
         ) : (
           <FacturaPage />
         )}
+        */}
+        {tipo === "boleta" ? <BoletaPage /> : <FacturaPage />}
       </div>
     </div>
   );
 }
-
