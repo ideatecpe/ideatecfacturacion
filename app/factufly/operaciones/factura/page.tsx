@@ -277,6 +277,44 @@ function FacturaContent() {
   });
   const [aplicarDetraccion, setAplicarDetraccion] = useState(false);
 
+  // ── Vales ─────────────────────────────────────────────────────
+  interface Vale {
+    idVale: number;
+    nombre: string;
+    descripcion: string;
+    fechaEmision: string;
+    duracion: string;
+    estado: boolean;
+  }
+  const [vales, setVales] = useState<Vale[]>([]);
+  const [loadingVales, setLoadingVales] = useState(false);
+  const [showVales, setShowVales] = useState(false);
+  const [valesSeleccionados, setValesSeleccionados] = useState<number[]>([]);
+
+  useEffect(() => {
+    const fetchVales = async () => {
+      setLoadingVales(true);
+      try {
+        const res = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Vales`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        setVales(res.data.filter((v: Vale) => v.estado));
+      } catch {
+        // silencioso, sección se oculta si falla
+      } finally {
+        setLoadingVales(false);
+      }
+    };
+    if (accessToken) fetchVales();
+  }, [accessToken]);
+
+  const toggleVale = (id: number) => {
+    setValesSeleccionados((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
+    );
+  };
+
   // ── Guías de Remisión ────────────────────────────────────────
   const [showGuias, setShowGuias] = useState(false);
   const [guias, setGuias] = useState<
@@ -1845,6 +1883,7 @@ function FacturaContent() {
       montoCredito,
       usuarioCreacion: user?.id ?? 0,
       enviadoEnResumen: null,
+      ...(valesSeleccionados.length > 0 && { vales: valesSeleccionados }),
     };
   };
 
@@ -3006,6 +3045,67 @@ function FacturaContent() {
                     )}
                   </div>
                 )}
+
+              {/* ── Vales ── */}
+              {vales.length > 0 && (
+                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowVales((v) => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-gray-500 uppercase">
+                        Vales
+                      </span>
+                      {valesSeleccionados.length > 0 && (
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                          {valesSeleccionados.length} seleccionado{valesSeleccionados.length > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    {showVales ? (
+                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+
+                  {showVales && (
+                    <div className="p-3 space-y-2">
+                      {loadingVales ? (
+                        <p className="text-xs text-gray-400 text-center py-2">Cargando vales...</p>
+                      ) : (
+                        vales.map((vale) => (
+                          <label
+                            key={vale.idVale}
+                            className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                              valesSeleccionados.includes(vale.idVale)
+                                ? "border-brand-blue bg-blue-50"
+                                : "border-gray-200 hover:bg-gray-50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={valesSeleccionados.includes(vale.idVale)}
+                              onChange={() => toggleVale(vale.idVale)}
+                              className="mt-0.5 w-4 h-4 accent-brand-blue cursor-pointer shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-gray-800 leading-tight">
+                                {vale.nombre}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                Duración: {vale.duracion} días
+                              </p>
+                            </div>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ── Cuotas ── */}
               {(factura.tipoPago === "Credito" ||
