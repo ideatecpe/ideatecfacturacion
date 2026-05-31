@@ -1,3 +1,11 @@
+/**
+ * Formatea un monto eliminando decimales innecesarios.
+ * 70.00 → "70"   |   70.50 → "70.5"   |   70.55 → "70.55"
+ */
+export function fmtMonto(n: number): string {
+  return parseFloat(n.toFixed(2)).toString();
+}
+
 export function formatoFechaActual() {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')

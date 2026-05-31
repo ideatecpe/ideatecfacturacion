@@ -50,6 +50,7 @@ import {
   formatFechaHora,
   COLORS,
 } from "./gestionComprobantes/helpers";
+import { fmtMonto } from "@/app/components/ui/formatoFecha";
 import { useRouter } from "next/navigation";
 import { Card } from "@/app/components/ui/Card";
 import { createPortal } from "react-dom";
@@ -71,8 +72,8 @@ const TIPOS_OPTS = [
   "Todos",
   "Factura",
   "Boleta",
-  "Nota de Crédito",
-  "Nota de Débito",
+  "N.Crédito",
+  "N.Débito",
 ];
 const ESTADOS_OPTS = ["Todos", "Aceptado", "Pendiente", "Rechazado", "Anulado"];
 const ESTADO_COLORS_MAP: Record<string, string> = {
@@ -1221,7 +1222,7 @@ export default function VerComprobantesPage() {
                         {tipoLabel(doc.tipoComprobante)}
                         <span className="mx-1 text-gray-400">-</span>
                         <span className="font-semibold text-gray-700">
-                          {doc.tipoMoneda === "USD" ? "$" : "S/"} {Number(doc.importeTotal ?? 0).toFixed(2)}
+                          {doc.tipoMoneda === "USD" ? "$" : "S/"} {fmtMonto(Number(doc.importeTotal ?? 0))}
                         </span>
                       </p>
                     </td>

@@ -39,7 +39,7 @@ import {
 import { useClienteBoleta } from "./gestionBoletas/useClienteBoleta";
 import { Cliente } from "../../clientes/gestionClientes/typesCliente";
 import { useSucursal } from "./gestionBoletas/useSucursal";
-import { formatoFechaActual, fechaLocalISO } from "@/app/components/ui/formatoFecha";
+import { formatoFechaActual, fechaLocalISO, fmtMonto } from "@/app/components/ui/formatoFecha";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
 import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
 import axios from "axios";
@@ -1734,7 +1734,7 @@ function BoletaContent() {
       Math.abs(sumaPagos - totales.total) > 0.01
     ) {
       showToast(
-        `Pagos (${simbolo} ${sumaPagos.toFixed(2)}) no coincide con el total (${simbolo} ${totales.total.toFixed(2)})`,
+        `Pagos (${simbolo} ${fmtMonto(sumaPagos)}) no coincide con el total (${simbolo} ${fmtMonto(totales.total)})`,
         "error",
       );
       return;
@@ -1744,7 +1744,7 @@ function BoletaContent() {
       Math.abs(sumaCuotas - totales.total) > 0.01
     ) {
       showToast(
-        `Cuotas (${simbolo} ${sumaCuotas.toFixed(2)}) no coincide con el total (${simbolo} ${totales.total.toFixed(2)})`,
+        `Cuotas (${simbolo} ${fmtMonto(sumaCuotas)}) no coincide con el total (${simbolo} ${fmtMonto(totales.total)})`,
         "error",
       );
       return;
@@ -1754,7 +1754,7 @@ function BoletaContent() {
       Math.abs(sumaPagos + sumaCuotas - totales.total) > 0.01
     ) {
       showToast(
-        `Pago inicial (${simbolo} ${sumaPagos.toFixed(2)}) + cuotas (${simbolo} ${sumaCuotas.toFixed(2)}) no coincide con el total (${simbolo} ${totales.total.toFixed(2)})`,
+        `Pago inicial (${simbolo} ${fmtMonto(sumaPagos)}) + cuotas (${simbolo} ${fmtMonto(sumaCuotas)}) no coincide con el total (${simbolo} ${fmtMonto(totales.total)})`,
         "error",
       );
       return;
@@ -2758,7 +2758,7 @@ function BoletaContent() {
                       {totales.total > 0 && (
                         <div className="flex justify-end">
                           <span className={`text-xs font-medium flex items-center gap-1 ${Math.abs(totalPagado - totales.total) <= 0.01 ? "text-green-600" : totalPagado > totales.total ? "text-red-600" : "text-amber-600"}`}>
-                            {Math.abs(totalPagado - totales.total) <= 0.01 ? <><CheckCircle className="w-3.5 h-3.5" /> Cuadra</> : totalPagado > totales.total ? <><AlertTriangle className="w-3.5 h-3.5" /> Sobra {simbolo}{(totalPagado - totales.total).toFixed(2)}</> : <><AlertTriangle className="w-3.5 h-3.5" /> Falta {simbolo}{(totales.total - totalPagado).toFixed(2)}</>}
+                            {Math.abs(totalPagado - totales.total) <= 0.01 ? <><CheckCircle className="w-3.5 h-3.5" /> Cuadra</> : totalPagado > totales.total ? <><AlertTriangle className="w-3.5 h-3.5" /> Sobra {simbolo}{fmtMonto((totalPagado - totales.total))}</> : <><AlertTriangle className="w-3.5 h-3.5" /> Falta {simbolo}{fmtMonto((totales.total - totalPagado))}</>}
                           </span>
                         </div>
                       )}
@@ -2767,8 +2767,8 @@ function BoletaContent() {
 
                   {boleta.tipoPago === "CreditoInicial" && (
                     <div className="flex justify-between text-xs border-t border-gray-100 pt-1">
-                      <p className="text-gray-500">Total pagado: <span className="font-semibold text-gray-800">{simbolo} {totalPagado.toFixed(2)}</span></p>
-                      <p className="text-gray-500">A crédito: <span className="font-semibold text-brand-blue">{simbolo} {Math.max(0, totales.total - totalPagado).toFixed(2)}</span></p>
+                      <p className="text-gray-500">Total pagado: <span className="font-semibold text-gray-800">{simbolo} {fmtMonto(totalPagado)}</span></p>
+                      <p className="text-gray-500">A crédito: <span className="font-semibold text-brand-blue">{simbolo} {fmtMonto(Math.max(0, totales.total - totalPagado))}</span></p>
                     </div>
                   )}
                 </div>
@@ -3428,10 +3428,10 @@ function BoletaContent() {
                               )}
 
                               <td className="px-2 py-1.5 text-right font-mono text-gray-700 text-xs">
-                                {(d.baseIgv ?? 0).toFixed(2)}
+                                {fmtMonto((d.baseIgv ?? 0))}
                               </td>
                               <td className="px-2 py-1.5 text-right font-mono font-semibold text-gray-800 text-xs">
-                                {(d.totalVentaItem ?? 0).toFixed(2)}
+                                {fmtMonto((d.totalVentaItem ?? 0))}
                               </td>
                               <td className="px-2 py-1.5">
                                 <button
@@ -3510,7 +3510,7 @@ function BoletaContent() {
                               className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors border ${tamañoBolsa === t ? "bg-amber-500 text-white border-amber-500" : "bg-white text-amber-700 border-amber-200 hover:bg-amber-100"}`}
                             >
                               {t.charAt(0).toUpperCase() + t.slice(1)} · S/{" "}
-                              {PRECIOS_BOLSA[t].toFixed(2)}
+                              {fmtMonto(PRECIOS_BOLSA[t])}
                             </button>
                           ),
                         )}
@@ -3525,7 +3525,7 @@ function BoletaContent() {
                       />
                       <span className="text-[10px] text-amber-700">
                         Aplicar ICBPER (S/ {ICBPER_FACTOR} por bolsa) — Total:
-                        S/ {(cantidadBolsa * ICBPER_FACTOR).toFixed(2)}
+                        S/ {fmtMonto((cantidadBolsa * ICBPER_FACTOR))}
                       </span>
                     </label>
                   </div>
@@ -3539,7 +3539,7 @@ function BoletaContent() {
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Gravadas:</span>
                       <span className="font-medium text-gray-900 w-20">
-                        {simbolo} {totales.gravadas.toFixed(2)}
+                        {simbolo} {fmtMonto(totales.gravadas)}
                       </span>
                     </div>
                   )}
@@ -3547,7 +3547,7 @@ function BoletaContent() {
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Exoneradas:</span>
                       <span className="font-medium text-gray-900 w-20">
-                        {simbolo} {totales.exoneradas.toFixed(2)}
+                        {simbolo} {fmtMonto(totales.exoneradas)}
                       </span>
                     </div>
                   )}
@@ -3555,21 +3555,21 @@ function BoletaContent() {
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Inafectas:</span>
                       <span className="font-medium text-gray-900 w-20">
-                        {simbolo} {totales.inafectas.toFixed(2)}
+                        {simbolo} {fmtMonto(totales.inafectas)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-end gap-4 text-xs text-gray-500">
                     <span>IGV:</span>
                     <span className="font-medium text-gray-900 w-20">
-                      {simbolo} {totales.igv.toFixed(2)}
+                      {simbolo} {fmtMonto(totales.igv)}
                     </span>
                   </div>
                   {totales.totalIcbper > 0 && (
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>ICBPER (Bolsas):</span>
                       <span className="font-medium text-amber-600 w-20">
-                        {simbolo} {totales.totalIcbper.toFixed(2)}
+                        {simbolo} {fmtMonto(totales.totalIcbper)}
                       </span>
                     </div>
                   )}
@@ -3577,7 +3577,7 @@ function BoletaContent() {
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Descuentos:</span>
                       <span className="font-medium text-red-500 w-20">
-                        -{simbolo} {totales.totalDescuentos.toFixed(2)}
+                        -{simbolo} {fmtMonto(totales.totalDescuentos)}
                       </span>
                     </div>
                   )}
@@ -3610,7 +3610,7 @@ function BoletaContent() {
                   <div className="flex justify-end gap-4 text-sm font-bold text-brand-blue pt-1 border-t border-gray-100">
                     <span>Total:</span>
                     <span className="w-24">
-                      {simbolo} {totales.importeTotal.toFixed(2)}
+                      {simbolo} {fmtMonto(totales.importeTotal)}
                     </span>
                   </div>
                 </div>
