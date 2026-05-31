@@ -56,6 +56,7 @@ import { useTrabajadoresSucursal } from "../../trabajadores/gestionTrabajadores/
 import { UserCircle, Car } from "lucide-react";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 
 // ── Tipos afectación gratuita ────────────────────────────────
 const TIPOS_GRATUITOS = ["11", "21", "31"];
@@ -134,10 +135,11 @@ function FacturaContent() {
   const { showToast } = useToast();
   const router = useRouter();
   const { accessToken, user } = useAuth();
+  const { config } = useConfiguracion();
 
   // ── 1. isSuperAdmin ──────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
-  const IGV_DEFAULT = user?.igv ?? 18;
+  const IGV_DEFAULT = config?.igv ? parseFloat(config.igv) : (user?.igv ?? 18);
 
   //Editar y reenviar
   const searchParams = useSearchParams();
@@ -158,15 +160,14 @@ function FacturaContent() {
     null,
   );
 
-  const RUC_TRABAJADORES = "10073587382";
-  const esSalonBelleza = user?.ruc === RUC_TRABAJADORES;
+  const mostrarTrabajadores = config?.trabajadores ?? false;
   const sucursalIdEfectivo = isSuperAdmin
     ? (sucursal?.sucursalId ?? 0)
     : parseInt(user?.sucursalID ?? "0");
 
   const { trabajadores } = useTrabajadoresSucursal(
-    esSalonBelleza ? sucursalIdEfectivo : undefined,
-    esSalonBelleza,
+    mostrarTrabajadores ? sucursalIdEfectivo : undefined,
+    mostrarTrabajadores,
   );
   const [trabajadorIdGlobal, setTrabajadorIdGlobal] = useState<number>(0);
   const [trabajadoresPorItem, setTrabajadoresPorItem] = useState<
@@ -1007,13 +1008,13 @@ function FacturaContent() {
         i,
       ) => ({
         ...d,
-        trabajadorId: esSalonBelleza
+        trabajadorId: mostrarTrabajadores
           ? trabajadoresPorItem[_id ?? String(i)] || null
           : null,
       }),
     ) as FacturaDetalle[];
     setFactura((prev) => ({ ...prev, details: detallesLimpios }));
-  }, [detalles, trabajadoresPorItem, esSalonBelleza]);
+  }, [detalles, trabajadoresPorItem, mostrarTrabajadores]);
 
   //Guias de remision enlazadas
   useEffect(() => {
@@ -2097,6 +2098,30 @@ function FacturaContent() {
       }
     } catch {}
 
+    // ── Auto-impresión según configuración ──
+    if (config?.isImprime) {
+      const tamanoMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", "A4": "A4" };
+      const tamano = tamanoMap[config.tamañoImpresion ?? "58"] ?? "Ticket58mm";
+      try {
+        const resPrint = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamano}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        if (resPrint.ok) {
+          const blob = await resPrint.blob();
+          const printUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+          const iframe = document.createElement("iframe");
+          iframe.style.display = "none";
+          iframe.src = printUrl;
+          document.body.appendChild(iframe);
+          iframe.onload = () => {
+            iframe.contentWindow?.print();
+            setTimeout(() => document.body.removeChild(iframe), 1000);
+          };
+        }
+      } catch {}
+    }
+
     // ── Correo y WhatsApp ──
     if (
       (enviarCorreo && correoCliente) ||
@@ -2671,86 +2696,6 @@ function FacturaContent() {
                 </div>
               </div>
 
-              {esSalonBelleza && (
-                <div className="rounded-xl border border-gray-100 space-y-3 p-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center">
-                      <UserCircle className="w-4 h-4 text-purple-500" />
-                    </div>
-                    <h3 className="text-sm font-bold text-gray-800">
-                      Datos del Trabajador
-                    </h3>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs text-gray-500 shrink-0">
-                      Trabajador general:
-                    </label>
-                    <select
-                      value={trabajadorIdGlobal}
-                      onChange={(e) => {
-                        const id = Number(e.target.value);
-                        setTrabajadorIdGlobal(id);
-                        const nuevo: Record<string, number> = {};
-                        detalles
-                          .filter((d) => !d._esIcbper)
-                          .forEach((d, i) => {
-                            nuevo[d._id ?? String(i)] = id;
-                          });
-                        setTrabajadoresPorItem(nuevo);
-                      }}
-                      className="flex-1 py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-purple-400"
-                    >
-                      <option value={0}>Seleccionar trabajador...</option>
-                      {trabajadores.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.nombreCompleto}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {detalles.filter((d) => !d._esIcbper).length > 1 && (
-                    <div className="space-y-2 pt-1 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide">
-                        Asignar por servicio
-                      </p>
-                      {detalles
-                        .filter((d) => !d._esIcbper)
-                        .map((d, i) => (
-                          <div
-                            key={d._id ?? i}
-                            className="flex items-center gap-3"
-                          >
-                            <span className="text-xs text-gray-600 flex-1 truncate">
-                              {d.descripcion || "Sin descripción"}
-                            </span>
-                            <select
-                              value={
-                                trabajadoresPorItem[d._id ?? String(i)] ??
-                                trabajadorIdGlobal
-                              }
-                              onChange={(e) =>
-                                setTrabajadoresPorItem((prev) => ({
-                                  ...prev,
-                                  [d._id ?? String(i)]: Number(e.target.value),
-                                }))
-                              }
-                              className="w-44 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-purple-400"
-                            >
-                              <option value={0}>Sin asignar</option>
-                              {trabajadores.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {t.nombreCompleto}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* ── Fechas ── */}
               <div className="grid grid-cols-4 gap-4">
@@ -2875,44 +2820,58 @@ function FacturaContent() {
                   </select>
                 </div>
                 */}
-                {/* TIPO DE PAGO — oculto temporalmente, descomentar cuando se requiera
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase">
-                    Tipo de Pago
-                  </label>
-                  <select
-                    value={factura.tipoPago ?? "Contado"}
-                    onChange={(e) => {
-                      const nuevoTipo = e.target.value;
-                      setFactura((prev) => ({
-                        ...prev,
-                        tipoPago: nuevoTipo,
-                        ...(nuevoTipo === "Contado" && {
-                          fechaVencimiento: (prev.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10),
-                        }),
-                      }));
-                      setPagos([
-                        {
-                          medioPago: "Efectivo",
-                          monto: "",
-                          numeroOperacion: "",
-                          entidadFinanciera: "",
-                          observaciones: "",
-                        },
-                      ]);
-                      setPagosEditados([false]);
-                    }}
-                    className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
-                  >
-                    <option value="Contado">Contado</option>
-                    <option value="Credito">Crédito</option>
-                    <option value="CreditoInicial">Crédito con Inicial</option>
-                  </select>
-                </div>
-                */}
               </div>
 
-              {/* ── Moneda y Tipo Pago ── */}
+              {(config?.isCredito || mostrarTrabajadores) && (
+                <div className={`grid gap-4 ${config?.isCredito && mostrarTrabajadores ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {config?.isCredito && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Tipo de Pago</label>
+                      <select
+                        value={factura.tipoPago ?? "Contado"}
+                        onChange={(e) => {
+                          const nuevoTipo = e.target.value;
+                          setFactura((prev) => ({
+                            ...prev,
+                            tipoPago: nuevoTipo,
+                            ...(nuevoTipo === "Contado" && {
+                              fechaVencimiento: (prev.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10),
+                            }),
+                          }));
+                          setPagos([{ medioPago: "Efectivo", monto: "", numeroOperacion: "", entidadFinanciera: "", observaciones: "" }]);
+                          setPagosEditados([false]);
+                        }}
+                        className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                      >
+                        <option value="Contado">Contado</option>
+                        <option value="Credito">Crédito</option>
+                        <option value="CreditoInicial">Crédito con Inicial</option>
+                      </select>
+                    </div>
+                  )}
+                  {mostrarTrabajadores && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Atendido por</label>
+                      <select
+                        value={trabajadorIdGlobal}
+                        onChange={(e) => {
+                          const id = Number(e.target.value);
+                          setTrabajadorIdGlobal(id);
+                          const nuevo: Record<string, number> = {};
+                          detalles.filter((d) => !d._esIcbper).forEach((d, i) => { nuevo[d._id ?? String(i)] = id; });
+                          setTrabajadoresPorItem(nuevo);
+                        }}
+                        className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-purple-400"
+                      >
+                        <option value={0}>Seleccionar trabajador...</option>
+                        {trabajadores.map((t) => (
+                          <option key={t.id} value={t.id}>{t.nombreCompleto}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ── Pagos ── */}
               {(factura.tipoPago === "Contado" ||
@@ -3121,7 +3080,8 @@ function FacturaContent() {
                   </div>
                 )}
 
-              {/* ── Guías de Remisión — oculto temporalmente, descomentar cuando se requiera
+              {/* ── Guías de Remisión — controlado por configuración */}
+              {config?.guiaRemision && (
               <div className="border border-gray-100 rounded-xl overflow-hidden">
                 <button
                   type="button"
@@ -3207,7 +3167,7 @@ function FacturaContent() {
                   </div>
                 )}
               </div>
-              */}
+              )}
 
               {/* ── Aviso detracción ── */}
               {sugiereDetraccion && (
@@ -3399,7 +3359,7 @@ function FacturaContent() {
                   </div>
                   <div className="flex items-center gap-2">
                     {/* Checkbox por consumo */}
-                    {user?.ruc !== "20512134832" && (
+                    {config?.isConsumo && (
                       <label
                         className={`flex items-center gap-1.5 select-none ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
                       >
@@ -3429,7 +3389,7 @@ function FacturaContent() {
                         <Plus className="w-3 h-3 mr-1" /> Agregar ítem
                       </Button>
                     )}
-                    {!porConsumo && user?.ruc == "20512134832" && (
+                    {!porConsumo && config?.itemsDefecto && (
                       <button
                         type="button"
                         onClick={() => setShowModalMonitoreo(true)}
@@ -3469,18 +3429,22 @@ function FacturaContent() {
                         <th className="px-2 py-2 text-center text-gray-500 w-16">
                           Cant.
                         </th>
-                        <th className="px-2 py-2 text-center text-gray-500 w-20">
-                          Afect. IGV
-                        </th>
+                        {config?.afectacionIgv === true && (
+                          <th className="px-2 py-2 text-center text-gray-500 w-20">
+                            Afect. IGV
+                          </th>
+                        )}
                         <th className="px-2 py-2 text-center text-gray-500 w-22">
                           P.Venta c/IGV
                         </th>
                         <th className="px-2 py-2 text-center text-gray-500 w-16">
                           %IGV
                         </th>
-                        <th className="px-2 py-2 text-right text-gray-500 w-18">
-                          Desc.Unit
-                        </th>
+                        {config?.descUnitario === true && (
+                          <th className="px-2 py-2 text-right text-gray-500 w-18">
+                            Desc.Unit
+                          </th>
+                        )}
                         <th className="px-2 py-2 text-right text-gray-500 w-18">
                           Sub Total
                         </th>
@@ -3766,6 +3730,7 @@ function FacturaContent() {
                               </td>
 
                               {/* Tipo afectación IGV */}
+                              {config?.afectacionIgv === true && (
                               <td className="px-2 py-1.5">
                                 <select
                                   value={d.tipoAfectacionIGV ?? "10"}
@@ -3790,6 +3755,7 @@ function FacturaContent() {
                                   </option>
                                 </select>
                               </td>
+                              )}
 
                               {/* Precio venta con IGV */}
                               <td className="px-2 py-1.5">
@@ -3841,6 +3807,7 @@ function FacturaContent() {
                               {/* T.Desc removido visualmente */}
                               
                               {/* Descuento unitario */}
+                              {config?.descUnitario === true && (
                               <td className="px-2 py-1.5">
                                 <input
                                   type="number"
@@ -3861,6 +3828,7 @@ function FacturaContent() {
                                     ${esGratuito || d._esIcbper || esPorConsumo ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
                                 />
                               </td>
+                              )}
 
                               {/* Sub Total */}
                               <td className="px-2 py-1.5 text-right font-mono text-gray-700 text-xs">

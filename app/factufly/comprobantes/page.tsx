@@ -24,6 +24,7 @@ import {
 import { useToast } from "@/app/components/ui/Toast";
 import { cn } from "@/app/utils/cn";
 import { useAuth } from "@/context/AuthContext";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { Comprobante } from "./gestionComprobantes/Comprobante";
 import { useSucursalRuc } from "../operaciones/boleta/gestionBoletas/useSucursalRuc";
 import axios from "axios";
@@ -85,6 +86,7 @@ const ESTADO_COLORS_MAP: Record<string, string> = {
 export default function VerComprobantesPage() {
   const router = useRouter();
   const { accessToken, user } = useAuth();
+  const { config } = useConfiguracion();
   const { showToast } = useToast();
   const isSuperAdmin = user?.rol === "superadmin";
   const esUsuarioVelsat =
@@ -896,7 +898,7 @@ export default function VerComprobantesPage() {
                 </Button>
               )}
 
-              {rucEmpresa === "20512134832" && (
+              {config?.cargaComprobantes && (
                 <Button
                   className="py-2.5 px-3 text-xs rounded-md h-auto"
                   onClick={() => setShowModalCargaMasiva(true)}

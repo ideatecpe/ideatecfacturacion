@@ -23,6 +23,7 @@ import { ToastProvider } from "../components/ui/Toast";
 import { MenuItem, View } from "../types";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 
 export default function DashboardLayout({
   children,
@@ -30,6 +31,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user } = useAuth();
+  const { config } = useConfiguracion();
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -129,15 +131,12 @@ export default function DashboardLayout({
     { id: "usuarios", label: "Usuarios", icon: UserCircle },
   ];
 
-  const RUCS_GUIAS_REMISION = ["20512134832"];
-  const RUCS_VELSAT = ["20512134832"];
-
   const menuItems = todosLosMenuItems.filter((item) => {
-    if (item.id === "trabajadores") return user?.ruc === "10073587382";
-    if (item.id === "guiasremision")
-      return RUCS_GUIAS_REMISION.includes(user?.ruc ?? "");
-    if (["carga-comprobantes", "deudasporcobrar"].includes(item.id))
-      return RUCS_VELSAT.includes(user?.ruc ?? "");
+    if (item.id === "trabajadores")      return config?.trabajadores ?? false;
+    if (item.id === "guiasremision")     return config?.guiaRemision ?? false;
+    if (item.id === "carga-comprobantes") return config?.cargaComprobantes ?? false;
+    if (item.id === "deudasporcobrar")   return config?.deudasCobrar ?? false;
+    if (item.id === "cuentasporcobrar")  return config?.isCredito ?? false;
     return true;
   });
 

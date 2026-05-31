@@ -9,9 +9,11 @@ import FacturaPage from "../factura/page";
 import EmisionRapidaPage from "../../emision/page";
 import { sharedVentaStore } from "../sharedVentaStore";
 import { useAuth } from "@/context/AuthContext";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 
 export default function BoletaFacturaElectronicaPage() {
   const { user } = useAuth();
+  const { config } = useConfiguracion();
   const router = useRouter();
   const [tipo, setTipo] = useState<"boleta" | "factura">("boleta");
   // MODO SIMPLE — oculto temporalmente, descomentar cuando se requiera
@@ -24,6 +26,13 @@ export default function BoletaFacturaElectronicaPage() {
       setIsReady(true);
     }
   }, [user, isReady]);
+
+  // Tipo por defecto desde configuración
+  useEffect(() => {
+    if (config?.isBoletaOrFactura) {
+      setTipo(config.isBoletaOrFactura === "f" ? "factura" : "boleta");
+    }
+  }, [config?.isBoletaOrFactura]);
 
   useEffect(() => {
     sharedVentaStore.clear();
