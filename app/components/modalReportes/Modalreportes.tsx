@@ -5,8 +5,10 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   X, Download, FileSpreadsheet,
   Calendar, User, Building2, Hash,
-  SortAsc, FileText, Loader2, ChevronDown, Check
+  SortAsc, FileText, Loader2, ChevronDown, Check,
+  Printer, FileBarChart2,
 } from "lucide-react";
+import { FormatoReporte } from "@/app/factufly/reportes/gestionReportes/UseReportesAvanzados";
 import { cn } from "@/app/utils/cn";
 import { Button } from "@/app/components/ui/Button";
 import { FiltrosReporteModal } from "@/app/factufly/reportes/gestionReportes/Reportes";
@@ -33,10 +35,12 @@ interface ModalReportesProps {
   loadingExcelProductos: boolean;
   loadingExcelMedios: boolean;
   loadingExcelControlCaja: boolean;
-  onDescargarListado: (filtros: FiltrosReporteModal) => Promise<void>;
-  onDescargarProductos: (filtros: FiltrosReporteModal) => Promise<void>;
-  onDescargarMedios: (filtros: FiltrosReporteModal) => Promise<void>;
-  onDescargarControlCaja: (filtros: FiltrosReporteModal) => Promise<void>;
+  loadingTicketControlCaja: boolean;
+  onDescargarListado: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
+  onDescargarProductos: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
+  onDescargarMedios: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
+  onDescargarControlCaja: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
+  onDescargarTicket: (filtros: FiltrosReporteModal) => Promise<void>;
 }
 
 // ── Helpers de fecha ──────────────────────────────────────────────────────────
@@ -101,17 +105,18 @@ function CustomSelect<T extends string | number>({
 }
 
 // ── Botón de reporte ──────────────────────────────────────────────────────────
-function ReporteBtn({ icon: Icon, label, descripcion, loading, onClick, color }: {
+function ReporteBtn({ icon: Icon, label, descripcion, loading, onClick, color, badge }: {
   icon: React.ElementType; label: string; descripcion: string;
-  loading: boolean; onClick: () => void; color: string;
+  loading: boolean; onClick: () => void; color: string; badge?: React.ReactNode;
 }) {
   return (
     <button type="button" onClick={onClick} disabled={loading}
       className={cn(
-        "group flex-1 flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 transition-all text-center",
+        "group flex-1 flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 transition-all text-center relative",
         "hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed", color
       )}
     >
+      {badge && <span className="absolute top-2 right-2">{badge}</span>}
       <div className="p-2 rounded-lg bg-white shadow-sm">
         {loading ? <Loader2 size={16} className="animate-spin text-gray-400" /> : <Icon size={16} className="text-current" />}
       </div>
@@ -129,10 +134,14 @@ export function ModalReportes({
   abierto, onCerrar, filtros, onSetFiltro, onResetFiltros,
   usuarios, sucursales, isSuperAdmin, puedeVerUsuarios,
   loadingExcelListado, loadingExcelProductos, loadingExcelMedios, loadingExcelControlCaja,
+  loadingTicketControlCaja,
   onDescargarListado, onDescargarProductos, onDescargarMedios, onDescargarControlCaja,
+  onDescargarTicket,
 }: ModalReportesProps) {
 
-  const hayDescarga = loadingExcelListado || loadingExcelProductos || loadingExcelMedios || loadingExcelControlCaja;
+  const [formato, setFormato] = useState<FormatoReporte>('excel');
+
+  const hayDescarga = loadingExcelListado || loadingExcelProductos || loadingExcelMedios || loadingExcelControlCaja || loadingTicketControlCaja;
 
   const hoy       = getHoyString();
   const lunes     = getLunesString();
@@ -367,34 +376,80 @@ export function ModalReportes({
 
                 {/* ── Botones de descarga ──────────────────────────────────── */}
                 <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Download size={13} className="text-gray-400" />
-                    <span className="text-[11px] font-black text-gray-500 uppercase tracking-wider">Descargar Reporte</span>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Download size={13} className="text-gray-400" />
+                      <span className="text-[11px] font-black text-gray-500 uppercase tracking-wider">Descargar Reporte</span>
+                    </div>
+                    {/* Toggle Excel / PDF */}
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                      {(['excel', 'pdf'] as FormatoReporte[]).map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => setFormato(f)}
+                          className={cn(
+                            "flex items-center gap-1 px-3 py-1 rounded-md text-[11px] font-bold transition-all",
+                            formato === f
+                              ? "bg-white text-gray-800 shadow-sm"
+                              : "text-gray-400 hover:text-gray-600"
+                          )}
+                        >
+                          {f === 'excel'
+                            ? <><FileSpreadsheet size={11} /> Excel</>
+                            : <><FileBarChart2 size={11} /> PDF</>
+                          }
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+
+                  {/* 4 reportes con formato seleccionado */}
+                  <div className="flex gap-2 mb-2">
                     <ReporteBtn
-                      icon={FileSpreadsheet} label="Libro Contable"
+                      icon={formato === 'pdf' ? FileBarChart2 : FileSpreadsheet}
+                      label="Libro Contable"
                       descripcion="Comprobantes aceptados con detalle"
-                      loading={loadingExcelListado} onClick={() => onDescargarListado(filtros)}
+                      loading={loadingExcelListado}
+                      onClick={() => onDescargarListado(filtros, formato)}
                       color="border-blue-100 hover:border-blue-300 hover:bg-blue-50/50 text-blue-600"
                     />
                     <ReporteBtn
-                      icon={FileSpreadsheet} label="Control de Caja"
+                      icon={formato === 'pdf' ? FileBarChart2 : FileSpreadsheet}
+                      label="Control de Caja"
                       descripcion="Movimientos incluyendo pendientes"
-                      loading={loadingExcelControlCaja} onClick={() => onDescargarControlCaja(filtros)}
+                      loading={loadingExcelControlCaja}
+                      onClick={() => onDescargarControlCaja(filtros, formato)}
                       color="border-green-100 hover:border-green-300 hover:bg-green-50/50 text-green-600"
                     />
                     <ReporteBtn
-                      icon={SortAsc} label="Top Productos"
+                      icon={formato === 'pdf' ? FileBarChart2 : SortAsc}
+                      label="Top Productos"
                       descripcion="Ranking por cantidad o monto"
-                      loading={loadingExcelProductos} onClick={() => onDescargarProductos(filtros)}
+                      loading={loadingExcelProductos}
+                      onClick={() => onDescargarProductos(filtros, formato)}
                       color="border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50/50 text-emerald-600"
                     />
                     <ReporteBtn
-                      icon={Hash} label="Medios de Pago"
+                      icon={formato === 'pdf' ? FileBarChart2 : Hash}
+                      label="Medios de Pago"
                       descripcion="Análisis de medios usados"
-                      loading={loadingExcelMedios} onClick={() => onDescargarMedios(filtros)}
+                      loading={loadingExcelMedios}
+                      onClick={() => onDescargarMedios(filtros, formato)}
                       color="border-orange-100 hover:border-orange-300 hover:bg-orange-50/50 text-orange-600"
+                    />
+                  </div>
+
+                  {/* Ticket térmico — siempre PDF 80mm */}
+                  <div className="flex">
+                    <ReporteBtn
+                      icon={Printer}
+                      label="Caja Ticket"
+                      descripcion="PDF 80mm estilo ticket térmico"
+                      loading={loadingTicketControlCaja}
+                      onClick={() => onDescargarTicket(filtros)}
+                      color="border-purple-100 hover:border-purple-300 hover:bg-purple-50/50 text-purple-600"
+                      badge={<span className="text-[9px] font-bold bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">PDF 80mm</span>}
                     />
                   </div>
                 </div>
