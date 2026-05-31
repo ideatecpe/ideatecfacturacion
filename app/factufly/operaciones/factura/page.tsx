@@ -2418,8 +2418,8 @@ function FacturaContent() {
   // ── Render ───────────────────────────────────────────────────
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-3">
           <Card>
             {cargandoComprobante && (
               <div className="flex items-center pb-3 gap-2 text-xs text-brand-blue">
@@ -3011,7 +3011,7 @@ function FacturaContent() {
               {(factura.tipoPago === "Credito" ||
                 factura.tipoPago === "CreditoInicial") &&
                 !totales.soloGratuitas && (
-                  <div className="border border-gray-100 rounded-xl p-4 space-y-4 bg-gray-50/50">
+                  <div className="border border-gray-100 rounded-xl p-2 space-y-2 bg-gray-50/50">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-gray-500 uppercase">
                         Cuotas de Pago
@@ -3243,7 +3243,7 @@ function FacturaContent() {
                   )}
                 </button>
                 {showDetraccion && (
-                  <div className="p-4 space-y-4">
+                  <div className="p-2 space-y-2">
                     <div className="flex items-center gap-3">
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -3318,7 +3318,7 @@ function FacturaContent() {
                               }))
                             }
                             placeholder="Ej: 0004-3342343243"
-                            className="w-full py-2.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -3342,7 +3342,7 @@ function FacturaContent() {
                                 montoDetraccion: monto,
                               }));
                             }}
-                            className="w-full py-2.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue font-mono"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue font-mono"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -3360,7 +3360,7 @@ function FacturaContent() {
                                 montoDetraccion: Number(e.target.value),
                               }))
                             }
-                            className="w-full py-2.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue font-mono"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue font-mono"
                           />
                         </div>
                         <div className="space-y-1.5 md:col-span-2">
@@ -3377,7 +3377,7 @@ function FacturaContent() {
                               }))
                             }
                             placeholder="Observación de la detracción"
-                            className="w-full py-2.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
                           />
                         </div>
                       </div>
@@ -3994,78 +3994,78 @@ function FacturaContent() {
               </div>
 
               {/* ── Totales ── */}
-              <div className="flex justify-end items-end pt-4 border-t border-gray-100">
+              <div className="flex justify-end items-end pt-2 border-t border-gray-100">
                 <div className="space-y-1.5 text-right">
                   {totales.gravadas > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Gravadas:</span>
-                      <span className="font-medium text-gray-900 w-24">
+                      <span className="font-medium text-gray-900 w-20">
                         {simbolo} {totales.gravadas.toFixed(2)}
                       </span>
                     </div>
                   )}
                   {totales.exoneradas > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Exoneradas:</span>
-                      <span className="font-medium text-gray-900 w-24">
+                      <span className="font-medium text-gray-900 w-20">
                         {simbolo} {totales.exoneradas.toFixed(2)}
                       </span>
                     </div>
                   )}
                   {totales.inafectas > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Inafectas:</span>
-                      <span className="font-medium text-gray-900 w-24">
+                      <span className="font-medium text-gray-900 w-20">
                         {simbolo} {totales.inafectas.toFixed(2)}
                       </span>
                     </div>
                   )}
                   {totales.gratuitas > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Gratuitas:</span>
-                      <span className="font-medium text-green-600 w-24">
+                      <span className="font-medium text-green-600 w-20">
                         {simbolo} {totales.gratuitas.toFixed(2)}
                       </span>
                     </div>
                   )}
                   {totales.igvGratuitas > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>IGV (Gratuito):</span>
-                      <span className="font-medium text-green-500 w-24">
+                      <span className="font-medium text-green-500 w-20">
                         {simbolo} {totales.igvGratuitas.toFixed(2)}
                       </span>
                     </div>
                   )}
                   {!totales.soloGratuitas && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>IGV:</span>
-                      <span className="font-medium text-gray-900 w-24">
+                      <span className="font-medium text-gray-900 w-20">
                         {simbolo} {totales.igv.toFixed(2)}
                       </span>
                     </div>
                   )}
                   {totales.totalIcbper > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>ICBPER (Bolsas):</span>
-                      <span className="font-medium text-amber-600 w-24">
+                      <span className="font-medium text-amber-600 w-20">
                         {simbolo} {totales.totalIcbper.toFixed(2)}
                       </span>
                     </div>
                   )}
                   {totales.totalDescuentos > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Descuentos:</span>
-                      <span className="font-medium text-red-500 w-24">
+                      <span className="font-medium text-red-500 w-20">
                         -{simbolo} {totales.totalDescuentos.toFixed(2)}
                       </span>
                     </div>
                   )}
                   {aplicarDetraccion && detraccion.montoDetraccion > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>
                         Detracción ({detraccion.porcentajeDetraccion}%):
                       </span>
-                      <span className="font-medium text-amber-600 w-24">
+                      <span className="font-medium text-amber-600 w-20">
                         -{simbolo} {detraccion.montoDetraccion.toFixed(2)}
                       </span>
                     </div>
@@ -4103,7 +4103,7 @@ function FacturaContent() {
                       </div>
                     </div>
                   )}
-                  <div className="flex justify-end gap-8 text-lg font-bold text-brand-blue pt-1 border-t border-gray-100">
+                  <div className="flex justify-end gap-4 text-sm font-bold text-brand-blue pt-1 border-t border-gray-100">
                     <span>Total:</span>
                     <span className="w-24">
                       {simbolo} {totales.importeTotal.toFixed(2)}
@@ -4116,7 +4116,7 @@ function FacturaContent() {
         </div>
 
         {/* ── Sidebar ── */}
-        <div className="space-y-6 lg:sticky lg:top-4 lg:self-start">
+        <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
           <Card
             title="Vista Previa"
             subtitle="Representación gráfica del comprobante"
@@ -4168,7 +4168,7 @@ function FacturaContent() {
                           ).padStart(8, "0"),
                         }));
                       }}
-                      className="w-full py-2.5 px-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
                     >
                       <option value="">Seleccionar sucursal</option>
                       {sucursales.map((s: Sucursal) => (
@@ -4245,7 +4245,7 @@ function FacturaContent() {
               )}
             </div>
 
-            <div className="mb-3 mt-3">
+            <div className="mb-2 mt-2">
               <select
                 value={tamanoPdf}
                 onChange={async (e) => {
@@ -4335,13 +4335,13 @@ function FacturaContent() {
                 <iframe
                   src={pdfA4Url}
                   className="w-full rounded-lg border border-gray-200"
-                  style={{ height: "400px" }}
+                  style={{ height: "320px" }}
                 />
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => window.open(pdfA4Url, "_blank")}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-violet-500 hover:bg-violet-400 active:scale-95 shadow-sm py-2.5 rounded-lg transition-all duration-200"
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-violet-500 hover:bg-violet-400 active:scale-95 shadow-sm py-1.5 rounded-lg transition-all duration-200"
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> Abrir
                   </button>
@@ -4359,7 +4359,7 @@ function FacturaContent() {
                         setTimeout(() => setDescargando(false), 1000);
                       }
                     }}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 py-2.5 rounded-lg transition-all duration-200 shadow-sm disabled:opacity-70"
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 py-1.5 rounded-lg transition-all duration-200 shadow-sm disabled:opacity-70"
                   >
                     {descargando ? (
                       <>
@@ -4376,7 +4376,7 @@ function FacturaContent() {
                     type="button"
                     disabled={!pdfA4Url}
                     onClick={imprimirPdf}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 active:scale-95 py-2.5 rounded-lg transition-all duration-200 shadow-sm disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 active:scale-95 py-1.5 rounded-lg transition-all duration-200 shadow-sm disabled:opacity-50"
                   >
                     {!pdfA4Url ? (
                       <>
@@ -4394,7 +4394,7 @@ function FacturaContent() {
             ) : cargandoPreview ? (
               <div
                 className="w-full flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200"
-                style={{ height: "400px" }}
+                style={{ height: "320px" }}
               >
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-8 h-8 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
@@ -4402,9 +4402,9 @@ function FacturaContent() {
                 </div>
               </div>
             ) : (
-              <div className="h-68 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex flex-col items-center justify-center p-4 text-center space-y-2">
-                <div className="p-4 rounded-full bg-white shadow-sm">
-                  <Printer className="w-8 h-8 text-gray-400" />
+              <div className="h-40 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex flex-col items-center justify-center p-3 text-center space-y-2">
+                <div className="p-2 rounded-full bg-white shadow-sm">
+                  <Printer className="w-6 h-6 text-gray-400" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">
@@ -4417,9 +4417,9 @@ function FacturaContent() {
               </div>
             )}
 
-            <div className="mt-6 space-y-3">
+            <div className="mt-3 space-y-2">
               <Button
-                className="w-full py-3 text-base"
+                className="w-full py-2 text-sm"
                 type="button"
                 onClick={emitido ? nuevaFactura : emitirComprobante}
                 disabled={
@@ -4457,8 +4457,8 @@ function FacturaContent() {
             </div>
           </Card>
 
-          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex gap-3">
-            <ShieldCheck className="w-5 h-5 text-brand-blue shrink-0" />
+          <div className="p-2 bg-blue-50 rounded-xl border border-blue-100 flex gap-2">
+            <ShieldCheck className="w-4 h-4 text-brand-blue shrink-0 mt-0.5" />
             <p className="text-xs text-blue-800 leading-relaxed">
               Este comprobante será enviado automáticamente a la{" "}
               <strong>SUNAT</strong> y validado en tiempo real.
