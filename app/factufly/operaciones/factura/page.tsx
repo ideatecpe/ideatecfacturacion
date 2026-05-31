@@ -294,6 +294,7 @@ function FacturaContent() {
   const [valesSeleccionados, setValesSeleccionados] = useState<number[]>([]);
 
   useEffect(() => {
+    if (!accessToken || !config?.isVale) return;
     const fetchVales = async () => {
       setLoadingVales(true);
       try {
@@ -303,13 +304,13 @@ function FacturaContent() {
         );
         setVales(res.data.filter((v: Vale) => v.estado));
       } catch {
-        // silencioso, sección se oculta si falla
+        // silencioso
       } finally {
         setLoadingVales(false);
       }
     };
-    if (accessToken) fetchVales();
-  }, [accessToken]);
+    fetchVales();
+  }, [accessToken, config?.isVale]);
 
   const toggleVale = (id: number) => {
     setValesSeleccionados((prev) =>
@@ -3027,7 +3028,7 @@ function FacturaContent() {
                 )}
 
               {/* ── Vales ── */}
-              {vales.length > 0 && (
+              {config?.isVale && vales.length > 0 && (
                 <div className="border border-gray-100 rounded-xl overflow-hidden">
                   <button
                     type="button"

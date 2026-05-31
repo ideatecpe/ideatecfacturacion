@@ -354,6 +354,45 @@ function BoletaContent() {
   const [emitiendo, setEmitiendo] = useState(false);
   const [errorEmision, setErrorEmision] = useState<string | null>(null);
 
+  // ── Vales ─────────────────────────────────────────────────────
+  interface Vale {
+    idVale: number;
+    nombre: string;
+    descripcion: string;
+    fechaEmision: string;
+    duracion: string;
+    estado: boolean;
+  }
+  const [vales, setVales] = useState<Vale[]>([]);
+  const [loadingVales, setLoadingVales] = useState(false);
+  const [showVales, setShowVales] = useState(false);
+  const [valesSeleccionados, setValesSeleccionados] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!accessToken || !config?.isVale) return;
+    const fetchVales = async () => {
+      setLoadingVales(true);
+      try {
+        const res = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Vales`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        setVales(res.data.filter((v: Vale) => v.estado));
+      } catch {
+        // silencioso
+      } finally {
+        setLoadingVales(false);
+      }
+    };
+    fetchVales();
+  }, [accessToken, config?.isVale]);
+
+  const toggleVale = (id: number) => {
+    setValesSeleccionados((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
+    );
+  };
+
   // ── Guías de Remisión ────────────────────────────────────────
   const [showGuias, setShowGuias] = useState(false);
   const [guias, setGuias] = useState<
@@ -1660,6 +1699,7 @@ function BoletaContent() {
       enviadoPorWhatsApp: enviarWhatsapp,
     },
     usuarioCreacion: user?.id ?? 0,
+    ...(valesSeleccionados.length > 0 && { vales: valesSeleccionados }),
   });
 
   // ── Emitir ───────────────────────────────────────────────────
@@ -2769,6 +2809,67 @@ function BoletaContent() {
                     <div className="flex justify-between text-xs border-t border-gray-100 pt-1">
                       <p className="text-gray-500">Total pagado: <span className="font-semibold text-gray-800">{simbolo} {fmtMonto(totalPagado)}</span></p>
                       <p className="text-gray-500">A crédito: <span className="font-semibold text-brand-blue">{simbolo} {fmtMonto(Math.max(0, totales.total - totalPagado))}</span></p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Vales ── */}
+              {config?.isVale && vales.length > 0 && (
+                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowVales((v) => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-gray-500 uppercase">
+                        Vales
+                      </span>
+                      {valesSeleccionados.length > 0 && (
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                          {valesSeleccionados.length} seleccionado{valesSeleccionados.length > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    {showVales ? (
+                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+
+                  {showVales && (
+                    <div className="p-3 space-y-2">
+                      {loadingVales ? (
+                        <p className="text-xs text-gray-400 text-center py-2">Cargando vales...</p>
+                      ) : (
+                        vales.map((vale) => (
+                          <label
+                            key={vale.idVale}
+                            className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                              valesSeleccionados.includes(vale.idVale)
+                                ? "border-brand-blue bg-blue-50"
+                                : "border-gray-200 hover:bg-gray-50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={valesSeleccionados.includes(vale.idVale)}
+                              onChange={() => toggleVale(vale.idVale)}
+                              className="mt-0.5 w-4 h-4 accent-brand-blue cursor-pointer shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-gray-800 leading-tight">
+                                {vale.nombre}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                Duración: {vale.duracion} días
+                              </p>
+                            </div>
+                          </label>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>

@@ -15,6 +15,9 @@ import {
   Loader2,
   PackageSearch,
   FileSpreadsheet,
+  Ticket,
+  X,
+  Pencil,
 } from "lucide-react";
 import axios from "axios";
 
@@ -32,6 +35,7 @@ import { useProductosSucursal } from "./gestioProductos/useProductosSucursal";
 import { useCategoriasLista } from "./gestioProductos/useCategoriasLista";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useProductosEmpresaLista } from "./gestioProductos/useProductosEmpresaLista";
 import { useSucursalRuc } from "../operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { useRegistrarCategoria } from "./gestioProductos/useRegistrarCategoria";
@@ -42,7 +46,128 @@ import { generarCodigoProducto } from "./gestioProductos/generarCodigoProducto";
 export default function ProductosPage() {
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
+  const { config } = useConfiguracion();
   const isSuperAdmin = user?.rol === "superadmin";
+
+  // ── Vales ──────────────────────────────────────────────────────
+  interface Vale {
+    idVale: number;
+    nombre: string;
+    descripcion: string;
+    fechaEmision: string;
+    duracion: string;
+    estado: boolean;
+  }
+  type ValeForm = { nombre: string; descripcion: string; duracion: string; estado: boolean };
+  const VALE_EMPTY: ValeForm = { nombre: "", descripcion: "", duracion: "", estado: true };
+
+  const [showModalVales, setShowModalVales] = useState(false);
+  const [vales, setVales] = useState<Vale[]>([]);
+  const [loadingVales, setLoadingVales] = useState(false);
+  const [valeForm, setValeForm] = useState<ValeForm>(VALE_EMPTY);
+  const [editingVale, setEditingVale] = useState<Vale | null>(null);
+  const [showFormVale, setShowFormVale] = useState(false);
+  const [savingVale, setSavingVale] = useState(false);
+  const [deletingValeId, setDeletingValeId] = useState<number | null>(null);
+
+  const fetchVales = async () => {
+    setLoadingVales(true);
+    try {
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Vales`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      setVales(res.data);
+    } catch {
+      showToast("Error al cargar los vales", "error");
+    } finally {
+      setLoadingVales(false);
+    }
+  };
+
+  const abrirModalVales = () => {
+    setShowModalVales(true);
+    setShowFormVale(false);
+    setEditingVale(null);
+    setValeForm(VALE_EMPTY);
+    fetchVales();
+  };
+
+  const abrirFormNuevoVale = () => {
+    setEditingVale(null);
+    setValeForm(VALE_EMPTY);
+    setShowFormVale(true);
+  };
+
+  const abrirFormEditarVale = (vale: Vale) => {
+    setEditingVale(vale);
+    setValeForm({
+      nombre: vale.nombre,
+      descripcion: vale.descripcion,
+      duracion: vale.duracion,
+      estado: vale.estado,
+    });
+    setShowFormVale(true);
+  };
+
+  const guardarVale = async () => {
+    if (!valeForm.nombre.trim() || !valeForm.duracion.trim()) {
+      showToast("Nombre y duración son obligatorios", "error");
+      return;
+    }
+    setSavingVale(true);
+    try {
+      if (editingVale) {
+        await axios.put(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Vales/${editingVale.idVale}`,
+          {
+            nombre: valeForm.nombre,
+            descripcion: valeForm.descripcion,
+            fechaEmision: editingVale.fechaEmision,
+            duracion: valeForm.duracion,
+            estado: valeForm.estado,
+          },
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        showToast("Vale actualizado correctamente", "success");
+      } else {
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Vales`,
+          {
+            nombre: valeForm.nombre,
+            descripcion: valeForm.descripcion,
+            duracion: valeForm.duracion,
+          },
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        showToast("Vale creado correctamente", "success");
+      }
+      setShowFormVale(false);
+      setEditingVale(null);
+      setValeForm(VALE_EMPTY);
+      fetchVales();
+    } catch {
+      showToast("Error al guardar el vale", "error");
+    } finally {
+      setSavingVale(false);
+    }
+  };
+
+  const eliminarVale = async (id: number) => {
+    setDeletingValeId(id);
+    try {
+      await axios.delete(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Vales/${id}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      showToast("Vale eliminado", "success");
+      setVales((prev) => prev.filter((v) => v.idVale !== id));
+    } catch {
+      showToast("Error al eliminar el vale", "error");
+    } finally {
+      setDeletingValeId(null);
+    }
+  };
 
   //Productos de la sucursal actual
   const { productosSucursal, loadingSucursal, setProductosSucursal } =
@@ -486,6 +611,15 @@ export default function ProductosPage() {
             >
               <FileSpreadsheet className="w-3.5 h-3.5" /> Reporte Excel
             </Button>
+            {config?.isVale && (
+              <Button
+                variant="outline"
+                onClick={abrirModalVales}
+                className="py-2.5 px-3 text-xs rounded-md h-auto"
+              >
+                <Ticket className="w-3.5 h-3.5" /> Administrar Vales
+              </Button>
+            )}
             <Button
               onClick={() => setIsNewOpen(true)}
               className="py-2.5 px-3 text-xs rounded-md h-auto"
@@ -764,6 +898,146 @@ export default function ProductosPage() {
         categorias={categorias}
         sucursales={sucursales}
       />
+
+      {/* ── Modal Administrar Vales ── */}
+      {showModalVales && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <Ticket className="w-4 h-4 text-brand-blue" />
+                <h2 className="text-sm font-bold text-gray-800">Administrar Vales</h2>
+              </div>
+              <button
+                onClick={() => { setShowModalVales(false); setShowFormVale(false); }}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {showFormVale ? (
+                /* ── Formulario crear / editar ── */
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                    {editingVale ? "Editar vale" : "Nuevo vale"}
+                  </h3>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Nombre *</label>
+                    <input
+                      type="text"
+                      value={valeForm.nombre}
+                      onChange={(e) => setValeForm((p) => ({ ...p, nombre: e.target.value }))}
+                      placeholder="Nombre del vale"
+                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Duración (días) *</label>
+                    <input
+                      type="text"
+                      value={valeForm.duracion}
+                      onChange={(e) => setValeForm((p) => ({ ...p, duracion: e.target.value }))}
+                      placeholder="Ej: 30"
+                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Descripción</label>
+                    <textarea
+                      value={valeForm.descripcion}
+                      onChange={(e) => setValeForm((p) => ({ ...p, descripcion: e.target.value }))}
+                      placeholder="Descripción del vale..."
+                      rows={4}
+                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue resize-none"
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* ── Lista de vales ── */
+                <>
+                  {loadingVales ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                    </div>
+                  ) : vales.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 text-sm">
+                      No hay vales registrados
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {vales.map((vale) => (
+                        <div
+                          key={vale.idVale}
+                          className="flex items-start justify-between gap-3 p-3 border border-gray-200 rounded-xl"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-semibold text-gray-800">{vale.nombre}</p>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${vale.estado ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                                {vale.estado ? "Activo" : "Inactivo"}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-0.5">Duración: {vale.duracion} días</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => abrirFormEditarVale(vale)}
+                              className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors text-blue-500"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              onClick={() => eliminarVale(vale.idVale)}
+                              disabled={deletingValeId === vale.idVale}
+                              className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-red-400 disabled:opacity-50"
+                            >
+                              {deletingValeId === vale.idVale
+                                ? <Loader2 size={13} className="animate-spin" />
+                                : <Trash2 size={13} />}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 shrink-0 flex gap-3">
+              {showFormVale ? (
+                <>
+                  <button
+                    onClick={() => { setShowFormVale(false); setEditingVale(null); }}
+                    className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={guardarVale}
+                    disabled={savingVale}
+                    className="flex-1 py-2 rounded-xl bg-brand-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
+                  >
+                    {savingVale ? "Guardando..." : editingVale ? "Actualizar" : "Crear vale"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={abrirFormNuevoVale}
+                  className="flex-1 py-2 rounded-xl bg-brand-blue text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <Plus size={14} /> Nuevo vale
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal importar */}
       <Modal
