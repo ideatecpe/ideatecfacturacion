@@ -32,9 +32,27 @@ export default function DashboardLayout({
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const activeView = (pathname.split("/")[2] as View) || "dashboard";
+
+  // ── Auto-open/close sidebar según ancho de ventana (umbral: 1280px) ──────
+  React.useEffect(() => {
+    const BREAKPOINT = 1280;
+    // Estado inicial correcto en el cliente
+    setIsSidebarOpen(window.innerWidth >= BREAKPOINT);
+
+    let eraGrande = window.innerWidth >= BREAKPOINT;
+    const handleResize = () => {
+      const esGrande = window.innerWidth >= BREAKPOINT;
+      if (esGrande !== eraGrande) {      // solo actúa al cruzar el umbral
+        setIsSidebarOpen(esGrande);
+        eraGrande = esGrande;
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   React.useEffect(() => {
     if (pathname === "/factufly" || pathname === "/factufly/") {
@@ -126,6 +144,13 @@ export default function DashboardLayout({
   return (
     <ToastProvider>
       <div className="h-screen flex bg-brand-light overflow-x-hidden">
+        {/* Backdrop oscuro al abrir sidebar en pantallas < 1280px */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/40 xl:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
         <Sidebar
           isOpen={isSidebarOpen}
           activeView={activeView}

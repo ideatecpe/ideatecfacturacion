@@ -11,7 +11,10 @@ import {
   Store,
   Hash,
   Lock,
-  FileText,
+  Settings,
+  Printer,
+  ReceiptText,
+  Layers,
 } from "lucide-react";
 import axios from "axios";
 import { useToast } from "@/app/components/ui/Toast";
@@ -62,34 +65,23 @@ interface Sucursal {
   estado: boolean;
 }
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
-const DEPARTAMENTOS = [
-  "AMAZONAS",
-  "ANCASH",
-  "APURIMAC",
-  "AREQUIPA",
-  "AYACUCHO",
-  "CAJAMARCA",
-  "CUSCO",
-  "HUANCAVELICA",
-  "HUANUCO",
-  "ICA",
-  "JUNIN",
-  "LA LIBERTAD",
-  "LAMBAYEQUE",
-  "LIMA",
-  "LORETO",
-  "MADRE DE DIOS",
-  "MOQUEGUA",
-  "PASCO",
-  "PIURA",
-  "PUNO",
-  "SAN MARTIN",
-  "TACNA",
-  "TUMBES",
-  "UCAYALI",
-  "PROV. CONST. DEL CALLAO",
-];
+interface Configuracion {
+  isImprime:         boolean;
+  tamañoImpresion:   string;
+  igv:               string;
+  isConsumo:         boolean;
+  guiaRemision:      boolean;
+  isCredito:         boolean;
+  itemsDefecto:      boolean;
+  isBoletaOrFactura: string;  // "b" | "f"
+  isEnvioResumen:    boolean;
+  isVale:            boolean;
+  deudasCobrar:      boolean;
+  trabajadores:      boolean;
+  cargaComprobantes: boolean;
+  afectacionIgv:     boolean;
+  descUnitario:      boolean;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toDataUrl(base64: string): string {
@@ -153,48 +145,6 @@ function Input({
   );
 }
 
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  label: string;
-  required?: boolean;
-  hint?: string;
-  options: { value: string; label: string }[];
-}
-function Select({
-  label,
-  required,
-  hint,
-  options,
-  className,
-  ...props
-}: SelectProps) {
-  return (
-    <div className="space-y-1.5 mx-3">
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <div className="relative">
-        <select
-          required={required}
-          className={cn(
-            "w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm appearance-none transition-colors",
-            props.disabled
-              ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
-              : "",
-            className,
-          )}
-          {...props}
-        >
-          <option value="">— Seleccionar —</option>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-      </div>
-      {hint && <p className="text-[10px] text-gray-400 italic">{hint}</p>}
-    </div>
-  );
-}
 
 function SectionHeader({
   icon: Icon,
@@ -215,6 +165,37 @@ function SectionHeader({
         <p className="text-xs text-gray-500">{subtitle}</p>
       </div>
     </div>
+  );
+}
+
+// ─── Toggle ───────────────────────────────────────────────────────────────────
+function Toggle({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      className={cn(
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none",
+        checked ? "bg-brand-blue" : "bg-gray-200",
+        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+      )}
+    >
+      <span
+        className={cn(
+          "inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200",
+          checked ? "translate-x-[18px]" : "translate-x-0.5",
+        )}
+      />
+    </button>
   );
 }
 
@@ -629,6 +610,13 @@ export default function ConfiguracionPage() {
   const [loadingSucursales, setLoadingSucursales] = useState(false);
   const [savingSucursalId, setSavingSucursalId] = useState<number | null>(null);
 
+  const [config,        setConfig]        = useState<Configuracion | null>(null);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [savingConfig,  setSavingConfig]  = useState(false);
+
+  const [configExpandida,  setConfigExpandida]  = useState(false);
+  const [seriesExpandidas, setSeriesExpandidas] = useState(false);
+
   const [logoDataUrl, setLogoDataUrl] = useState("");
   const [logoBase64Pure, setLogoBase64Pure] = useState<string | null>(null);
 
@@ -637,7 +625,6 @@ export default function ConfiguracionPage() {
 
   const { accessToken, user, refreshLogo } = useAuth();
 
-  const [tipoEmision, setTipoEmision] = useState<boolean>(true);
 
   // ── Permisos por rol ───────────────────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
@@ -692,7 +679,6 @@ export default function ConfiguracionPage() {
           telefono: d.telefono ?? "",
           email: d.email ?? "",
         });
-        setTipoEmision(d.tipoEmision ?? true);
       })
       .catch(() => {
         showToast("No se pudo cargar los datos de la empresa", "error");
@@ -813,24 +799,53 @@ export default function ConfiguracionPage() {
       setForm((f) => ({ ...f, [key]: value }));
     };
 
-  const handleDepartamentoChange = (
-    e: React.ChangeEvent<HTMLSelectElement>,
-  ) => {
-    const val = e.target.value;
-    setForm((f) => ({
-      ...f,
-      departamento: val,
-      provincia: "",
-      distrito: "",
-      ubigeo: "",
-    }));
+  // ── GET configuración ────────────────────────────────────────────────────
+  useEffect(() => {
+    const ruc = user?.ruc;
+    if (!ruc || !accessToken) return;
+    setLoadingConfig(true);
+    axios
+      .get(`${BASE_URL}/api/Configuracion/${ruc}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      .then((res) => setConfig(res.data))
+      .catch(() => showToast("No se pudo cargar la configuración", "error"))
+      .finally(() => setLoadingConfig(false));
+  }, [user?.ruc, accessToken]);
+
+  // ── PUT configuración ─────────────────────────────────────────────────────
+  const handleSaveConfig = async () => {
+    if (!config || !canEdit) return;
+    setSavingConfig(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { ...body } = config;
+      await axios.put(`${BASE_URL}/api/Configuracion/${user?.ruc}`, body, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+      showToast("Configuración guardada correctamente", "success");
+    } catch {
+      showToast("Error al guardar la configuración", "error");
+    } finally {
+      setSavingConfig(false);
+    }
   };
+
+  const updConfig =
+    (key: keyof Configuracion) =>
+    (val: boolean | string) => {
+      if (!canEdit) return;
+      setConfig((prev) => (prev ? { ...prev, [key]: val } : prev));
+    };
 
   // ── PUT empresa ───────────────────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit) return;
-    if (!form.ruc || !form.razonSocial || !form.direccion || !form.email) {
+    if (!form.ruc || !form.email) {
       showToast("Completa los campos obligatorios", "error");
       return;
     }
@@ -857,7 +872,6 @@ export default function ConfiguracionPage() {
         telefono: form.telefono || null,
         email: form.email,
         logoBase64: logoBase64Pure,
-        tipoEmision: tipoEmision,
       };
       await axios.put(`${BASE_URL}/api/companies/${form.ruc}`, payload, {
         headers: {
@@ -966,27 +980,27 @@ export default function ConfiguracionPage() {
                   />
                 </div>
 
-                <Input
-                  label="RUC"
-                  value={form.ruc}
-                  disabled
-                  hint="El RUC no puede modificarse"
-                />
-                <Input
-                  label="Razón Social"
-                  value={form.razonSocial}
-                  onChange={upd("razonSocial")}
-                  required
-                  placeholder="Nombre legal de la empresa"
-                  disabled={!canEdit}
-                />
-                <Input
-                  label="Nombre Comercial"
-                  value={form.nombreComercial}
-                  onChange={upd("nombreComercial")}
-                  placeholder="Nombre con el que opera (opcional)"
-                  disabled={!canEdit}
-                />
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Input
+                    label="RUC"
+                    value={form.ruc}
+                    disabled
+                    hint="El RUC no puede modificarse"
+                  />
+                  <Input
+                    label="Razón Social"
+                    value={form.razonSocial}
+                    disabled
+                    hint="Se obtiene automáticamente de SUNAT"
+                  />
+                  <Input
+                    label="Nombre Comercial"
+                    value={form.nombreComercial}
+                    onChange={upd("nombreComercial")}
+                    placeholder="Nombre con el que opera (opcional)"
+                    disabled={!canEdit}
+                  />
+                </div>
 
                 <div className="md:col-span-2 mt-3 mx-3">
                   <SectionHeader
@@ -996,49 +1010,41 @@ export default function ConfiguracionPage() {
                   />
                 </div>
 
-                <Select
-                  label="Departamento"
-                  required
-                  value={form.departamento}
-                  onChange={handleDepartamentoChange}
-                  options={DEPARTAMENTOS.map((d) => ({ value: d, label: d }))}
-                  disabled={!canEdit}
-                />
-                <Input
-                  label="Provincia"
-                  value={form.provincia}
-                  onChange={upd("provincia")}
-                  required
-                  placeholder="Ej: Cajamarca"
-                  disabled={!canEdit}
-                />
-                <Input
-                  label="Distrito"
-                  value={form.distrito}
-                  onChange={upd("distrito")}
-                  required
-                  placeholder="Ej: Cajamarca"
-                  disabled={!canEdit}
-                />
-                <Input
-                  label="Ubigeo"
-                  value={form.ubigeo}
-                  onChange={upd("ubigeo")}
-                  placeholder="Ej: 060101"
-                  maxLength={6}
-                  disabled={!canEdit}
-                  hint="Código de ubicación geográfica INEI (6 dígitos)"
-                />
+                {/* Fila de 4: Departamento · Provincia · Distrito · Ubigeo */}
+                <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Input
+                    label="Departamento"
+                    value={form.departamento}
+                    disabled
+                    hint="Se obtiene automáticamente de SUNAT"
+                  />
+                  <Input
+                    label="Provincia"
+                    value={form.provincia}
+                    disabled
+                    hint="Se obtiene automáticamente de SUNAT"
+                  />
+                  <Input
+                    label="Distrito"
+                    value={form.distrito}
+                    disabled
+                    hint="Se obtiene automáticamente de SUNAT"
+                  />
+                  <Input
+                    label="Ubigeo"
+                    value={form.ubigeo}
+                    disabled
+                    hint="Se obtiene automáticamente de SUNAT"
+                  />
+                </div>
 
+                {/* Dirección Fiscal — ancho completo */}
                 <div className="md:col-span-2">
                   <Input
                     label="Dirección Fiscal"
                     value={form.direccion}
-                    onChange={upd("direccion")}
-                    required
-                    placeholder="Av. / Jr. / Calle + número, referencia"
-                    disabled={!canEdit}
-                    hint="Dirección completa tal como aparece en SUNAT"
+                    disabled
+                    hint="Se obtiene automáticamente de SUNAT"
                   />
                 </div>
 
@@ -1073,120 +1079,293 @@ export default function ConfiguracionPage() {
                   hint="Se usará para notificaciones y envío de comprobantes"
                 />
 
-                <div className="md:col-span-2 mt-3 mx-3">
+              </div>
+
+              {/* Botón guardar datos de empresa */}
+              {canEdit && (
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="submit"
+                    className="h-9 text-xs"
+                    disabled={saving || uploadingLogo}
+                  >
+                    {saving ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Guardando...</>
+                    ) : (
+                      <><Building2 className="w-3.5 h-3.5" /> Guardar datos de empresa</>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+
+        {/* ── Configuración ── */}
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          {/* Cabecera acordeón */}
+          <div
+            className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50/60 transition-colors"
+            onClick={() => setConfigExpandida(!configExpandida)}
+          >
+            <div>
+              <p className="text-base font-semibold text-gray-900">Configuración</p>
+              <p className="text-xs text-gray-400 mt-0.5">Parámetros del sistema para esta empresa</p>
+            </div>
+            <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform duration-200", configExpandida && "rotate-180")} />
+          </div>
+
+          {configExpandida && (
+            <div className="border-t border-gray-100 p-5">
+          {loadingConfig ? (
+            <div className="flex items-center justify-center py-16 gap-3 text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span className="text-sm">Cargando configuración...</span>
+            </div>
+          ) : !config ? (
+            <div className="py-10 text-center text-sm text-gray-400">
+              No se pudo cargar la configuración.
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {isFacturador && <ReadOnlyBanner />}
+
+              {/* ── Impresión ── */}
+              <div>
+                <div className="mx-3 mb-3">
                   <SectionHeader
-                    icon={FileText}
-                    title="Tipo de Emisión"
-                    subtitle="Modo de emisión predeterminado al crear comprobantes"
+                    icon={Printer}
+                    title="Impresión"
+                    subtitle="Configuración de impresión de comprobantes"
                   />
                 </div>
-
-                <div className="md:col-span-2 mx-3">
-                  <div className="flex gap-3 mt-1.5">
-                    <button
-                      type="button"
-                      disabled={!canEdit}
-                      onClick={() => setTipoEmision(true)}
-                      className={cn(
-                        "flex-1 py-2 rounded-xl border-2 text-sm font-semibold transition-all",
-                        tipoEmision
-                          ? "border-brand-blue bg-blue-50 text-brand-blue"
-                          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300",
-                        !canEdit && "opacity-50 cursor-not-allowed",
-                      )}
-                    >
-                      Emisión Simple
-                      <p className="text-[10px] font-normal text-gray-400 mt-0.5">
-                        Formulario rápido y directo
-                      </p>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!canEdit}
-                      onClick={() => setTipoEmision(false)}
-                      className={cn(
-                        "flex-1 py-2 rounded-xl border-2 text-sm font-semibold transition-all",
-                        !tipoEmision
-                          ? "border-brand-blue bg-blue-50 text-brand-blue"
-                          : "border-gray-200 bg-white text-gray-500 hover:border-gray-300",
-                        !canEdit && "opacity-50 cursor-not-allowed",
-                      )}
-                    >
-                      Emisión Detallada
-                      <p className="text-[10px] font-normal text-gray-400 mt-0.5">
-                        Formulario completo con más opciones
-                      </p>
-                    </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-100 rounded-xl overflow-hidden border border-gray-100">
+                  {[
+                    { key: "isImprime" as const, label: "Impresión automática", desc: "Imprimir el comprobante al emitir" },
+                  ].map(({ key, label, desc }) => (
+                    <div key={key} className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{label}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                      </div>
+                      <Toggle checked={!!config[key]} onChange={updConfig(key)} disabled={!canEdit} />
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Tamaño de papel</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Formato para impresión de comprobantes</p>
+                    </div>
+                    <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+                      {(["58", "80", "A4"] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          disabled={!canEdit}
+                          onClick={() => updConfig("tamañoImpresion")(t)}
+                          className={cn(
+                            "px-3 py-1.5 transition-colors",
+                            config.tamañoImpresion === t
+                              ? "bg-brand-blue text-white"
+                              : "bg-white text-gray-500 hover:bg-gray-50",
+                            !canEdit && "cursor-not-allowed opacity-60",
+                          )}
+                        >
+                          {t === "A4" ? "A4" : `${t}mm`}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </>
+
+              {/* ── Comprobantes ── */}
+              <div>
+                <div className="mx-3 mb-3">
+                  <SectionHeader
+                    icon={ReceiptText}
+                    title="Comprobantes"
+                    subtitle="Opciones de emisión y cálculo"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-100 rounded-xl overflow-hidden border border-gray-100">
+                  {/* IGV */}
+                  <div className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">IGV (%)</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Porcentaje de IGV aplicado</p>
+                    </div>
+                    <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+                      {(["18", "10.5"] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          disabled={!canEdit}
+                          onClick={() => updConfig("igv")(t)}
+                          className={cn(
+                            "px-3 py-1.5 transition-colors",
+                            config.igv === t
+                              ? "bg-brand-blue text-white"
+                              : "bg-white text-gray-500 hover:bg-gray-50",
+                            !canEdit && "cursor-not-allowed opacity-60",
+                          )}
+                        >
+                          {t}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Tipo por defecto */}
+                  <div className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Tipo por defecto</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Comprobante predeterminado al emitir</p>
+                    </div>
+                    <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+                      {(["b", "f"] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          disabled={!canEdit}
+                          onClick={() => updConfig("isBoletaOrFactura")(t)}
+                          className={cn(
+                            "px-3 py-1.5 transition-colors",
+                            config.isBoletaOrFactura === t
+                              ? "bg-brand-blue text-white"
+                              : "bg-white text-gray-500 hover:bg-gray-50",
+                            !canEdit && "cursor-not-allowed opacity-60",
+                          )}
+                        >
+                          {t === "b" ? "Boleta" : "Factura"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Toggles de comprobantes */}
+                  {([
+                    { key: "afectacionIgv"   as const, label: "Afectación IGV",       desc: "Permitir configurar la afectación al IGV" },
+                    { key: "descUnitario"    as const, label: "Descuento unitario",    desc: "Habilitar descuento por ítem" },
+                    { key: "itemsDefecto"    as const, label: "Ítems por defecto",     desc: "Cargar ítems predeterminados al emitir" },
+                    { key: "isCredito"       as const, label: "Ventas al crédito",     desc: "Permitir comprobantes a crédito" },
+                    { key: "isEnvioResumen"  as const, label: "Envío de resumen",      desc: "Enviar resumen diario a SUNAT" },
+                  ] as { key: keyof Configuracion; label: string; desc: string }[]).map(({ key, label, desc }) => (
+                    <div key={key} className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{label}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                      </div>
+                      <Toggle checked={!!config[key]} onChange={updConfig(key)} disabled={!canEdit} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Módulos ── */}
+              <div>
+                <div className="mx-3 mb-3">
+                  <SectionHeader
+                    icon={Layers}
+                    title="Módulos habilitados"
+                    subtitle="Activa o desactiva funcionalidades del sistema"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-100 rounded-xl overflow-hidden border border-gray-100">
+                  {([
+                    { key: "isConsumo"          as const, label: "Consumo interno",        desc: "Módulo de consumo interno" },
+                    { key: "guiaRemision"        as const, label: "Guías de remisión",      desc: "Módulo de guías de remisión" },
+                    { key: "isVale"              as const, label: "Vales",                  desc: "Emisión de vales" },
+                    { key: "deudasCobrar"        as const, label: "Deudas por cobrar",      desc: "Módulo de gestión de deudas" },
+                    { key: "trabajadores"        as const, label: "Trabajadores",           desc: "Módulo de gestión de personal" },
+                    { key: "cargaComprobantes"   as const, label: "Carga comprobantes",     desc: "Módulo de carga masiva de comprobantes" },
+                  ] as { key: keyof Configuracion; label: string; desc: string }[]).map(({ key, label, desc }) => (
+                    <div key={key} className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{label}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                      </div>
+                      <Toggle checked={!!config[key]} onChange={updConfig(key)} disabled={!canEdit} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Botón guardar */}
+              {canEdit && (
+                <div className="flex justify-end pt-1">
+                  <Button
+                    type="button"
+                    className="h-9 text-xs"
+                    disabled={savingConfig}
+                    onClick={handleSaveConfig}
+                  >
+                    {savingConfig ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Guardando...</>
+                    ) : (
+                      <><Settings className="w-3.5 h-3.5" /> Guardar Configuración</>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
-        </Card>
+            </div>
+          )}
+        </div>
 
         {/* ── Series de Comprobantes ── */}
-        <Card
-          title="Series de Comprobantes"
-          subtitle={
-            canEdit
-              ? isSuperAdmin
-                ? "Configura las series y correlativos de cada sucursal"
-                : "Configura las series y correlativos de tu sucursal"
-              : "Consulta las series y correlativos de tu sucursal"
-          }
-        >
-          {loadingSucursales ? (
-            <div className="flex items-center justify-center py-16 gap-3 text-gray-400">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span className="text-sm">Cargando sucursales...</span>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          {/* Cabecera acordeón */}
+          <div
+            className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50/60 transition-colors"
+            onClick={() => setSeriesExpandidas(!seriesExpandidas)}
+          >
+            <div>
+              <p className="text-base font-semibold text-gray-900">Series de Comprobantes</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {canEdit
+                  ? isSuperAdmin
+                    ? "Configura las series y correlativos de cada sucursal"
+                    : "Configura las series y correlativos de tu sucursal"
+                  : "Consulta las series y correlativos de tu sucursal"}
+              </p>
             </div>
-          ) : sucursales.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-400">
-              <Store className="w-8 h-8 text-gray-300" />
-              <p className="text-sm">No se encontraron sucursales</p>
-            </div>
-          ) : (
-            <>
-              {isFacturador && <ReadOnlyBanner />}
-              <div className="space-y-5 mx-3">
-                {sucursales.map((sucursal, idx) => (
-                  <SucursalCard
-                    key={sucursal.sucursalId}
-                    sucursal={sucursal}
-                    onChange={handleSucursalChange}
-                    onSave={handleSaveSucursal}
-                    saving={savingSucursalId === sucursal.sucursalId}
-                    readOnly={!canEdit}
-                    defaultExpanded={idx === 0}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </Card>
+            <ChevronDown className={cn("w-4 h-4 text-gray-400 transition-transform duration-200", seriesExpandidas && "rotate-180")} />
+          </div>
 
-        {/* Botón guardar GLOBAL — más prominente */}
-        {canEdit && !loadingEmpresa && (
-          <div className="sticky bottom-6 flex justify-end z-20">
-            <Button
-              type="submit"
-              className="h-11 px-8 rounded-xl  hover:shadow-blue-500"
-              disabled={saving || loadingEmpresa || uploadingLogo}
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  Guardando cambios...
-                </>
+          {seriesExpandidas && (
+            <div className="border-t border-gray-100 p-5">
+              {loadingSucursales ? (
+                <div className="flex items-center justify-center py-16 gap-3 text-gray-400">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm">Cargando sucursales...</span>
+                </div>
+              ) : sucursales.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-400">
+                  <Store className="w-8 h-8 text-gray-300" />
+                  <p className="text-sm">No se encontraron sucursales</p>
+                </div>
               ) : (
                 <>
-                  <Building2 className="w-5 h-5 mr-2" />
-                  Guardar Configuración General
+                  {isFacturador && <ReadOnlyBanner />}
+                  <div className="space-y-5 mx-3">
+                    {sucursales.map((sucursal) => (
+                      <SucursalCard
+                        key={sucursal.sucursalId}
+                        sucursal={sucursal}
+                        onChange={handleSucursalChange}
+                        onSave={handleSaveSucursal}
+                        saving={savingSucursalId === sucursal.sucursalId}
+                        readOnly={!canEdit}
+                        defaultExpanded={false}
+                      />
+                    ))}
+                  </div>
                 </>
               )}
-            </Button>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
+
       </form>
       {imageToCrop && (
         <LogoCropper

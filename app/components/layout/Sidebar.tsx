@@ -23,9 +23,9 @@ export const Sidebar = ({
   return (
     <aside
       className={cn(
-        "bg-brand-dark text-white transition-all duration-300 flex flex-col fixed inset-y-0 z-50 lg:relative h-full overflow-hidden",
+        "bg-brand-dark text-white transition-all duration-300 flex flex-col fixed inset-y-0 z-50 xl:relative h-full overflow-hidden",
         isOpen ? "w-64" : "w-20",
-        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
       )}
     >
       <div className="px-4 py-6 flex items-center gap-3 shrink-0">
