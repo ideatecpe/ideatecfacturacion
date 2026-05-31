@@ -135,7 +135,7 @@ function FacturaContent() {
   const { showToast } = useToast();
   const router = useRouter();
   const { accessToken, user } = useAuth();
-  const { config } = useConfiguracion();
+  const { config, loading: loadingConfig } = useConfiguracion();
 
   // ── 1. isSuperAdmin ──────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
@@ -740,7 +740,10 @@ function FacturaContent() {
   const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<
     number | null
   >(null);
-  const [tamanoPdf, setTamanoPdf] = useState<string>("A4");
+  const [tamanoPdfManual, setTamanoPdfManual] = useState<string | null>(null);
+  const tamanoConfigMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", "A4": "A4" };
+  const tamanoPdf = tamanoPdfManual ?? (config?.tamañoImpresion ? (tamanoConfigMap[config.tamañoImpresion] ?? "A4") : "A4");
+  const setTamanoPdf = setTamanoPdfManual;
   const [pdfA4Url, setPdfA4Url] = useState<string | null>(null);
   const [pdfTicketUrl, setPdfTicketUrl] = useState<string | null>(null);
   const [cargandoPreview, setCargandoPreview] = useState(false);
@@ -2065,11 +2068,15 @@ function FacturaContent() {
   };
 
   const procesarSegundoPlano = async (comprobanteId: number) => {
-    // ── PDF A4 ──
+    const tamanoMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", "A4": "A4" };
+    const tamanoPreview = config?.tamañoImpresion
+      ? (tamanoMap[config.tamañoImpresion] ?? "A4")
+      : tamanoPdf;
+
     setCargandoPreview(true);
     try {
       const resA4 = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=A4`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamanoPreview}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       if (resA4.ok) {
@@ -2305,7 +2312,7 @@ function FacturaContent() {
     sharedVentaStore.clear();
     setEmitido(false);
     setPdfA4Url(null);
-    setTamanoPdf("A4");
+    setTamanoPdf(null); // reset → vuelve al valor de config
     setPdfTicketUrl(null);
     setComprobanteIdEmitido(null);
     setErrorEmision(null);
@@ -4214,6 +4221,9 @@ function FacturaContent() {
             </div>
 
             <div className="mb-2 mt-2">
+              {loadingConfig ? (
+                <div className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-400 animate-pulse">Cargando...</div>
+              ) : (
               <select
                 value={tamanoPdf}
                 onChange={async (e) => {
@@ -4243,11 +4253,10 @@ function FacturaContent() {
                 className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue"
               >
                 <option value="A4">A4</option>
-                <option value="Carta">Carta</option>
                 <option value="Ticket80mm">Ticket 80mm</option>
                 <option value="Ticket58mm">Ticket 58mm</option>
-                <option value="MediaCarta">Media Carta</option>
               </select>
+              )}
               <div className="mt-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between">
                 <span className="text-[10px] font-bold text-gray-500 uppercase">Tipo de Pago</span>
                 <span className="text-xs font-semibold text-gray-700">Contado</span>

@@ -13,33 +13,24 @@ import { useConfiguracion } from "@/hooks/useConfiguracion";
 
 export default function BoletaFacturaElectronicaPage() {
   const { user } = useAuth();
-  const { config } = useConfiguracion();
+  const { config, loading: loadingConfig } = useConfiguracion();
   const router = useRouter();
-  const [tipo, setTipo] = useState<"boleta" | "factura">("boleta");
   // MODO SIMPLE — oculto temporalmente, descomentar cuando se requiera
   // const [complejidad, setComplejidad] = useState<"simple" | "compleja">("compleja");
 
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    if (user !== null && user !== undefined && !isReady) {
-      setIsReady(true);
-    }
-  }, [user, isReady]);
-
-  // Tipo por defecto desde configuración
-  useEffect(() => {
-    if (config?.isBoletaOrFactura) {
-      setTipo(config.isBoletaOrFactura === "f" ? "factura" : "boleta");
-    }
-  }, [config?.isBoletaOrFactura]);
+  // Tipo: si el usuario lo cambió manualmente usa ese, sino el de configuración
+  const [tipoManual, setTipoManual] = useState<"boleta" | "factura" | null>(null);
+  const tipo: "boleta" | "factura" =
+    tipoManual ?? (config?.isBoletaOrFactura === "f" ? "factura" : "boleta");
+  const setTipo = setTipoManual;
 
   useEffect(() => {
     sharedVentaStore.clear();
     return () => { sharedVentaStore.clear(); };
   }, []);
 
-  if (!isReady) return null;
+  // Esperar a que carguen usuario y configuración antes de renderizar
+  if (!user || loadingConfig) return null;
 
   return (
     <div className="flex flex-col h-full space-y-2">
