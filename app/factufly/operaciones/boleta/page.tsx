@@ -13,6 +13,7 @@ import {
   ClipboardList,
   AlertTriangle,
   CheckCircle,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -38,7 +39,7 @@ import {
 import { useClienteBoleta } from "./gestionBoletas/useClienteBoleta";
 import { Cliente } from "../../clientes/gestionClientes/typesCliente";
 import { useSucursal } from "./gestionBoletas/useSucursal";
-import { formatoFechaActual, fechaLocalISO } from "@/app/components/ui/formatoFecha";
+import { formatoFechaActual, fechaLocalISO, fmtMonto } from "@/app/components/ui/formatoFecha";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
 import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
 import axios from "axios";
@@ -54,6 +55,7 @@ import { useTrabajadoresSucursal } from "../../trabajadores/gestionTrabajadores/
 import { UserCircle, Car } from "lucide-react";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 
 // ── Interfaces locales ───────────────────────────────────────
 interface DetalleLocal extends Partial<BoletaDetalle> {
@@ -83,13 +85,17 @@ function BoletaContent() {
   const { showToast } = useToast();
   const router = useRouter();
   const { accessToken, user } = useAuth();
+  const { config, loading: loadingConfig } = useConfiguracion();
 
   //enviar mediante resumen
   const [enviarEnResumen, setEnviarEnResumen] = useState(false);
+  useEffect(() => {
+    if (config?.isEnvioResumen !== undefined) setEnviarEnResumen(config.isEnvioResumen);
+  }, [config?.isEnvioResumen]);
 
   // ── isSuperAdmin ─────────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
-  const IGV_DEFAULT = user?.igv ?? 18;
+  const IGV_DEFAULT = config?.igv ? parseFloat(config.igv) : (user?.igv ?? 18);
 
   const { empresa } = useEmpresaEmisor();
   const { cliente, loadingCliente, errorCliente, buscarCliente } =
@@ -103,15 +109,14 @@ function BoletaContent() {
     null,
   );
 
-  const RUC_TRABAJADORES = "10073587382";
-  const esSalonBelleza = user?.ruc === RUC_TRABAJADORES;
+  const mostrarTrabajadores = config?.trabajadores ?? false;
   const sucursalIdEfectivo = isSuperAdmin
     ? (sucursal?.sucursalId ?? 0)
     : parseInt(user?.sucursalID ?? "0");
 
   const { trabajadores } = useTrabajadoresSucursal(
-    esSalonBelleza ? sucursalIdEfectivo : undefined,
-    esSalonBelleza,
+    mostrarTrabajadores ? sucursalIdEfectivo : undefined,
+    mostrarTrabajadores,
   );
   const [trabajadorIdGlobal, setTrabajadorIdGlobal] = useState<number>(0);
   const [trabajadoresPorItem, setTrabajadoresPorItem] = useState<
@@ -613,6 +618,7 @@ function BoletaContent() {
 
   // ── Descuento global ─────────────────────────────────────────
   const [descuentoGlobal, setDescuentoGlobal] = useState(0);
+  const [precioInputValues, setPrecioInputValues] = useState<Record<number, string>>({});
   const [codigoTipoDescGlobal, setCodigoTipoDescGlobal] = useState("02");
 
   // ── Tipo de cambio USD ───────────────────────────────────────
@@ -659,7 +665,10 @@ function BoletaContent() {
   const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<
     number | null
   >(null);
-  const [tamanoPdf, setTamanoPdf] = useState<string>("A4");
+  const [tamanoPdfManual, setTamanoPdfManual] = useState<string | null>(null);
+  const tamanoConfigMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", "A4": "A4" };
+  const tamanoPdf = tamanoPdfManual ?? (config?.tamañoImpresion ? (tamanoConfigMap[config.tamañoImpresion] ?? "A4") : "A4");
+  const setTamanoPdf = setTamanoPdfManual;
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [cargandoPdf, setCargandoPdf] = useState(false);
   const [pdfA4Url, setPdfA4Url] = useState<string | null>(null);
@@ -954,13 +963,13 @@ function BoletaContent() {
         i,
       ) => ({
         ...d,
-        trabajadorId: esSalonBelleza
+        trabajadorId: mostrarTrabajadores
           ? trabajadoresPorItem[_id ?? String(i)] || null
           : null,
       }),
     ) as BoletaDetalle[];
     setBoleta((prev) => ({ ...prev, details: detallesLimpios }));
-  }, [detalles, trabajadoresPorItem, esSalonBelleza]);
+  }, [detalles, trabajadoresPorItem, mostrarTrabajadores]);
 
   useEffect(() => {
     const guiasFormateadas: BoletaGuia[] = guias
@@ -1725,7 +1734,7 @@ function BoletaContent() {
       Math.abs(sumaPagos - totales.total) > 0.01
     ) {
       showToast(
-        `Pagos (${simbolo} ${sumaPagos.toFixed(2)}) no coincide con el total (${simbolo} ${totales.total.toFixed(2)})`,
+        `Pagos (${simbolo} ${fmtMonto(sumaPagos)}) no coincide con el total (${simbolo} ${fmtMonto(totales.total)})`,
         "error",
       );
       return;
@@ -1735,7 +1744,7 @@ function BoletaContent() {
       Math.abs(sumaCuotas - totales.total) > 0.01
     ) {
       showToast(
-        `Cuotas (${simbolo} ${sumaCuotas.toFixed(2)}) no coincide con el total (${simbolo} ${totales.total.toFixed(2)})`,
+        `Cuotas (${simbolo} ${fmtMonto(sumaCuotas)}) no coincide con el total (${simbolo} ${fmtMonto(totales.total)})`,
         "error",
       );
       return;
@@ -1745,7 +1754,7 @@ function BoletaContent() {
       Math.abs(sumaPagos + sumaCuotas - totales.total) > 0.01
     ) {
       showToast(
-        `Pago inicial (${simbolo} ${sumaPagos.toFixed(2)}) + cuotas (${simbolo} ${sumaCuotas.toFixed(2)}) no coincide con el total (${simbolo} ${totales.total.toFixed(2)})`,
+        `Pago inicial (${simbolo} ${fmtMonto(sumaPagos)}) + cuotas (${simbolo} ${fmtMonto(sumaCuotas)}) no coincide con el total (${simbolo} ${fmtMonto(totales.total)})`,
         "error",
       );
       return;
@@ -1843,10 +1852,16 @@ function BoletaContent() {
   };
 
   const procesarSegundoPlano = async (comprobanteId: number) => {
+    // Usar el tamaño configurado para la vista previa
+    const tamanoMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", "A4": "A4" };
+    const tamanoPreview = config?.tamañoImpresion
+      ? (tamanoMap[config.tamañoImpresion] ?? "A4")
+      : tamanoPdf;
+
     setCargandoPreview(true);
     try {
       const resA4 = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=A4`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamanoPreview}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       if (resA4.ok) {
@@ -1870,17 +1885,32 @@ function BoletaContent() {
         const blob = await resTicket.blob();
         const ticketUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
         setPdfTicketUrl(ticketUrl);
-        // ── Imprimir automáticamente en ticket 58mm ──
-        const iframe = document.createElement("iframe");
-        iframe.style.display = "none";
-        iframe.src = ticketUrl;
-        document.body.appendChild(iframe);
-        iframe.onload = () => {
-          iframe.contentWindow?.print();
-          setTimeout(() => document.body.removeChild(iframe), 1000);
-        };
       }
     } catch {}
+
+    // ── Auto-impresión según configuración ──
+    if (config?.isImprime) {
+      const tamanoMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", "A4": "A4" };
+      const tamano = tamanoMap[config.tamañoImpresion ?? "58"] ?? "Ticket58mm";
+      try {
+        const resPrint = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamano}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        if (resPrint.ok) {
+          const blob = await resPrint.blob();
+          const printUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+          const iframe = document.createElement("iframe");
+          iframe.style.display = "none";
+          iframe.src = printUrl;
+          document.body.appendChild(iframe);
+          iframe.onload = () => {
+            iframe.contentWindow?.print();
+            setTimeout(() => document.body.removeChild(iframe), 1000);
+          };
+        }
+      } catch {}
+    }
 
     if (
       (enviarCorreo && correoCliente) ||
@@ -2055,7 +2085,7 @@ function BoletaContent() {
     setPdfTicketUrl(null);
     setComprobanteIdEmitido(null);
     setErrorEmision(null);
-    setTamanoPdf("A4");
+    setTamanoPdf(null); // reset → vuelve al valor de config
 
     // Ítems
     setDetalles([]);
@@ -2206,8 +2236,8 @@ function BoletaContent() {
   // ── Render ───────────────────────────────────────────────────
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-3">
           {cargandoComprobante && (
             <div className="flex items-center pb-3 gap-2 text-xs text-brand-blue">
               <div className="w-4 h-4 shrink-0 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
@@ -2216,14 +2246,14 @@ function BoletaContent() {
           )}
 
           <Card>
-            <form className="space-y-3">
+            <form className="space-y-2">
               {/* ── Datos del Cliente ── */}
-              <div className=" rounded-xl space-y-2">
+              <div className=" rounded-xl space-y-0 ">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
                     <UserRound className="w-4 h-4 text-brand-blue" />
                   </div>
-                  <h3 className="text-sm font-bold text-gray-800">
+                  <h3 className="text-[14px] font-bold text-gray-800">
                     Datos del Cliente
                   </h3>
                   {/* Clientes varios */}
@@ -2242,7 +2272,7 @@ function BoletaContent() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase">
+                    <label className="text-[12px] font-bold text-gray-500 ">
                       Tipo y Nº Documento
                     </label>
                     <div className="flex gap-2">
@@ -2258,7 +2288,7 @@ function BoletaContent() {
                             cliente: undefined,
                           }));
                         }}
-                        className="w-1/3 py-2 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm disabled:opacity-50"
+                        className="w-1/3 py-1.5 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm disabled:opacity-50"
                       >
                         <option value="01">DNI</option>
                         <option value="04">CE</option>
@@ -2291,7 +2321,7 @@ function BoletaContent() {
                             tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : 12
                           }
                           placeholder="Buscar por nº doc o nombre..."
-                          className={`w-full pl-4 pr-10 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all text-sm disabled:opacity-50
+                          className={`w-full pl-4 pr-10 py-1.5 bg-white border rounded-xl focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all text-sm disabled:opacity-50
                             ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue"}`}
                         />
                         {loadingCliente && (
@@ -2334,7 +2364,7 @@ function BoletaContent() {
                             : (boleta.cliente?.razonSocial ?? "")
                         }
                         placeholder="Nombre o razón social"
-                        className="w-full py-2 px-4 bg-gray-100 border border-gray-200 rounded-xl text-gray-600 text-sm"
+                        className="w-full py-1.5 px-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-600 text-sm"
                       />
                       {!clienteVarios &&
                         boleta.cliente?.clienteId === null &&
@@ -2362,11 +2392,11 @@ function BoletaContent() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase">
+                    <label className="text-[12px] font-bold text-gray-500">
                       Contacto
                     </label>
                     <div
-                      className={`flex items-center gap-1.5 bg-white border rounded-xl px-3 py-2 ${enviarCorreo && !correoCliente ? "border-red-300 bg-red-50" : "border-gray-200"}`}
+                      className={`flex items-center gap-1.5 bg-white border rounded-xl px-3 py-1.5 ${enviarCorreo && !correoCliente ? "border-red-300 bg-red-50" : "border-gray-200"}`}
                     >
                       <input
                         type="text"
@@ -2392,7 +2422,7 @@ function BoletaContent() {
                     </div>
                     <div className="space-y-1">
                       <div
-                        className={`flex items-center gap-1.5 bg-white border rounded-xl px-3 py-2 ${
+                        className={`flex items-center gap-1.5 bg-white border rounded-xl px-3 py-1.5 ${
                           telefonoCliente &&
                           !telefonoCliente
                             .split(",")
@@ -2471,7 +2501,7 @@ function BoletaContent() {
                         disabled
                         value={boleta.cliente?.direccionLineal ?? ""}
                         placeholder="Dirección del cliente"
-                        className="w-full py-2 px-4 bg-gray-100 border border-gray-200 rounded-xl text-xs text-gray-500"
+                        className="w-full py-1.5 px-3 bg-gray-100 border border-gray-200 rounded-xl text-xs text-gray-500"
                       />
                     </div>
                   )}
@@ -2506,7 +2536,7 @@ function BoletaContent() {
                         horaEmision: e.target.value + ":00",
                       }));
                     }}
-                    className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm"
                   />
                   {fechaEmisionEditada && (
                     <button
@@ -2577,7 +2607,7 @@ function BoletaContent() {
                         );
                       }
                     }}
-                    className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
                   >
                     <option value="PEN">PEN - Soles</option>
                     <option value="USD">
@@ -2586,119 +2616,54 @@ function BoletaContent() {
                   </select>
                 </div>
                 */}
-                {/* TIPO DE PAGO — oculto temporalmente, descomentar cuando se requiera
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase">
-                    Tipo de Pago
-                  </label>
-                  <select
-                    value={boleta.tipoPago ?? "Contado"}
-                    onChange={(e) => {
-                      const nuevoTipo = e.target.value;
-                      setBoleta((prev) => ({
-                        ...prev,
-                        tipoPago: nuevoTipo,
-                        ...(nuevoTipo === "Contado" && {
-                          fechaVencimiento: (prev.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10),
-                        }),
-                      }));
-                      setPagos([
-                        {
-                          medioPago: "Efectivo",
-                          monto: "",
-                          numeroOperacion: "",
-                          entidadFinanciera: "",
-                          observaciones: "",
-                        },
-                      ]);
-                      setPagosEditados([false]);
-                    }}
-                    className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
-                  >
-                    <option value="Contado">Contado</option>
-                    <option value="Credito">Crédito</option>
-                    <option value="CreditoInicial">Crédito con Inicial</option>
-                  </select>
-                </div>
-                */}
               </div>
 
-              {esSalonBelleza && (
-                <div className="rounded-xl border border-gray-100 space-y-3 p-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-purple-50 flex items-center justify-center">
-                      <UserCircle className="w-4 h-4 text-purple-500" />
+              {(config?.isCredito || mostrarTrabajadores) && (
+                <div className={`grid gap-4 ${config?.isCredito && mostrarTrabajadores ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {config?.isCredito && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Tipo de Pago</label>
+                      <select
+                        value={boleta.tipoPago ?? "Contado"}
+                        onChange={(e) => {
+                          const nuevoTipo = e.target.value;
+                          setBoleta((prev) => ({
+                            ...prev,
+                            tipoPago: nuevoTipo,
+                            ...(nuevoTipo === "Contado" && {
+                              fechaVencimiento: (prev.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10),
+                            }),
+                          }));
+                          setPagos([{ medioPago: "Efectivo", monto: "", numeroOperacion: "", entidadFinanciera: "", observaciones: "" }]);
+                          setPagosEditados([false]);
+                        }}
+                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                      >
+                        <option value="Contado">Contado</option>
+                        <option value="Credito">Crédito</option>
+                        <option value="CreditoInicial">Crédito con Inicial</option>
+                      </select>
                     </div>
-                    <h3 className="text-sm font-bold text-gray-800">
-                      Datos del Trabajador
-                    </h3>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs text-gray-500 shrink-0">
-                      Trabajador general:
-                    </label>
-                    <select
-                      value={trabajadorIdGlobal}
-                      onChange={(e) => {
-                        const id = Number(e.target.value);
-                        setTrabajadorIdGlobal(id);
-                        const nuevo: Record<string, number> = {};
-                        detalles
-                          .filter((d) => !d._esIcbper)
-                          .forEach((d, i) => {
-                            nuevo[d._id ?? String(i)] = id;
-                          });
-                        setTrabajadoresPorItem(nuevo);
-                      }}
-                      className="flex-1 py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-purple-400"
-                    >
-                      <option value={0}>Seleccionar trabajador...</option>
-                      {trabajadores.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.nombreCompleto}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {detalles.filter((d) => !d._esIcbper).length > 1 && (
-                    <div className="space-y-2 pt-1 border-t border-gray-100">
-                      <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide">
-                        Asignar por servicio
-                      </p>
-                      {detalles
-                        .filter((d) => !d._esIcbper)
-                        .map((d, i) => (
-                          <div
-                            key={d._id ?? i}
-                            className="flex items-center gap-3"
-                          >
-                            <span className="text-xs text-gray-600 flex-1 truncate">
-                              {d.descripcion || "Sin descripción"}
-                            </span>
-                            <select
-                              value={
-                                trabajadoresPorItem[d._id ?? String(i)] ??
-                                trabajadorIdGlobal
-                              }
-                              onChange={(e) =>
-                                setTrabajadoresPorItem((prev) => ({
-                                  ...prev,
-                                  [d._id ?? String(i)]: Number(e.target.value),
-                                }))
-                              }
-                              className="w-44 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-purple-400"
-                            >
-                              <option value={0}>Sin asignar</option>
-                              {trabajadores.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {t.nombreCompleto}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                  )}
+                  {mostrarTrabajadores && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Atendido por</label>
+                      <select
+                        value={trabajadorIdGlobal}
+                        onChange={(e) => {
+                          const id = Number(e.target.value);
+                          setTrabajadorIdGlobal(id);
+                          const nuevo: Record<string, number> = {};
+                          detalles.filter((d) => !d._esIcbper).forEach((d, i) => { nuevo[d._id ?? String(i)] = id; });
+                          setTrabajadoresPorItem(nuevo);
+                        }}
+                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-purple-400"
+                      >
+                        <option value={0}>Seleccionar trabajador...</option>
+                        {trabajadores.map((t) => (
+                          <option key={t.id} value={t.id}>{t.nombreCompleto}</option>
                         ))}
+                      </select>
                     </div>
                   )}
                 </div>
@@ -2707,13 +2672,21 @@ function BoletaContent() {
               {/* ── Pagos ── */}
               {(boleta.tipoPago === "Contado" ||
                 boleta.tipoPago === "CreditoInicial") && (
-                <div className="border border-gray-100 rounded-xl p-2 space-y-2 bg-gray-50/50">
+                <div>
 
                   {pagos.length === 1 ? (
                     /* ── 1 solo medio: simple, sin card ── */
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 ">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-gray-700 uppercase">Medio de Pago</label>
+                        
+                 <div className="flex items-center gap-2">
+  <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+    <CreditCard className="w-4 h-4 text-brand-blue" />
+  </div>
+  <h3 className="text-[14px] font-bold text-gray-800">
+    Medio de Pago
+  </h3>
+</div>
                         {mediosUsados.length < todosMedios.length && (
                           <button type="button" onClick={agregarPago} className="text-xs text-brand-blue hover:underline flex items-center gap-1">
                             <Plus className="w-3 h-3" /> Agregar otro medio de pago
@@ -2740,7 +2713,12 @@ function BoletaContent() {
                     /* ── 2+ medios: cards en fila ── */
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-gray-700 uppercase">Datos de Pago</label>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <CreditCard className="w-4 h-4 text-brand-blue" />
+                          </div>
+                          <h3 className="text-[14px] font-bold text-gray-800">Datos de Pago</h3>
+                        </div>
                         {mediosUsados.length < todosMedios.length && (
                           <button type="button" onClick={agregarPago} className="text-xs text-brand-blue hover:underline flex items-center gap-1">
                             <Plus className="w-3 h-3" /> Agregar otro medio de pago
@@ -2780,7 +2758,7 @@ function BoletaContent() {
                       {totales.total > 0 && (
                         <div className="flex justify-end">
                           <span className={`text-xs font-medium flex items-center gap-1 ${Math.abs(totalPagado - totales.total) <= 0.01 ? "text-green-600" : totalPagado > totales.total ? "text-red-600" : "text-amber-600"}`}>
-                            {Math.abs(totalPagado - totales.total) <= 0.01 ? <><CheckCircle className="w-3.5 h-3.5" /> Cuadra</> : totalPagado > totales.total ? <><AlertTriangle className="w-3.5 h-3.5" /> Sobra {simbolo}{(totalPagado - totales.total).toFixed(2)}</> : <><AlertTriangle className="w-3.5 h-3.5" /> Falta {simbolo}{(totales.total - totalPagado).toFixed(2)}</>}
+                            {Math.abs(totalPagado - totales.total) <= 0.01 ? <><CheckCircle className="w-3.5 h-3.5" /> Cuadra</> : totalPagado > totales.total ? <><AlertTriangle className="w-3.5 h-3.5" /> Sobra {simbolo}{fmtMonto((totalPagado - totales.total))}</> : <><AlertTriangle className="w-3.5 h-3.5" /> Falta {simbolo}{fmtMonto((totales.total - totalPagado))}</>}
                           </span>
                         </div>
                       )}
@@ -2789,8 +2767,8 @@ function BoletaContent() {
 
                   {boleta.tipoPago === "CreditoInicial" && (
                     <div className="flex justify-between text-xs border-t border-gray-100 pt-1">
-                      <p className="text-gray-500">Total pagado: <span className="font-semibold text-gray-800">{simbolo} {totalPagado.toFixed(2)}</span></p>
-                      <p className="text-gray-500">A crédito: <span className="font-semibold text-brand-blue">{simbolo} {Math.max(0, totales.total - totalPagado).toFixed(2)}</span></p>
+                      <p className="text-gray-500">Total pagado: <span className="font-semibold text-gray-800">{simbolo} {fmtMonto(totalPagado)}</span></p>
+                      <p className="text-gray-500">A crédito: <span className="font-semibold text-brand-blue">{simbolo} {fmtMonto(Math.max(0, totales.total - totalPagado))}</span></p>
                     </div>
                   )}
                 </div>
@@ -2799,7 +2777,7 @@ function BoletaContent() {
               {/* ── Cuotas ── */}
               {(boleta.tipoPago === "Credito" ||
                 boleta.tipoPago === "CreditoInicial") && (
-                <div className="border border-gray-100 rounded-xl p-4 space-y-4 bg-gray-50/50">
+                <div className="border border-gray-100 rounded-xl p-2 space-y-2 bg-gray-50/50">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-gray-500 uppercase">
                       Cuotas de Pago
@@ -2829,7 +2807,7 @@ function BoletaContent() {
                             type="text"
                             disabled
                             value={cuota.numeroCuota}
-                            className="w-full py-2 px-3 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-500 font-mono"
+                            className="w-full py-1.5 px-3 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-500 font-mono"
                           />
                         </div>
                         <div className="space-y-1">
@@ -2845,7 +2823,7 @@ function BoletaContent() {
                               n[i].monto = e.target.value;
                               setCuotas(n);
                             }}
-                            className="w-full py-2 px-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue"
                           />
                         </div>
                         <div className="space-y-1">
@@ -2879,7 +2857,8 @@ function BoletaContent() {
                 </div>
               )}
 
-              {/* ── Guías de Remisión — oculto temporalmente, descomentar cuando se requiera
+              {/* ── Guías de Remisión — controlado por configuración */}
+              {config?.guiaRemision && (
               <div className="border border-gray-100 rounded-xl overflow-hidden">
                 <button
                   type="button"
@@ -2908,7 +2887,7 @@ function BoletaContent() {
                             onChange={(e) =>
                               actualizarGuia(i, "tipoDoc", e.target.value)
                             }
-                            className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
                           >
                             <option value="09">Guía Remisión Remitente</option>
                             <option value="31">
@@ -2927,7 +2906,7 @@ function BoletaContent() {
                               actualizarGuia(i, "serie", e.target.value)
                             }
                             placeholder="T001"
-                            className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
                           />
                         </div>
                         <div className="space-y-1">
@@ -2942,7 +2921,7 @@ function BoletaContent() {
                                 actualizarGuia(i, "numero", e.target.value)
                               }
                               placeholder="00000001"
-                              className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                              className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
                             />
                             <button
                               type="button"
@@ -2965,7 +2944,7 @@ function BoletaContent() {
                   </div>
                 )}
               </div>
-              */}
+              )}
 
               {/* ── Tabla Ítems ── */}
               <div className="space-y-1.5">
@@ -2979,7 +2958,7 @@ function BoletaContent() {
                     </label>
                   </div>
                   <div className="flex items-center gap-2">
-                    {user?.ruc !== "20512134832" && (
+                    {config?.isConsumo && (
                       <label
                         className={`flex items-center gap-1.5 select-none ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
                       >
@@ -3009,7 +2988,7 @@ function BoletaContent() {
                         <Plus className="w-3 h-3 mr-1" /> Agregar ítem
                       </Button>
                     )}
-                    {!porConsumo && user?.ruc == "20512134832" && (
+                    {!porConsumo && config?.itemsDefecto && (
                       <button
                         type="button"
                         onClick={() => setShowModalMonitoreo(true)}
@@ -3029,45 +3008,49 @@ function BoletaContent() {
                   >
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-2 py-2 text-left text-gray-500 w-6">
+                        <th className="px-2 py-1 text-left text-gray-500 w-6">
                           #
                         </th>
                         <th
-                          className="px-2 py-2 text-left text-gray-500"
+                          className="px-2 py-1 text-left text-gray-500"
                           style={{ minWidth: "180px" }}
                         >
                           Producto
                         </th>
                         {/* CÓD. — oculto temporalmente
-                        <th className="px-2 py-2 text-left text-gray-500 w-14">
+                        <th className="px-2 py-1 text-left text-gray-500 w-14">
                           Cód.
                         </th>
                         */}
-                        <th className="px-2 py-2 text-center text-gray-500 w-16">
+                        <th className="px-2 py-1 text-center text-gray-500 w-16">
                           U.M.
                         </th>
-                        <th className="px-2 py-2 text-center text-gray-500 w-16">
+                        <th className="px-2 py-1 text-center text-gray-500 w-16">
                           Cant.
                         </th>
-                        <th className="px-2 py-2 text-center text-gray-500 w-20">
-                          Afect. IGV
+                        {config?.afectacionIgv === true && (
+                          <th className="px-2 py-1 text-center text-gray-500 w-20">
+                            Afect. IGV
+                          </th>
+                        )}
+                        <th className="px-2 py-1 text-center text-gray-500 w-22">
+                          Precio U.
                         </th>
-                        <th className="px-2 py-2 text-center text-gray-500 w-22">
-                          P.Venta c/IGV
-                        </th>
-                        <th className="px-2 py-2 text-center text-gray-500 w-16">
+                        <th className="px-2 py-1 text-center text-gray-500 w-16">
                           %IGV
                         </th>
-                        <th className="px-2 py-2 text-right text-gray-500 w-18">
-                          Desc.Unit
-                        </th>
-                        <th className="px-2 py-2 text-right text-gray-500 w-18">
+                        {config?.descUnitario === true && (
+                          <th className="px-2 py-1 text-right text-gray-500 w-18">
+                            Desc.Unit
+                          </th>
+                        )}
+                        <th className="px-2 py-1 text-right text-gray-500 w-18">
                           Sub Total
                         </th>
-                        <th className="px-2 py-2 text-right text-gray-500 w-18">
+                        <th className="px-2 py-1 text-right text-gray-500 w-18">
                           Total
                         </th>
-                        <th className="px-2 py-2 w-6"></th>
+                        <th className="px-2 py-1 w-6"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -3236,7 +3219,7 @@ function BoletaContent() {
                                               onMouseDown={() =>
                                                 seleccionarProducto(p, i)
                                               }
-                                              className="w-full text-left px-3 py-2 border-b border-gray-50 last:border-0 hover:bg-gray-50"
+                                              className="w-full text-left px-3 py-1.5 border-b border-gray-50 last:border-0 hover:bg-gray-50"
                                             >
                                               <p className="text-xs font-medium text-gray-800">
                                                 {p.nomProducto}
@@ -3330,7 +3313,7 @@ function BoletaContent() {
                                             Number(e.target.value),
                                           )
                                         }
-                                        className="w-10 py-1 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue"
+                                        className="w-10 py-1 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       />
                                       <button
                                         type="button"
@@ -3350,6 +3333,7 @@ function BoletaContent() {
                               </td>
 
                               {/* Afect. IGV */}
+                              {config?.afectacionIgv === true && (
                               <td className="px-2 py-1.5">
                                 <select
                                   value={d.tipoAfectacionIGV ?? "10"}
@@ -3364,23 +3348,35 @@ function BoletaContent() {
                                   <option value="30">Inaf.</option>
                                 </select>
                               </td>
+                              )}
 
-                              {/* P.Venta c/IGV */}
+                              {/* Precio U. */}
                               <td className="px-2 py-1.5">
                                 <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
+                                  type="text"
+                                  inputMode="decimal"
                                   value={
-                                    d._precioVentaConIGV ?? d.precioVenta ?? 0
+                                    precioInputValues[i] !== undefined
+                                      ? precioInputValues[i]
+                                      : String(d._precioVentaConIGV ?? d.precioVenta ?? 0)
                                   }
-                                  onFocus={(e) => e.target.select()}
-                                  onChange={(e) =>
-                                    actualizarPrecioVenta(
-                                      i,
-                                      Number(e.target.value),
-                                    )
-                                  }
+                                  onFocus={(e) => {
+                                    setPrecioInputValues(prev => ({ ...prev, [i]: e.target.value }));
+                                    e.target.select();
+                                  }}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    setPrecioInputValues(prev => ({ ...prev, [i]: raw }));
+                                    const num = Number(raw.replace(",", "."));
+                                    if (!isNaN(num) && raw !== "" && !raw.replace(",", ".").endsWith(".")) {
+                                      actualizarPrecioVenta(i, num);
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const num = Number(e.target.value.replace(",", "."));
+                                    if (!isNaN(num)) actualizarPrecioVenta(i, num);
+                                    setPrecioInputValues(prev => { const n = { ...prev }; delete n[i]; return n; });
+                                  }}
                                   disabled={!!d._esIcbper}
                                   className={`w-full py-1 px-1 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono ${d._esIcbper ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
                                 />
@@ -3410,9 +3406,8 @@ function BoletaContent() {
                                 )}
                               </td>
 
-                              {/* T.Desc removido visualmente */}
-                              
                               {/* Desc.Unit */}
+                              {config?.descUnitario === true && (
                               <td className="px-2 py-1.5">
                                 <input
                                   type="number"
@@ -3430,12 +3425,13 @@ function BoletaContent() {
                                   className={`w-full py-1 px-1 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono ${d._esIcbper || esPorConsumo ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
                                 />
                               </td>
+                              )}
 
                               <td className="px-2 py-1.5 text-right font-mono text-gray-700 text-xs">
-                                {(d.baseIgv ?? 0).toFixed(2)}
+                                {fmtMonto((d.baseIgv ?? 0))}
                               </td>
                               <td className="px-2 py-1.5 text-right font-mono font-semibold text-gray-800 text-xs">
-                                {(d.totalVentaItem ?? 0).toFixed(2)}
+                                {fmtMonto((d.totalVentaItem ?? 0))}
                               </td>
                               <td className="px-2 py-1.5">
                                 <button
@@ -3514,7 +3510,7 @@ function BoletaContent() {
                               className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors border ${tamañoBolsa === t ? "bg-amber-500 text-white border-amber-500" : "bg-white text-amber-700 border-amber-200 hover:bg-amber-100"}`}
                             >
                               {t.charAt(0).toUpperCase() + t.slice(1)} · S/{" "}
-                              {PRECIOS_BOLSA[t].toFixed(2)}
+                              {fmtMonto(PRECIOS_BOLSA[t])}
                             </button>
                           ),
                         )}
@@ -3529,7 +3525,7 @@ function BoletaContent() {
                       />
                       <span className="text-[10px] text-amber-700">
                         Aplicar ICBPER (S/ {ICBPER_FACTOR} por bolsa) — Total:
-                        S/ {(cantidadBolsa * ICBPER_FACTOR).toFixed(2)}
+                        S/ {fmtMonto((cantidadBolsa * ICBPER_FACTOR))}
                       </span>
                     </label>
                   </div>
@@ -3537,51 +3533,51 @@ function BoletaContent() {
               </div>
 
               {/* ── Totales ── */}
-              <div className="flex justify-end items-end pt-4 border-t border-gray-100">
+              <div className="flex justify-end items-end pt-2 border-t border-gray-100">
                 <div className="space-y-1.5 text-right">
                   {totales.gravadas > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Gravadas:</span>
-                      <span className="font-medium text-gray-900 w-24">
-                        {simbolo} {totales.gravadas.toFixed(2)}
+                      <span className="font-medium text-gray-900 w-20">
+                        {simbolo} {fmtMonto(totales.gravadas)}
                       </span>
                     </div>
                   )}
                   {totales.exoneradas > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Exoneradas:</span>
-                      <span className="font-medium text-gray-900 w-24">
-                        {simbolo} {totales.exoneradas.toFixed(2)}
+                      <span className="font-medium text-gray-900 w-20">
+                        {simbolo} {fmtMonto(totales.exoneradas)}
                       </span>
                     </div>
                   )}
                   {totales.inafectas > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Op. Inafectas:</span>
-                      <span className="font-medium text-gray-900 w-24">
-                        {simbolo} {totales.inafectas.toFixed(2)}
+                      <span className="font-medium text-gray-900 w-20">
+                        {simbolo} {fmtMonto(totales.inafectas)}
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-end gap-8 text-sm text-gray-500">
+                  <div className="flex justify-end gap-4 text-xs text-gray-500">
                     <span>IGV:</span>
-                    <span className="font-medium text-gray-900 w-24">
-                      {simbolo} {totales.igv.toFixed(2)}
+                    <span className="font-medium text-gray-900 w-20">
+                      {simbolo} {fmtMonto(totales.igv)}
                     </span>
                   </div>
                   {totales.totalIcbper > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>ICBPER (Bolsas):</span>
-                      <span className="font-medium text-amber-600 w-24">
-                        {simbolo} {totales.totalIcbper.toFixed(2)}
+                      <span className="font-medium text-amber-600 w-20">
+                        {simbolo} {fmtMonto(totales.totalIcbper)}
                       </span>
                     </div>
                   )}
                   {totales.totalDescuentos > 0 && (
-                    <div className="flex justify-end gap-8 text-sm text-gray-500">
+                    <div className="flex justify-end gap-4 text-xs text-gray-500">
                       <span>Descuentos:</span>
-                      <span className="font-medium text-red-500 w-24">
-                        -{simbolo} {totales.totalDescuentos.toFixed(2)}
+                      <span className="font-medium text-red-500 w-20">
+                        -{simbolo} {fmtMonto(totales.totalDescuentos)}
                       </span>
                     </div>
                   )}
@@ -3611,10 +3607,10 @@ function BoletaContent() {
                       />
                     </div>
                   </div>
-                  <div className="flex justify-end gap-8 text-[16px] font-bold text-brand-blue pt-1 border-t border-gray-100">
+                  <div className="flex justify-end gap-4 text-sm font-bold text-brand-blue pt-1 border-t border-gray-100">
                     <span>Total:</span>
                     <span className="w-24">
-                      {simbolo} {totales.importeTotal.toFixed(2)}
+                      {simbolo} {fmtMonto(totales.importeTotal)}
                     </span>
                   </div>
                 </div>
@@ -3624,7 +3620,7 @@ function BoletaContent() {
         </div>
 
         {/* ── Sidebar ── */}
-        <div className="space-y-6 lg:sticky lg:top-4 lg:self-start">
+        <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
           <Card
             title="Vista Previa"
             subtitle="Representación gráfica del comprobante"
@@ -3675,7 +3671,7 @@ function BoletaContent() {
                           ).padStart(8, "0"),
                         }));
                       }}
-                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
                     >
                       <option value="">Seleccionar sucursal</option>
                       {sucursales.map((s: Sucursal) => (
@@ -3753,7 +3749,10 @@ function BoletaContent() {
               )}
             </div>
 
-            <div className="mb-3 mt-3">
+            <div className="mb-2 mt-2">
+              {loadingConfig ? (
+                <div className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-400 animate-pulse">Cargando...</div>
+              ) : (
               <select
                 value={tamanoPdf}
                 onChange={async (e) => {
@@ -3780,14 +3779,13 @@ function BoletaContent() {
                     setCargandoPreview(false);
                   }
                 }}
-                className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue"
+                className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue"
               >
                 <option value="A4">A4</option>
-                <option value="Carta">Carta</option>
                 <option value="Ticket80mm">Ticket 80mm</option>
                 <option value="Ticket58mm">Ticket 58mm</option>
-                <option value="MediaCarta">Media Carta</option>
               </select>
+              )}
               <div className="mt-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between">
                 <span className="text-[10px] font-bold text-gray-500 uppercase">Tipo de Pago</span>
                 <span className="text-xs font-semibold text-gray-700">Contado</span>
@@ -3840,13 +3838,13 @@ function BoletaContent() {
                 <iframe
                   src={pdfA4Url}
                   className="w-full rounded-lg border border-gray-200"
-                  style={{ height: "400px" }}
+                  style={{ height: "320px" }}
                 />
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => window.open(pdfA4Url, "_blank")}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-violet-500 hover:bg-violet-400 active:scale-95 shadow-sm py-2.5 rounded-lg transition-all duration-200"
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-violet-500 hover:bg-violet-400 active:scale-95 shadow-sm py-1.5 rounded-lg transition-all duration-200"
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> Abrir
                   </button>
@@ -3864,7 +3862,7 @@ function BoletaContent() {
                         setTimeout(() => setDescargando(false), 1000);
                       }
                     }}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 py-2.5 rounded-lg transition-all duration-200 shadow-sm disabled:opacity-70"
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 py-1.5 rounded-lg transition-all duration-200 shadow-sm disabled:opacity-70"
                   >
                     {descargando ? (
                       <>
@@ -3881,7 +3879,7 @@ function BoletaContent() {
                     type="button"
                     disabled={!pdfTicketUrl}
                     onClick={imprimirPdf}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 active:scale-95 py-2.5 rounded-lg transition-all duration-200 shadow-sm disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 active:scale-95 py-1.5 rounded-lg transition-all duration-200 shadow-sm disabled:opacity-50"
                   >
                     {!pdfTicketUrl ? (
                       <>
@@ -3899,7 +3897,7 @@ function BoletaContent() {
             ) : cargandoPreview ? (
               <div
                 className="w-full flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200"
-                style={{ height: "400px" }}
+                style={{ height: "320px" }}
               >
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-8 h-8 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
@@ -3907,10 +3905,10 @@ function BoletaContent() {
                 </div>
               </div>
             ) : (
-              <div className="h-68 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex flex-col items-center justify-center p-4 text-center space-y-2">
+              <div className="h-40 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex flex-col items-center justify-center p-3 text-center space-y-2">
                 {" "}
-                <div className="p-4 rounded-full bg-white shadow-sm">
-                  <Printer className="w-8 h-8 text-gray-400" />
+                <div className="p-2 rounded-full bg-white shadow-sm">
+                  <Printer className="w-6 h-6 text-gray-400" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">
@@ -3923,9 +3921,9 @@ function BoletaContent() {
               </div>
             )}
 
-            <div className="mt-6 space-y-3">
+            <div className="mt-3 space-y-2">
               <Button
-                className="w-full py-3 text-base"
+                className="w-full py-2 text-sm"
                 type="button"
                 onClick={emitido ? nuevaBoleta : emitirComprobante}
                 disabled={emitiendo || (!emitido && !puedeEmitir)}
@@ -3965,8 +3963,8 @@ function BoletaContent() {
             </div>
           </Card>
 
-          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex gap-3">
-            <ShieldCheck className="w-5 h-5 text-brand-blue shrink-0" />
+          <div className="p-2 bg-blue-50 rounded-xl border border-blue-100 flex gap-2">
+            <ShieldCheck className="w-4 h-4 text-brand-blue shrink-0 mt-0.5" />
             <p className="text-xs text-blue-800 leading-relaxed">
               Este comprobante será enviado automáticamente a la{" "}
               <strong>SUNAT</strong> y validado en tiempo real.

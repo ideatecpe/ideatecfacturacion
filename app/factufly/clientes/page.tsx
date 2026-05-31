@@ -275,17 +275,20 @@ export default function ClientesPage() {
     };
 
   // ── Filtros ──
-  const filtered = useMemo(() => clientes.filter(c => {
-    const matchSearch =
-      (c.razonSocialNombre ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (c.numeroDocumento ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (c.correo ?? "").includes(search);
-    const estadoStr = c.estado ? 'Activo' : 'Inactivo';
-    const matchStatus = filterStatus === 'Todos' || estadoStr === filterStatus;
-    const matchTipo = filterTipo === 'Todos' || c.tipoDocumento.tipoDocumentoNombre === filterTipo;
-    const matchSucursal = !filtroSucursal || c.sucursalID === filtroSucursal;
-    return matchSearch && matchStatus && matchTipo && matchSucursal;
-  }), [clientes, search, filterStatus, filterTipo, filtroSucursal]);
+  const filtered = useMemo(() => clientes
+    .filter(c => {
+      const matchSearch =
+        (c.razonSocialNombre ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (c.numeroDocumento ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (c.correo ?? "").includes(search);
+      const estadoStr = c.estado ? 'Activo' : 'Inactivo';
+      const matchStatus = filterStatus === 'Todos' || estadoStr === filterStatus;
+      const matchTipo = filterTipo === 'Todos' || c.tipoDocumento.tipoDocumentoNombre === filterTipo;
+      const matchSucursal = !filtroSucursal || c.sucursalID === filtroSucursal;
+      return matchSearch && matchStatus && matchTipo && matchSucursal;
+    })
+    .sort((a, b) => new Date(b.fechaCreacion ?? 0).getTime() - new Date(a.fechaCreacion ?? 0).getTime()),
+  [clientes, search, filterStatus, filterTipo, filtroSucursal]);
 
   const activeFilters = (filterStatus !== 'Todos' ? 1 : 0) + (filterTipo !== 'Todos' ? 1 : 0);
   const totalWidth = isSuperAdmin ? 1400 : 1270; 
@@ -407,7 +410,7 @@ export default function ClientesPage() {
           {isSuperAdmin && (<th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">SUCURSAL</th>)}
           <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-44 whitespace-normal wrap-break-word">CORREO</th>
           <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">TELÉFONO</th>
-          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">FECHA</th>
+          {/* FECHA oculta */}
           <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">ESTADO</th>
           <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-36">ACCIONES</th>
         </tr>
@@ -434,8 +437,8 @@ export default function ClientesPage() {
               <p className="text-xs font-bold text-gray-400 uppercase">{client.tipoDocumento.tipoDocumentoNombre}</p>
               <p className="text-sm font-mono text-gray-700">{client.numeroDocumento}</p>
             </td>
-            <td className="text-[12px] px-5 py-2 text-sm font-semibold text-gray-900 w-40">{client.razonSocialNombre}</td>
-            <td className="px-5 py-2 text-sm text-gray-600 w-40">
+            <td className="px-5 py-2 text-[11px] font-semibold text-gray-900 uppercase w-40">{client.razonSocialNombre}</td>
+            <td className="px-5 py-2 text-[11px] text-gray-600 uppercase w-40">
               {formatDireccion(client.direccion, client.tipoDocumento.tipoDocumentoId)}
             </td>
             {isSuperAdmin && (
@@ -445,7 +448,7 @@ export default function ClientesPage() {
             )}
             <td className="px-5 py-2 text-sm text-gray-600 w-44 whitespace-normal wrap-break-word">{client.correo ?? '-'}</td>
             <td className="px-5 py-2 text-sm text-gray-600 w-20">{client.telefono ?? '-'}</td>
-            <td className="px-5 py-2 text-sm text-gray-500 w-24">{formatFecha(client.fechaCreacion)}</td>
+            {/* FECHA oculta */}
             <td className="px-5 py-2 w-16">
               <Badge variant={client.estado ? 'success' : 'default'}>
                 {client.estado ? 'Activo' : 'Inactivo'}

@@ -24,6 +24,7 @@ import {
 import { useToast } from "@/app/components/ui/Toast";
 import { cn } from "@/app/utils/cn";
 import { useAuth } from "@/context/AuthContext";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { Comprobante } from "./gestionComprobantes/Comprobante";
 import { useSucursalRuc } from "../operaciones/boleta/gestionBoletas/useSucursalRuc";
 import axios from "axios";
@@ -49,6 +50,7 @@ import {
   formatFechaHora,
   COLORS,
 } from "./gestionComprobantes/helpers";
+import { fmtMonto } from "@/app/components/ui/formatoFecha";
 import { useRouter } from "next/navigation";
 import { Card } from "@/app/components/ui/Card";
 import { createPortal } from "react-dom";
@@ -70,8 +72,8 @@ const TIPOS_OPTS = [
   "Todos",
   "Factura",
   "Boleta",
-  "Nota de Crédito",
-  "Nota de Débito",
+  "N.Crédito",
+  "N.Débito",
 ];
 const ESTADOS_OPTS = ["Todos", "Aceptado", "Pendiente", "Rechazado", "Anulado"];
 const ESTADO_COLORS_MAP: Record<string, string> = {
@@ -85,6 +87,7 @@ const ESTADO_COLORS_MAP: Record<string, string> = {
 export default function VerComprobantesPage() {
   const router = useRouter();
   const { accessToken, user } = useAuth();
+  const { config } = useConfiguracion();
   const { showToast } = useToast();
   const isSuperAdmin = user?.rol === "superadmin";
   const esUsuarioVelsat =
@@ -896,7 +899,7 @@ export default function VerComprobantesPage() {
                 </Button>
               )}
 
-              {rucEmpresa === "20512134832" && (
+              {config?.cargaComprobantes && (
                 <Button
                   className="py-2.5 px-3 text-xs rounded-md h-auto"
                   onClick={() => setShowModalCargaMasiva(true)}
@@ -1219,7 +1222,7 @@ export default function VerComprobantesPage() {
                         {tipoLabel(doc.tipoComprobante)}
                         <span className="mx-1 text-gray-400">-</span>
                         <span className="font-semibold text-gray-700">
-                          {doc.tipoMoneda === "USD" ? "$" : "S/"} {Number(doc.importeTotal ?? 0).toFixed(2)}
+                          {doc.tipoMoneda === "USD" ? "$" : "S/"} {fmtMonto(Number(doc.importeTotal ?? 0))}
                         </span>
                       </p>
                     </td>

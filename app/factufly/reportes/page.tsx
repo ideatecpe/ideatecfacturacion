@@ -290,7 +290,7 @@ export default function ReportesPage() {
   const handleDescargarTicket = async () => {
     await avanzados.descargarTicketControlCaja(
       getParamsModal(),
-      user?.name ?? user?.username ?? 'Responsable'
+      user?.username ?? 'Responsable'
     );
   };
 

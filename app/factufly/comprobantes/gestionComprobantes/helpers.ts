@@ -9,8 +9,8 @@ export const COLORS = {
     tipo: {
         '01': 'Factura',
         '03': 'Boleta',
-        '07': 'Nota de Crédito',
-        '08': 'Nota de Débito',
+        '07': 'N.Crédito',
+        '08': 'N.Débito',
     } as Record<string, string>,
     email: { active: 'bg-blue-50 hover:bg-blue-100 text-blue-600', inactive: 'hover:bg-gray-100 text-gray-400 hover:text-gray-600' },
     whatsapp: { active: 'bg-green-50 hover:bg-green-100 text-green-600', inactive: 'hover:bg-gray-100 text-gray-400 hover:text-gray-600' },

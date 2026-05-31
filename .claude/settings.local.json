@@ -3,7 +3,10 @@
     "allow": [
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\USUARIO\\\\Desktop\\\\ideatecfacturacion\" -Recurse -Force)",
       "Bash(Select-Object FullName)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(xargs cat)",
+      "Bash(sed -i '' 's/py-2 px-4 bg-/py-1.5 px-3 bg-/g; s/py-2 px-3 bg-/py-1.5 px-3 bg-/g; s/py-2 px-4\"/py-1.5 px-3\"/g; s/py-2 px-3\"/py-1.5 px-3\"/g' /Users/velsatsac/Desktop/ideatecfacturacion/app/factufly/operaciones/boleta/page.tsx)",
+      "Bash(sed -i '' 's/py-2 px-4 bg-/py-1.5 px-3 bg-/g; s/py-2 px-3 bg-/py-1.5 px-3 bg-/g; s/py-2 px-4\"/py-1.5 px-3\"/g; s/py-2 px-3\"/py-1.5 px-3\"/g' /Users/velsatsac/Desktop/ideatecfacturacion/app/factufly/operaciones/factura/page.tsx)"
     ]
   }
 }
