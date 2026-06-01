@@ -22,7 +22,7 @@ export const useComprobanteDetalles = (): UseComprobanteDetallesReturn => {
     setLoading(true)
     setError(null)
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/detalles`
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}`
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` }
       })

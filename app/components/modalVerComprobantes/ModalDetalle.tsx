@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { RefreshCw, FileText, X, CheckCircle2, Eye, Download, ChevronDown, Building2, Calendar, Hash, AlertCircle, Ban } from 'lucide-react';
+import { RefreshCw, FileText, X, CheckCircle2, Eye, Download, ChevronDown, Building2, Calendar, Hash, AlertCircle, Ban, Ticket } from 'lucide-react';
 import { cn } from '@/app/utils/cn';
 import { Comprobante } from '@/app/factufly/comprobantes/gestionComprobantes/Comprobante';
 import { padCorrelativo, COLORS, TIPO_PAGO_MAP, tipoLabel, formatFecha, TIPO_GUIA_MAP, limpiarMensajeSunat, PDF_SIZES } from '@/app/factufly/comprobantes/gestionComprobantes/helpers';
@@ -25,6 +25,20 @@ export interface ModalDetalleProps {
 }
 
 const RUC_SALON = "10073587382";
+
+const calcularDiasRestantes = (fechaEmision: string, duracion: string): number | null => {
+    const dias = parseInt(duracion);
+    if (isNaN(dias)) return null;
+    // Usar solo la parte YYYY-MM-DD + T00:00:00 para evitar desfase UTC vs Lima
+    const emisionStr = fechaEmision.slice(0, 10);
+    const emision = new Date(`${emisionStr}T00:00:00`);
+    const vencimiento = new Date(`${emisionStr}T00:00:00`);
+    vencimiento.setDate(vencimiento.getDate() + dias);
+    // Hoy en hora local (Lima)
+    const hoyStr = new Date().toLocaleDateString('en-CA');
+    const hoy = new Date(`${hoyStr}T00:00:00`);
+    return Math.floor((vencimiento.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+};
 
 export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, nombreSucursal, sucursalId, onClose }: ModalDetalleProps) => {
     const [showSizeMenu, setShowSizeMenu] = useState(false);
@@ -418,6 +432,75 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            )}
+                            {/* Vales */}
+                            {comprobante.vales?.length > 0 && (
+                                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+                                        <Ticket size={13} className="text-gray-400" />
+                                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">
+                                            Vale{comprobante.vales.length > 1 ? 's' : ''} incluido{comprobante.vales.length > 1 ? 's' : ''}
+                                        </p>
+                                    </div>
+                                    <div className="divide-y divide-gray-100">
+                                        {comprobante.vales.map((v) => {
+                                            const diasRestantes = calcularDiasRestantes(comprobante.fechaEmision, v.duracion);
+                                            return (
+                                                <div key={v.idVale} className="px-4 py-3 space-y-2">
+                                                    {/* Nombre */}
+                                                    <p className="text-xs font-bold text-gray-800">{v.nombre}</p>
+
+                                                    {/* Descripción */}
+                                                    {v.descripcion && (
+                                                        <p className="text-[11px] text-gray-500 whitespace-pre-line leading-relaxed">
+                                                            {v.descripcion.replace(/<br\s*\/?>/gi, '\n').replace(/\n{3,}/g, '\n\n')}
+                                                        </p>
+                                                    )}
+
+                                                    {/* Emitido + Vigencia */}
+                                                    <div className="flex items-center justify-between gap-2 pt-1">
+                                                        <div className="space-y-0.5">
+                                                            <p className="text-[10px] text-gray-400">
+                                                                Emitido: {formatFecha(comprobante.fechaEmision)}
+                                                            </p>
+                                                            {v.duracion && (
+                                                                <p className="text-[10px] text-gray-400">
+                                                                    Vigencia: {v.duracion}{/^\d+$/.test(v.duracion) ? ' días' : ''}
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Badge días restantes */}
+                                                        {diasRestantes !== null ? (
+                                                            diasRestantes <= 0 ? (
+                                                                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border bg-red-50 text-red-600 border-red-200 whitespace-nowrap">
+                                                                    Vencido
+                                                                </span>
+                                                            ) : diasRestantes === 0 ? (
+                                                                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border bg-amber-50 text-amber-600 border-amber-200 whitespace-nowrap">
+                                                                    Vence hoy
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 whitespace-nowrap">
+                                                                    Le quedan {diasRestantes} día{diasRestantes !== 1 ? 's' : ''} de vigencia
+                                                                </span>
+                                                            )
+                                                        ) : (
+                                                            <span className={cn(
+                                                                "text-[10px] font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap",
+                                                                v.estado
+                                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                                    : "bg-red-50 text-red-600 border-red-200"
+                                                            )}>
+                                                                {v.estado ? 'Vigente' : 'Vencido'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             )}
                         </>
