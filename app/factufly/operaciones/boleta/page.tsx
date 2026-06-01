@@ -3123,8 +3123,8 @@ function BoletaContent() {
                           Cód.
                         </th>
                         */}
-                        <th className="px-2 py-1 text-center text-gray-500 w-16">
-                          U.M.
+                        <th className="px-2 py-1 text-center text-gray-500 w-20">
+                          Tipo
                         </th>
                         <th className="px-2 py-1 text-center text-gray-500 w-16">
                           Cant.
@@ -3355,30 +3355,50 @@ function BoletaContent() {
                               </td>
                               */}
 
-                              {/* U.M. */}
-                              <td className="px-2 py-1.5">
-                                {!d.productoId && !esPorConsumo ? (
-                                  <select
-                                    value={d.unidadMedida ?? "NIU"}
-                                    onChange={(e) => {
-                                      const n = [...detalles];
-                                      n[i] = {
-                                        ...n[i],
-                                        unidadMedida: e.target.value,
-                                      };
-                                      setDetalles(n);
-                                    }}
-                                    className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
-                                  >
-                                    <option value="NIU">NIU</option>
-                                    <option value="KGM">KGM</option>
-                                    <option value="LTR">LTR</option>
-                                    <option value="ZZ">ZZ</option>
-                                  </select>
+                              {/* Tipo (Bien/Servicio) */}
+                              <td className="px-1 py-1.5">
+                                {esPorConsumo ? (
+                                  <span className="text-xs text-gray-400 block text-center">ZZ</span>
                                 ) : (
-                                  <span className="text-xs text-gray-500">
-                                    {d.unidadMedida || "NIU"}
-                                  </span>
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const n = [...detalles];
+                                          n[i] = { ...n[i], unidadMedida: "NIU" };
+                                          setDetalles(n);
+                                        }}
+                                        disabled={!!d.productoId}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                                          (d.unidadMedida ?? "NIU") !== "ZZ"
+                                            ? "bg-white text-brand-blue shadow-sm"
+                                            : "text-gray-400"
+                                        } ${d.productoId ? "cursor-default" : "hover:text-gray-600"}`}
+                                      >
+                                        Bien
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const n = [...detalles];
+                                          n[i] = { ...n[i], unidadMedida: "ZZ" };
+                                          setDetalles(n);
+                                        }}
+                                        disabled={!!d.productoId}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                                          (d.unidadMedida ?? "NIU") === "ZZ"
+                                            ? "bg-white text-brand-blue shadow-sm"
+                                            : "text-gray-400"
+                                        } ${d.productoId ? "cursor-default" : "hover:text-gray-600"}`}
+                                      >
+                                        Serv.
+                                      </button>
+                                    </div>
+                                    {/* U.M. debajo — oculto temporalmente
+                                    <span className="text-[9px] text-gray-400">{d.unidadMedida || "NIU"}</span>
+                                    */}
+                                  </div>
                                 )}
                               </td>
 
@@ -3553,7 +3573,7 @@ function BoletaContent() {
               </div>
 
               {/* ── Bolsa Plástica ── */}
-              <div className="border border-amber-100 rounded-xl p-2 bg-amber-50/50 space-y-3">
+              <div className="border border-amber-100 rounded-xl px-2 py-1 bg-amber-50/50 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-amber-800">
@@ -3578,7 +3598,7 @@ function BoletaContent() {
                       onClick={() =>
                         setCantidadBolsa((prev) => Math.max(0, prev - 1))
                       }
-                      className="w-7 h-7 flex items-center justify-center bg-white hover:bg-amber-100 border border-amber-200 rounded-lg text-amber-700 font-bold transition-colors"
+                      className="w-5 h-5 flex items-center justify-center bg-white hover:bg-amber-100 border border-amber-200 rounded text-amber-700 font-bold transition-colors"
                     >
                       −
                     </button>
@@ -3589,7 +3609,7 @@ function BoletaContent() {
                       type="button"
                       disabled={sinSucursal}
                       onClick={() => setCantidadBolsa((prev) => prev + 1)}
-                      className="w-7 h-7 flex items-center justify-center bg-white hover:bg-amber-100 border border-amber-200 rounded-lg text-amber-700 font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-5 h-5 flex items-center justify-center bg-white hover:bg-amber-100 border border-amber-200 rounded text-amber-700 font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       +
                     </button>
@@ -3638,7 +3658,7 @@ function BoletaContent() {
                 <div className="space-y-1.5 text-right">
                   {totales.gravadas > 0 && (
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
-                      <span>Op. Gravadas:</span>
+                      <span className="text-gray-900">Op. Gravadas:</span>
                       <span className="font-medium text-gray-900 w-20">
                         {simbolo} {fmtMonto(totales.gravadas)}
                       </span>
@@ -3646,7 +3666,7 @@ function BoletaContent() {
                   )}
                   {totales.exoneradas > 0 && (
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
-                      <span>Op. Exoneradas:</span>
+                      <span className="text-gray-900">Op. Exoneradas:</span>
                       <span className="font-medium text-gray-900 w-20">
                         {simbolo} {fmtMonto(totales.exoneradas)}
                       </span>
@@ -3654,21 +3674,21 @@ function BoletaContent() {
                   )}
                   {totales.inafectas > 0 && (
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
-                      <span>Op. Inafectas:</span>
+                      <span className="text-gray-900">Op. Inafectas:</span>
                       <span className="font-medium text-gray-900 w-20">
                         {simbolo} {fmtMonto(totales.inafectas)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-end gap-4 text-xs text-gray-500">
-                    <span>IGV:</span>
+                    <span className="text-gray-900">IGV:</span>
                     <span className="font-medium text-gray-900 w-20">
                       {simbolo} {fmtMonto(totales.igv)}
                     </span>
                   </div>
                   {totales.totalIcbper > 0 && (
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
-                      <span>ICBPER (Bolsas):</span>
+                      <span className="text-gray-900">ICBPER (Bolsas):</span>
                       <span className="font-medium text-amber-600 w-20">
                         {simbolo} {fmtMonto(totales.totalIcbper)}
                       </span>
@@ -3676,14 +3696,14 @@ function BoletaContent() {
                   )}
                   {totales.totalDescuentos > 0 && (
                     <div className="flex justify-end gap-4 text-xs text-gray-500">
-                      <span>Descuentos:</span>
+                      <span className="text-gray-900">Descuentos:</span>
                       <span className="font-medium text-red-500 w-20">
                         -{simbolo} {fmtMonto(totales.totalDescuentos)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-end gap-2 items-center">
-                    <span className="text-sm text-gray-500">Desc. Global:</span>
+                    <span className="text-sm text-gray-900">Desc. Global:</span>
                     {/* Select oculto según requerimiento de usar solo "02" */}
                     <select
                       value={codigoTipoDescGlobal}
