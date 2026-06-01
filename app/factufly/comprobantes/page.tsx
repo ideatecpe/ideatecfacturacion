@@ -626,7 +626,7 @@ export default function VerComprobantesPage() {
               </button>
             </div>
 
-            {/* Orden de Servicio */}
+            {/* Recuadro adicional */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <input
@@ -640,7 +640,7 @@ export default function VerComprobantesPage() {
                   className="w-4 h-4 accent-brand-blue cursor-pointer"
                 />
                 <label htmlFor="chk-os" className="text-xs font-semibold text-gray-700 cursor-pointer">
-                  Orden de Servicio
+                  Adicional
                 </label>
               </div>
               <input
@@ -649,7 +649,7 @@ export default function VerComprobantesPage() {
                 onChange={(e) =>
                   setModalDetallesAdicionales((prev) => prev ? { ...prev, ordenServicio: e.target.value } : prev)
                 }
-                placeholder="N° de orden de servicio"
+                placeholder="Información adicional"
                 className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
               />
             </div>
