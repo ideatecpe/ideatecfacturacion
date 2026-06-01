@@ -490,8 +490,12 @@ export default function VerComprobantesPage() {
   };
 
   const enviarTodosEnBackground = useCallback(
-    (lista: ComprobanteListado[]) => {
-      Promise.all(lista.map((c) => enviarSunat(c)));
+    async (lista: ComprobanteListado[]) => {
+      // SUNAT serializa por RUC emisor → deben ir uno tras otro.
+      // Sin pausa artificial: el siguiente arranca apenas termina el anterior.
+      for (const c of lista) {
+        await enviarSunat(c);
+      }
     },
     [enviarSunat],
   );
