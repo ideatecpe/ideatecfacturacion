@@ -162,7 +162,7 @@ export default function VerComprobantesPage() {
   const [showModalCargaMasiva, setShowModalCargaMasiva] = useState(false);
   const { empresa } = useEmpresaEmisor();
 
-  const hoy = new Date().toISOString().split("T")[0];
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
   const loading =
     hookSucursal.loading ||
@@ -242,35 +242,64 @@ export default function VerComprobantesPage() {
   const obtenerPdf = useCallback(
     async (c: ComprobanteListado, tamano?: string) => {
       const size = tamano ?? getPdfSize(c.comprobanteId);
+      const esTicket = size === "Ticket58mm" || size === "Ticket80mm";
       setLoadingPdfMap((prev) => ({ ...prev, [c.comprobanteId]: true }));
       let ventana: Window | null = null;
       try {
         ventana = window.open("", "_blank");
         if (ventana) {
           ventana.document.write(`
-            <html><head><title>Cargando PDF...</title></head>
+            <html><head><title>Cargando...</title></head>
             <body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#f8fafc;font-family:sans-serif;flex-direction:column;gap:16px;">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
               </svg>
               <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
-              <p style="color:#64748b;font-size:14px;margin:0">Cargando PDF, por favor espere...</p>
+              <p style="color:#64748b;font-size:14px;margin:0">Cargando, por favor espere...</p>
             </body></html>
           `);
         }
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/pdf?tamano=${size}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        if (!res.ok) throw new Error("Error al generar PDF");
-        const blob = await res.blob();
-        const url = URL.createObjectURL(
-          new Blob([blob], { type: "application/pdf" }),
-        );
-        if (ventana) ventana.location.href = url;
+
+        if (esTicket) {
+          // ── Tickets 58mm / 80mm: iframe oculto con HTML vectorial ──
+          // Sin abrir nueva pestaña, sin bloquear la página.
+          if (ventana) ventana.close(); // cerrar la ventana de carga que se abrió
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/html?tamano=${size}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
+          if (!res.ok) throw new Error("Error al generar ticket HTML");
+          const html = await res.text();
+          const blob = new Blob([html], { type: "text/html" });
+          const htmlUrl = URL.createObjectURL(blob);
+          const iframe = document.createElement("iframe");
+          iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
+          iframe.src = htmlUrl;
+          document.body.appendChild(iframe);
+          iframe.onload = () => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+              document.body.removeChild(iframe);
+              URL.revokeObjectURL(htmlUrl);
+            }, 2000);
+          };
+        } else {
+          // ── A4: flujo original con PDF blob ──
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/pdf?tamano=${size}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
+          if (!res.ok) throw new Error("Error al generar PDF");
+          const blob = await res.blob();
+          const url = URL.createObjectURL(
+            new Blob([blob], { type: "application/pdf" }),
+          );
+          if (ventana) ventana.location.href = url;
+        }
       } catch {
         if (ventana) ventana.close();
-        showToast("Error al obtener el PDF", "error");
+        showToast("Error al obtener el documento", "error");
       } finally {
         setLoadingPdfMap((prev) => ({ ...prev, [c.comprobanteId]: false }));
       }
@@ -314,6 +343,7 @@ export default function VerComprobantesPage() {
           legends: [],
           guias: [],
           detracciones: [],
+          vales: [],
         });
         return;
       }
@@ -489,8 +519,12 @@ export default function VerComprobantesPage() {
   };
 
   const enviarTodosEnBackground = useCallback(
-    (lista: ComprobanteListado[]) => {
-      Promise.all(lista.map((c) => enviarSunat(c)));
+    async (lista: ComprobanteListado[]) => {
+      // SUNAT serializa por RUC emisor → deben ir uno tras otro.
+      // Sin pausa artificial: el siguiente arranca apenas termina el anterior.
+      for (const c of lista) {
+        await enviarSunat(c);
+      }
     },
     [enviarSunat],
   );
@@ -741,6 +775,7 @@ export default function VerComprobantesPage() {
               legends: detalleCompleto?.legends ?? [],
               guias: detalleCompleto?.guias ?? [],
               detracciones: detalleCompleto?.detracciones ?? [],
+              vales: detalleCompleto?.vales ?? [],
             } as unknown as Comprobante
           }
           ruc={rucEmpresa}
@@ -1012,8 +1047,12 @@ export default function VerComprobantesPage() {
                           max={hoy}
                           onChange={(e) => {
                             setAvFechaDesde(e.target.value);
-                            if (avFechaHasta && e.target.value > avFechaHasta)
-                              setAvFechaHasta("");
+                            // Si "hasta" está vacío, autocompletar con la misma fecha "desde"
+                            if (!avFechaHasta && e.target.value) {
+                              setAvFechaHasta(e.target.value);
+                            } else if (avFechaHasta && e.target.value > avFechaHasta) {
+                              setAvFechaHasta(e.target.value);
+                            }
                           }}
                           className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
@@ -1214,7 +1253,7 @@ export default function VerComprobantesPage() {
                     className="hover:bg-gray-50/50 transition-colors"
                   >
                     <td className="px-3 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-24">
-                      {formatFecha(doc.fechaCreacion)}
+                      {formatFecha(doc.fechaEmision)} {formatFechaHora(doc.horaEmision).split(" ")[1]}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap w-32">
                       <p className="text-sm font-medium text-gray-900">{doc.numeroCompleto}</p>

@@ -107,7 +107,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
     ws.getRow(3).height = 30;
     const hdrs = [
       "RUC / DNI", "Detalle / Descripción", "Cantidad",
-      "Precio Unit. (c/IGV)", "IGV %", "Unidad de Medida",
+      "Precio Unit. (c/IGV)", "IGV %", "Tipo (Bien/Servicio)",
       "Moneda", "Correo Electrónico", "WhatsApp",
     ];
     hdrs.forEach((h, i) => {
@@ -126,11 +126,11 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
 
     // ── Filas 4-8: Datos de ejemplo ────────────────────────────────────────
     const ejemplos = [
-      ["20100454523", "Servicio de consultoría empresarial", 2,   590.00, 18, "ZZ",  "PEN", "empresa@cliente.com", ""],
-      ["",            "Licencia de software mensual",        1,   236.00, 18, "ZZ",  "PEN", "",                    ""],
-      ["12345678",    "Venta de notebook HP 15\" i5",        1,  3540.00, 18, "NIU", "PEN", "jose@gmail.com, pepito@gmail.com",       "987654321"],
-      ["20601234567", "Exportación de servicios TI",         5,   100.00, 18, "ZZ",  "USD", "corp@export.com",      ""],
-      ["87654321",    "Alquiler de equipos de cómputo",      3,   177.00, 18, "ZZ",  "PEN", "",                    "961234567"],
+      ["20100454523", "Servicio de consultoría empresarial", 2,   590.00, 18, "Servicio",  "PEN", "empresa@cliente.com", ""],
+      ["",            "Licencia de software mensual",        1,   236.00, 18, "Servicio",  "PEN", "",                    ""],
+      ["12345678",    "Venta de notebook HP 15\" i5",        1,  3540.00, 18, "Bien",      "PEN", "jose@gmail.com, pepito@gmail.com", "987654321"],
+      ["20601234567", "Exportación de servicios TI",         5,   100.00, 18, "Servicio",  "USD", "corp@export.com",      ""],
+      ["87654321",    "Alquiler de equipos de cómputo",      3,   177.00, 18, "Bien",      "PEN", "",                    "961234567"],
     ];
 
     ejemplos.forEach((row, ri) => {
@@ -177,7 +177,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       ["C - Cantidad: Número mayor a 0.", false, "FF1E293B"],
       ["D - Precio Unitario con IGV incluido: precio de venta al público.", false, "FF1E293B"],
       ["E - IGV %: Solo se aceptan los valores 18 o 10.5", false, "FF1E293B"],
-      ["F - Unidad de Medida: ZZ (servicio), NIU (unidad), KGM (kilo), GAL (galón), etc.", false, "FF1E293B"],
+      ["F - Tipo: Escriba 'Bien' (unidad NIU) o 'Servicio' (unidad ZZ).", false, "FF1E293B"],
       ["G - Moneda: PEN (soles) o USD (dólares).", false, "FF1E293B"],
       ["H - Correo Electrónico (opcional): varios correos separados por coma.", false, "FF1E293B"],
       ["I - WhatsApp (opcional): 9 dígitos empezando con 9. Ej: 987654321", false, "FF1E293B"],
@@ -495,22 +495,37 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
 
       setState((prev) => ({ ...prev, progreso: 10 }));
 
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/GenerarMasivo`,
-        payloads,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
+      // Progreso simulado: sube gradualmente hasta 90% mientras espera la respuesta
+      const intervalo = setInterval(() => {
+        setState((prev) => {
+          if (prev.progreso >= 90) return prev;
+          return { ...prev, progreso: Math.min(90, prev.progreso + 5) };
+        });
+      }, 400);
 
-      setState((prev) => ({
-        ...prev,
-        guardando: false,
-        progreso: 100,
-        resultado: res.data as ResultadoCargaMasiva,
-      }));
+      try {
+        const res = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/GenerarMasivo`,
+          payloads,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+
+        clearInterval(intervalo);
+        setState((prev) => ({
+          ...prev,
+          guardando: false,
+          progreso: 100,
+          resultado: res.data as ResultadoCargaMasiva,
+        }));
+      } catch (e) {
+        clearInterval(intervalo);
+        throw e;
+      }
     } catch (err: any) {
       setState((prev) => ({
         ...prev,
         guardando: false,
+        progreso: 0,
         erroresGlobales: [
           err?.response?.data?.mensaje ?? "Error al guardar la carga masiva",
         ],

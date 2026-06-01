@@ -152,7 +152,14 @@ export async function parsearExcel(file: File): Promise<{
     const cantidad = Number(row[2]) || 0;
     const precioUnitario = Number(row[3]) || 0;
     const igv = Number(row[4]) || 18;
-    const unidadMedida = celdaAString(row[5]) || "ZZ";
+    const tipoRaw = celdaAString(row[5]).trim().toLowerCase();
+    const codigoCrudo = celdaAString(row[5]).trim().toUpperCase();
+    const UNIDADES_VALIDAS = ["NIU", "ZZ", "KGM", "LTR", "GAL", "MTR", "UNI"];
+    const unidadMedida =
+      tipoRaw === "bien" || tipoRaw === "b" ? "NIU"
+      : tipoRaw === "servicio" || tipoRaw === "s" ? "ZZ"
+      : UNIDADES_VALIDAS.includes(codigoCrudo) ? codigoCrudo // ya es un código válido
+      : "NIU"; // cualquier otra cosa → NIU (evita textos largos)
     const moneda = celdaAString(row[6]) || "PEN";
     const correoRaw = celdaAString(row[7]);
     const correo = correoRaw || null;
