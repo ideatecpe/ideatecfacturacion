@@ -261,26 +261,29 @@ export default function VerComprobantesPage() {
         }
 
         if (esTicket) {
-          // ── Tickets 58mm / 80mm: pedir HTML al backend e imprimir vectorial ──
-          // Chrome rasteriza los PDFs a ~96 DPI al enviar a la térmica (203 DPI)
-          // → resultado borroso. Solución: imprimir HTML directamente, sin pasar
-          // por el renderizador de PDF de Chrome.
+          // ── Tickets 58mm / 80mm: iframe oculto con HTML vectorial ──
+          // Sin abrir nueva pestaña, sin bloquear la página.
+          if (ventana) ventana.close(); // cerrar la ventana de carga que se abrió
           const res = await fetch(
             `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/html?tamano=${size}`,
             { headers: { Authorization: `Bearer ${accessToken}` } },
           );
           if (!res.ok) throw new Error("Error al generar ticket HTML");
           const html = await res.text();
-          if (ventana) {
-            ventana.document.open();
-            ventana.document.write(html);
-            ventana.document.close();
-            // Esperar a que el DOM cargue antes de imprimir
-            ventana.addEventListener("load", () => {
-              ventana!.focus();
-              ventana!.print();
-            });
-          }
+          const blob = new Blob([html], { type: "text/html" });
+          const htmlUrl = URL.createObjectURL(blob);
+          const iframe = document.createElement("iframe");
+          iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
+          iframe.src = htmlUrl;
+          document.body.appendChild(iframe);
+          iframe.onload = () => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+              document.body.removeChild(iframe);
+              URL.revokeObjectURL(htmlUrl);
+            }, 2000);
+          };
         } else {
           // ── A4: flujo original con PDF blob ──
           const res = await fetch(
