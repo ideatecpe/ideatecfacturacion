@@ -1824,25 +1824,17 @@ function FacturaContent() {
 
   const imprimirPdf = async () => {
     const esTicket = tamanoPdf === "Ticket58mm" || tamanoPdf === "Ticket80mm";
-    if (esTicket && comprobanteIdEmitido) {
-      // HTML vectorial para impresora térmica — sin rasterización de Chrome
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteIdEmitido}/html?tamano=${tamanoPdf}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        if (!res.ok) throw new Error();
-        const html = await res.text();
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.open();
-          win.document.write(html);
-          win.document.close();
-          win.addEventListener("load", () => { win.focus(); win.print(); });
-        }
-      } catch {
-        showToast("Error al imprimir ticket", "error");
-      }
+    if (esTicket && pdfA4Url) {
+      // iframe oculto con HTML — sin abrir nueva pestaña, igual que auto-print
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
+      iframe.src = pdfA4Url;
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => document.body.removeChild(iframe), 2000);
+      };
     } else {
       if (!pdfA4Url) return;
       const win = window.open(pdfA4Url, "_blank");
