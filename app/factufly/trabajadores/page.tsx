@@ -289,25 +289,25 @@ export default function TrabajadoresPage() {
               >
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
+                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
                       DNI
                     </th>
-                    <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-48">
+                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-48">
                       NOMBRE COMPLETO
                     </th>
-                    <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
+                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
                       CELULAR
                     </th>
-                    <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-48">
+                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-48">
                       CORREO
                     </th>
-                    <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
                       FECHA
                     </th>
-                    <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
+                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
                       ESTADO
                     </th>
-                    <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
                       ACCIONES
                     </th>
                   </tr>
@@ -337,7 +337,7 @@ export default function TrabajadoresPage() {
                         key={t.id}
                         className="hover:bg-gray-50/50 transition-colors"
                       >
-                        <td className="px-5 py-4 w-28">
+                        <td className="px-3 py-2 w-28">
                           <p className="text-xs font-bold text-gray-400 uppercase">
                             DNI
                           </p>
@@ -345,24 +345,24 @@ export default function TrabajadoresPage() {
                             {t.dni}
                           </p>
                         </td>
-                        <td className="px-5 py-4 text-sm font-semibold text-gray-900 w-48">
+                        <td className="px-3 py-2 text-xs font-semibold text-gray-900 w-48">
                           {t.nombreCompleto}
                         </td>
-                        <td className="px-5 py-4 text-sm text-gray-600 w-32">
+                        <td className="px-3 py-2 text-sm text-gray-600 w-32">
                           {t.celular ?? "-"}
                         </td>
-                        <td className="px-5 py-4 text-sm text-gray-600 w-48 whitespace-normal wrap-break-word">
+                        <td className="px-3 py-2 text-sm text-gray-600 w-48 whitespace-normal wrap-break-word">
                           {t.email ?? "-"}
                         </td>
-                        <td className="px-5 py-4 text-sm text-gray-500 w-24">
+                        <td className="px-3 py-2 text-sm text-gray-500 w-24">
                           {formatFecha(t.createdAt)}
                         </td>
-                        <td className="px-5 py-4 w-16">
+                        <td className="px-3 py-2 w-16">
                           <Badge variant={t.estado ? "success" : "default"}>
                             {t.estado ? "Activo" : "Inactivo"}
                           </Badge>
                         </td>
-                        <td className="px-5 py-4 w-24">
+                        <td className="px-3 py-2 w-24">
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => setTrabajadorEditar(t)}

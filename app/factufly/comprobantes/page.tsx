@@ -162,7 +162,7 @@ export default function VerComprobantesPage() {
   const [showModalCargaMasiva, setShowModalCargaMasiva] = useState(false);
   const { empresa } = useEmpresaEmisor();
 
-  const hoy = new Date().toISOString().split("T")[0];
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
   const loading =
     hookSucursal.loading ||
@@ -1018,8 +1018,12 @@ export default function VerComprobantesPage() {
                           max={hoy}
                           onChange={(e) => {
                             setAvFechaDesde(e.target.value);
-                            if (avFechaHasta && e.target.value > avFechaHasta)
-                              setAvFechaHasta("");
+                            // Si "hasta" está vacío, autocompletar con la misma fecha "desde"
+                            if (!avFechaHasta && e.target.value) {
+                              setAvFechaHasta(e.target.value);
+                            } else if (avFechaHasta && e.target.value > avFechaHasta) {
+                              setAvFechaHasta(e.target.value);
+                            }
                           }}
                           className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
@@ -1220,7 +1224,7 @@ export default function VerComprobantesPage() {
                     className="hover:bg-gray-50/50 transition-colors"
                   >
                     <td className="px-3 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-24">
-                      {formatFecha(doc.fechaCreacion)}
+                      {formatFecha(doc.fechaEmision)} {formatFechaHora(doc.horaEmision).split(" ")[1]}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap w-32">
                       <p className="text-sm font-medium text-gray-900">{doc.numeroCompleto}</p>
