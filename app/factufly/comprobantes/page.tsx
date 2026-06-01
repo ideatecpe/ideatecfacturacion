@@ -242,35 +242,61 @@ export default function VerComprobantesPage() {
   const obtenerPdf = useCallback(
     async (c: ComprobanteListado, tamano?: string) => {
       const size = tamano ?? getPdfSize(c.comprobanteId);
+      const esTicket = size === "Ticket58mm" || size === "Ticket80mm";
       setLoadingPdfMap((prev) => ({ ...prev, [c.comprobanteId]: true }));
       let ventana: Window | null = null;
       try {
         ventana = window.open("", "_blank");
         if (ventana) {
           ventana.document.write(`
-            <html><head><title>Cargando PDF...</title></head>
+            <html><head><title>Cargando...</title></head>
             <body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#f8fafc;font-family:sans-serif;flex-direction:column;gap:16px;">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
               </svg>
               <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
-              <p style="color:#64748b;font-size:14px;margin:0">Cargando PDF, por favor espere...</p>
+              <p style="color:#64748b;font-size:14px;margin:0">Cargando, por favor espere...</p>
             </body></html>
           `);
         }
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/pdf?tamano=${size}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        if (!res.ok) throw new Error("Error al generar PDF");
-        const blob = await res.blob();
-        const url = URL.createObjectURL(
-          new Blob([blob], { type: "application/pdf" }),
-        );
-        if (ventana) ventana.location.href = url;
+
+        if (esTicket) {
+          // ── Tickets 58mm / 80mm: pedir HTML al backend e imprimir vectorial ──
+          // Chrome rasteriza los PDFs a ~96 DPI al enviar a la térmica (203 DPI)
+          // → resultado borroso. Solución: imprimir HTML directamente, sin pasar
+          // por el renderizador de PDF de Chrome.
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/html?tamano=${size}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
+          if (!res.ok) throw new Error("Error al generar ticket HTML");
+          const html = await res.text();
+          if (ventana) {
+            ventana.document.open();
+            ventana.document.write(html);
+            ventana.document.close();
+            // Esperar a que el DOM cargue antes de imprimir
+            ventana.addEventListener("load", () => {
+              ventana!.focus();
+              ventana!.print();
+            });
+          }
+        } else {
+          // ── A4: flujo original con PDF blob ──
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/pdf?tamano=${size}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
+          if (!res.ok) throw new Error("Error al generar PDF");
+          const blob = await res.blob();
+          const url = URL.createObjectURL(
+            new Blob([blob], { type: "application/pdf" }),
+          );
+          if (ventana) ventana.location.href = url;
+        }
       } catch {
         if (ventana) ventana.close();
-        showToast("Error al obtener el PDF", "error");
+        showToast("Error al obtener el documento", "error");
       } finally {
         setLoadingPdfMap((prev) => ({ ...prev, [c.comprobanteId]: false }));
       }

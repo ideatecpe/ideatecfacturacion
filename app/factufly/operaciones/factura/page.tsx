@@ -1822,16 +1822,32 @@ function FacturaContent() {
     inputRefs.current = inputRefs.current.filter((_, i) => i !== index);
   };
 
-  const imprimirPdf = () => {
-    if (!pdfA4Url) return;
-    const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    iframe.src = pdfA4Url;
-    document.body.appendChild(iframe);
-    iframe.onload = () => {
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 1000);
-    };
+  const imprimirPdf = async () => {
+    const esTicket = tamanoPdf === "Ticket58mm" || tamanoPdf === "Ticket80mm";
+    if (esTicket && comprobanteIdEmitido) {
+      // HTML vectorial para impresora térmica — sin rasterización de Chrome
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteIdEmitido}/html?tamano=${tamanoPdf}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        if (!res.ok) throw new Error();
+        const html = await res.text();
+        const win = window.open("", "_blank");
+        if (win) {
+          win.document.open();
+          win.document.write(html);
+          win.document.close();
+          win.addEventListener("load", () => { win.focus(); win.print(); });
+        }
+      } catch {
+        showToast("Error al imprimir ticket", "error");
+      }
+    } else {
+      if (!pdfA4Url) return;
+      const win = window.open(pdfA4Url, "_blank");
+      if (win) win.focus();
+    }
   };
 
   // ── Preparar y emitir ────────────────────────────────────────
@@ -2114,60 +2130,57 @@ function FacturaContent() {
     const tamanoPreview = config?.tamañoImpresion
       ? (tamanoMap[config.tamañoImpresion] ?? "A4")
       : tamanoPdf;
+    const esTicket = tamanoPreview === "Ticket58mm" || tamanoPreview === "Ticket80mm";
 
     setCargandoPreview(true);
+    let previewUrl: string | null = null;
     try {
-      const resA4 = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamanoPreview}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      if (resA4.ok) {
-        const blob = await resA4.blob();
-        setPdfA4Url(
-          URL.createObjectURL(new Blob([blob], { type: "application/pdf" })),
+      if (esTicket) {
+        // ── Ticket: pedir HTML — vista previa vectorial y sin borrosidad ──
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/html?tamano=${tamanoPreview}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
         );
+        if (res.ok) {
+          const html = await res.text();
+          const blob = new Blob([html], { type: "text/html" });
+          previewUrl = URL.createObjectURL(blob);
+          setPdfA4Url(previewUrl);
+          setPdfTicketUrl(previewUrl); // habilita el botón Imprimir
+        }
+      } else {
+        // ── A4: flujo PDF normal ──
+        const resA4 = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamanoPreview}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        if (resA4.ok) {
+          const blob = await resA4.blob();
+          previewUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+          setPdfA4Url(previewUrl);
+          setPdfTicketUrl(previewUrl); // habilita el botón Imprimir
+        }
       }
     } catch {
-      showToast("Error al cargar el PDF", "error");
+      showToast("Error al cargar la vista previa", "error");
     } finally {
       setCargandoPreview(false);
     }
 
-    // ── PDF Ticket ──
-    try {
-      const resTicket = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=Ticket58mm`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      if (resTicket.ok) {
-        const blob = await resTicket.blob();
-        setPdfTicketUrl(
-          URL.createObjectURL(new Blob([blob], { type: "application/pdf" })),
-        );
-      }
-    } catch {}
-
     // ── Auto-impresión según configuración ──
-    if (config?.isImprime) {
-      const tamanoMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", "A4": "A4" };
-      const tamano = tamanoMap[config.tamañoImpresion ?? "58"] ?? "Ticket58mm";
+    // iframe oculto: imprime sin abrir nueva pestaña.
+    // HTML en iframe = vectorial perfecto (solo PDF en iframe es borroso).
+    if (config?.isImprime && previewUrl) {
       try {
-        const resPrint = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamano}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        if (resPrint.ok) {
-          const blob = await resPrint.blob();
-          const printUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
-          const iframe = document.createElement("iframe");
-          iframe.style.display = "none";
-          iframe.src = printUrl;
-          document.body.appendChild(iframe);
-          iframe.onload = () => {
-            iframe.contentWindow?.print();
-            setTimeout(() => document.body.removeChild(iframe), 1000);
-          };
-        }
+        const iframe = document.createElement("iframe");
+        iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
+        iframe.src = previewUrl;
+        document.body.appendChild(iframe);
+        iframe.onload = () => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          setTimeout(() => document.body.removeChild(iframe), 2000);
+        };
       } catch {}
     }
 
@@ -4455,11 +4468,26 @@ function FacturaContent() {
 
             {pdfA4Url && !cargandoPreview ? (
               <div className="space-y-3">
-                <iframe
-                  src={pdfA4Url}
-                  className="w-full rounded-lg border border-gray-200"
-                  style={{ height: "320px" }}
-                />
+                <div className={
+                  (tamanoPdf === "Ticket58mm" || tamanoPdf === "Ticket80mm")
+                    ? "flex justify-center bg-gray-100 rounded-lg border border-gray-200 overflow-auto"
+                    : ""
+                }>
+                  <iframe
+                    src={pdfA4Url}
+                    className={
+                      (tamanoPdf === "Ticket58mm" || tamanoPdf === "Ticket80mm")
+                        ? "rounded-lg shrink-0"
+                        : "w-full rounded-lg border border-gray-200"
+                    }
+                    style={{
+                      height: "320px",
+                      width: tamanoPdf === "Ticket58mm" ? "220px"
+                           : tamanoPdf === "Ticket80mm"  ? "310px"
+                           : "100%",
+                    }}
+                  />
+                </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
