@@ -314,6 +314,7 @@ export default function VerComprobantesPage() {
           legends: [],
           guias: [],
           detracciones: [],
+          vales: [],
         });
         return;
       }
