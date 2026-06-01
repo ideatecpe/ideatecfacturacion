@@ -85,6 +85,15 @@ export interface ComprobanteGuia {
   guiaTipoDoc: string
 }
 
+export interface ComprobanteVale {
+  idVale: number
+  nombre: string
+  descripcion: string
+  fechaEmision: string
+  duracion: string
+  estado: boolean
+}
+
 export interface ComprobanteDetraccionItem {
   comprobanteID: number
   codigoBienDetraccion: string
@@ -137,6 +146,7 @@ export interface Comprobante {
   legends: ComprobanteLeyenda[]
   guias: ComprobanteGuia[]
   detracciones: ComprobanteDetraccionItem[]
+  vales: ComprobanteVale[]
   estadoSunat: string
   codigoHashCPE: string | null
   codigoRespuestaSunat: string
@@ -215,4 +225,5 @@ export interface ComprobanteDetalles {
   legends: ComprobanteLeyenda[]
   guias: ComprobanteGuia[]
   detracciones: ComprobanteDetraccionItem[]
+  vales: ComprobanteVale[]
 }

@@ -741,6 +741,7 @@ export default function VerComprobantesPage() {
               legends: detalleCompleto?.legends ?? [],
               guias: detalleCompleto?.guias ?? [],
               detracciones: detalleCompleto?.detracciones ?? [],
+              vales: detalleCompleto?.vales ?? [],
             } as unknown as Comprobante
           }
           ruc={rucEmpresa}
