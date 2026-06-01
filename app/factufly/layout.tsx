@@ -131,7 +131,12 @@ export default function DashboardLayout({
     { id: "usuarios", label: "Usuarios", icon: UserCircle },
   ];
 
+  const esVelsatFacturador =
+    user?.ruc === "10073587382" && user?.rol === "facturador";
+
   const menuItems = todosLosMenuItems.filter((item) => {
+    // Para velsat con rol facturador: ocultar trabajadores y productos
+    if (esVelsatFacturador && (item.id === "trabajadores" || item.id === "productos")) return false;
     if (item.id === "trabajadores")      return config?.trabajadores ?? false;
     if (item.id === "guiasremision")     return config?.guiaRemision ?? false;
     if (item.id === "carga-comprobantes") return config?.cargaComprobantes ?? false;

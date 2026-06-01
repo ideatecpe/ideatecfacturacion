@@ -55,6 +55,11 @@ export default function TrabajadoresPage() {
   useEffect(() => {
     if (user?.ruc !== "10073587382") {
       router.replace("/factufly/dashboard");
+      return;
+    }
+    // facturador de velsat no puede acceder
+    if (user?.rol === "facturador") {
+      router.replace("/factufly/dashboard");
     }
   }, [user]);
 

@@ -36,6 +36,7 @@ import { useCategoriasLista } from "./gestioProductos/useCategoriasLista";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
+import { useRouter } from "next/navigation";
 import { useProductosEmpresaLista } from "./gestioProductos/useProductosEmpresaLista";
 import { useSucursalRuc } from "../operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { useRegistrarCategoria } from "./gestioProductos/useRegistrarCategoria";
@@ -47,7 +48,14 @@ export default function ProductosPage() {
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
   const { config } = useConfiguracion();
+  const router = useRouter();
   const isSuperAdmin = user?.rol === "superadmin";
+
+  useEffect(() => {
+    if (user?.ruc === "10073587382" && user?.rol === "facturador") {
+      router.replace("/factufly/dashboard");
+    }
+  }, [user]);
 
   // ── Vales ──────────────────────────────────────────────────────
   interface Vale {
