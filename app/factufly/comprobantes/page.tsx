@@ -68,13 +68,7 @@ import {
 } from "@/app/utils/cargaComprobantesStore";
 
 // ─── Constantes filtros ───────────────────────────────────────────────────────
-const TIPOS_OPTS = [
-  "Todos",
-  "Factura",
-  "Boleta",
-  "N.Crédito",
-  "N.Débito",
-];
+const TIPOS_OPTS = ["Todos", "Factura", "Boleta", "N.Crédito", "N.Débito"];
 const ESTADOS_OPTS = ["Todos", "Aceptado", "Pendiente", "Rechazado", "Anulado"];
 const ESTADO_COLORS_MAP: Record<string, string> = {
   Aceptado: "bg-emerald-500",
@@ -162,7 +156,9 @@ export default function VerComprobantesPage() {
   const [showModalCargaMasiva, setShowModalCargaMasiva] = useState(false);
   const { empresa } = useEmpresaEmisor();
 
-  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
+  const hoy = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Lima",
+  }).format(new Date());
 
   const loading =
     hookSucursal.loading ||
@@ -229,14 +225,22 @@ export default function VerComprobantesPage() {
       setComprobantes(data);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isSuperAdmin, sucursalFiltro, rucEmpresa, sucursalId, limit, esUsuarioVelsat, showAvanzado],
+    [
+      isSuperAdmin,
+      sucursalFiltro,
+      rucEmpresa,
+      sucursalId,
+      limit,
+      esUsuarioVelsat,
+      showAvanzado,
+    ],
   );
 
   useEffect(() => {
     if (!user || !accessToken) return;
     setOffset(0);
     cargarComprobantes(0);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.ruc, user?.sucursalID, accessToken, cargarComprobantes]);
 
   const obtenerPdf = useCallback(
@@ -273,7 +277,8 @@ export default function VerComprobantesPage() {
           const blob = new Blob([html], { type: "text/html" });
           const htmlUrl = URL.createObjectURL(blob);
           const iframe = document.createElement("iframe");
-          iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
+          iframe.style.cssText =
+            "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
           iframe.src = htmlUrl;
           document.body.appendChild(iframe);
           iframe.onload = () => {
@@ -651,7 +656,9 @@ export default function VerComprobantesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 space-y-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-gray-800">Detalles Adicionales</h2>
+              <h2 className="text-sm font-bold text-gray-800">
+                Detalles Adicionales
+              </h2>
               <button
                 onClick={() => setModalDetallesAdicionales(null)}
                 className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
@@ -669,11 +676,16 @@ export default function VerComprobantesPage() {
                   checked={modalDetallesAdicionales.ordenServicio !== ""}
                   onChange={(e) => {
                     if (!e.target.checked)
-                      setModalDetallesAdicionales((prev) => prev ? { ...prev, ordenServicio: "" } : prev);
+                      setModalDetallesAdicionales((prev) =>
+                        prev ? { ...prev, ordenServicio: "" } : prev,
+                      );
                   }}
                   className="w-4 h-4 accent-brand-blue cursor-pointer"
                 />
-                <label htmlFor="chk-os" className="text-xs font-semibold text-gray-700 cursor-pointer">
+                <label
+                  htmlFor="chk-os"
+                  className="text-xs font-semibold text-gray-700 cursor-pointer"
+                >
                   Adicional
                 </label>
               </div>
@@ -681,7 +693,9 @@ export default function VerComprobantesPage() {
                 type="text"
                 value={modalDetallesAdicionales.ordenServicio}
                 onChange={(e) =>
-                  setModalDetallesAdicionales((prev) => prev ? { ...prev, ordenServicio: e.target.value } : prev)
+                  setModalDetallesAdicionales((prev) =>
+                    prev ? { ...prev, ordenServicio: e.target.value } : prev,
+                  )
                 }
                 placeholder="Información adicional"
                 className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
@@ -695,11 +709,16 @@ export default function VerComprobantesPage() {
                 type="checkbox"
                 checked={modalDetallesAdicionales.spot}
                 onChange={(e) =>
-                  setModalDetallesAdicionales((prev) => prev ? { ...prev, spot: e.target.checked } : prev)
+                  setModalDetallesAdicionales((prev) =>
+                    prev ? { ...prev, spot: e.target.checked } : prev,
+                  )
                 }
                 className="w-4 h-4 accent-brand-blue cursor-pointer"
               />
-              <label htmlFor="chk-spot" className="text-xs font-semibold text-gray-700 cursor-pointer">
+              <label
+                htmlFor="chk-spot"
+                className="text-xs font-semibold text-gray-700 cursor-pointer"
+              >
                 Operación sujeta al SPOT
               </label>
             </div>
@@ -1050,7 +1069,10 @@ export default function VerComprobantesPage() {
                             // Si "hasta" está vacío, autocompletar con la misma fecha "desde"
                             if (!avFechaHasta && e.target.value) {
                               setAvFechaHasta(e.target.value);
-                            } else if (avFechaHasta && e.target.value > avFechaHasta) {
+                            } else if (
+                              avFechaHasta &&
+                              e.target.value > avFechaHasta
+                            ) {
                               setAvFechaHasta(e.target.value);
                             }
                           }}
@@ -1161,7 +1183,7 @@ export default function VerComprobantesPage() {
           scrollbar-color: transparent transparent;
         }
         .comp-table tbody {
-          max-height: calc(100vh - ${offset > 0 || hasMore ? 355 : (isBeta ? 290 : 250)}px);
+          max-height: calc(100vh - ${offset > 0 || hasMore ? 355 : isBeta ? 290 : 250}px);
           scrollbar-color: #CBD5E1 transparent;
         }
         .comp-table thead tr,
@@ -1253,15 +1275,19 @@ export default function VerComprobantesPage() {
                     className="hover:bg-gray-50/50 transition-colors"
                   >
                     <td className="px-3 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-24">
-                      {formatFecha(doc.fechaEmision)} {formatFechaHora(doc.horaEmision).split(" ")[1]}
+                      {formatFecha(doc.fechaEmision)}{" "}
+                      {formatFechaHora(doc.horaEmision).split(" ")[1]}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap w-32">
-                      <p className="text-sm font-medium text-gray-900">{doc.numeroCompleto}</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {doc.numeroCompleto}
+                      </p>
                       <p className="text-xs text-gray-400">
                         {tipoLabel(doc.tipoComprobante)}
                         <span className="mx-1 text-gray-400">-</span>
                         <span className="font-semibold text-gray-700">
-                          {doc.tipoMoneda === "USD" ? "$" : "S/"} {fmtMonto(Number(doc.importeTotal ?? 0))}
+                          {doc.tipoMoneda === "USD" ? "$" : "S/"}{" "}
+                          {fmtMonto(Number(doc.importeTotal ?? 0))}
                         </span>
                       </p>
                     </td>
@@ -1278,7 +1304,12 @@ export default function VerComprobantesPage() {
                     <td className="px-1 py-2 text-center w-16">
                       <select
                         value={getPdfSize(doc.comprobanteId)}
-                        onChange={(e) => setPdfSizeMap((prev) => ({ ...prev, [doc.comprobanteId]: e.target.value }))}
+                        onChange={(e) =>
+                          setPdfSizeMap((prev) => ({
+                            ...prev,
+                            [doc.comprobanteId]: e.target.value,
+                          }))
+                        }
                         className="w-full py-1 px-0.5 text-[11px] bg-gray-50 border border-gray-200 rounded-md outline-none focus:border-blue-400 cursor-pointer"
                       >
                         <option value="A4">A4</option>
@@ -1290,10 +1321,17 @@ export default function VerComprobantesPage() {
                       <div className="flex justify-center">
                         <StatusIcon
                           type="pdf"
-                          status={(doc as CargaComprobantePendiente)._cargaEstatica ? "pending" : "available"}
+                          status={
+                            (doc as CargaComprobantePendiente)._cargaEstatica
+                              ? "pending"
+                              : "available"
+                          }
                           loading={loadingPdfMap[doc.comprobanteId]}
                           onClick={() => {
-                            if ((doc as CargaComprobantePendiente)._cargaEstatica) return;
+                            if (
+                              (doc as CargaComprobantePendiente)._cargaEstatica
+                            )
+                              return;
                             obtenerPdf(doc, getPdfSize(doc.comprobanteId));
                           }}
                         />
@@ -1320,7 +1358,9 @@ export default function VerComprobantesPage() {
                       <div className="flex justify-center">
                         <StatusIcon
                           type="cdr"
-                          status={doc.xmlRespuestaSunat ? "available" : "pending"}
+                          status={
+                            doc.xmlRespuestaSunat ? "available" : "pending"
+                          }
                           loading={loadingCdrMap[doc.comprobanteId]}
                           onClick={() =>
                             descargarArchivo(
@@ -1360,7 +1400,10 @@ export default function VerComprobantesPage() {
                           enviado={doc.cliente.enviadoPorWhatsApp}
                           fecha={formatFechaHora(doc.fechaCreacion)}
                           onClick={() =>
-                            setModalEnvio({ comprobante: doc, tipo: "whatsapp" })
+                            setModalEnvio({
+                              comprobante: doc,
+                              tipo: "whatsapp",
+                            })
                           }
                         />
                       </div>
@@ -1384,7 +1427,9 @@ export default function VerComprobantesPage() {
                           onGenerarNotaCredito={() => generarNotaCredito(doc)}
                           onGenerarNotaDebito={() => generarNotaDebito(doc)}
                           mostrarDetallesAdicionales={esRucDetallesAdicionales}
-                          onDetallesAdicionales={() => abrirDetallesAdicionales(doc)}
+                          onDetallesAdicionales={() =>
+                            abrirDetallesAdicionales(doc)
+                          }
                         />
                       </div>
                     </td>
@@ -1742,18 +1787,19 @@ const DropdownOpciones = ({
                   <FileText size={14} className="text-orange-500" /> Generar
                   Nota de Débito
                 </button>
-                {mostrarDetallesAdicionales && comprobante.tipoComprobante === "01" && (
-                  <button
-                    onClick={() => {
-                      onDetallesAdicionales?.();
-                      setOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50"
-                  >
-                    <FileText size={14} className="text-blue-500" /> Detalles
-                    Adicionales
-                  </button>
-                )}
+                {mostrarDetallesAdicionales &&
+                  comprobante.tipoComprobante === "01" && (
+                    <button
+                      onClick={() => {
+                        onDetallesAdicionales?.();
+                        setOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50"
+                    >
+                      <FileText size={14} className="text-blue-500" /> Detalles
+                      Adicionales
+                    </button>
+                  )}
                 <div className="border-t border-gray-100" />
                 <button
                   onClick={() => {
