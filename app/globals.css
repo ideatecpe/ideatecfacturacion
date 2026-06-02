@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -8,7 +8,7 @@
   --color-brand-blue: #0052CC;
   --color-brand-red: #DE350B;
   --color-brand-dark: #172B4D;
-  --color-brand-light: #F4F5F7;
+  --color-brand-light: #EDF2FA;
 }
 
 @layer base {
@@ -32,3 +32,11 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400;
 }
+
+/* Fondo de app con patrón de puntos sutil */
+.app-canvas {
+  background-color: #EDF2FA;
+  background-image: radial-gradient(circle, rgba(15,46,100,0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+

@@ -288,9 +288,20 @@ export default function ReportesPage() {
   };
 
   const handleDescargarTicket = async () => {
+    const params = getParamsModal();
     await avanzados.descargarTicketControlCaja(
-      getParamsModal(),
-      user?.username ?? 'Responsable'
+      params,
+      user?.username ?? 'Responsable',
+      getNombreUsuario(params.usuarioCreacion ?? null),
+    );
+  };
+
+  const handleDescargarPdfTicket = async () => {
+    const params = getParamsModal();
+    await avanzados.descargarPdfTicketControlCaja(
+      params,
+      user?.username ?? 'Responsable',
+      getNombreUsuario(params.usuarioCreacion ?? null),
     );
   };
 
@@ -627,11 +638,13 @@ export default function ReportesPage() {
         loadingExcelMedios={avanzados.loadingExcelMedios}
         loadingExcelControlCaja={avanzados.loadingExcelControlCaja}
         loadingTicketControlCaja={avanzados.loadingTicketControlCaja}
+        loadingPdfTicketControlCaja={avanzados.loadingPdfTicketControlCaja}
         onDescargarListado={handleDescargarListado}
         onDescargarProductos={handleDescargarProductos}
         onDescargarMedios={handleDescargarMedios}
         onDescargarControlCaja={handleDescargarControlCaja}
         onDescargarTicket={handleDescargarTicket}
+        onDescargarPdfTicket={handleDescargarPdfTicket}
       />
     </div>
   );

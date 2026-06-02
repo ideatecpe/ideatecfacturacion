@@ -1206,40 +1206,40 @@ export default function VerComprobantesPage() {
                   overflow: "hidden",
                 }}
               >
-                <th className="px-3 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-24">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-24">
                   FECHA
                 </th>
-                <th className="px-3 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32">
                   COMPROBANTE
                 </th>
-                <th className="px-3 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-72">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-72">
                   CLIENTE
                 </th>
-                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
+                <th className="px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
                   TAMAÑO
                 </th>
-                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-14">
+                <th className="px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-14">
                   PDF
                 </th>
-                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-12">
+                <th className="px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-12">
                   XML
                 </th>
-                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-12">
+                <th className="px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-12">
                   CDR
                 </th>
-                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-20">
+                <th className="px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-20">
                   SUNAT
                 </th>
-                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-14">
+                <th className="px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-14">
                   CORREO
                 </th>
-                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
+                <th className="px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
                   WHATSAPP
                 </th>
-                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
+                <th className="px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-16">
                   VER
                 </th>
-                <th className="px-2 py-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-20">
+                <th className="px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center w-20">
                   OPCIONES
                 </th>
               </tr>
@@ -1274,11 +1274,11 @@ export default function VerComprobantesPage() {
                     key={doc.comprobanteId}
                     className="hover:bg-gray-50/50 transition-colors"
                   >
-                    <td className="px-3 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-24">
+                    <td className="px-3 py-1 text-sm text-gray-900 font-medium whitespace-nowrap w-24">
                       {formatFecha(doc.fechaEmision)}{" "}
                       {formatFechaHora(doc.horaEmision).split(" ")[1]}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap w-32">
+                    <td className="px-3 py-1 whitespace-nowrap w-32">
                       <p className="text-sm font-medium text-gray-900">
                         {doc.numeroCompleto}
                       </p>
@@ -1291,7 +1291,7 @@ export default function VerComprobantesPage() {
                         </span>
                       </p>
                     </td>
-                    <td className="px-3 py-2 w-72">
+                    <td className="px-3 py-1 w-72">
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-gray-900">
                           {doc.cliente.numeroDocumento}
@@ -1301,7 +1301,7 @@ export default function VerComprobantesPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-1 py-2 text-center w-16">
+                    <td className="px-1 py-1 text-center w-16">
                       <select
                         value={getPdfSize(doc.comprobanteId)}
                         onChange={(e) =>
@@ -1317,7 +1317,7 @@ export default function VerComprobantesPage() {
                         <option value="Ticket80mm">80 mm</option>
                       </select>
                     </td>
-                    <td className="px-2 py-2 text-center w-14">
+                    <td className="px-2 py-1 text-center w-14">
                       <div className="flex justify-center">
                         <StatusIcon
                           type="pdf"
@@ -1337,7 +1337,7 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-center w-12">
+                    <td className="px-2 py-1 text-center w-12">
                       <div className="flex justify-center">
                         <StatusIcon
                           type="xml"
@@ -1354,7 +1354,7 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-center w-12">
+                    <td className="px-2 py-1 text-center w-12">
                       <div className="flex justify-center">
                         <StatusIcon
                           type="cdr"
@@ -1373,7 +1373,7 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-center w-20">
+                    <td className="px-2 py-1 text-center w-20">
                       <div className="flex justify-center">
                         <BadgeSunat
                           estado={doc.estadoSunat}
@@ -1381,7 +1381,7 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-center w-14">
+                    <td className="px-2 py-1 text-center w-14">
                       <div className="flex justify-center">
                         <BtnEnvio
                           tipo="email"
@@ -1393,7 +1393,7 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-center w-16">
+                    <td className="px-2 py-1 text-center w-16">
                       <div className="flex justify-center">
                         <BtnEnvio
                           tipo="whatsapp"
@@ -1408,7 +1408,7 @@ export default function VerComprobantesPage() {
                         />
                       </div>
                     </td>
-                    <td className="px-2 py-2 text-center w-16">
+                    <td className="px-2 py-1 text-center w-16">
                       <button
                         onClick={() => abrirDetalle(doc)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
@@ -1416,7 +1416,7 @@ export default function VerComprobantesPage() {
                         <Eye size={13} /> Ver
                       </button>
                     </td>
-                    <td className="px-2 py-2 text-center w-20">
+                    <td className="px-2 py-1 text-center w-20">
                       <div className="flex justify-center">
                         <DropdownOpciones
                           comprobante={doc}

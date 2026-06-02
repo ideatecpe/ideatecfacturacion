@@ -36,11 +36,13 @@ interface ModalReportesProps {
   loadingExcelMedios: boolean;
   loadingExcelControlCaja: boolean;
   loadingTicketControlCaja: boolean;
+  loadingPdfTicketControlCaja: boolean;
   onDescargarListado: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
   onDescargarProductos: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
   onDescargarMedios: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
   onDescargarControlCaja: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
   onDescargarTicket: (filtros: FiltrosReporteModal) => Promise<void>;
+  onDescargarPdfTicket: (filtros: FiltrosReporteModal) => Promise<void>;
 }
 
 // ── Helpers de fecha ──────────────────────────────────────────────────────────
@@ -134,9 +136,9 @@ export function ModalReportes({
   abierto, onCerrar, filtros, onSetFiltro, onResetFiltros,
   usuarios, sucursales, isSuperAdmin, puedeVerUsuarios,
   loadingExcelListado, loadingExcelProductos, loadingExcelMedios, loadingExcelControlCaja,
-  loadingTicketControlCaja,
+  loadingTicketControlCaja, loadingPdfTicketControlCaja,
   onDescargarListado, onDescargarProductos, onDescargarMedios, onDescargarControlCaja,
-  onDescargarTicket,
+  onDescargarTicket, onDescargarPdfTicket,
 }: ModalReportesProps) {
 
   const [formato, setFormato] = useState<FormatoReporte>('excel');
@@ -440,16 +442,25 @@ export function ModalReportes({
                     />
                   </div>
 
-                  {/* Ticket térmico — siempre PDF 80mm */}
-                  <div className="flex">
+                  {/* Ticket térmico — imprimir 80mm + descargar PDF A4 */}
+                  <div className="flex gap-2">
                     <ReporteBtn
                       icon={Printer}
                       label="Caja Ticket"
-                      descripcion="PDF 80mm estilo ticket térmico"
+                      descripcion="Imprime ticket 80mm en térmica"
                       loading={loadingTicketControlCaja}
                       onClick={() => onDescargarTicket(filtros)}
                       color="border-purple-100 hover:border-purple-300 hover:bg-purple-50/50 text-purple-600"
-                      badge={<span className="text-[9px] font-bold bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">PDF 80mm</span>}
+                      badge={<span className="text-[9px] font-bold bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">80mm</span>}
+                    />
+                    <ReporteBtn
+                      icon={FileBarChart2}
+                      label="Descargar PDF"
+                      descripcion="Control de caja en PDF A4"
+                      loading={loadingPdfTicketControlCaja}
+                      onClick={() => onDescargarPdfTicket(filtros)}
+                      color="border-rose-100 hover:border-rose-300 hover:bg-rose-50/50 text-rose-600"
+                      badge={<span className="text-[9px] font-bold bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded-full">A4</span>}
                     />
                   </div>
                 </div>

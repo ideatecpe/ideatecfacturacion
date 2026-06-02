@@ -142,7 +142,7 @@ export default function DashboardLayout({
 
   return (
     <ToastProvider>
-      <div className="h-screen flex bg-brand-light overflow-x-hidden">
+      <div className="h-screen flex overflow-x-hidden" style={{ background: "#F5F8FD" }}>
         {/* Backdrop oscuro al abrir sidebar en pantallas < 1280px */}
         {isSidebarOpen && (
           <div

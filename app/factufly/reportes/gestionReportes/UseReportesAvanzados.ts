@@ -23,6 +23,7 @@ interface UseReportesAvanzadosReturn {
   loadingExcelMedios: boolean
   loadingExcelControlCaja: boolean
   loadingTicketControlCaja: boolean
+  loadingPdfTicketControlCaja: boolean
   fetchListado: (params: ReportesAvanzadosParams) => Promise<void>
   fetchProductosTop: (params: ReportesAvanzadosParams) => Promise<void>
   fetchMediosPago: (params: ReportesAvanzadosParams) => Promise<void>
@@ -30,7 +31,8 @@ interface UseReportesAvanzadosReturn {
   descargarExcelProductos: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
   descargarExcelMedios: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
   descargarExcelControlCaja: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
-  descargarTicketControlCaja: (params: ReportesAvanzadosParams, nombreResponsable: string) => Promise<void>
+  descargarTicketControlCaja: (params: ReportesAvanzadosParams, nombreResponsable: string, nombreUsuario?: string) => Promise<void>
+  descargarPdfTicketControlCaja: (params: ReportesAvanzadosParams, nombreResponsable: string, nombreUsuario?: string) => Promise<void>
 }
 
 export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
@@ -49,6 +51,7 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
   const [loadingExcelMedios, setLoadingExcelMedios] = useState(false)
   const [loadingExcelControlCaja, setLoadingExcelControlCaja] = useState(false)
   const [loadingTicketControlCaja, setLoadingTicketControlCaja] = useState(false)
+  const [loadingPdfTicketControlCaja, setLoadingPdfTicketControlCaja] = useState(false)
 
   const buildUrl = (path: string, params: Record<string, string | number | null | undefined>) => {
     const url = new URL(`${process.env.NEXT_PUBLIC_API_URL}${path}`)
@@ -253,15 +256,17 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
     }
   }, [accessToken])
 
-  // ── Ticket PDF control de caja (nuevo endpoint) ────────────────────────────
+  // ── Ticket HTML control de caja — imprime en térmica sin borrosidad ─────────
   const descargarTicketControlCaja = useCallback(async (
     params: ReportesAvanzadosParams,
-    nombreResponsable: string
+    nombreResponsable: string,
+    nombreUsuario?: string
   ) => {
     setLoadingTicketControlCaja(true)
     try {
-      const url = buildUrl(`/api/Reportes/control-caja/${params.ruc}/ticket`, {
+      const url = buildUrl(`/api/Reportes/control-caja/${params.ruc}/ticket-html`, {
         nombreResponsable,
+        nombreUsuario,
         codEstablecimiento: params.codEstablecimiento,
         fechaDesde:         params.fechaDesde,
         fechaHasta:         params.fechaHasta,
@@ -271,13 +276,22 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
       })
       const res = await fetch(url, { headers })
       if (!res.ok) throw new Error(`Error ${res.status}`)
-      const blob = await res.blob()
-      const link = document.createElement('a')
-      link.href = URL.createObjectURL(blob)
-      link.download = `caja-ticket-${params.fechaDesde ?? 'hoy'}.pdf`
-      link.click()
-      URL.revokeObjectURL(link.href)
-      showToast('Ticket PDF descargado correctamente', 'success')
+      const html = await res.text()
+      const blob = new Blob([html], { type: 'text/html; charset=utf-8' })
+      const blobUrl = URL.createObjectURL(blob)
+      const iframe = document.createElement('iframe')
+      iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;'
+      iframe.src = blobUrl
+      document.body.appendChild(iframe)
+      iframe.onload = () => {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+        setTimeout(() => {
+          document.body.removeChild(iframe)
+          URL.revokeObjectURL(blobUrl)
+        }, 2000)
+      }
+      showToast('Ticket generado correctamente', 'success')
     } catch {
       showToast('Error al generar el ticket', 'error')
     } finally {
@@ -285,14 +299,41 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
     }
   }, [accessToken])
 
+  // ── Ticket PDF A4 control de caja — descarga directa ─────────────────────
+  const descargarPdfTicketControlCaja = useCallback(async (
+    params: ReportesAvanzadosParams,
+    nombreResponsable: string,
+    nombreUsuario?: string
+  ) => {
+    setLoadingPdfTicketControlCaja(true)
+    try {
+      const url = buildUrl(`/api/Reportes/control-caja/${params.ruc}/ticket-pdf`, {
+        nombreResponsable,
+        nombreUsuario,
+        codEstablecimiento: params.codEstablecimiento,
+        fechaDesde:         params.fechaDesde,
+        fechaHasta:         params.fechaHasta,
+        usuarioCreacion:    params.usuarioCreacion,
+        clienteNumDoc:      params.clienteNumDoc,
+        limit:              params.limit,
+      })
+      await descargarBlob(url, `caja-ticket-${params.fechaDesde ?? 'hoy'}`, 'pdf')
+      showToast('PDF descargado correctamente', 'success')
+    } catch {
+      showToast('Error al generar el PDF', 'error')
+    } finally {
+      setLoadingPdfTicketControlCaja(false)
+    }
+  }, [accessToken])
+
   return {
     listado, productosTop, mediosPago,
     loadingListado, loadingProductos, loadingMedios,
     loadingExcelListado, loadingExcelProductos, loadingExcelMedios,
-    loadingExcelControlCaja, loadingTicketControlCaja,
+    loadingExcelControlCaja, loadingTicketControlCaja, loadingPdfTicketControlCaja,
     fetchListado, fetchProductosTop, fetchMediosPago,
     descargarExcelListado, descargarExcelProductos,
     descargarExcelMedios, descargarExcelControlCaja,
-    descargarTicketControlCaja,
+    descargarTicketControlCaja, descargarPdfTicketControlCaja,
   }
 }
