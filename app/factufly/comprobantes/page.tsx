@@ -1274,9 +1274,9 @@ export default function VerComprobantesPage() {
                     key={doc.comprobanteId}
                     className="hover:bg-gray-50/50 transition-colors"
                   >
-                    <td className="px-3 py-1 text-sm text-gray-900 font-medium whitespace-nowrap w-24">
-                      {formatFecha(doc.fechaEmision)}{" "}
-                      {formatFechaHora(doc.horaEmision).split(" ")[1]}
+                    <td className="px-3 py-1 w-24">
+                      <p className="text-xs text-gray-900 font-medium whitespace-nowrap">{formatFecha(doc.fechaEmision)}</p>
+                      <p className="text-[11px] text-gray-400 whitespace-nowrap">{formatFechaHora(doc.horaEmision).split(" ")[1]}</p>
                     </td>
                     <td className="px-3 py-1 whitespace-nowrap w-32">
                       <p className="text-sm font-medium text-gray-900">
