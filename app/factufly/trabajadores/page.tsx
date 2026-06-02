@@ -50,15 +50,11 @@ export default function TrabajadoresPage() {
   const { accessToken, user } = useAuth();
   const router = useRouter();
   const sucursalId = parseInt(user?.sucursalID ?? "0");
+  const soloLectura = user?.ruc === "10073587382" && user?.rol === "facturador";
   const [activeTab, setActiveTab] = useState<Tab>("crud");
 
   useEffect(() => {
     if (user?.ruc !== "10073587382") {
-      router.replace("/factufly/dashboard");
-      return;
-    }
-    // facturador de velsat no puede acceder
-    if (user?.rol === "facturador") {
       router.replace("/factufly/dashboard");
     }
   }, [user]);
@@ -254,12 +250,14 @@ export default function TrabajadoresPage() {
                 </button>
               )}
             </div>
-            <Button
-              onClick={() => setIsNuevoOpen(true)}
-              className="py-2.5 px-3 text-xs rounded-md h-auto"
-            >
-              <Plus className="w-3.5 h-3.5" /> Nuevo Trabajador
-            </Button>
+            {!soloLectura && (
+              <Button
+                onClick={() => setIsNuevoOpen(true)}
+                className="py-2.5 px-3 text-xs rounded-md h-auto"
+              >
+                <Plus className="w-3.5 h-3.5" /> Nuevo Trabajador
+              </Button>
+            )}
           </div>
 
           <p className="text-sm text-gray-500">
@@ -370,14 +368,16 @@ export default function TrabajadoresPage() {
                         <td className="px-3 py-2 w-24">
                           <div className="flex items-center gap-1.5">
                             <button
-                              onClick={() => setTrabajadorEditar(t)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                              onClick={() => !soloLectura && setTrabajadorEditar(t)}
+                              disabled={soloLectura}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Edit2 size={12} />
                             </button>
                             <button
-                              onClick={() => setTrabajadorEliminar(t)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
+                              onClick={() => !soloLectura && setTrabajadorEliminar(t)}
+                              disabled={soloLectura}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Trash2 size={12} />
                             </button>

@@ -50,12 +50,7 @@ export default function ProductosPage() {
   const { config } = useConfiguracion();
   const router = useRouter();
   const isSuperAdmin = user?.rol === "superadmin";
-
-  useEffect(() => {
-    if (user?.ruc === "10073587382" && user?.rol === "facturador") {
-      router.replace("/factufly/dashboard");
-    }
-  }, [user]);
+  const soloLectura = user?.ruc === "10073587382" && user?.rol === "facturador";
 
   // ── Vales ──────────────────────────────────────────────────────
   interface Vale {
@@ -628,12 +623,14 @@ export default function ProductosPage() {
                 <Ticket className="w-3.5 h-3.5" /> Administrar Vales
               </Button>
             )}
-            <Button
-              onClick={() => setIsNewOpen(true)}
-              className="py-2.5 px-3 text-xs rounded-md h-auto"
-            >
-              <Plus className="w-3.5 h-3.5" /> Producto/servicio
-            </Button>
+            {!soloLectura && (
+              <Button
+                onClick={() => setIsNewOpen(true)}
+                className="py-2.5 px-3 text-xs rounded-md h-auto"
+              >
+                <Plus className="w-3.5 h-3.5" /> Producto/servicio
+              </Button>
+            )}
           </div>
         </div>
 
@@ -841,18 +838,22 @@ export default function ProductosPage() {
                   </div>
 
                   <div className="flex gap-1">
-                    <button
-                      onClick={() => handleOpenEdit(prod)}
-                      className="p-1.5 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleOpenDelete(prod)}
-                      className="p-1.5 text-gray-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!soloLectura && (
+                      <>
+                        <button
+                          onClick={() => handleOpenEdit(prod)}
+                          className="p-1.5 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenDelete(prod)}
+                          className="p-1.5 text-gray-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
