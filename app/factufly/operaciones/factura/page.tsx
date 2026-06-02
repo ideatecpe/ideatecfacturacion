@@ -1350,7 +1350,7 @@ function FacturaContent() {
   };
 
   useEffect(() => {
-    const longitud = tipoDoc === "06" ? 11 : tipoDoc === "04" ? 12 : 0;
+    const longitud = tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : 0;
     if (!longitud || busqueda.length !== longitud) return;
     const yaEsta = clientes.some((c) => c.numeroDocumento === busqueda);
     if (!yaEsta) buscarCliente(tipoDoc, busqueda);
@@ -1909,7 +1909,12 @@ function FacturaContent() {
       return;
     }
     if (docInvalido) {
-      showToast("El RUC debe tener exactamente 11 dígitos", "error");
+      showToast(
+        tipoDoc === "04"
+          ? "El CE debe tener exactamente 9 dígitos"
+          : "El RUC debe tener exactamente 11 dígitos",
+        "error",
+      );
       return;
     }
 
@@ -2432,7 +2437,7 @@ function FacturaContent() {
     return Math.max(0, totales.total - pagado).toFixed(2);
   };
 
-  const longEsperadaDoc = tipoDoc === "06" ? 11 : null;
+  const longEsperadaDoc = tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : null;
   const docInvalido =
     !!busqueda &&
     longEsperadaDoc !== null &&
@@ -2567,7 +2572,7 @@ function FacturaContent() {
                           onBlur={() =>
                             setTimeout(() => setShowDropdown(false), 150)
                           }
-                          maxLength={tipoDoc === "06" ? 11 : 12}
+                          maxLength={tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : 12}
                           placeholder="Buscar por RUC o nombre..."
                           className={`w-full pl-4 pr-10 py-1.5 bg-white border rounded-xl focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all text-sm
                             ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue"}`}
@@ -2626,7 +2631,7 @@ function FacturaContent() {
                     )}
                     {docInvalido && (
                       <p className="text-[10px] text-red-500 pl-1 mt-0.5">
-                        El RUC debe tener 11 dígitos
+                        {tipoDoc === "04" ? "El CE debe tener 9 dígitos" : "El RUC debe tener 11 dígitos"}
                       </p>
                     )}
                   </div>

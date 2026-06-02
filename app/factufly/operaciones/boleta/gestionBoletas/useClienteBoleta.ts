@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { BoletaCliente } from './Boleta'
 import { consultaDni } from '@/app/components/apiConsultasJsonPe/consultaDni'
 import { consultaRuc } from '@/app/components/apiConsultasJsonPe/consultaRuc'
+import { consultaCe } from '@/app/components/apiConsultasJsonPe/consultaCe'
 
 export function useClienteBoleta() {
   const [cliente, setCliente] = useState<Partial<BoletaCliente> | null>(null)
@@ -47,6 +48,23 @@ export function useClienteBoleta() {
           })
         } else {
           setErrorCliente('RUC no encontrado')
+        }
+      } else if (tipoDoc === '04') {
+        const result = await consultaCe(numeroDoc)
+        if (result) {
+          setCliente({
+            clienteId: null,
+            tipoDocumento: tipoDoc,
+            numeroDocumento: numeroDoc,
+            razonSocial: result.nombreCompleto,
+            ubigeo: '',
+            direccionLineal: '',
+            departamento: '',
+            provincia: '',
+            distrito: '',
+          })
+        } else {
+          setErrorCliente('No se encontró el Carnet de Extranjería.')
         }
       }
     } catch {

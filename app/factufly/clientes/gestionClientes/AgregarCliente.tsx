@@ -8,6 +8,7 @@ import { useToast } from "@/app/components/ui/Toast";
 import { Sucursal } from "../../operaciones/boleta/gestionBoletas/Boleta";
 import { consultaDni } from "@/app/components/apiConsultasJsonPe/consultaDni";
 import { consultaRuc } from "@/app/components/apiConsultasJsonPe/consultaRuc";
+import { consultaCe } from "@/app/components/apiConsultasJsonPe/consultaCe";
 
 interface AgregarClienteProps {
   isOpen: boolean;
@@ -112,15 +113,30 @@ export const AgregarCliente: React.FC<AgregarClienteProps> = ({
     }
   };
 
+  const buscarCe = async () => {
+    if (nuevoCliente.numeroDocumento.length !== 9) {
+      setLengthErrors(prev => ({ ...prev, numeroDocumento: "El CE debe tener 9 dígitos" }));
+      return;
+    }
+    setLengthErrors(prev => ({ ...prev, numeroDocumento: "" }));
+
+    try {
+      const result = await consultaCe(nuevoCliente.numeroDocumento);
+      if (result) {
+        setNuevoCliente((prev: any) => ({ ...prev, razonSocialNombre: result.nombreCompleto }));
+      } else {
+        showToast("No se encontró el CE, verifica el número o llénalo manualmente.", "info");
+      }
+    } catch {
+      showToast("Error al conectar con la API, llena los datos manualmente.", "error");
+    }
+  };
+
   //Elegimos que funcion usar
   const buscarDocumento = () => {
-  if (nuevoCliente.tipoDocumentoId === "01") {
-    buscarDni();
-  }
-
-  if (nuevoCliente.tipoDocumentoId === "06") {
-    buscarRuc();
-  }
+    if (nuevoCliente.tipoDocumentoId === "01") buscarDni();
+    if (nuevoCliente.tipoDocumentoId === "06") buscarRuc();
+    if (nuevoCliente.tipoDocumentoId === "07") buscarCe();
   };
 
   return (
@@ -213,7 +229,7 @@ export const AgregarCliente: React.FC<AgregarClienteProps> = ({
                   }
                 }}
                 placeholder="Ej:87654321"
-                maxLength={nuevoCliente.tipoDocumentoId === "01" ? 8 : 11}
+                maxLength={nuevoCliente.tipoDocumentoId === "01" ? 8 : nuevoCliente.tipoDocumentoId === "07" ? 9 : 11}
                 showError={!!errors.numeroDocumento || !!lengthErrors.numeroDocumento}
                 errorMessage={
                   errors.numeroDocumento

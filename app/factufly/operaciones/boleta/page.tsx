@@ -284,6 +284,7 @@ function BoletaContent() {
   const [busqueda, setBusqueda] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [clienteVarios, setClienteVarios] = useState(false);
+  const [nombreEditable, setNombreEditable] = useState(false);
 
   // ── Modal guardar cliente ────────────────────────────────────
   const [showModalCliente, setShowModalCliente] = useState(false);
@@ -1207,7 +1208,7 @@ function BoletaContent() {
 
   useEffect(() => {
     if (clienteVarios) return;
-    const longitud = tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : 12;
+    const longitud = tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : 12;
     if (!longitud || busqueda.length !== longitud) return;
     const yaEsta = clientes.some((c) => c.numeroDocumento === busqueda);
     if (!yaEsta) buscarCliente(tipoDoc, busqueda);
@@ -1720,7 +1721,9 @@ function BoletaContent() {
       showToast(
         tipoDoc === "01"
           ? "El DNI debe tener exactamente 8 dígitos"
-          : "El RUC debe tener exactamente 11 dígitos",
+          : tipoDoc === "04"
+            ? "El CE debe tener exactamente 9 dígitos"
+            : "El RUC debe tener exactamente 11 dígitos",
         "error",
       );
       return;
@@ -2143,6 +2146,7 @@ function BoletaContent() {
     // Cliente
     setBusqueda("");
     setClienteVarios(false);
+    setNombreEditable(false);
 
     // Contacto
     setCorreoCliente("");
@@ -2217,7 +2221,7 @@ function BoletaContent() {
     correlativoActual ?? sucursal?.correlativoBoleta ?? "",
   ).padStart(8, "0");
 
-  const longEsperadaDoc = tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : null;
+  const longEsperadaDoc = tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : null;
   const docInvalido =
     !clienteVarios &&
     !!busqueda &&
@@ -2328,6 +2332,7 @@ function BoletaContent() {
                         onChange={(e) => {
                           setTipoDoc(e.target.value);
                           setBusqueda("");
+                          setNombreEditable(false);
                           setShowDropdown(false);
                           setBoleta((prev) => ({
                             ...prev,
@@ -2364,7 +2369,7 @@ function BoletaContent() {
                             setTimeout(() => setShowDropdown(false), 150)
                           }
                           maxLength={
-                            tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : 12
+                            tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : 12
                           }
                           placeholder="Buscar por nº doc o nombre..."
                           className={`w-full pl-4 pr-10 py-1.5 bg-white border rounded-xl focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all text-sm disabled:opacity-50
@@ -2403,15 +2408,41 @@ function BoletaContent() {
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
-                        disabled
+                        disabled={clienteVarios || (!nombreEditable && !errorCliente)}
                         value={
                           clienteVarios
                             ? "Clientes Varios"
                             : (boleta.cliente?.razonSocial ?? "")
                         }
+                        onChange={(e) => {
+                          setBoleta((prev: any) => ({
+                            ...prev,
+                            cliente: {
+                              ...prev.cliente,
+                              razonSocial: e.target.value,
+                              clienteId: null,
+                              tipoDocumento: tipoDoc,
+                              numeroDocumento: busqueda,
+                            },
+                          }));
+                        }}
                         placeholder="Nombre o razón social"
-                        className="w-full py-1.5 px-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-600 text-sm"
+                        className={`w-full py-1.5 px-3 border rounded-xl text-sm transition-all ${
+                          nombreEditable || errorCliente
+                            ? "bg-white border-blue-300 text-gray-800 focus:ring-2 focus:ring-blue-100 outline-none"
+                            : "bg-gray-100 border-gray-200 text-gray-600"
+                        }`}
                       />
+                      {!clienteVarios && !nombreEditable && !errorCliente && busqueda && (
+                        <button
+                          type="button"
+                          title="Ingresar nombre manualmente"
+                          onClick={() => setNombreEditable(true)}
+                          className="shrink-0 px-2 py-1 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          Manual
+                        </button>
+                      )}
                       {!clienteVarios &&
                         boleta.cliente?.clienteId === null &&
                         boleta.cliente?.razonSocial && (
@@ -2426,13 +2457,17 @@ function BoletaContent() {
                         )}
                     </div>
                     {errorCliente && (
-                      <p className="text-xs text-red-500">{errorCliente}</p>
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertTriangle size={12} className="shrink-0" /> {errorCliente} — escribe el nombre manualmente
+                      </p>
                     )}
                     {docInvalido && (
                       <p className="text-[10px] text-red-500 pl-1 mt-0.5">
                         {tipoDoc === "01"
                           ? "El DNI debe tener 8 dígitos"
-                          : "El RUC debe tener 11 dígitos"}
+                          : tipoDoc === "04"
+                            ? "El CE debe tener 9 dígitos"
+                            : "El RUC debe tener 11 dígitos"}
                       </p>
                     )}
                   </div>
