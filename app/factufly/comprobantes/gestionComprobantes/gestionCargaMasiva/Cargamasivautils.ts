@@ -148,13 +148,6 @@ export async function parsearExcel(file: File): Promise<{
       : UNIDADES_VALIDAS.includes(codigoCrudo) ? codigoCrudo // ya es un código válido
       : "NIU"; // cualquier otra cosa → NIU (evita textos largos)
     const moneda = celdaAString(row[6]) || "PEN";
-    const correoRaw = celdaAString(row[7]);
-    const correo = correoRaw || null;
-    // WhatsApp puede venir como número — convertir
-    const whatsappRaw = row[8];
-    const whatsapp = whatsappRaw !== null && whatsappRaw !== undefined && whatsappRaw !== ""
-      ? String(typeof whatsappRaw === "number" ? Math.floor(whatsappRaw) : whatsappRaw).trim()
-      : null;
 
     // Determinar si es fila de detalle (rucDni vacío y ya hay un grupo)
     const esFilaDetalle = !rucDni && !!ultimoRucDni;
@@ -170,11 +163,6 @@ export async function parsearExcel(file: File): Promise<{
         ultimoRucDni = rucDni;
       }
 
-      const errCorreo = validarCorreos(correo);
-      if (errCorreo) erroresFila.push(`Fila ${i + 1}: ${errCorreo}`);
-
-      const errWsp = validarWhatsapp(whatsapp);
-      if (errWsp) erroresFila.push(`Fila ${i + 1}: ${errWsp}`);
     }
 
     if (!detalle) erroresFila.push(`Fila ${i + 1}: Detalle vacío`);
@@ -192,8 +180,6 @@ export async function parsearExcel(file: File): Promise<{
       igv,
       unidadMedida,
       moneda,
-      correo,
-      whatsapp,
     });
   }
 
@@ -238,8 +224,6 @@ export function agruparComprobantes(filas: FilaExcel[]): ComprobanteAgrupado[] {
       tipoDoc,
       tipoComprobante,
       moneda: fila.moneda || "PEN",
-      correo: fila.correo || null,
-      whatsapp: fila.whatsapp || null,
       items: [item],
       consultandoApi: false,
       apiEncontrado: null,

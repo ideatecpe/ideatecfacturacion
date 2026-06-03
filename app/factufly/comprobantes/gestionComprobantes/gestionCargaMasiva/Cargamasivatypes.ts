@@ -7,8 +7,6 @@ export interface FilaExcel {
   igv: number;
   unidadMedida: string;
   moneda: string;
-  correo: string | null;
-  whatsapp: string | null;
 }
 
 // ─── Item de detalle agrupado ─────────────────────────────────────────────────
@@ -28,8 +26,6 @@ export interface ComprobanteAgrupado {
   tipoDoc: "01" | "06"; // 01=DNI, 06=RUC
   tipoComprobante: "03" | "01"; // 03=Boleta, 01=Factura
   moneda: string;
-  correo: string | null;
-  whatsapp: string | null;
   items: ItemAgrupado[];
 
   // Estado de consulta API

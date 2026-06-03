@@ -268,7 +268,12 @@ export default function ReportesPage() {
     const codEst = isSuperAdmin
       ? (modal.filtros.codEstablecimiento ?? null)
       : getCodEstablecimiento();
-    return { ...getParamsBase(), ...modal.filtros, codEstablecimiento: codEst };
+    const filtros = { ...getParamsBase(), ...modal.filtros, codEstablecimiento: codEst };
+    // Facturador siempre filtra por su propio usuarioCreacion — no puede ver datos de otros
+    if (!puedeVerUsuarios && user?.id) {
+      filtros.usuarioCreacion = user.id;
+    }
+    return filtros;
   };
 
   const handleDescargarListado = async (_filtros: typeof modal.filtros, formato: FormatoReporte) => {

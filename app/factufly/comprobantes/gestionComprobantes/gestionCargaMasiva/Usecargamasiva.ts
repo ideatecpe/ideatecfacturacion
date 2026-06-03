@@ -51,8 +51,6 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       { key: "E", width: 10 },
       { key: "F", width: 18 },
       { key: "G", width: 10 },
-      { key: "H", width: 30 },
-      { key: "I", width: 18 },
     ];
 
     const AZUL   = "2563EB";
@@ -62,7 +60,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
     const AMBER  = "FEF3C7";
 
     // ── Fila 1: Título ──────────────────────────────────────────────────────
-    ws.mergeCells("A1:I1");
+    ws.mergeCells("A1:G1");
     ws.getRow(1).height = 34;
     const t = ws.getCell("A1");
     t.value = "CARGA MASIVA DE COMPROBANTES — FACTUFLY";
@@ -72,7 +70,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
 
     // ── Fila 2: Instrucción + Fecha en I2 ──────────────────────────────────
     ws.getRow(2).height = 26;
-    ws.mergeCells("A2:I2");
+    ws.mergeCells("A2:G2");
     const instr = ws.getCell("A2");
     instr.value =
       "Una fila por ítem. Para múltiples ítems del mismo comprobante, deje RUC/DNI vacío en las filas siguientes. La Razón Social se autocompleta con el RUC/DNI.";
@@ -85,7 +83,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
     const hdrs = [
       "RUC / DNI", "Detalle / Descripción", "Cantidad",
       "Precio Unit. (c/IGV)", "IGV %", "Tipo (Bien/Servicio)",
-      "Moneda", "Correo Electrónico", "WhatsApp",
+      "Moneda",
     ];
     hdrs.forEach((h, i) => {
       const c = ws.getCell(3, i + 1);
@@ -103,11 +101,11 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
 
     // ── Filas 4-8: Datos de ejemplo ────────────────────────────────────────
     const ejemplos = [
-      ["20100454523", "Servicio de consultoría empresarial", 2,   590.00, 18, "Servicio",  "PEN", "empresa@cliente.com", ""],
-      ["",            "Licencia de software mensual",        1,   236.00, 18, "Servicio",  "PEN", "",                    ""],
-      ["12345678",    "Venta de notebook HP 15\" i5",        1,  3540.00, 18, "Bien",      "PEN", "jose@gmail.com, pepito@gmail.com", "987654321"],
-      ["20601234567", "Exportación de servicios TI",         5,   100.00, 18, "Servicio",  "USD", "corp@export.com",      ""],
-      ["87654321",    "Alquiler de equipos de cómputo",      3,   177.00, 18, "Bien",      "PEN", "",                    "961234567"],
+      ["20100454523", "Servicio de consultoría empresarial", 2,   590.00, 18, "Servicio", "PEN"],
+      ["",            "Licencia de software mensual",        1,   236.00, 18, "Servicio", "PEN"],
+      ["12345678",    "Venta de notebook HP 15\" i5",        1,  3540.00, 18, "Bien",     "PEN"],
+      ["20601234567", "Exportación de servicios TI",         5,   100.00, 18, "Servicio", "USD"],
+      ["87654321",    "Alquiler de equipos de cómputo",      3,   177.00, 18, "Bien",     "PEN"],
     ];
 
     ejemplos.forEach((row, ri) => {
@@ -156,8 +154,6 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       ["E - IGV %: Solo se aceptan los valores 18 o 10.5", false, "FF1E293B"],
       ["F - Tipo: Escriba 'Bien' (unidad NIU) o 'Servicio' (unidad ZZ).", false, "FF1E293B"],
       ["G - Moneda: PEN (soles) o USD (dólares).", false, "FF1E293B"],
-      ["H - Correo Electrónico (opcional): varios correos separados por coma.", false, "FF1E293B"],
-      ["I - WhatsApp (opcional): 9 dígitos empezando con 9. Ej: 987654321", false, "FF1E293B"],
       ["", false, "FF1E293B"],
       ["FECHA DE EMISIÓN:", true, `FF${AZUL}`],
       ["• Escriba la fecha en la celda I2 en formato DD/MM/YYYY. Ej: 20/05/2026", false, "FF1E293B"],
@@ -169,7 +165,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       ["", false, "FF1E293B"],
       ["MÚLTIPLES ÍTEMS EN UN MISMO COMPROBANTE:", true, `FF${AZUL}`],
       ["• Para añadir más ítems al mismo comprobante, deje la columna A (RUC/DNI) en BLANCO.", false, "FF1E293B"],
-      ["• Correo, WhatsApp y Moneda solo se leen en la primera fila del comprobante.", false, "FF1E293B"],
+      ["• La Moneda solo se lee en la primera fila del comprobante.", false, "FF1E293B"],
       ["", false, "FF1E293B"],
       ["IMPORTANTE:", true, "FFDC2626"],
       ["• Los comprobantes se guardan como PENDIENTE. Envíelos a SUNAT desde el módulo de comprobantes.", false, "FF1E293B"],
@@ -203,19 +199,63 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
     URL.revokeObjectURL(url);
   }, []);
 
-  // ── Consultar API por RUC o DNI ─────────────────────────────────────────────
+  // ── Buscar cliente en API local (/api/Cliente/ruc/{ruc}) ───────────────────
+  const buscarEnClientesLocales = useCallback(async (
+    numeroDocumento: string
+  ): Promise<{ razonSocial: string; ubigeo: string; direccionLineal: string; departamento: string; provincia: string; distrito: string } | null> => {
+    try {
+      const ruc = user?.ruc;
+      if (!ruc) return null;
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Cliente/ruc/${ruc}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const clientes: any[] = res.data ?? [];
+      const found = clientes.find((c: any) => c.numeroDocumento === numeroDocumento);
+      if (!found) return null;
+      return {
+        razonSocial: found.razonSocialNombre ?? "",
+        ubigeo: found.direcciones?.[0]?.ubigeo ?? "",
+        direccionLineal: found.direcciones?.[0]?.direccionLineal ?? "",
+        departamento: found.direcciones?.[0]?.departamento ?? "",
+        provincia: found.direcciones?.[0]?.provincia ?? "",
+        distrito: found.direcciones?.[0]?.distrito ?? "",
+      };
+    } catch {
+      return null;
+    }
+  }, [accessToken, user]);
+
+  // ── Consultar API por RUC o DNI — primero clientes locales, luego json.pe ──
   const consultarDocumento = useCallback(async (
     comp: ComprobanteAgrupado
   ): Promise<Partial<ComprobanteAgrupado>> => {
     try {
+      // 1️⃣ Buscar primero en clientes locales
+      const local = await buscarEnClientesLocales(comp.rucDni);
+      if (local) {
+        return {
+          apiEncontrado: true,
+          tieneAdvertencia: false,
+          apiError: null,
+          consultandoApi: false,
+          razonSocial: local.razonSocial || comp.razonSocial,
+          ubigeo: local.ubigeo,
+          direccionLineal: local.direccionLineal,
+          departamento: local.departamento,
+          provincia: local.provincia,
+          distrito: local.distrito,
+        };
+      }
+
+      // 2️⃣ No está en clientes locales → consultar json.pe
       if (comp.tipoDoc === "01") {
-        // DNI → advertencia si no encuentra, pero puede guardar
         const result = await consultaDni(comp.rucDni);
         if (!result) {
           return {
-            apiEncontrado: true, // puede guardar
+            apiEncontrado: true,
             tieneAdvertencia: true,
-            apiError: `DNI ${comp.rucDni} no encontrado en la API. Verifique el número y nombre antes de guardar.`,
+            apiError: `DNI ${comp.rucDni} no encontrado. Verifique el número y nombre antes de guardar.`,
             consultandoApi: false,
           };
         }
@@ -225,20 +265,15 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
           apiError: null,
           consultandoApi: false,
           razonSocial: result.nombreCompleto || comp.razonSocial,
-          ubigeo: "",
-          direccionLineal: "",
-          departamento: "",
-          provincia: "",
-          distrito: "",
+          ubigeo: "", direccionLineal: "", departamento: "", provincia: "", distrito: "",
         };
       } else {
-        // RUC → error bloqueante si no encuentra
         const result = await consultaRuc(comp.rucDni);
         if (!result) {
           return {
-            apiEncontrado: false, // bloquea guardado
+            apiEncontrado: false,
             tieneAdvertencia: false,
-            apiError: `RUC ${comp.rucDni} no encontrado. Corrija el Excel o emita este comprobante desde el módulo de emisión.`,
+            apiError: `RUC ${comp.rucDni} no encontrado. Corrija el Excel o emita desde el módulo de emisión.`,
             consultandoApi: false,
           };
         }
@@ -263,7 +298,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
         consultandoApi: false,
       };
     }
-  }, []);
+  }, [buscarEnClientesLocales]);
 
   // ── Cargar archivo Excel ────────────────────────────────────────────────────
   const cargarExcel = useCallback(async (file: File) => {
