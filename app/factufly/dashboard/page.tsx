@@ -674,9 +674,9 @@ export default function DashboardPage() {
               title="Notificaciones SUNAT"
               subtitle="Estado de comprobantes y alertas"
             >
-              <div className="space-y-2 mt-2">
+              <div className="space-y-0">
                 {/* Aceptados */}
-                <div className="flex gap-3 p-3 rounded-lg border border-transparent">
+                <div className="flex gap-3 p-2 rounded-lg border border-transparent">
                   <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-emerald-500" />
                   <div>
                     <p className="text-sm font-semibold text-gray-800">
@@ -689,7 +689,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Rechazados */}
-                <div className="flex gap-3 p-3 rounded-lg border border-transparent">
+                <div className="flex gap-3 p-2 rounded-lg border border-transparent">
                   <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-rose-500" />
                   <div>
                     <p className="text-sm font-semibold text-gray-800">
@@ -703,7 +703,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Pendientes */}
-                <div className="flex gap-3 p-3 rounded-lg border border-transparent">
+                <div className="flex gap-3 p-2 rounded-lg border border-transparent">
                   <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-amber-500" />
                   <div>
                     <p className="text-sm font-semibold text-gray-800">
@@ -795,7 +795,7 @@ export default function DashboardPage() {
                 <thead>
                   <tr style={{ background: "#F5F8FD" }}>
                     {["ID Comprobante", "Cliente", "Fecha", "Total", "Estado"].map((h) => (
-                      <th key={h} className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                      <th key={h} className="px-4 py-2 text-[10px] font-semibold text-gray-800 uppercase tracking-wider">
                         {h}
                       </th>
                     ))}
@@ -823,11 +823,11 @@ export default function DashboardPage() {
                         <td className="px-4 py-2 text-xs font-semibold text-[#0f2e64]">
                           {formatMoneda(doc.importeTotal)}
                         </td>
-                        <td className="px-4 py-2">
-                          <Badge variant={estadoSunatLabel(doc.estadoSunat)}>
-                            {doc.estadoSunat}
-                          </Badge>
-                        </td>
+<td className="px-4 py-2">
+  <Badge variant={estadoSunatLabel(doc.estadoSunat)} className="!text-[10px]">
+    {doc.estadoSunat}
+  </Badge>
+</td>
                       </tr>
                     ))
                   )}
