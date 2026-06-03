@@ -485,10 +485,10 @@ export default function DeudasPorCobrarPage() {
                 </tr>
               ) : (
                 filtered.map((d) => {
+                  const restante = d.saldoReal ?? (d.montoTotal - d.montoPagado);
                   const colorBadge =
                     ESTADO_CUOTA_COLORS[d.estado] ??
                     ESTADO_CUOTA_COLORS.PENDIENTE;
-                  const restante = d.montoTotal - d.montoPagado;
                   const yaEstaPagado = d.estado === "PAGADO";
                   return (
                     <tr
@@ -499,11 +499,19 @@ export default function DeudasPorCobrarPage() {
                         {formatFecha(d.fechaEmision)}
                       </td>
                       <td className="px-5 py-2 whitespace-nowrap w-44">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
                           {d.numeroCompleto}
+                          {d.tieneNotas && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
+                              NC/ND
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-gray-400">
                           {tipoComprobanteLabel(d.tipoComprobante)}
+                          {d.tipoMoneda === "USD" && (
+                            <span className="ml-1 text-[9px] font-bold text-blue-500">USD</span>
+                          )}
                         </p>
                       </td>
                       <td className="px-5 py-2">
@@ -514,8 +522,19 @@ export default function DeudasPorCobrarPage() {
                           {d.clienteNumDoc}
                         </p>
                       </td>
-                      <td className="px-5 py-2 text-sm font-semibold text-gray-900 text-right whitespace-nowrap w-32">
-                        {formatMoneda(d.montoTotal, d.tipoMoneda)}
+                      <td className="px-5 py-2 text-right whitespace-nowrap w-32">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatMoneda(d.montoTotal, d.tipoMoneda)}
+                        </p>
+                        {d.tieneNotas && (() => {
+                          const diff = d.saldoReal - d.montoTotal;
+                          const esNC = diff < 0;
+                          return (
+                            <p className={`text-[10px] font-medium ${esNC ? "text-red-500" : "text-blue-500"}`}>
+                              {esNC ? "NC" : "ND"}: {esNC ? "" : "+"}{formatMoneda(diff, d.tipoMoneda)}
+                            </p>
+                          );
+                        })()}
                       </td>
                       <td className="px-5 py-2 text-sm font-semibold text-emerald-600 text-right whitespace-nowrap w-32">
                         {formatMoneda(d.montoPagado, d.tipoMoneda)}
