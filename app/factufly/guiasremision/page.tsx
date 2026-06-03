@@ -107,7 +107,7 @@ export default function GuiasRemisionPage() {
   const [avFechaHasta, setAvFechaHasta] = useState("");
   const [avSerie, setAvSerie] = useState("");
   const [avNumero, setAvNumero] = useState("");
-  const hoy = new Date().toISOString().split("T")[0];
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
   const [loadingXmlMap, setLoadingXmlMap] = useState<Record<number, boolean>>(
     {},

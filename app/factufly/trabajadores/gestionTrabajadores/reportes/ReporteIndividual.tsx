@@ -36,7 +36,7 @@ export const ReporteIndividual: React.FC<Props> = ({
   const { showToast } = useToast();
 
   const [trabajadorId, setTrabajadorId] = useState<number>(0);
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
   const [fechaDesde, setFechaDesde] = useState(today);
   const [fechaHasta, setFechaHasta] = useState(today);
   const [reporte, setReporte] = useState<ReporteTrabajadorDTO | null>(null);

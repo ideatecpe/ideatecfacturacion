@@ -88,7 +88,7 @@ function generarNombreArchivo(filtro: ReporteProductosFiltro, ruc: string): stri
     partes.push(filtro.stockFiltro === "menor_a" ? `stock-menor-${filtro.stockValor}` : filtro.stockFiltro);
   }
 
-  const fecha = new Date().toISOString().slice(0, 10);
+  const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
   partes.push(fecha);
 
   return `${partes.join("_")}.xlsx`;

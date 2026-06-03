@@ -44,7 +44,7 @@ export const useReporteCuentasPorCobrar = (): UseReporteCuentasPorCobrarReturn =
       const urlBlob = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = urlBlob
-      a.download = `CuentasPorCobrar_${filtros.empresaRuc}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `CuentasPorCobrar_${filtros.empresaRuc}_${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date())}.xlsx`
       document.body.appendChild(a)
       a.click()
       a.remove()

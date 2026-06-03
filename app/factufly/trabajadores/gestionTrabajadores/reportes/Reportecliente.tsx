@@ -31,7 +31,7 @@ export const ReporteCliente: React.FC<Props> = ({ sucursalId }) => {
   const { showToast } = useToast();
 
   const [busqueda, setBusqueda] = useState("");
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
   const [fechaDesde, setFechaDesde] = useState(today);
   const [fechaHasta, setFechaHasta] = useState(today);
   const [resultados, setResultados] = useState<ReporteClienteDTO[]>([]);
