@@ -15,11 +15,16 @@ interface Props {
 
 export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
   const { accessToken } = useAuth();
-  const [asunto, setAsunto]   = useState("");
-  const [mensaje, setMensaje] = useState("");
-  const [sent, setSent]       = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [asunto, setAsunto]               = useState("");
+  const [mensaje, setMensaje]             = useState("");
+  const [sent, setSent]                   = useState(false);
+  const [loading, setLoading]             = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
+  const [notificarVencimiento, setNotificarVencimiento] = useState(false);
+  const [periodo, setPeriodo]             = useState<number>(1);
+  const [fechaVencimiento, setFechaVencimiento] = useState("");
+  const [monto, setMonto]                 = useState("");
+  const [placas, setPlacas]               = useState("");
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,19 +37,35 @@ export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
 
     setLoading(true);
     try {
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/email/send`,
-        {
-          toEmail: cliente.correo,
-          toName:  cliente.razonSocialNombre,
-          subject: asunto,
-          body:    mensaje,
-          tipo:    "0",
-        },
-        {
-          headers: { Authorization: `Bearer ${accessToken}` }, 
-        }
-      );
+      if (notificarVencimiento) {
+        const concepto = `servicio de monitoreo del vehículo de placa de rodaje ${placas}`;
+        const form = new FormData();
+        form.append("toEmail",          cliente.correo);
+        form.append("toName",           cliente.razonSocialNombre);
+        form.append("concepto",         concepto);
+        form.append("fechavencimiento", fechaVencimiento);
+        form.append("periodo",          String(periodo));
+        form.append("monto",            monto);
+        form.append("vencido",          "true");
+
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Email/notificar`,
+          form,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+      } else {
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/email/send`,
+          {
+            toEmail: cliente.correo,
+            toName:  cliente.razonSocialNombre,
+            subject: asunto,
+            body:    mensaje,
+            tipo:    "0",
+          },
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+      }
       setSent(true);
     } catch (err) {
       if (axios.isAxiosError(err)) {
@@ -97,30 +118,110 @@ export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
           )}
 
           {/* Asunto */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">Asunto</label>
-            <input
-              type="text"
-              value={asunto}
-              onChange={e => setAsunto(e.target.value)}
-              placeholder="Ej: Comprobante de pago - Mayo 2025"
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
-              required
-            />
-          </div>
+          {!notificarVencimiento && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-500 uppercase">Asunto</label>
+              <input
+                type="text"
+                value={asunto}
+                onChange={e => setAsunto(e.target.value)}
+                placeholder="Ej: Comprobante de pago - Mayo 2025"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                required={!notificarVencimiento}
+              />
+            </div>
+          )}
 
           {/* Mensaje */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">Mensaje</label>
-            <textarea
-              value={mensaje}
-              onChange={e => setMensaje(e.target.value)}
-              rows={4}
-              placeholder="Escribe tu mensaje aquí..."
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm resize-none"
-              required
+          {!notificarVencimiento && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-500 uppercase">Mensaje</label>
+              <textarea
+                value={mensaje}
+                onChange={e => setMensaje(e.target.value)}
+                rows={4}
+                placeholder="Escribe tu mensaje aquí..."
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm resize-none"
+                required={!notificarVencimiento}
+              />
+            </div>
+          )}
+
+          {/* Notificar vencimiento */}
+          <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={notificarVencimiento}
+              onChange={e => setNotificarVencimiento(e.target.checked)}
+              className="w-4 h-4 rounded accent-blue-600 cursor-pointer"
             />
-          </div>
+            <span className="text-sm font-semibold text-slate-700">Notificar vencimiento</span>
+          </label>
+
+          {notificarVencimiento && (
+            <div className="space-y-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              {/* Placas */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-500 uppercase">Placa(s)</label>
+                <input
+                  type="text"
+                  value={placas}
+                  onChange={e => setPlacas(e.target.value)}
+                  placeholder="Ej: M2L-777, AUX-898"
+                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                  required
+                />
+                <p className="text-xs text-slate-400">Si son varias, sepáralas con coma y espacio.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Periodo */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Periodo</label>
+                  <select
+                    value={periodo}
+                    onChange={e => setPeriodo(Number(e.target.value))}
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    required
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                      <option key={m} value={m}>
+                        {m === 12 ? "12 meses (1 año)" : `${m} ${m === 1 ? "mes" : "meses"}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Fecha vencimiento */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Fecha vencimiento</label>
+                  <input
+                    type="text"
+                    value={fechaVencimiento}
+                    onChange={e => setFechaVencimiento(e.target.value)}
+                    placeholder="Ej: 15 de junio"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    required
+                  />
+                </div>
+
+                {/* Monto */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Monto</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={monto}
+                    onChange={e => setMonto(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Acciones */}
           <div className="flex justify-end gap-3 pt-2">
