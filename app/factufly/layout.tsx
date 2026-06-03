@@ -131,12 +131,7 @@ export default function DashboardLayout({
     { id: "usuarios", label: "Usuarios", icon: UserCircle },
   ];
 
-  const esVelsatFacturador =
-    user?.ruc === "10073587382" && user?.rol === "facturador";
-
   const menuItems = todosLosMenuItems.filter((item) => {
-    // Para velsat con rol facturador: ocultar trabajadores y productos
-    if (esVelsatFacturador && (item.id === "trabajadores" || item.id === "productos")) return false;
     if (item.id === "trabajadores")      return config?.trabajadores ?? false;
     if (item.id === "guiasremision")     return config?.guiaRemision ?? false;
     if (item.id === "carga-comprobantes") return config?.cargaComprobantes ?? false;
@@ -147,7 +142,7 @@ export default function DashboardLayout({
 
   return (
     <ToastProvider>
-      <div className="h-screen flex bg-brand-light overflow-x-hidden">
+      <div className="h-screen flex overflow-x-hidden" style={{ background: "#F5F8FD" }}>
         {/* Backdrop oscuro al abrir sidebar en pantallas < 1280px */}
         {isSidebarOpen && (
           <div
@@ -167,7 +162,7 @@ export default function DashboardLayout({
             toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             activeView={activeView}
           />
-          <main className="flex-1 px-6 overflow-y-auto overflow-x-hidden custom-scrollbar py-2">
+          <main className="flex-1 p-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
             <div className="mx-auto">{children}</div>
           </main>
         </div>

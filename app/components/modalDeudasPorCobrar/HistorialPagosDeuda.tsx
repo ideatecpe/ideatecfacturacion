@@ -56,7 +56,7 @@ export const HistorialPagosDeuda = ({
   const [confirmEliminar, setConfirmEliminar] = useState<ConfirmEliminar | null>(null);
   const [errorEditar, setErrorEditar] = useState<string | null>(null);
 
-  const hoy = new Date().toLocaleDateString("en-CA");
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
   // ── Abrir edición ──────────────────────────────────────────────
   const abrirEdicion = (p: PagoDeudaContado) => {

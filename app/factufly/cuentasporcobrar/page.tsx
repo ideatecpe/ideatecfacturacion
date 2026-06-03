@@ -59,7 +59,7 @@ export default function CuentasPorCobrarPage() {
   const [avFechaHasta, setAvFechaHasta]                 = useState('');
   const [avClienteDoc, setAvClienteDoc]                 = useState('');
   const [showModalReporte, setShowModalReporte] = useState(false)
-  const hoy = new Date().toLocaleDateString('en-CA');
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
   const cargar = async () => {
     const data = await hookCuentas.fetchCuentas({

@@ -665,26 +665,29 @@ function NotaDebitoContent() {
   // ── Render ───────────────────────────────────────────────────
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="lg:col-span-2 space-y-3">
 
           {/* Header */}
-          <div className="flex items-center gap-4">
-           <Button
-            variant="ghost"
-            onClick={() => router.push("/factufly/operaciones")}
-            className="h-10 w-10 p-0 rounded-xl bg-gray-200 hover:bg-gray-300"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => router.push("/factufly/operaciones")}
+              className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
+              style={{ background: "rgba(15,46,100,0.08)" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(15,46,100,0.08)")}
+            >
+              <ChevronLeft className="w-4 h-4" style={{ color: "#0f2e64" }} />
+            </button>
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Nueva Nota de Débito</h3>
-              <p className="text-sm text-gray-500">Regresar a selección de comprobante</p>
+              <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>Nueva Nota de Débito</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">Emisión de comprobante electrónico</p>
             </div>
           </div>
 
           <Card >
-            <form className="space-y-6 ">
+            <form className="space-y-3">
 
               {/* ── Sucursal (superadmin) ── */}
               {isSuperAdmin && (
@@ -1062,7 +1065,9 @@ function NotaDebitoContent() {
                                       className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">−</button>
                                     <input type="number" min={1} step="1" value={d.cantidad}
                                       onChange={(e) => actualizarCantidad(i, e.target.value === "" ? "" : Number(e.target.value))}
-                                      className="w-12 py-1 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue" />
+                                      onWheel={(e) => e.currentTarget.blur()}
+                                      onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                                      className="w-12 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                     <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad) || 0) + 1)}
                                       className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">+</button>
                                   </div>
@@ -1074,10 +1079,12 @@ function NotaDebitoContent() {
                               {/* Monto con IGV + precio original debajo (motivo 02) */}
                               <td className="px-2 py-1.5">
                                 <div className="space-y-0.5">
-                                  <input type="number" min={0} step="0.01" value={d._montoConIgv ?? ""}
+                                  <input type="number" min={0} step="0.10" value={d._montoConIgv ?? ""}
                                     onChange={(e) => actualizarMontoConIgv(i, e.target.value === "" ? "" : Number(e.target.value))}
+                                    onWheel={(e) => e.currentTarget.blur()}
+                                    onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                     disabled={codMotivo === "01" && comprobante?.tipoPago === "Contado"}
-                                    className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono disabled:opacity-50 disabled:cursor-not-allowed" />
+                                    className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono disabled:opacity-50 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                   {/* Precio venta original — solo motivo 02 */}
                                   {codMotivo === "02" && d._precioVentaOriginal !== undefined && (
                                     <p className="text-[9px] text-right text-gray-400">

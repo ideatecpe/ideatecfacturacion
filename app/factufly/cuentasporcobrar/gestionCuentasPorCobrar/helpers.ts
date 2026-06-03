@@ -44,13 +44,13 @@ export const getEstadoCuota = (cuota: { estado: string | null; montoPagado: numb
 }
 
 export const getCuotaVencida = (fechaVencimiento: string): boolean => {
-  const hoy = new Date().toLocaleDateString('en-CA')
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date())
   const venc = fechaVencimiento.split('T')[0]
   return venc < hoy
 }
 
 export const getDiasVencida = (fechaVencimiento: string): number => {
-  const hoy = new Date().toLocaleDateString('en-CA')
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date())
   const venc = fechaVencimiento.split('T')[0]
   if (venc >= hoy) return 0
   const diff = new Date(hoy).getTime() - new Date(venc).getTime()

@@ -793,26 +793,29 @@ function NotaCreditoContent() {
   // ── Render ───────────────────────────────────────────────────
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6  py-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="lg:col-span-2 space-y-3">
 
           {/* Header */}
-          <div className="flex items-center gap-4 ">
-                     <Button
-            variant="ghost"
-            onClick={() => router.push("/factufly/operaciones")}
-            className="h-10 w-10 p-0 rounded-xl bg-gray-200 hover:bg-gray-300"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => router.push("/factufly/operaciones")}
+              className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
+              style={{ background: "rgba(15,46,100,0.08)" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(15,46,100,0.08)")}
+            >
+              <ChevronLeft className="w-4 h-4" style={{ color: "#0f2e64" }} />
+            </button>
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Nueva Nota de Crédito</h3>
-              <p className="text-sm text-gray-500">Regresar a selección de comprobante</p>
+              <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>Nueva Nota de Crédito</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">Emisión de comprobante electrónico</p>
             </div>
           </div>
 
           <Card >
-            <form className="space-y-4">
+            <form className="space-y-3">
 
               {/* ── Sucursal (superadmin) ── */}
               {isSuperAdmin && (
@@ -1173,9 +1176,9 @@ function NotaCreditoContent() {
                                       <div className="flex items-center gap-1">
                                         <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad)||0) - 1)}
                                           className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">−</button>
-                                        <input type="number" min={0} max={detallesOriginales[i]?.cantidad ? Number(detallesOriginales[i].cantidad) : undefined} step="0.01" value={d.cantidad}
+                                        <input type="number" min={0} max={detallesOriginales[i]?.cantidad ? Number(detallesOriginales[i].cantidad) : undefined} step="0.10" value={d.cantidad} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                           onChange={(e) => actualizarCantidad(i, e.target.value)}
-                                          className="w-14 py-1 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue" />
+                                          className="w-14 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                         <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad)||0) + 1)}
                                           className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">+</button>
                                       </div>
@@ -1192,15 +1195,15 @@ function NotaCreditoContent() {
                                 <td className="px-2 py-1.5">
                                   {puedeEditarPrecioReferencial ? (
                                     // Motivo 08: precio referencial con IGV
-                                    <input type="number" min={0} step="0.01" value={d.mtoPrecioUnitario}
+                                    <input type="number" min={0} step="0.10" value={d.mtoPrecioUnitario} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                       onChange={(e) => actualizarPrecioReferencial(i, Number(e.target.value))}
-                                      className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono" />
+                                      className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                   ) : puedeIngresarMontoConIgv ? (
                                     // Motivos 04/05/09: monto CON igv
                                     <div className="space-y-0.5">
-                                      <input type="number" min={0} step="0.01" value={d._montoConIgv ?? ""}
+                                      <input type="number" min={0} step="0.10" value={d._montoConIgv ?? ""} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                         onChange={(e) => actualizarMontoConIgv(i, e.target.value)}
-                                        className={`w-full py-1 px-1 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono ${excede ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`} />
+                                        className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${excede ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`} />
                                       {/* Máximo permitido debajo del input */}
                                       {maxDesc !== undefined && (
                                         <p className={`text-[9px] text-right ${excede ? "text-red-500" : "text-gray-400"}`}>
@@ -1210,9 +1213,9 @@ function NotaCreditoContent() {
                                     </div>
                                   ) : puedeEditarLibre ? (
                                     // Motivo 10: edición libre sin IGV
-                                    <input type="number" min={0} step="0.01" value={d.mtoValorUnitario}
+                                    <input type="number" min={0} step="0.10" value={d.mtoValorUnitario} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                       onChange={(e) => actualizarPrecioLibre(i, Number(e.target.value))}
-                                      className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono" />
+                                      className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                   ) : (
                                     <span className="text-xs text-gray-700 text-right block font-mono">
                                       {d.tipAfeIgv === 15 ? d.mtoPrecioUnitario.toFixed(2) : d.mtoValorUnitario.toFixed(2)}

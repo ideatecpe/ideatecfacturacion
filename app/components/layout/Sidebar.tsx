@@ -23,72 +23,87 @@ export const Sidebar = ({
   return (
     <aside
       className={cn(
-        "bg-brand-dark text-white transition-all duration-300 flex flex-col fixed inset-y-0 z-50 xl:relative h-full overflow-hidden",
-        isOpen ? "w-64" : "w-20",
+        "flex flex-col fixed inset-y-0 z-50 xl:relative h-full overflow-hidden transition-all duration-300",
+        isOpen ? "w-54" : "w-[72px]",
         isOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
       )}
+      style={{ background: "#0f2e64" }}
     >
-      <div className="px-4 py-6 flex items-center gap-3 shrink-0">
-        <div className="w-13 h-11 rounded-xl  flex items-center justify-center shrink-0">
-          <img
-            src="/logofnsb.png"
-            alt=""
-            className="w-12 h-12 object-contain"
-          />
+      {/* Logo */}
+      <div className={cn("flex items-center gap-3 px-4 h-16 shrink-0", !isOpen && "justify-center px-0")}>
+        <div
+          className="shrink-0 flex items-center justify-center rounded-lg"
+          style={{ width: 36, height: 36, background: "rgba(255,255,255,0.1)" }}
+        >
+          <img src="/logofnsb.png" alt="" className="w-7 h-7 object-contain" />
         </div>
         {isOpen && (
-          <div className="overflow-hidden whitespace-nowrap flex flex-col">
-            <h1 className="text-2xl font-extrabold text-blue-50 tracking-tight leading-tight">
-              FACTU<span className="text-[#f15050]">FLY</span>
-            </h1>
-            <p className="text-[10px] text-blue-50/70 font-medium tracking-wide">
-              Sistema de Facturación
-            </p>
-          </div>
+          <h1 className="text-[17px] font-extrabold tracking-tight text-white leading-none">
+            FACTU<span style={{ color: "#f15050" }}>FLY</span>
+          </h1>
         )}
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1 custom-scrollbar overflow-y-auto overflow-x-hidden w-full">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onViewChange(item.id)}
-            className={cn(
-              "w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all group relative overflow-hidden",
-              !isOpen && "justify-center",
-              activeView === item.id
-                ? "bg-brand-blue text-white shadow-md shadow-blue-900/20"
-                : "text-gray-400 hover:bg-white/5 hover:text-white",
-            )}
-          >
-            <item.icon
+      {/* Línea divisoria */}
+      <div className="shrink-0 mx-4 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
+
+      {/* Navegación */}
+      <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden custom-scrollbar">
+        {menuItems.map((item) => {
+          const active = activeView === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => onViewChange(item.id)}
               className={cn(
-                "w-5 h-5 shrink-0 transition-transform group-hover:scale-110",
-                activeView === item.id ? "text-white" : "text-gray-400",
+                "relative w-full flex items-center gap-3 px-3 py-2 rounded-lg group transition-colors duration-150",
+                !isOpen && "justify-center",
+                active
+                  ? "bg-white/[0.12] text-white"
+                  : "text-white/50 hover:text-white/90 hover:bg-white/[0.06]",
               )}
-            />
-            {isOpen && (
-              <span className="font-medium text-sm truncate">{item.label}</span>
-            )}
-            {!isOpen && (
-              <div className="fixed left-20 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-999">
-                {item.label}
-              </div>
-            )}
-          </button>
-        ))}
+            >
+              {/* Indicador activo */}
+              {active && (
+                <span
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
+                  style={{ background: "#f15050" }}
+                />
+              )}
+
+              <item.icon className={cn("w-[18px] h-[18px] shrink-0", active ? "text-white" : "text-white/50 group-hover:text-white/90")} />
+
+              {isOpen && (
+                <span className="text-[13px] font-medium truncate">{item.label}</span>
+              )}
+
+              {/* Tooltip */}
+              {!isOpen && (
+                <span
+                  className="pointer-events-none absolute left-[68px] px-2.5 py-1 rounded-md text-[12px] font-medium text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                  style={{ background: "#0a1f45", border: "1px solid rgba(255,255,255,0.1)" }}
+                >
+                  {item.label}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </nav>
 
-      <div className="p-4 border-t border-white/5 shrink-0">
+      {/* Línea + Logout */}
+      <div className="shrink-0 px-3 pb-4">
+        <div className="mx-1 mb-3 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
         <button
           onClick={handleLogout}
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-3 rounded-xl text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-all group",
+            "w-full flex items-center gap-3 px-3 py-2 rounded-lg group transition-colors duration-150",
+            "text-white/40 hover:text-red-400 hover:bg-red-500/[0.08]",
             !isOpen && "justify-center",
           )}
         >
-          <LogOut className="w-5 h-5 shrink-0" />
-          {isOpen && <span className="font-medium text-sm">Cerrar Sesión</span>}
+          <LogOut className="w-[18px] h-[18px] shrink-0 transition-transform duration-150 group-hover:translate-x-0.5" />
+          {isOpen && <span className="text-[13px] font-medium">Cerrar Sesión</span>}
         </button>
       </div>
     </aside>

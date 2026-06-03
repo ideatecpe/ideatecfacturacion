@@ -34,69 +34,52 @@ export default function BoletaFacturaElectronicaPage() {
 
   return (
     <div className="flex flex-col h-full space-y-2">
-      {/* Cabecera — mismo grid que el contenido (3 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 animate-in fade-in duration-500">
-        {/* Col izquierda: volver + título (ocupa 2/3) */}
-        <div className="lg:col-span-2 flex items-center gap-3">
-          <Button
-            variant="ghost"
-            onClick={() => router.push("/factufly/operaciones")}
-            className="h-8 w-8 p-0 rounded-xl bg-gray-200 hover:bg-gray-300 shrink-0"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-          <div>
-            <h3 className="text-base font-bold text-gray-900">
-              {tipo === "boleta" ? "Nueva Boleta de Venta" : "Nueva Factura Electrónica"}
-            </h3>
-            <p className="text-sm text-gray-500">Regresar a selección de comprobante</p>
-          </div>
+      {/* Cabecera */}
+      <div className="flex items-center gap-3 animate-in fade-in duration-300">
+        {/* Volver */}
+        <button
+          type="button"
+          onClick={() => router.push("/factufly/operaciones")}
+          className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
+          style={{ background: "rgba(15,46,100,0.08)" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "rgba(15,46,100,0.08)")}
+        >
+          <ChevronLeft className="w-4 h-4" style={{ color: "#0f2e64" }} />
+        </button>
+
+        {/* Título */}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>
+            {tipo === "boleta" ? "Nueva Boleta de Venta" : "Nueva Factura Electrónica"}
+          </h3>
+          <p className="text-[11px] text-slate-400 mt-0.5">Emisión de comprobante electrónico</p>
         </div>
 
-        {/* Col derecha: toggle alineado con Vista Previa (ocupa 1/3) */}
-
-
-
-
-<div className="flex w-full bg-gray-100 rounded-2xl p-1 gap-0.5">
-  <button
-    type="button"
-    onClick={() => setTipo("boleta")}
-    className={`flex-1 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-      tipo === "boleta"
-        ? "bg-brand-blue text-white shadow-md"
-        : "text-gray-400 hover:text-gray-600 hover:bg-white/50"
-    }`}
-  >
-    Boleta
-  </button>
-  <button
-    type="button"
-    onClick={() => setTipo("factura")}
-    className={`flex-1 py-1.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-      tipo === "factura"
-        ? "bg-brand-blue text-white shadow-md"
-        : "text-gray-400 hover:text-gray-600 hover:bg-white/50"
-    }`}
-  >
-    Factura
-  </button>
-</div>
-
-
+        {/* Toggle Boleta / Factura */}
+        <div
+          className="flex p-0.5 rounded-lg shrink-0"
+          style={{ background: "rgba(15,46,100,0.07)", border: "1px solid rgba(15,46,100,0.1)" }}
+        >
+          {(["boleta", "factura"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTipo(t)}
+              className="px-4 py-1.5 rounded-md text-xs font-semibold transition-all duration-150"
+              style={tipo === t
+                ? { background: "#0f2e64", color: "white", boxShadow: "0 1px 4px rgba(15,46,100,0.3)" }
+                : { color: "rgba(15,46,100,0.5)" }
+              }
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Contenido */}
       <div className="flex-1">
-        {/* MODO SIMPLE — oculto temporalmente
-        {complejidad === "simple" ? (
-          <EmisionRapidaPage tipoExterno={tipo} />
-        ) : tipo === "boleta" ? (
-          <BoletaPage />
-        ) : (
-          <FacturaPage />
-        )}
-        */}
         {tipo === "boleta" ? <BoletaPage /> : <FacturaPage />}
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FacturaCliente } from './Factura'
 import { consultaRuc } from '@/app/components/apiConsultasJsonPe/consultaRuc'
+import { consultaCe } from '@/app/components/apiConsultasJsonPe/consultaCe'
 
 export function useClienteFactura() {
   const [cliente, setCliente] = useState<Partial<FacturaCliente> | null>(null)
@@ -33,17 +34,22 @@ export function useClienteFactura() {
           setErrorCliente('RUC no encontrado')
         }
       } else if (tipoDoc === '04') {
-        setCliente({
-          clienteId: null,
-          tipoDocumento: tipoDoc,
-          numeroDocumento: numeroDoc,
-          razonSocial: '',
-          ubigeo: '',
-          direccionLineal: '',
-          departamento: '',
-          provincia: '',
-          distrito: '',
-        })
+        const result = await consultaCe(numeroDoc)
+        if (result) {
+          setCliente({
+            clienteId: null,
+            tipoDocumento: tipoDoc,
+            numeroDocumento: numeroDoc,
+            razonSocial: result.nombreCompleto,
+            ubigeo: '',
+            direccionLineal: '',
+            departamento: '',
+            provincia: '',
+            distrito: '',
+          })
+        } else {
+          setErrorCliente('No se encontró el Carnet de Extranjería.')
+        }
       }
     } catch {
       setErrorCliente('No se pudo encontrar el cliente')

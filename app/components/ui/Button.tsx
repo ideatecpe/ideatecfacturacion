@@ -3,7 +3,7 @@ import { cn } from '../../utils/cn';
 
 export const Button = ({ children, variant = 'primary', className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' }) => {
   const variants = {
-    primary: "bg-brand-blue text-white hover:bg-blue-700 shadow-sm",
+    primary: "bg-[#0f2e64] text-white hover:bg-[#0a2050] shadow-sm",
     secondary: "bg-brand-red text-white hover:bg-red-700 shadow-sm",
     outline: "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50",
     ghost: "bg-transparent text-gray-600 hover:bg-gray-100",

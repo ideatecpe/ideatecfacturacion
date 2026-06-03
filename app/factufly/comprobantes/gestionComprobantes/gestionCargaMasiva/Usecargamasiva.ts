@@ -18,7 +18,7 @@ function calcItem(item: { precioUnitario: number; cantidad: number; igvPct: numb
 // ── Hook principal ─────────────────────────────────────────────────────────────
 export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
   const [state, setState] = useState<CargaMasivaState>({
-    fechaEmision: new Date().toISOString().split("T")[0],
+    fechaEmision: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date()),
     comprobantes: [],
     erroresGlobales: [],
     cargando: false,
@@ -72,36 +72,13 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
 
     // ── Fila 2: Instrucción + Fecha en I2 ──────────────────────────────────
     ws.getRow(2).height = 26;
-    ws.mergeCells("A2:G2");
+    ws.mergeCells("A2:I2");
     const instr = ws.getCell("A2");
     instr.value =
       "Una fila por ítem. Para múltiples ítems del mismo comprobante, deje RUC/DNI vacío en las filas siguientes. La Razón Social se autocompleta con el RUC/DNI.";
     instr.font = { name: "Calibri", size: 9, italic: true, color: { argb: "FF92400E" } };
     instr.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${AMBER}` } };
     instr.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-
-    const labelF = ws.getCell("H2");
-    labelF.value = "Fecha Emisión:";
-    labelF.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FF1E293B" } };
-    labelF.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${PALE}` } };
-    labelF.alignment = { horizontal: "right", vertical: "middle" };
-
-    const hoy = new Date();
-    const dd = String(hoy.getDate()).padStart(2, "0");
-    const mm = String(hoy.getMonth() + 1).padStart(2, "0");
-    const yyyy = hoy.getFullYear();
-
-    const dateC = ws.getCell("I2");
-    dateC.value = `${dd}/${mm}/${yyyy}`;
-    dateC.font = { name: "Calibri", size: 11, bold: true, color: { argb: `FF${AZUL}` } };
-    dateC.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${PALE}` } };
-    dateC.alignment = { horizontal: "center", vertical: "middle" };
-    dateC.border = {
-      top:    { style: "medium", color: { argb: `FF${AZUL}` } },
-      bottom: { style: "medium", color: { argb: `FF${AZUL}` } },
-      left:   { style: "medium", color: { argb: `FF${AZUL}` } },
-      right:  { style: "medium", color: { argb: `FF${AZUL}` } },
-    };
 
     // ── Fila 3: Encabezados de columnas ────────────────────────────────────
     ws.getRow(3).height = 30;
@@ -308,18 +285,6 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
           cargando: false,
           erroresGlobales,
           comprobantes: [],
-          fechaEmision: fechaEmision || prev.fechaEmision,
-        }));
-        return;
-      }
-
-      const errFecha = validarFechaEmision(fechaEmision);
-      if (errFecha) {
-        setState((prev) => ({
-          ...prev,
-          cargando: false,
-          erroresGlobales: [errFecha],
-          comprobantes: [],
         }));
         return;
       }
@@ -328,7 +293,6 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       const agrupados = agruparComprobantes(filas);
       setState((prev) => ({
         ...prev,
-        fechaEmision,
         comprobantes: agrupados.map((c) => ({ ...c, consultandoApi: true })),
         erroresGlobales: [],
       }));
@@ -536,7 +500,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
   // ── Reset ───────────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
     setState({
-      fechaEmision: new Date().toISOString().split("T")[0],
+      fechaEmision: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date()),
       comprobantes: [],
       erroresGlobales: [],
       cargando: false,

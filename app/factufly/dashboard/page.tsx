@@ -242,164 +242,60 @@ const DesgloseNotasCard: React.FC<{
       title="Desglose de Notas"
       subtitle="Impacto de notas de crédito y débito según fecha del documento afectado"
     >
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mt-1">
         {/* NC del día */}
-        <div className="p-2 rounded-xl border border-rose-100 bg-rose-50/50">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 rounded-lg bg-rose-100">
-              <TrendingDown size={14} className="text-rose-600" />
-            </div>
-            <p className="text-xs font-semibold text-rose-700 uppercase tracking-wide">
-              NC · Día actual
-            </p>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-rose-100 bg-rose-50/50">
+          <TrendingDown size={13} className="text-rose-500 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-rose-600 uppercase tracking-wide">NC · Hoy</p>
+            <p className="text-sm font-bold text-rose-700 truncate">{formatMoneda(ncDia)}</p>
           </div>
-          <p className="text-lg font-bold text-rose-700">
-            {formatMoneda(ncDia)}
-          </p>
-          <p className="text-[11px] text-rose-500 mt-1">
-            Afectan documentos emitidos hoy
-          </p>
         </div>
 
         {/* ND del día */}
-        <div className="p-2 rounded-xl border border-emerald-100 bg-emerald-50/50">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 rounded-lg bg-emerald-100">
-              <TrendingUp size={14} className="text-emerald-600" />
-            </div>
-            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-              ND · Día actual
-            </p>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-100 bg-emerald-50/50">
+          <TrendingUp size={13} className="text-emerald-500 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">ND · Hoy</p>
+            <p className="text-sm font-bold text-emerald-700 truncate">{formatMoneda(ndDia)}</p>
           </div>
-          <p className="text-lg font-bold text-emerald-700">
-            {formatMoneda(ndDia)}
-          </p>
-          <p className="text-[11px] text-emerald-500 mt-1">
-            Afectan documentos emitidos hoy
-          </p>
         </div>
 
         {/* NC otras fechas */}
-        <div
-          className={cn(
-            "p-2 rounded-xl border",
-            hayNotasOtrasFechas
-              ? "border-amber-100 bg-amber-50/50"
-              : "border-gray-100 bg-gray-50/50",
-          )}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <div
-              className={cn(
-                "p-1.5 rounded-lg",
-                hayNotasOtrasFechas ? "bg-amber-100" : "bg-gray-100",
-              )}
-            >
-              <ArrowLeftRight
-                size={14}
-                className={
-                  hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400"
-                }
-              />
-            </div>
-            <p
-              className={cn(
-                "text-xs font-semibold uppercase tracking-wide",
-                hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400",
-              )}
-            >
-              NC · Otras fechas
-            </p>
+        <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border",
+          hayNotasOtrasFechas ? "border-amber-100 bg-amber-50/50" : "border-gray-100 bg-gray-50/40")}>
+          <ArrowLeftRight size={13} className={hayNotasOtrasFechas ? "text-amber-500 shrink-0" : "text-gray-300 shrink-0"} />
+          <div className="min-w-0">
+            <p className={cn("text-[10px] font-semibold uppercase tracking-wide", hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400")}>NC · Anteriores</p>
+            <p className={cn("text-sm font-bold truncate", hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400")}>{formatMoneda(ncOtras)}</p>
           </div>
-          <p
-            className={cn(
-              "text-lg font-bold",
-              hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400",
-            )}
-          >
-            {formatMoneda(ncOtras)}
-          </p>
-          <p
-            className={cn(
-              "text-[11px] mt-1",
-              hayNotasOtrasFechas ? "text-amber-500" : "text-gray-400",
-            )}
-          >
-            Afectan documentos de días anteriores
-          </p>
         </div>
 
         {/* ND otras fechas */}
-        <div
-          className={cn(
-            "p-2 rounded-xl border",
-            hayNotasOtrasFechas
-              ? "border-amber-100 bg-amber-50/50"
-              : "border-gray-100 bg-gray-50/50",
-          )}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <div
-              className={cn(
-                "p-1.5 rounded-lg",
-                hayNotasOtrasFechas ? "bg-amber-100" : "bg-gray-100",
-              )}
-            >
-              <ArrowLeftRight
-                size={14}
-                className={
-                  hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400"
-                }
-              />
-            </div>
-            <p
-              className={cn(
-                "text-xs font-semibold uppercase tracking-wide",
-                hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400",
-              )}
-            >
-              ND · Otras fechas
-            </p>
+        <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border",
+          hayNotasOtrasFechas ? "border-amber-100 bg-amber-50/50" : "border-gray-100 bg-gray-50/40")}>
+          <ArrowLeftRight size={13} className={hayNotasOtrasFechas ? "text-amber-500 shrink-0" : "text-gray-300 shrink-0"} />
+          <div className="min-w-0">
+            <p className={cn("text-[10px] font-semibold uppercase tracking-wide", hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400")}>ND · Anteriores</p>
+            <p className={cn("text-sm font-bold truncate", hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400")}>{formatMoneda(ndOtras)}</p>
           </div>
-          <p
-            className={cn(
-              "text-lg font-bold",
-              hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400",
-            )}
-          >
-            {formatMoneda(ndOtras)}
-          </p>
-          <p
-            className={cn(
-              "text-[11px] mt-1",
-              hayNotasOtrasFechas ? "text-amber-500" : "text-gray-400",
-            )}
-          >
-            Afectan documentos de días anteriores
-          </p>
         </div>
-      </div>
 
-      {/* Resumen neto */}
-      <div className="mt-4 p-2 rounded-xl border border-blue-100 bg-blue-50/50 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
-            Ventas Netas del Día
-          </p>
-          <p className="text-[11px] text-blue-500 mt-0.5">
-            Ventas brutas + ND del día − NC del día
-          </p>
+        {/* Ventas netas */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#D9E4F5] bg-[#EEF3FB]">
+          <BarChart3 size={13} className="text-[#0f2e64] shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-[#0f2e64]/60 uppercase tracking-wide">Netas del Día</p>
+            <p className="text-sm font-bold text-[#0f2e64] truncate">{formatMoneda(dashboard?.ventasNetas ?? 0)}</p>
+            <p className="text-[9px] text-[#0f2e64]/40 mt-0.5">Brutas + ND − NC del día</p>
+          </div>
         </div>
-        <p className="text-xl font-bold text-blue-700">
-          {formatMoneda(dashboard?.ventasNetas ?? 0)}
-        </p>
       </div>
 
       {hayNotasOtrasFechas && (
-        <p className="text-[11px] text-amber-600 mt-3 flex items-center gap-1">
-          <AlertTriangle size={11} />
-          Existen notas que afectan documentos de días anteriores y no impactan
-          las ventas netas de hoy.
+        <p className="text-[10px] text-amber-600 mt-2 flex items-center gap-1">
+          <AlertTriangle size={10} />
+          Hay notas que afectan documentos de días anteriores.
         </p>
       )}
     </Card>
@@ -512,44 +408,44 @@ export default function DashboardPage() {
       label: "Ventas del Día",
       value: formatMoneda(dashboard?.ventasDelDia ?? 0),
       icon: BarChart3,
-      color: "text-brand-red",
-      bg: "bg-red-50",
+      color: "text-[#0f2e64]",
+      bar: "bg-[#0f2e64]",
     },
     {
       label: "Ventas Netas",
       value: formatMoneda(dashboard?.ventasNetas ?? 0),
       icon: TrendingUp,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
+      color: "text-blue-500",
+      bar: "bg-blue-500",
     },
     {
       label: "Facturas Emitidas",
       value: String(dashboard?.facturasEmitidas ?? 0),
       icon: FileText,
       color: "text-emerald-600",
-      bg: "bg-emerald-50",
+      bar: "bg-emerald-500",
     },
     {
       label: "Boletas Emitidas",
       value: String(dashboard?.boletasEmitidas ?? 0),
       icon: FileText,
-      color: "text-purple-600",
-      bg: "bg-purple-50",
+      color: "text-violet-600",
+      bar: "bg-violet-500",
     },
     {
       label: "N. de Crédito",
       value: String(dashboard?.notasCreditoEmitidas ?? 0),
       icon: TrendingDown,
       color: "text-rose-600",
-      bg: "bg-rose-50",
+      bar: "bg-rose-500",
     },
     {
       label: "N. de Débito",
       value: String(dashboard?.notasDebitoEmitidas ?? 0),
-      icon: FileText,
-      color: "text-orange-600",
-      bg: "bg-orange-50",
-    }
+      icon: TrendingUp,
+      color: "text-orange-500",
+      bar: "bg-orange-500",
+    },
   ];
 
   const isPageLoading = loading || isAuthLoading || (!dashboard && !error);
@@ -569,7 +465,7 @@ export default function DashboardPage() {
       )}
 
       {/* ─── Header ─────────────────────────────────────────────────── */}
-      <div className="mb-4 flex items-center justify-between gap-4">
+      <div className="mb-3 flex items-center justify-between gap-4 ">
         <div className="flex items-center gap-3">
           {isSuperAdmin && (
             <DropdownSucursal
@@ -578,15 +474,15 @@ export default function DashboardPage() {
               onSelect={handleSucursalChange}
             />
           )}
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2.5 hover:border-gray-300 hover:shadow-md">
-            <Calendar size={14} className="text-gray-400 shrink-0" />
-            <span className="text-[14px] text-gray-800 font-medium">Fecha</span>
+          <div className="flex items-center gap-2 bg-white border border-[#E2EAF6] rounded-lg px-3 py-3 hover:border-[#0f2e64]/30 transition-colors">
+            <Calendar size={13} className="text-slate-400 shrink-0" />
+            <span className="text-xs text-slate-500 font-medium">Fecha</span>
             <input
               type="date"
               value={fecha}
               max={getFechaHoy()}
               onChange={(e) => handleFechaChange(e.target.value)}
-              className="text-sm text-gray-700 border-none outline-none bg-transparent cursor-pointer"
+              className="text-xs text-[#0f2e64] font-medium border-none outline-none bg-transparent cursor-pointer"
             />
           </div>
         </div>
@@ -619,44 +515,45 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="space-y-4 animate-in fade-in duration-500">
-        {/* ─── KPI Grid (7 cards) ─────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+      <div className="space-y-3 animate-in fade-in duration-500">
+        {/* ─── KPI Grid ────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           {isPageLoading
-            ? Array.from({ length: 7 }).map((_, i) => (
+            ? Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i} className="p-0">
                   <div className="p-3 flex items-center gap-3">
-                    <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Skeleton className="h-3 w-20" />
-                      <Skeleton className="h-5 w-16" />
+                    <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <Skeleton className="h-2.5 w-16" />
+                      <Skeleton className="h-4 w-14" />
                     </div>
                   </div>
                 </Card>
               ))
             : kpis.map((kpi, i) => (
-                <Card key={i} className="p-0">
-                  <div className="p-1 flex items-center gap-3">
-                    <div className={cn("p-2 rounded-xl shrink-0", kpi.bg)}>
-                      <kpi.icon className={cn("w-5 h-5", kpi.color)} />
-                    </div>
+                <div
+                  key={i}
+                  className="bg-white rounded-xl border border-[#E2EAF6] overflow-hidden flex shadow-sm"
+                >
+                  <div className="flex-1 px-3 py-2.5 flex items-center gap-2.5 min-w-0">
+                    <kpi.icon className={cn("w-4 h-4 shrink-0", kpi.color)} />
                     <div className="min-w-0">
-                      <p className="text-[12px] font-medium text-gray-700 uppercase">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                         {kpi.label}
                       </p>
-                      <p className="text-[15px] font-bold text-gray-900 mt-0.5 truncate">
+                      <p className="text-sm font-bold text-[#0f2e64] mt-0.5 truncate">
                         {kpi.value}
                       </p>
                     </div>
                   </div>
-                </Card>
+                </div>
               ))}
         </div>
 
         {/* ─── Desglose de Notas ──────────────────────────────────────── */}
         <DesgloseNotasCard dashboard={dashboard} loading={isPageLoading} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           {/* ─── Gráfico de ventas ──────────────────────────────────────── */}
           {isPageLoading ? (
             <Card className="lg:col-span-2">
@@ -676,7 +573,7 @@ export default function DashboardPage() {
               title="Rendimiento de Ventas"
               subtitle="Resumen de los últimos 7 días"
             >
-              <div className="h-80 w-full mt-4 min-h-0">
+              <div className="h-56 w-full mt-2 min-h-0">
                 {!dashboard || chartData.every((d) => d.sales === 0) ? (
                   <div className="h-full flex items-center justify-center text-gray-400 text-sm">
                     Sin datos en el período seleccionado
@@ -694,12 +591,12 @@ export default function DashboardPage() {
                         >
                           <stop
                             offset="5%"
-                            stopColor="#0052CC"
-                            stopOpacity={0.1}
+                            stopColor="#0f2e64"
+                            stopOpacity={0.12}
                           />
                           <stop
                             offset="95%"
-                            stopColor="#0052CC"
+                            stopColor="#0f2e64"
                             stopOpacity={0}
                           />
                         </linearGradient>
@@ -735,7 +632,7 @@ export default function DashboardPage() {
                       <Area
                         type="monotone"
                         dataKey="sales"
-                        stroke="#0052CC"
+                        stroke="#0f2e64"
                         strokeWidth={2}
                         fillOpacity={1}
                         fill="url(#colorSales)"
@@ -776,7 +673,6 @@ export default function DashboardPage() {
             <Card
               title="Notificaciones SUNAT"
               subtitle="Estado de comprobantes y alertas"
-              className="border-t-4 border-t-brand-red"
             >
               <div className="space-y-2 mt-2">
                 {/* Aceptados */}
@@ -887,64 +783,47 @@ export default function DashboardPage() {
             action={
               <Button
                 variant="ghost"
-                className="text-brand-blue"
+                className="text-[#0f2e64] text-xs py-1.5 px-2 h-auto"
                 onClick={() => router.push("/factufly/comprobantes")}
               >
-                Ver todos <ChevronRight className="w-4 h-4" />
+                Ver todos <ChevronRight className="w-3.5 h-3.5" />
               </Button>
             }
           >
-            <div className="overflow-x-auto mx-0">
+            <div className="overflow-x-auto -mx-3">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50/50">
-                    {[
-                      "ID Comprobante",
-                      "Cliente",
-                      "Fecha",
-                      "Total",
-                      "Estado",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider"
-                      >
+                  <tr style={{ background: "#F5F8FD" }}>
+                    {["ID Comprobante", "Cliente", "Fecha", "Total", "Estado"].map((h) => (
+                      <th key={h} className="px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-[#EEF3FB]">
                   {(dashboard?.comprobantesRecientes ?? []).length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={5}
-                        className="px-6 py-8 text-center text-sm text-gray-400"
-                      >
+                      <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-400">
                         Sin comprobantes recientes
                       </td>
                     </tr>
                   ) : (
                     (dashboard?.comprobantesRecientes ?? []).map((doc, i) => (
-                      <tr
-                        key={i}
-                        className="hover:bg-gray-50/50 transition-colors"
-                      >
-                        <td className="px-6 py-4">
-                          <span className="text-sm font-medium text-brand-blue">
-                            {doc.numeroCompleto}
-                          </span>
+                      <tr key={i} className="hover:bg-[#F5F8FD] transition-colors">
+                        <td className="px-4 py-2">
+                          <span className="text-xs font-semibold text-[#0f2e64]">{doc.numeroCompleto}</span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="px-4 py-2 text-xs text-slate-600 max-w-[160px] truncate">
                           {doc.clienteRznSocial}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
+                        <td className="px-4 py-2 text-xs text-slate-400">
                           {formatFecha(doc.fechaEmision)}
                         </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                        <td className="px-4 py-2 text-xs font-semibold text-[#0f2e64]">
                           {formatMoneda(doc.importeTotal)}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-2">
                           <Badge variant={estadoSunatLabel(doc.estadoSunat)}>
                             {doc.estadoSunat}
                           </Badge>

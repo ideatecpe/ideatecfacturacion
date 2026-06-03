@@ -11,11 +11,11 @@ import { calcularTotales } from "@/app/factufly/comprobantes/gestionComprobantes
 import { useCargaMasiva } from "@/app/factufly/comprobantes/gestionComprobantes/gestionCargaMasiva/Usecargamasiva";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const hoy = new Date().toLocaleDateString("en-CA");
+const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 const dosAntesISO = (() => {
   const d = new Date();
   d.setDate(d.getDate() - 2);
-  return d.toLocaleDateString("en-CA");
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(d);
 })();
 
 function formatFechaLarga(iso: string) {
@@ -171,6 +171,7 @@ export function ModalCargaMasivaComprobantes({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sucursalActual, setSucursalActual] = useState<any>(isSuperAdmin ? null : sucursalUsuario);
   const [showCerrarAviso, setShowCerrarAviso] = useState(false);
+  const [huboExito, setHuboExito] = useState(false);
 
   // Refrescar sucursal al abrir el modal
   useEffect(() => {
@@ -192,6 +193,7 @@ export function ModalCargaMasivaComprobantes({
   } = useCargaMasiva(accessToken, empresa, user);
 
   const { comprobantes, erroresGlobales, cargando, guardando, progreso, resultado, fechaEmision } = state;
+  if (resultado && !huboExito) setHuboExito(true);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -206,7 +208,7 @@ export function ModalCargaMasivaComprobantes({
 
   const handleCerrar = () => {
     if (guardando) { setShowCerrarAviso(true); return; }
-    onCargaExitosa();
+    if (huboExito) onCargaExitosa();
     onClose();
   };
 
@@ -308,7 +310,6 @@ export function ModalCargaMasivaComprobantes({
                     value={fechaEmision}
                     min={dosAntesISO}
                     max={hoy}
-                    disabled
                     onChange={(e) => setFechaEmision(e.target.value)}
                     className="py-1.5 px-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all"
                     />

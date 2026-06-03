@@ -121,10 +121,14 @@ export const Topbar = ({
   return (
     <>
       <header
-        className={`h-16 flex items-center justify-between px-6 shrink-0 sticky top-0 z-40 border-b transition-colors ${
-          isBeta ? "bg-amber-50 border-amber-300" : "bg-white border-gray-100"
+        className={`flex flex-col shrink-0 sticky top-0 z-40 border-b transition-colors ${
+          isBeta
+            ? "bg-amber-50 border-amber-300"
+            : "bg-[#EEF3FB] border-[#D9E4F5]"
         }`}
+        style={!isBeta ? { boxShadow: "0 1px 3px rgba(15,46,100,0.06)" } : undefined}
       >
+      <div className="h-14 flex items-center justify-between px-6">
         {/* ── Izquierda ── */}
         <div className="flex items-center gap-3">
           {/* Botón hamburguesa */}
@@ -133,7 +137,7 @@ export const Topbar = ({
             className={`p-2 rounded-lg transition-colors ${
               isBeta
                 ? "hover:bg-amber-100 text-amber-600"
-                : "hover:bg-gray-50 text-gray-400"
+                : "hover:bg-white text-slate-400 hover:text-[#0f2e64]"
             }`}
           >
             {isSidebarOpen ? (
@@ -144,12 +148,12 @@ export const Topbar = ({
           </button>
 
           {/* Breadcrumb */}
-          <div className="hidden md:flex items-center gap-1.5 text-sm text-gray-400">
-            <span className="hover:text-gray-600 cursor-pointer transition-colors">
+          <div className="hidden md:flex items-center gap-1.5">
+            <span className="text-xs font-medium tracking-wide uppercase text-slate-400">
               Sistema
             </span>
-            <ChevronRight className="w-3 h-3" />
-            <span className="font-semibold text-gray-800 capitalize">
+            <ChevronRight className="w-3 h-3 text-slate-300" />
+            <span className="font-semibold text-[#0f2e64] capitalize text-sm">
               {activeView === "operaciones" ? "Emisión" : activeView}
             </span>
           </div>
@@ -162,12 +166,12 @@ export const Topbar = ({
           {/* Context badge */}
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="flex flex-col leading-none">
-              <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest">
+              <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">
                 Empresa
               </span>
               <span
                 className={`text-xs font-black uppercase tracking-wide mt-0.5 ${
-                  isBeta ? "text-amber-800" : "text-blue-900"
+                  isBeta ? "text-amber-800" : "text-[#0f2e64]"
                 }`}
               >
                 {user?.nombreEmpresa}
@@ -176,17 +180,17 @@ export const Topbar = ({
 
             {!isSuperAdmin && user?.nombreSucursal && (
               <>
-                <div className="w-px h-7 bg-gray-200 mx-1" />
+                <div className="w-px h-5 bg-[#D9E4F5] mx-1" />
                 <MapPin
-                  className={`w-4 h-4 shrink-0 ${
-                    isBeta ? "text-amber-600" : "text-blue-700"
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    isBeta ? "text-amber-600" : "text-[#0f2e64]/50"
                   }`}
                 />
                 <div className="flex flex-col leading-none">
-                  <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest">
+                  <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">
                     Sucursal
                   </span>
-                  <span className="text-xs font-bold text-gray-800 mt-0.5 truncate">
+                  <span className="text-xs font-bold text-slate-700 mt-0.5 truncate">
                     {user.nombreSucursal}
                   </span>
                 </div>
@@ -195,13 +199,13 @@ export const Topbar = ({
 
             {isSuperAdmin && (
               <>
-                <div className="w-px h-7 bg-gray-200 mx-1" />
+                <div className="w-px h-5 bg-[#D9E4F5] mx-1" />
                 <Globe className="w-3 h-3 text-emerald-500 shrink-0" />
                 <div className="flex flex-col leading-none">
-                  <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest">
+                  <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">
                     Acceso
                   </span>
-                  <span className="text-xs font-bold text-emerald-600 mt-0.5">
+                  <span className="text-xs font-bold text-emerald-400 mt-0.5">
                     Global
                   </span>
                 </div>
@@ -216,14 +220,14 @@ export const Topbar = ({
               className={`p-2.5 rounded-xl relative group transition-all ${
                 isBeta
                   ? "hover:bg-amber-100 text-amber-500"
-                  : "hover:bg-gray-50 text-gray-400"
+                  : "hover:bg-white text-slate-400 hover:text-[#0f2e64]"
               }`}
             >
               <Bell
                 className={`w-5 h-5 transition-colors ${
                   isBeta
                     ? "group-hover:text-amber-700"
-                    : "group-hover:text-blue-600"
+                    : "group-hover:text-[#0f2e64]"
                 }`}
               />
               {unseenCount > 0 && (
@@ -368,7 +372,7 @@ export const Topbar = ({
             )}
           </div>
 
-          <div className="h-7 w-px bg-gray-100" />
+          <div className="h-5 w-px bg-[#D9E4F5]" />
 
           {/* Menú de usuario */}
           <div className="relative" ref={userRef}>
@@ -378,14 +382,14 @@ export const Topbar = ({
                 setNotifOpen(false);
               }}
               className={`flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-all group ${
-                isBeta ? "hover:bg-amber-100" : "hover:bg-gray-50"
+                isBeta ? "hover:bg-amber-100" : "hover:bg-white"
               }`}
             >
               <div className="text-right hidden md:block">
-                <p className="text-sm font-bold text-gray-900 leading-none">
+                <p className="text-sm font-bold text-[#0f2e64] leading-none">
                   {user?.username}
                 </p>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mt-0.5">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
                   {isSuperAdmin
                     ? "Super Admin"
                     : user?.rol === "admin"
@@ -397,7 +401,7 @@ export const Topbar = ({
                 className={`w-9 h-9 rounded-lg overflow-hidden border transition-colors shrink-0 ${
                   isBeta
                     ? "border-amber-300 group-hover:border-amber-400"
-                    : "border-gray-200 group-hover:border-gray-300"
+                    : "border-[#D9E4F5] group-hover:border-[#0f2e64]/30"
                 }`}
               >
                 <img
@@ -408,7 +412,7 @@ export const Topbar = ({
                 />
               </div>
               <ChevronRight
-                className={`w-3 h-3 text-gray-700 transition-transform duration-200 ${
+                className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${
                   userOpen ? "rotate-90" : ""
                 }`}
               />
@@ -481,24 +485,23 @@ export const Topbar = ({
             )}
           </div>
         </div>
-      </header>
+      </div>
 
-      {/* Banner de entorno Beta */}
+      {/* Banner beta — pegado al topbar */}
       {isBeta && (
-        <div className="sticky top-16 z-30 bg-amber-400 border-b border-amber-500 px-6 py-2 flex items-center gap-3">
-          <FlaskConical className="w-4 h-4 text-amber-900 shrink-0" />
+        <div className="bg-amber-400 border-t border-amber-300 px-6 py-1.5 flex items-center gap-3">
+          <FlaskConical className="w-3.5 h-3.5 text-amber-900 shrink-0" />
           <span className="bg-amber-800 text-amber-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">
             Beta
           </span>
           <p className="text-amber-900 text-xs font-medium">
             Estás en el entorno de pruebas —{" "}
-            <strong className="font-bold">
-              No emitas comprobantes reales a SUNAT.
-            </strong>{" "}
+            <strong className="font-bold">No emitas comprobantes reales a SUNAT.</strong>{" "}
             Los documentos generados aquí no tienen validez tributaria.
           </p>
         </div>
       )}
+      </header>
 
       <style jsx>{`
         @keyframes fade-in {
