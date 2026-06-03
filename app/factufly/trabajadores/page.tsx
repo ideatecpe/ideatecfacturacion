@@ -4,6 +4,7 @@ import axios from "axios";
 import { Search, Plus, Edit2, Trash2, X } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { CardTable } from "@/app/components/ui/CardTable";
 import { Badge } from "@/app/components/ui/Badge";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { useAuth } from "@/context/AuthContext";
@@ -230,17 +231,17 @@ export default function TrabajadoresPage() {
 
       {/* ── Tab: CRUD ── */}
       {activeTab === "crud" && (
-        <div className="space-y-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="relative flex-1 max-w-md">
+        <div className="space-y-2">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por nombre, DNI o correo..."
-                className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm text-xs"
+                className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
               />
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               {search && (
                 <button
                   onClick={() => setSearch("")}
@@ -251,26 +252,22 @@ export default function TrabajadoresPage() {
               )}
             </div>
             {!soloLectura && (
-              <Button
-                onClick={() => setIsNuevoOpen(true)}
-                className="py-2.5 px-3 text-xs rounded-md h-auto"
-              >
+              <Button onClick={() => setIsNuevoOpen(true)} className="py-2.5 px-3 text-xs h-auto">
                 <Plus className="w-3.5 h-3.5" /> Nuevo Trabajador
               </Button>
             )}
           </div>
 
-          <p className="text-sm text-gray-500">
-            Mostrando{" "}
-            <span className="font-semibold text-gray-900">
-              {filtered.length}
-            </span>{" "}
-            de{" "}
-            <span className="font-semibold text-gray-900">
-              {trabajadores.length}
-            </span>{" "}
-            trabajadores
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[12px] text-gray-500">
+              Total{" "}
+              <span className="font-semibold text-gray-900">{filtered.length}</span>{" "}
+              trabajadores
+            </p>
+            {search && filtered.length === 0 && (
+              <p className="text-sm text-amber-600 font-medium">Sin resultados para esta búsqueda</p>
+            )}
+          </div>
 
           <style>{`
             .trabajadores-table tbody {
@@ -284,102 +281,74 @@ export default function TrabajadoresPage() {
             .trabajadores-table thead { width: 100%; }
           `}</style>
 
-          <Card className="p-0 overflow-hidden">
+          <CardTable className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table
-                className="w-full text-left border-collapse trabajadores-table"
-                style={{ minWidth: 800 }}
-              >
+              <table className="w-full text-left border-collapse trabajadores-table" style={{ minWidth: 800 }}>
                 <thead>
-                  <tr className="bg-gray-100">
-                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
-                      DNI
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-48">
-                      NOMBRE COMPLETO
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
-                      CELULAR
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-48">
-                      CORREO
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
-                      FECHA
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
-                      ESTADO
-                    </th>
-                    <th className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
-                      ACCIONES
-                    </th>
+                    <tr
+                className="bg-gray-100"
+                style={{
+                  borderTopLeftRadius: "12px",
+                  borderTopRightRadius: "12px",
+                  overflow: "hidden",
+                }}
+              >
+                    <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-28">DNI</th>
+                    <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-48">Nombre Completo</th>
+                    <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-32">Celular</th>
+                    <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-48">Correo</th>
+                    <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-24">Fecha</th>
+                    <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-16">Estado</th>
+                    <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-24">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-[#EEF3FB]">
                   {loadingTrabajadores ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-16 text-center">
-                        <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
-                          <div className="w-5 h-5 border-2 border-gray-300 border-t-brand-blue rounded-full animate-spin" />
+                      <td colSpan={7} className="px-4 py-12 text-center">
+                        <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+                          <div className="w-4 h-4 border-2 border-slate-200 border-t-brand-blue rounded-full animate-spin" />
                           Cargando trabajadores...
                         </div>
                       </td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={7}
-                        className="px-6 py-16 text-center text-sm text-gray-400"
-                      >
+                      <td colSpan={7} className="px-4 py-12 text-center text-xs text-slate-400">
                         No se encontraron trabajadores con ese criterio.
                       </td>
                     </tr>
                   ) : (
                     filtered.map((t) => (
-                      <tr
-                        key={t.id}
-                        className="hover:bg-gray-50/50 transition-colors"
-                      >
-                        <td className="px-3 py-2 w-28">
-                          <p className="text-xs font-bold text-gray-400 uppercase">
-                            DNI
-                          </p>
-                          <p className="text-sm font-mono text-gray-700">
-                            {t.dni}
-                          </p>
+                      <tr key={t.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-3 py-1 w-28">
+                          <p className="text-[11px] text-gray-400">DNI</p>
+                          <p className="text-[12px] font-medium text-gray-900">{t.dni}</p>
                         </td>
-                        <td className="px-3 py-2 text-xs font-semibold text-gray-900 w-48">
-                          {t.nombreCompleto}
-                        </td>
-                        <td className="px-3 py-2 text-sm text-gray-600 w-32">
-                          {t.celular ?? "-"}
-                        </td>
-                        <td className="px-3 py-2 text-sm text-gray-600 w-48 whitespace-normal wrap-break-word">
-                          {t.email ?? "-"}
-                        </td>
-                        <td className="px-3 py-2 text-sm text-gray-500 w-24">
-                          {formatFecha(t.createdAt)}
-                        </td>
-                        <td className="px-3 py-2 w-16">
+                        <td className="px-3 py-1 text-[12px] font-medium text-gray-900 w-48">{t.nombreCompleto}</td>
+                        <td className="px-3 py-1 text-[12px] text-gray-600 w-32">{t.celular ?? "-"}</td>
+                        <td className="px-3 py-1 text-[12px] text-gray-600 w-48 whitespace-normal">{t.email ?? "-"}</td>
+                        <td className="px-3 py-1 text-[12px] text-gray-600 w-24">{formatFecha(t.createdAt)}</td>
+                        <td className="px-3 py-1 w-16">
                           <Badge variant={t.estado ? "success" : "default"}>
                             {t.estado ? "Activo" : "Inactivo"}
                           </Badge>
                         </td>
-                        <td className="px-3 py-2 w-24">
+                        <td className="px-3 py-1 w-24">
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => !soloLectura && setTrabajadorEditar(t)}
                               disabled={soloLectura}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-[#0f2e64] bg-[#EEF3FB] hover:bg-[#E2EAF6] rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                              <Edit2 size={12} />
+                              <Edit2 size={11} />
                             </button>
                             <button
                               onClick={() => !soloLectura && setTrabajadorEliminar(t)}
                               disabled={soloLectura}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                              <Trash2 size={12} />
+                              <Trash2 size={11} />
                             </button>
                           </div>
                         </td>
@@ -389,7 +358,7 @@ export default function TrabajadoresPage() {
                 </tbody>
               </table>
             </div>
-          </Card>
+          </CardTable>
         </div>
       )}
 

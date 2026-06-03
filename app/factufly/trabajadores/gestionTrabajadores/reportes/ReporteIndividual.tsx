@@ -85,7 +85,7 @@ export const ReporteIndividual: React.FC<Props> = ({
         loading={loading}
       >
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-gray-500 uppercase">
+          <label className="text-xs font-semibold text-gray-500 ">
             Trabajador
           </label>
           <select
@@ -107,7 +107,7 @@ export const ReporteIndividual: React.FC<Props> = ({
       {reporte && (
         <>
           <div className="grid grid-cols-3 gap-3">
-            <Card className="p-4">
+            <Card className="p-2">
               <p className="text-xs font-semibold text-gray-400 uppercase">
                 Total Monto
               </p>
@@ -115,7 +115,7 @@ export const ReporteIndividual: React.FC<Props> = ({
                 S/ {reporte.totalMonto.toFixed(2)}
               </p>
             </Card>
-            <Card className="p-4">
+            <Card className="p-2">
               <p className="text-xs font-semibold text-gray-400 uppercase">
                 Comprobantes
               </p>
@@ -123,7 +123,7 @@ export const ReporteIndividual: React.FC<Props> = ({
                 {reporte.totalComprobantes}
               </p>
             </Card>
-            <Card className="p-4">
+            <Card className="p-2">
               <p className="text-xs font-semibold text-gray-400 uppercase">
                 Servicios
               </p>
@@ -147,7 +147,7 @@ export const ReporteIndividual: React.FC<Props> = ({
           `}</style>
 
           <Card className="p-0 overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100">
+            <div className="px-0 py-3 border-b border-gray-100">
               <p className="text-sm font-semibold text-gray-700">
                 Servicios de{" "}
                 <span className="text-brand-blue">
@@ -161,7 +161,14 @@ export const ReporteIndividual: React.FC<Props> = ({
                 style={{ minWidth: 900 }}
               >
                 <thead>
-                  <tr className="bg-gray-100">
+                    <tr
+                className="bg-gray-100"
+                style={{
+                  borderTopLeftRadius: "12px",
+                  borderTopRightRadius: "12px",
+                  overflow: "hidden",
+                }}
+              >
                     <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase w-24">
                       Fecha
                     </th>
@@ -199,35 +206,35 @@ export const ReporteIndividual: React.FC<Props> = ({
                         key={s.detalleId}
                         className="hover:bg-gray-50/50 transition-colors"
                       >
-                        <td className="px-4 py-3 text-sm text-gray-600 w-24">
+                        <td className="px-4 py-2 text-sm text-gray-600 w-24">
                           {formatFecha(s.fechaEmision)}
                         </td>
-                        <td className="px-4 py-3 text-sm font-mono text-gray-700 w-28">
+                        <td className="px-4 py-2 text-sm  text-gray-900 w-28">
                           {s.numeroCompleto}
                         </td>
-                        <td className="px-4 py-3 w-40">
+                        <td className="px-4 py-2 w-40">
                           <p className="text-xs text-gray-400">
                             {s.clienteNumDoc}
                           </p>
-                          <p className="text-sm text-gray-700 truncate">
+                          <p className="text-xs text-gray-700 truncate">
                             {s.clienteRazonSocial}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 w-48">
+                        <td className="px-4 py-2 text-sm text-gray-700 w-48">
                           {s.descripcion}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 w-16 text-right">
+                        <td className="px-4 py-2 text-sm text-gray-600 w-16 text-right">
                           {s.cantidad}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 w-24 text-right">
+                        <td className="px-4 py-2 text-sm text-gray-600 w-24 text-right">
                           {formatMonto(s.precioUnitario, s.tipoMoneda)}
                         </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 w-24 text-right">
+                        <td className="px-4 py-2 text-sm font-semibold text-gray-900 w-24 text-right">
                           {formatMonto(s.totalVentaItem, s.tipoMoneda)}
                         </td>
                         <td className="px-4 py-3 w-24">
                           <span
-                            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                               s.estadoSunat === "ACEPTADO"
                                 ? "bg-green-100 text-green-700"
                                 : s.estadoSunat === "PENDIENTE"

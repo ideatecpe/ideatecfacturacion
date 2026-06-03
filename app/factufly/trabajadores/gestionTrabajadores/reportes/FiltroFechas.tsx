@@ -26,7 +26,7 @@ export const FiltroFechas: React.FC<Props> = ({
     <div className="flex flex-wrap items-end gap-3">
       {children}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-semibold text-gray-500 uppercase">Desde</label>
+        <label className="text-xs font-semibold text-gray-500 ">Desde</label>
         <input
           type="date"
           value={fechaDesde}
@@ -35,7 +35,7 @@ export const FiltroFechas: React.FC<Props> = ({
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-semibold text-gray-500 uppercase">Hasta</label>
+        <label className="text-xs font-semibold text-gray-500 ">Hasta</label>
         <input
           type="date"
           value={fechaHasta}
@@ -46,7 +46,7 @@ export const FiltroFechas: React.FC<Props> = ({
       <Button
         onClick={onBuscar}
         disabled={loading}
-        className="py-2 px-4 text-xs rounded-md h-auto"
+        className="py-2.5 px-4 text-xs rounded-md h-auto"
       >
         <Search className="w-3.5 h-3.5" />
         {loading ? "Buscando..." : "Buscar"}

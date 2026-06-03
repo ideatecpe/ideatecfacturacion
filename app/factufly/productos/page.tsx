@@ -526,7 +526,7 @@ export default function ProductosPage() {
   };
 
   return (
-    <div className="space-y-3 animate-in fade-in duration-500">
+    <div className="space-y-2 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -756,8 +756,10 @@ export default function ProductosPage() {
           </div>
         )}
       </div>
+
+
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
+        <p className="text-[12px] text-gray-500">
           Mostrando{" "}
           <span className="font-semibold text-gray-900">{filtered.length}</span>{" "}
           productos
@@ -771,7 +773,7 @@ export default function ProductosPage() {
         style={{
           maxHeight: showFiltrosAvanzados
             ? "calc(100vh - 275px)"
-            : "calc(100vh - 215px)",
+            : "calc(100vh - 170px)",
           scrollbarWidth: "thin",
           scrollbarColor: "#CBD5E1 transparent",
         }}

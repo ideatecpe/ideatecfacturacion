@@ -367,7 +367,7 @@ export default function ClientesPage() {
           options={["Todos", "RUC", "DNI", "CE"]}
           onChange={(v) => setFilterTipo(v as any)}
         />
-        <Button onClick={() => setIsNuevoOpen(true)} className="py-2 px-3 text-xs h-auto">
+        <Button onClick={() => setIsNuevoOpen(true)} className="py-2.5 px-3 text-xs h-auto">
           <Plus className="w-3.5 h-3.5" /> Nuevo Cliente
         </Button>
       </div>
@@ -408,15 +408,22 @@ export default function ClientesPage() {
   <div className="overflow-x-auto">
     <table className="w-full text-left border-collapse clientes-table" style={{minWidth: 900}}>
       <thead>
-        <tr style={{ background: "#F5F8FD" }}>
-          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-24">Documento</th>
-          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-40">Razón Social</th>
-          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-40">Dirección</th>
-          {isSuperAdmin && (<th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-24">Sucursal</th>)}
-          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-44">Correo</th>
-          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-24">Teléfono</th>
-          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-16">Estado</th>
-          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-36">Acciones</th>
+             <tr
+                className="bg-gray-100"
+                style={{
+                  borderTopLeftRadius: "12px",
+                  borderTopRightRadius: "12px",
+                  overflow: "hidden",
+                }}
+              >
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-24">Documento</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-40">Razón Social</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-40">Dirección</th>
+          {isSuperAdmin && (<th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-24">Sucursal</th>)}
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-44">Correo</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-24">Teléfono</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-16">Estado</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-36">Acciones</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-[#EEF3FB]">
