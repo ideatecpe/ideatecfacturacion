@@ -465,7 +465,7 @@ export default function DashboardPage() {
       )}
 
       {/* ─── Header ─────────────────────────────────────────────────── */}
-      <div className="mb-3 flex items-center justify-between gap-4 mt-1">
+      <div className="mb-3 flex items-center justify-between gap-4 ">
         <div className="flex items-center gap-3">
           {isSuperAdmin && (
             <DropdownSucursal
@@ -474,7 +474,7 @@ export default function DashboardPage() {
               onSelect={handleSucursalChange}
             />
           )}
-          <div className="flex items-center gap-2 bg-white border border-[#E2EAF6] rounded-lg px-3 py-2 hover:border-[#0f2e64]/30 transition-colors">
+          <div className="flex items-center gap-2 bg-white border border-[#E2EAF6] rounded-lg px-3 py-3 hover:border-[#0f2e64]/30 transition-colors">
             <Calendar size={13} className="text-slate-400 shrink-0" />
             <span className="text-xs text-slate-500 font-medium">Fecha</span>
             <input

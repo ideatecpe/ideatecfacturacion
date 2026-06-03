@@ -66,6 +66,7 @@ import {
   leerComprobantesCarga,
   marcarComprobanteCargaEnviado,
 } from "@/app/utils/cargaComprobantesStore";
+import { CardTable } from "@/app/components/ui/CardTable";
 
 // ─── Constantes filtros ───────────────────────────────────────────────────────
 const TIPOS_OPTS = ["Todos", "Factura", "Boleta", "N.Crédito", "N.Débito"];
@@ -650,7 +651,7 @@ export default function VerComprobantesPage() {
   };
 
   return (
-    <div className="space-y-3 animate-in fade-in duration-500">
+    <div className="space-y-1 animate-in fade-in duration-500">
       {/* ── Modal Detalles Adicionales ── */}
       {modalDetallesAdicionales && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -855,7 +856,7 @@ export default function VerComprobantesPage() {
 
       <div className="sticky top-0 z-20">
         <div className="space-y-3">
-          <div className="flex items-start justify-between gap-2 pt-3">
+          <div className="flex items-start justify-between gap-2">
             <div className="flex-1 flex flex-wrap items-center gap-2">
               <div className="relative w-full sm:w-auto sm:flex-1 min-w-48 max-w-sm">
                 <Search
@@ -1157,8 +1158,8 @@ export default function VerComprobantesPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
+      <div className="flex items-center justify-between py-1">
+        <p className="text-[12px] text-gray-500">
           Total{" "}
           <span className="font-semibold text-gray-900">
             {paginated.length}
@@ -1183,7 +1184,7 @@ export default function VerComprobantesPage() {
           scrollbar-color: transparent transparent;
         }
         .comp-table tbody {
-          max-height: calc(100vh - ${offset > 0 || hasMore ? 355 : isBeta ? 290 : 250}px);
+          max-height: calc(100vh - ${offset > 0 || hasMore ? 355 : isBeta ? 230 : 200}px);
           scrollbar-color: #CBD5E1 transparent;
         }
         .comp-table thead tr,
@@ -1194,7 +1195,8 @@ export default function VerComprobantesPage() {
         }
       `}</style>
 
-      <Card className="p-0 overflow-hidden">
+      <CardTable className="overflow-hidden">
+        
         <div className="overflow-x-auto">
           <table className={cn("w-full text-left border-collapse comp-table")}>
             <thead>
@@ -1279,11 +1281,13 @@ export default function VerComprobantesPage() {
                       <p className="text-[11px] text-gray-400 whitespace-nowrap">{formatFechaHora(doc.horaEmision).split(" ")[1]}</p>
                     </td>
                     <td className="px-3 py-1 whitespace-nowrap w-32">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-[12px] font-medium text-gray-900 uppercase">
                         {doc.numeroCompleto}
                       </p>
-                      <p className="text-xs text-gray-400">
-                        {tipoLabel(doc.tipoComprobante)}
+                      <p className="text-[12px] text-gray-400">
+
+                        <span className="text-gray-700">{tipoLabel(doc.tipoComprobante)}</span>
+                        
                         <span className="mx-1 text-gray-400">-</span>
                         <span className="font-semibold text-gray-700">
                           {doc.tipoMoneda === "USD" ? "$" : "S/"}{" "}
@@ -1293,7 +1297,7 @@ export default function VerComprobantesPage() {
                     </td>
                     <td className="px-3 py-1 w-72">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-[12px] font-medium text-gray-900">
                           {doc.cliente.numeroDocumento}
                         </span>
                         <span className="text-[12px] text-gray-600">
@@ -1487,7 +1491,7 @@ export default function VerComprobantesPage() {
             </span>
           </div>
         )}
-      </Card>
+      </CardTable>
     </div>
   );
 }

@@ -121,13 +121,14 @@ export const Topbar = ({
   return (
     <>
       <header
-        className={`h-14 flex items-center justify-between px-6 shrink-0 sticky top-0 z-40 border-b transition-colors ${
+        className={`flex flex-col shrink-0 sticky top-0 z-40 border-b transition-colors ${
           isBeta
             ? "bg-amber-50 border-amber-300"
             : "bg-[#EEF3FB] border-[#D9E4F5]"
         }`}
         style={!isBeta ? { boxShadow: "0 1px 3px rgba(15,46,100,0.06)" } : undefined}
       >
+      <div className="h-14 flex items-center justify-between px-6">
         {/* ── Izquierda ── */}
         <div className="flex items-center gap-3">
           {/* Botón hamburguesa */}
@@ -484,24 +485,23 @@ export const Topbar = ({
             )}
           </div>
         </div>
-      </header>
+      </div>
 
-      {/* Banner de entorno Beta */}
+      {/* Banner beta — pegado al topbar */}
       {isBeta && (
-        <div className="sticky top-16 z-30 bg-amber-400 border-b border-amber-500 px-6 py-2 flex items-center gap-3">
-          <FlaskConical className="w-4 h-4 text-amber-900 shrink-0" />
+        <div className="bg-amber-400 border-t border-amber-300 px-6 py-1.5 flex items-center gap-3">
+          <FlaskConical className="w-3.5 h-3.5 text-amber-900 shrink-0" />
           <span className="bg-amber-800 text-amber-100 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">
             Beta
           </span>
           <p className="text-amber-900 text-xs font-medium">
             Estás en el entorno de pruebas —{" "}
-            <strong className="font-bold">
-              No emitas comprobantes reales a SUNAT.
-            </strong>{" "}
+            <strong className="font-bold">No emitas comprobantes reales a SUNAT.</strong>{" "}
             Los documentos generados aquí no tienen validez tributaria.
           </p>
         </div>
       )}
+      </header>
 
       <style jsx>{`
         @keyframes fade-in {
