@@ -124,15 +124,9 @@ export default function VerComprobantesPage() {
     tipo: "email" | "whatsapp";
   } | null>(null);
 
-  const [loadingPdfMap, setLoadingPdfMap] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [loadingXmlMap, setLoadingXmlMap] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [loadingCdrMap, setLoadingCdrMap] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [loadingPdfMap, setLoadingPdfMap] = useState<Record<string, boolean>>( {}, );
+  const [loadingXmlMap, setLoadingXmlMap] = useState<Record<string, boolean>>( {}, );
+  const [loadingCdrMap, setLoadingCdrMap] = useState<Record<string, boolean>>( {}, );
   const [pdfSizeMap, setPdfSizeMap] = useState<Record<number, string>>({});
   const getPdfSize = (id: number) => pdfSizeMap[id] ?? "A4";
 
@@ -142,9 +136,7 @@ export default function VerComprobantesPage() {
   const [showAvanzado, setShowAvanzado] = useState(false);
   const [sucursalFiltro, setSucursalFiltro] = useState<number | null>(null);
 
-  const [modoAvanzado, setModoAvanzado] = useState<
-    "fechas" | "unico" | "cliente" | "usuario"
-  >("fechas");
+  const [modoAvanzado, setModoAvanzado] = useState< "fechas" | "unico" | "cliente" | "usuario" >("fechas");
   const [avSerie, setAvSerie] = useState("");
   const [avNumero, setAvNumero] = useState("");
   const [avClienteDoc, setAvClienteDoc] = useState("");
