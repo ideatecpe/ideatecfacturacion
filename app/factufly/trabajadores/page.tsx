@@ -357,7 +357,7 @@ export default function TrabajadoresPage() {
                             <button
                               onClick={() => !soloLectura && setTrabajadorEditar(t)}
                               disabled={soloLectura}
-                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-[#0f2e64] bg-[#EEF3FB] hover:bg-[#E2EAF6] rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-brand-blue bg-[#EEF3FB] hover:bg-[#E2EAF6] rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Edit2 size={11} />
                             </button>
