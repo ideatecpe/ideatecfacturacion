@@ -345,11 +345,13 @@ export function ModalItemsVelsat({
                           <input
                             type="number"
                             min={0}
-                            step="0.01"
+                            step="0.10"
                             value={fila.precio === 0 ? "" : fila.precio}
                             onChange={(e) => actualizar(fila.id, "precio", parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                             placeholder="0.00"
-                            className={`w-full py-1.5 pl-7 pr-2 bg-gray-50 border rounded-lg text-xs text-right outline-none focus:ring-1 transition-all font-mono
+                            className={`w-full py-1.5 pl-7 pr-3 bg-gray-50 border rounded-lg text-xs text-right outline-none focus:ring-1 transition-all font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
                               ${errores[`${fila.id}-precio`] ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100" : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"}`}
                           />
                           {errores[`${fila.id}-precio`] && (
