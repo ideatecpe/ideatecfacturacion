@@ -171,6 +171,7 @@ export function ModalCargaMasivaComprobantes({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sucursalActual, setSucursalActual] = useState<any>(isSuperAdmin ? null : sucursalUsuario);
   const [showCerrarAviso, setShowCerrarAviso] = useState(false);
+  const [huboExito, setHuboExito] = useState(false);
 
   // Refrescar sucursal al abrir el modal
   useEffect(() => {
@@ -192,6 +193,7 @@ export function ModalCargaMasivaComprobantes({
   } = useCargaMasiva(accessToken, empresa, user);
 
   const { comprobantes, erroresGlobales, cargando, guardando, progreso, resultado, fechaEmision } = state;
+  if (resultado && !huboExito) setHuboExito(true);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -206,7 +208,7 @@ export function ModalCargaMasivaComprobantes({
 
   const handleCerrar = () => {
     if (guardando) { setShowCerrarAviso(true); return; }
-    onCargaExitosa();
+    if (huboExito) onCargaExitosa();
     onClose();
   };
 
