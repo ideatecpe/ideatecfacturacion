@@ -18,19 +18,25 @@ export default function EmisionPage() {
         <h2 className="text-base font-bold text-gray-900">¿Qué comprobante deseas emitir?</h2>
         <p className="text-xs text-gray-500">Selecciona el tipo de documento para comenzar el proceso de emisión.</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {documentTypes.map((item, i) => (
           <button
             key={i}
             onClick={() => router.push(item.href)}
-            className="group p-4 bg-white rounded-xl border-2 border-transparent hover:border-brand-blue shadow-sm hover:shadow-md transition-all text-left flex gap-3 items-start"
+            className="group p-3 bg-white rounded-xl border border-[#E2EAF6] shadow-sm transition-all text-left flex gap-3 items-start"
+            style={{ borderColor: "#E2EAF6" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "#0f2e64"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(15,46,100,0.1)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "#E2EAF6"; e.currentTarget.style.boxShadow = ""; }}
           >
-            <div className="p-2.5 rounded-lg bg-blue-50 text-brand-blue group-hover:bg-brand-blue group-hover:text-white transition-colors shrink-0">
-              <item.icon className="w-5 h-5" />
+            <div
+              className="p-2 rounded-lg shrink-0 transition-colors"
+              style={{ background: "rgba(15,46,100,0.07)", color: "#0f2e64" }}
+            >
+              <item.icon className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 group-hover:text-brand-blue transition-colors">{item.title}</h3>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">{item.desc}</p>
+            <div className="min-w-0">
+              <h3 className="text-xs font-bold leading-tight" style={{ color: "#0f2e64" }}>{item.title}</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{item.desc}</p>
             </div>
           </button>
         ))}

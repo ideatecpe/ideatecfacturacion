@@ -2300,10 +2300,10 @@ function BoletaContent() {
               {/* ── Datos del Cliente ── */}
               <div className=" rounded-xl space-y-0 ">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <div className="w-5 h-5 rounded-md flex items-center justify-center">
                     <UserRound className="w-4 h-4 text-brand-blue" />
                   </div>
-                  <h3 className="text-[14px] font-bold text-gray-800">
+                  <h3 className="text-xs font-semibold text-[#0f2e64]">
                     Datos del Cliente
                   </h3>
                   {/* Clientes varios */}
@@ -2699,54 +2699,29 @@ function BoletaContent() {
                 */}
               </div>
 
-              {(config?.isCredito || mostrarTrabajadores) && (
-                <div className={`grid gap-4 ${config?.isCredito && mostrarTrabajadores ? "grid-cols-2" : "grid-cols-1"}`}>
-                  {config?.isCredito && (
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase">Tipo de Pago</label>
-                      <select
-                        value={boleta.tipoPago ?? "Contado"}
-                        onChange={(e) => {
-                          const nuevoTipo = e.target.value;
-                          setBoleta((prev) => ({
-                            ...prev,
-                            tipoPago: nuevoTipo,
-                            ...(nuevoTipo === "Contado" && {
-                              fechaVencimiento: (prev.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10),
-                            }),
-                          }));
-                          setPagos([{ medioPago: "Efectivo", monto: "", numeroOperacion: "", entidadFinanciera: "", observaciones: "" }]);
-                          setPagosEditados([false]);
-                        }}
-                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
-                      >
-                        <option value="Contado">Contado</option>
-                        <option value="Credito">Crédito</option>
-                        <option value="CreditoInicial">Crédito con Inicial</option>
-                      </select>
-                    </div>
-                  )}
-                  {mostrarTrabajadores && (
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase">Atendido por</label>
-                      <select
-                        value={trabajadorIdGlobal}
-                        onChange={(e) => {
-                          const id = Number(e.target.value);
-                          setTrabajadorIdGlobal(id);
-                          const nuevo: Record<string, number> = {};
-                          detalles.filter((d) => !d._esIcbper).forEach((d, i) => { nuevo[d._id ?? String(i)] = id; });
-                          setTrabajadoresPorItem(nuevo);
-                        }}
-                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-purple-400"
-                      >
-                        <option value={0}>Seleccionar trabajador...</option>
-                        {trabajadores.map((t) => (
-                          <option key={t.id} value={t.id}>{t.nombreCompleto}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+              {config?.isCredito && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase">Tipo de Pago</label>
+                  <select
+                    value={boleta.tipoPago ?? "Contado"}
+                    onChange={(e) => {
+                      const nuevoTipo = e.target.value;
+                      setBoleta((prev) => ({
+                        ...prev,
+                        tipoPago: nuevoTipo,
+                        ...(nuevoTipo === "Contado" && {
+                          fechaVencimiento: (prev.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10),
+                        }),
+                      }));
+                      setPagos([{ medioPago: "Efectivo", monto: "", numeroOperacion: "", entidadFinanciera: "", observaciones: "" }]);
+                      setPagosEditados([false]);
+                    }}
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                  >
+                    <option value="Contado">Contado</option>
+                    <option value="Credito">Crédito</option>
+                    <option value="CreditoInicial">Crédito con Inicial</option>
+                  </select>
                 </div>
               )}
 
@@ -2761,10 +2736,10 @@ function BoletaContent() {
                       <div className="flex items-center justify-between">
                         
                  <div className="flex items-center gap-2">
-  <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+  <div className="w-5 h-5 rounded-md flex items-center justify-center">
     <CreditCard className="w-4 h-4 text-brand-blue" />
   </div>
-  <h3 className="text-[14px] font-bold text-gray-800">
+  <h3 className="text-xs font-semibold text-[#0f2e64]">
     Medio de Pago
   </h3>
 </div>
@@ -2795,10 +2770,10 @@ function BoletaContent() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-md flex items-center justify-center">
                             <CreditCard className="w-4 h-4 text-brand-blue" />
                           </div>
-                          <h3 className="text-[14px] font-bold text-gray-800">Datos de Pago</h3>
+                          <h3 className="text-xs font-semibold text-[#0f2e64]">Datos de Pago</h3>
                         </div>
                         {mediosUsados.length < todosMedios.length && (
                           <button type="button" onClick={agregarPago} className="text-xs text-brand-blue hover:underline flex items-center gap-1">
@@ -2855,61 +2830,83 @@ function BoletaContent() {
                 </div>
               )}
 
-              {/* ── Vales ── */}
-              {config?.isVale && vales.length > 0 && (
-                <div className="border border-gray-100 rounded-xl overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setShowVales((v) => !v)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-gray-500 uppercase">
-                        Vales
-                      </span>
-                      {valesSeleccionados.length > 0 && (
-                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                          {valesSeleccionados.length} seleccionado{valesSeleccionados.length > 1 ? "s" : ""}
-                        </span>
-                      )}
+              {/* ── Atendido por + Vales (misma fila) ── */}
+              {(mostrarTrabajadores || (config?.isVale && vales.length > 0)) && (
+                <div className={`grid gap-3 ${mostrarTrabajadores && config?.isVale && vales.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {mostrarTrabajadores && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Atendido por</label>
+                      <select
+                        value={trabajadorIdGlobal}
+                        onChange={(e) => {
+                          const id = Number(e.target.value);
+                          setTrabajadorIdGlobal(id);
+                          const nuevo: Record<string, number> = {};
+                          detalles.filter((d) => !d._esIcbper).forEach((d, i) => { nuevo[d._id ?? String(i)] = id; });
+                          setTrabajadoresPorItem(nuevo);
+                        }}
+                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                      >
+                        <option value={0}>Seleccionar trabajador...</option>
+                        {trabajadores.map((t) => (
+                          <option key={t.id} value={t.id}>{t.nombreCompleto}</option>
+                        ))}
+                      </select>
                     </div>
-                    {showVales ? (
-                      <ChevronUp className="w-4 h-4 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
-                    )}
-                  </button>
-
-                  {showVales && (
-                    <div className="p-3 space-y-2">
+                  )}
+                  {config?.isVale && vales.length > 0 && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Vales</label>
                       {loadingVales ? (
-                        <p className="text-xs text-gray-400 text-center py-2">Cargando vales...</p>
+                        <div className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-400">Cargando...</div>
+                      ) : vales.length === 1 ? (
+                        /* 1 vale → checkbox simple */
+                        <label className="flex items-center gap-2 py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={valesSeleccionados.includes(vales[0].idVale)}
+                            onChange={() => toggleVale(vales[0].idVale)}
+                            className="w-3.5 h-3.5 accent-brand-blue cursor-pointer shrink-0"
+                          />
+                          <span className="text-sm text-gray-700 flex-1 truncate">{vales[0].nombre}</span>
+                          <span className="text-[10px] text-gray-400 shrink-0">{vales[0].duracion}d</span>
+                        </label>
                       ) : (
-                        vales.map((vale) => (
-                          <label
-                            key={vale.idVale}
-                            className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                              valesSeleccionados.includes(vale.idVale)
-                                ? "border-brand-blue bg-blue-50"
-                                : "border-gray-200 hover:bg-gray-50"
-                            }`}
+                        /* 2+ vales → dropdown select */
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setShowVales((v) => !v)}
+                            onBlur={() => setTimeout(() => setShowVales(false), 150)}
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none text-left flex items-center justify-between hover:border-brand-blue transition-colors"
                           >
-                            <input
-                              type="checkbox"
-                              checked={valesSeleccionados.includes(vale.idVale)}
-                              onChange={() => toggleVale(vale.idVale)}
-                              className="mt-0.5 w-4 h-4 accent-brand-blue cursor-pointer shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-gray-800 leading-tight">
-                                {vale.nombre}
-                              </p>
-                              <p className="text-[10px] text-gray-400 mt-0.5">
-                                Duración: {vale.duracion} días
-                              </p>
+                            <span className={valesSeleccionados.length ? "text-gray-800" : "text-gray-400"}>
+                              {valesSeleccionados.length
+                                ? `${valesSeleccionados.length} vale${valesSeleccionados.length > 1 ? "s" : ""} seleccionado${valesSeleccionados.length > 1 ? "s" : ""}`
+                                : "Seleccionar vale..."}
+                            </span>
+                            <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                          </button>
+                          {showVales && (
+                            <div className="absolute z-30 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                              {vales.map((vale) => (
+                                <label
+                                  key={vale.idVale}
+                                  className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={valesSeleccionados.includes(vale.idVale)}
+                                    onChange={() => toggleVale(vale.idVale)}
+                                    className="w-3.5 h-3.5 accent-brand-blue cursor-pointer shrink-0"
+                                  />
+                                  <span className="text-xs text-gray-700 flex-1 truncate">{vale.nombre}</span>
+                                  <span className="text-[10px] text-gray-400 shrink-0">{vale.duracion}d</span>
+                                </label>
+                              ))}
                             </div>
-                          </label>
-                        ))
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
@@ -3092,10 +3089,10 @@ function BoletaContent() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center">
                       <ClipboardList className="w-4 h-4 text-brand-blue" />
                     </div>
-                    <label className="text-sm font-bold text-gray-800">
+                    <label className="text-xs font-semibold text-[#0f2e64]">
                       Detalle de Venta
                     </label>
                   </div>

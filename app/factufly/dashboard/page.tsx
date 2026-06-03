@@ -242,164 +242,60 @@ const DesgloseNotasCard: React.FC<{
       title="Desglose de Notas"
       subtitle="Impacto de notas de crédito y débito según fecha del documento afectado"
     >
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mt-1">
         {/* NC del día */}
-        <div className="p-2 rounded-xl border border-rose-100 bg-rose-50/50">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 rounded-lg bg-rose-100">
-              <TrendingDown size={14} className="text-rose-600" />
-            </div>
-            <p className="text-xs font-semibold text-rose-700 uppercase tracking-wide">
-              NC · Día actual
-            </p>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-rose-100 bg-rose-50/50">
+          <TrendingDown size={13} className="text-rose-500 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-rose-600 uppercase tracking-wide">NC · Hoy</p>
+            <p className="text-sm font-bold text-rose-700 truncate">{formatMoneda(ncDia)}</p>
           </div>
-          <p className="text-lg font-bold text-rose-700">
-            {formatMoneda(ncDia)}
-          </p>
-          <p className="text-[11px] text-rose-500 mt-1">
-            Afectan documentos emitidos hoy
-          </p>
         </div>
 
         {/* ND del día */}
-        <div className="p-2 rounded-xl border border-emerald-100 bg-emerald-50/50">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 rounded-lg bg-emerald-100">
-              <TrendingUp size={14} className="text-emerald-600" />
-            </div>
-            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-              ND · Día actual
-            </p>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-100 bg-emerald-50/50">
+          <TrendingUp size={13} className="text-emerald-500 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">ND · Hoy</p>
+            <p className="text-sm font-bold text-emerald-700 truncate">{formatMoneda(ndDia)}</p>
           </div>
-          <p className="text-lg font-bold text-emerald-700">
-            {formatMoneda(ndDia)}
-          </p>
-          <p className="text-[11px] text-emerald-500 mt-1">
-            Afectan documentos emitidos hoy
-          </p>
         </div>
 
         {/* NC otras fechas */}
-        <div
-          className={cn(
-            "p-2 rounded-xl border",
-            hayNotasOtrasFechas
-              ? "border-amber-100 bg-amber-50/50"
-              : "border-gray-100 bg-gray-50/50",
-          )}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <div
-              className={cn(
-                "p-1.5 rounded-lg",
-                hayNotasOtrasFechas ? "bg-amber-100" : "bg-gray-100",
-              )}
-            >
-              <ArrowLeftRight
-                size={14}
-                className={
-                  hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400"
-                }
-              />
-            </div>
-            <p
-              className={cn(
-                "text-xs font-semibold uppercase tracking-wide",
-                hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400",
-              )}
-            >
-              NC · Otras fechas
-            </p>
+        <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border",
+          hayNotasOtrasFechas ? "border-amber-100 bg-amber-50/50" : "border-gray-100 bg-gray-50/40")}>
+          <ArrowLeftRight size={13} className={hayNotasOtrasFechas ? "text-amber-500 shrink-0" : "text-gray-300 shrink-0"} />
+          <div className="min-w-0">
+            <p className={cn("text-[10px] font-semibold uppercase tracking-wide", hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400")}>NC · Anteriores</p>
+            <p className={cn("text-sm font-bold truncate", hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400")}>{formatMoneda(ncOtras)}</p>
           </div>
-          <p
-            className={cn(
-              "text-lg font-bold",
-              hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400",
-            )}
-          >
-            {formatMoneda(ncOtras)}
-          </p>
-          <p
-            className={cn(
-              "text-[11px] mt-1",
-              hayNotasOtrasFechas ? "text-amber-500" : "text-gray-400",
-            )}
-          >
-            Afectan documentos de días anteriores
-          </p>
         </div>
 
         {/* ND otras fechas */}
-        <div
-          className={cn(
-            "p-2 rounded-xl border",
-            hayNotasOtrasFechas
-              ? "border-amber-100 bg-amber-50/50"
-              : "border-gray-100 bg-gray-50/50",
-          )}
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <div
-              className={cn(
-                "p-1.5 rounded-lg",
-                hayNotasOtrasFechas ? "bg-amber-100" : "bg-gray-100",
-              )}
-            >
-              <ArrowLeftRight
-                size={14}
-                className={
-                  hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400"
-                }
-              />
-            </div>
-            <p
-              className={cn(
-                "text-xs font-semibold uppercase tracking-wide",
-                hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400",
-              )}
-            >
-              ND · Otras fechas
-            </p>
+        <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg border",
+          hayNotasOtrasFechas ? "border-amber-100 bg-amber-50/50" : "border-gray-100 bg-gray-50/40")}>
+          <ArrowLeftRight size={13} className={hayNotasOtrasFechas ? "text-amber-500 shrink-0" : "text-gray-300 shrink-0"} />
+          <div className="min-w-0">
+            <p className={cn("text-[10px] font-semibold uppercase tracking-wide", hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400")}>ND · Anteriores</p>
+            <p className={cn("text-sm font-bold truncate", hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400")}>{formatMoneda(ndOtras)}</p>
           </div>
-          <p
-            className={cn(
-              "text-lg font-bold",
-              hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400",
-            )}
-          >
-            {formatMoneda(ndOtras)}
-          </p>
-          <p
-            className={cn(
-              "text-[11px] mt-1",
-              hayNotasOtrasFechas ? "text-amber-500" : "text-gray-400",
-            )}
-          >
-            Afectan documentos de días anteriores
-          </p>
         </div>
-      </div>
 
-      {/* Resumen neto */}
-      <div className="mt-4 p-2 rounded-xl border border-blue-100 bg-blue-50/50 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
-            Ventas Netas del Día
-          </p>
-          <p className="text-[11px] text-blue-500 mt-0.5">
-            Ventas brutas + ND del día − NC del día
-          </p>
+        {/* Ventas netas */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#D9E4F5] bg-[#EEF3FB]">
+          <BarChart3 size={13} className="text-[#0f2e64] shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-[#0f2e64]/60 uppercase tracking-wide">Netas del Día</p>
+            <p className="text-sm font-bold text-[#0f2e64] truncate">{formatMoneda(dashboard?.ventasNetas ?? 0)}</p>
+            <p className="text-[9px] text-[#0f2e64]/40 mt-0.5">Brutas + ND − NC del día</p>
+          </div>
         </div>
-        <p className="text-xl font-bold text-blue-700">
-          {formatMoneda(dashboard?.ventasNetas ?? 0)}
-        </p>
       </div>
 
       {hayNotasOtrasFechas && (
-        <p className="text-[11px] text-amber-600 mt-3 flex items-center gap-1">
-          <AlertTriangle size={11} />
-          Existen notas que afectan documentos de días anteriores y no impactan
-          las ventas netas de hoy.
+        <p className="text-[10px] text-amber-600 mt-2 flex items-center gap-1">
+          <AlertTriangle size={10} />
+          Hay notas que afectan documentos de días anteriores.
         </p>
       )}
     </Card>
@@ -639,7 +535,6 @@ export default function DashboardPage() {
                   key={i}
                   className="bg-white rounded-xl border border-[#E2EAF6] overflow-hidden flex shadow-sm"
                 >
-                  <div className={cn("w-1 shrink-0", kpi.bar)} />
                   <div className="flex-1 px-3 py-2.5 flex items-center gap-2.5 min-w-0">
                     <kpi.icon className={cn("w-4 h-4 shrink-0", kpi.color)} />
                     <div className="min-w-0">

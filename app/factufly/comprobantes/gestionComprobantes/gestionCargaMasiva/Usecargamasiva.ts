@@ -18,7 +18,7 @@ function calcItem(item: { precioUnitario: number; cantidad: number; igvPct: numb
 // ── Hook principal ─────────────────────────────────────────────────────────────
 export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
   const [state, setState] = useState<CargaMasivaState>({
-    fechaEmision: new Date().toISOString().split("T")[0],
+    fechaEmision: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date()),
     comprobantes: [],
     erroresGlobales: [],
     cargando: false,
@@ -536,7 +536,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
   // ── Reset ───────────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
     setState({
-      fechaEmision: new Date().toISOString().split("T")[0],
+      fechaEmision: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date()),
       comprobantes: [],
       erroresGlobales: [],
       cargando: false,

@@ -1343,22 +1343,25 @@ function GuiaRemisionContent() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-3 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex items-center gap-4 ">
-        <Button
-          variant="ghost"
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
           onClick={() => router.push("/factufly/operaciones")}
-          className="h-10 w-10 p-0 rounded-xl bg-gray-200 hover:bg-gray-300"
+          className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
+          style={{ background: "rgba(15,46,100,0.08)" }}
+          onMouseEnter={e => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}
+          onMouseLeave={e => (e.currentTarget.style.background = "rgba(15,46,100,0.08)")}
         >
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
+          <ChevronLeft className="w-4 h-4" style={{ color: "#0f2e64" }} />
+        </button>
         <div>
-          <h3 className="text-xl font-bold text-gray-900">
+          <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>
             Nueva Guía de Remisión
           </h3>
-          <p className="text-sm text-gray-500">
-            Regresar a selección de comprobante
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Emisión de comprobante electrónico
           </p>
         </div>
       </div>
