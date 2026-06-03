@@ -73,14 +73,14 @@ export const RankingTrabajadores: React.FC<Props> = ({ sucursalId }) => {
 
       {!loading && ranking.length > 0 && (
         <Card className="p-0 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
+          <div className="py-2 border-b border-gray-100">
             <p className="text-sm font-semibold text-gray-700">
               Ranking por monto vendido
             </p>
           </div>
           <div className="divide-y divide-gray-100">
             {ranking.map((t, index) => (
-              <div key={t.trabajadorId} className="px-5 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors">
+              <div key={t.trabajadorId} className="px-0 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors">
                 {/* Posición */}
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
                   index === 0 ? "bg-yellow-100 text-yellow-700" :
@@ -93,7 +93,7 @@ export const RankingTrabajadores: React.FC<Props> = ({ sucursalId }) => {
 
                 {/* Info trabajador */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">{t.nombreCompleto}</p>
+                  <p className="text-xs font-semibold text-gray-900">{t.nombreCompleto}</p>
                   <p className="text-xs text-gray-400">{t.dni}</p>
 
                   {/* Barra de progreso */}

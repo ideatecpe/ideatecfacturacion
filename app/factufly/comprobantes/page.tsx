@@ -1176,7 +1176,7 @@ export default function VerComprobantesPage() {
           scrollbar-color: transparent transparent;
         }
         .comp-table tbody {
-          max-height: calc(100vh - ${offset > 0 || hasMore ? 355 : isBeta ? 230 : 200}px);
+          max-height: calc(100vh - ${offset > 0 || hasMore ? (isBeta ? 292 : 262) : isBeta ? 230 : 200}px);
           scrollbar-color: #CBD5E1 transparent;
         }
         .comp-table thead tr,

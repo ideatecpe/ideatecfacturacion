@@ -63,8 +63,6 @@ const FilaComprobante = ({ comp, idx }: { comp: ComprobanteAgrupado; idx: number
             <span className="text-xs font-medium text-gray-800 leading-tight wrap-break-word whitespace-normal">
               {comp.razonSocial}
             </span>
-            {comp.correo && <span className="text-[10px] text-gray-400 truncate max-w-50">{comp.correo}</span>}
-            {comp.whatsapp && <span className="text-[10px] text-green-600 font-medium">{comp.whatsapp}</span>}
           </div>
         </td>
         <td className="px-3 py-3 text-center">

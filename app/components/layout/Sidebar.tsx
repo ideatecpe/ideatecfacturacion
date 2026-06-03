@@ -24,7 +24,7 @@ export const Sidebar = ({
     <aside
       className={cn(
         "flex flex-col fixed inset-y-0 z-50 xl:relative h-full overflow-hidden transition-all duration-300",
-        isOpen ? "w-54" : "w-[72px]",
+        isOpen ? "w-54" : "w-18",
         isOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
       )}
       style={{ background: "#0f2e64" }}
@@ -59,8 +59,8 @@ export const Sidebar = ({
                 "relative w-full flex items-center gap-3 px-3 py-2 rounded-lg group transition-colors duration-150",
                 !isOpen && "justify-center",
                 active
-                  ? "bg-white/[0.12] text-white"
-                  : "text-white/50 hover:text-white/90 hover:bg-white/[0.06]",
+                  ? "bg-white/12 text-white"
+                  : "text-white/50 hover:text-white/90 hover:bg-white/6",
               )}
             >
               {/* Indicador activo */}
@@ -71,7 +71,7 @@ export const Sidebar = ({
                 />
               )}
 
-              <item.icon className={cn("w-[18px] h-[18px] shrink-0", active ? "text-white" : "text-white/50 group-hover:text-white/90")} />
+              <item.icon className={cn("w-4.5 h-4.5 shrink-0", active ? "text-white" : "text-white/50 group-hover:text-white/90")} />
 
               {isOpen && (
                 <span className="text-[13px] font-medium truncate">{item.label}</span>

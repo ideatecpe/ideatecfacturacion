@@ -79,7 +79,7 @@ export const ReporteCliente: React.FC<Props> = ({ sucursalId }) => {
       {/* ── Filtros ── */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1 flex-1 min-w-50">
-          <label className="text-xs font-semibold text-gray-500 uppercase">
+          <label className="text-xs font-semibold text-gray-500 ">
             Cliente (nombre, RUC o DNI)
           </label>
           <div className="relative">
@@ -94,7 +94,7 @@ export const ReporteCliente: React.FC<Props> = ({ sucursalId }) => {
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-gray-500 uppercase">
+          <label className="text-xs font-semibold text-gray-500 ">
             Desde
           </label>
           <input
@@ -105,7 +105,7 @@ export const ReporteCliente: React.FC<Props> = ({ sucursalId }) => {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-gray-500 uppercase">
+          <label className="text-xs font-semibold text-gray-500 ">
             Hasta
           </label>
           <input
@@ -118,9 +118,9 @@ export const ReporteCliente: React.FC<Props> = ({ sucursalId }) => {
         <button
           onClick={handleBuscar}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-brand-blue text-white text-xs font-semibold rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-blue text-white text-xs font-semibold rounded-md hover:bg-blue-900 transition-colors disabled:opacity-50"
         >
-          <Search className="w-3.5 h-3.5" />
+          <Search className="w-4 h-5" />
           {loading ? "Buscando..." : "Buscar"}
         </button>
       </div>
