@@ -52,7 +52,8 @@ export const ModalDeudasPorCobrar = ({
   const [montoPagadoActual, setMontoPagadoActual] = useState(deuda.montoPagado)
   const [huboCambios, setHuboCambios] = useState(false)
 
-  const montoRestante = deuda.montoTotal - montoPagadoActual
+  const montoBase = deuda.saldoReal ?? deuda.montoTotal
+  const montoRestante = montoBase - montoPagadoActual
   const [montoPagado, setMontoPagado] = useState(montoRestante.toFixed(2));
   const [fechaPago, setFechaPago] = useState(hoy);
   const [medioPago, setMedioPago] = useState(
@@ -83,7 +84,7 @@ export const ModalDeudasPorCobrar = ({
   ].includes(medioPago);
   const montoPagadoNum = parseFloat(montoPagado) || 0;
   const montoTrasEstePago = montoPagadoActual + montoPagadoNum;
-  const quedaria = Math.max(0, deuda.montoTotal - montoTrasEstePago);
+  const quedaria = Math.max(0, montoBase - montoTrasEstePago);
 
   const toggleHistorial = async () => {
     if (historialAbierto) {
@@ -129,6 +130,7 @@ export const ModalDeudasPorCobrar = ({
       montoPagado: parseFloat(montoPagado),
       fechaPago: new Date(fechaPago).toISOString(),
       medioPago,
+      tipoMoneda: deuda.tipoMoneda,
       entidadFinanciera: entidadFinanciera || null,
       numeroOperacion: numeroOperacion || null,
       observaciones: observaciones || null,
@@ -260,12 +262,12 @@ export const ModalDeudasPorCobrar = ({
                   <div className="mt-2 space-y-1">
                     <div className="flex justify-between text-[10px] text-gray-400">
                       <span>Progreso tras este pago</span>
-                      <span>{Math.min((montoTrasEstePago / deuda.montoTotal) * 100, 100).toFixed(0)}%</span>
+                      <span>{Math.min((montoTrasEstePago / montoBase) * 100, 100).toFixed(0)}%</span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-1.5">
                       <div
                         className={cn("h-1.5 rounded-full transition-all", quedaria === 0 ? "bg-emerald-500" : "bg-blue-500")}
-                        style={{ width: `${Math.min((montoTrasEstePago / deuda.montoTotal) * 100, 100)}%` }}
+                        style={{ width: `${Math.min((montoTrasEstePago / montoBase) * 100, 100)}%` }}
                       />
                     </div>
                     <div className="flex justify-between text-[10px]">
@@ -390,7 +392,7 @@ export const ModalDeudasPorCobrar = ({
                     setHistorial(data)
                     const nuevoMontoPagado = data.reduce((acc, p) => acc + p.montoPagado, 0)
                     setMontoPagadoActual(nuevoMontoPagado)
-                    setMontoPagado((deuda.montoTotal - nuevoMontoPagado).toFixed(2))
+                    setMontoPagado((montoBase - nuevoMontoPagado).toFixed(2))
                     setHuboCambios(true)
                   }}
                   usuarioId={usuarioId}

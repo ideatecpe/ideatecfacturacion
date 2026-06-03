@@ -110,6 +110,7 @@ export const HistorialPagosDeuda = ({
       montoPagado: monto,
       fechaPago: new Date(filaEditando.fechaPago).toISOString(),
       medioPago: filaEditando.medioPago,
+      tipoMoneda,
       entidadFinanciera: filaEditando.entidadFinanciera || null,
       numeroOperacion: filaEditando.numeroOperacion || null,
       observaciones: filaEditando.observaciones || null,

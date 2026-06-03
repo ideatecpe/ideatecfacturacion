@@ -25,6 +25,11 @@ export interface DeudaContado {
   montoTotal: number
   montoPagado: number
   estado: string  // PENDIENTE | PARCIAL | PAGADO
+
+  // Campos nuevos backend
+  saldoReal: number       // monto real a cobrar tras NC/ND aplicadas
+  tieneNotas: boolean     // tiene NC o ND aplicadas
+  tipoCambio: number      // tipo de cambio (útil si tipoMoneda = USD)
 }
 
 // ── Historial de pagos de una deuda contado ───────────────────────────────────
@@ -39,6 +44,7 @@ export interface PagoDeudaContado {
   observaciones: string | null
   usuarioRegistroPago: number | null
   fechaRegistro: string
+  tipoMoneda: string
 }
 
 // ── Payload registrar pago ────────────────────────────────────────────────────
@@ -47,6 +53,7 @@ export interface RegistrarPagoDeudaPayload {
   montoPagado: number
   fechaPago: string
   medioPago: string
+  tipoMoneda: string
   entidadFinanciera?: string | null
   numeroOperacion?: string | null
   observaciones?: string | null
@@ -68,6 +75,7 @@ export interface EditarPagoDeudaPayload {
   montoPagado: number
   fechaPago: string       // ISO string
   medioPago: string
+  tipoMoneda: string
   entidadFinanciera: string | null
   numeroOperacion: string | null
   observaciones: string | null
