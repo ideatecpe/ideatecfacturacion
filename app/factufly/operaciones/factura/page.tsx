@@ -205,6 +205,7 @@ function FacturaContent() {
   const [tipoDoc, setTipoDoc] = useState("06");
   const [busqueda, setBusqueda] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [nombreEditable, setNombreEditable] = useState(false);
 
   // ── Modal guardar cliente ────────────────────────────────────
   const [showModalCliente, setShowModalCliente] = useState(false);
@@ -1330,6 +1331,7 @@ function FacturaContent() {
   const seleccionarDeLista = (c: Cliente) => {
     setBusqueda(c.numeroDocumento);
     setShowDropdown(false);
+    setNombreEditable(false);
     const direccion = c.direccion?.[0];
     setCorreoCliente(c.correo ?? "");
     setTelefonoCliente(c.telefono ?? "");
@@ -2538,6 +2540,7 @@ function FacturaContent() {
                         onChange={(e) => {
                           setTipoDoc(e.target.value);
                           setBusqueda("");
+                          setNombreEditable(false);
                           setShowDropdown(false);
                           setFactura((prev) => ({
                             ...prev,
@@ -2609,25 +2612,53 @@ function FacturaContent() {
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
-                        disabled
+                        disabled={!nombreEditable && !errorCliente}
                         value={factura.cliente?.razonSocial ?? ""}
+                        onChange={(e) => {
+                          setFactura((prev: any) => ({
+                            ...prev,
+                            cliente: {
+                              ...prev.cliente,
+                              razonSocial: e.target.value,
+                              clienteId: null,
+                              tipoDocumento: tipoDoc,
+                              numeroDocumento: busqueda,
+                            },
+                          }));
+                        }}
                         placeholder="Razón social"
-                        className="w-full py-1.5 px-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-600 text-sm"
+                        className={`w-full py-1.5 px-3 border rounded-xl text-sm transition-all ${
+                          nombreEditable || errorCliente
+                            ? "bg-white border-blue-300 text-gray-800 focus:ring-2 focus:ring-blue-100 outline-none"
+                            : "bg-gray-100 border-gray-200 text-gray-600"
+                        }`}
                       />
+                      {!nombreEditable && !errorCliente && busqueda && (
+                        <button
+                          type="button"
+                          title="Ingresar nombre manualmente"
+                          onClick={() => setNombreEditable(true)}
+                          className="shrink-0 px-2 py-1 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          Manual
+                        </button>
+                      )}
                       {factura.cliente?.clienteId === null &&
                         factura.cliente?.razonSocial && (
                           <button
                             type="button"
                             onClick={() => setShowModalCliente(true)}
                             className="w-8 h-8 shrink-0 flex items-center justify-center bg-brand-blue hover:bg-blue-700 text-white rounded-full text-lg font-bold transition-colors"
-                            title="Guardar cliente en mi base de datos"
+                            title="Guardar cliente"
                           >
                             +
                           </button>
                         )}
                     </div>
                     {errorCliente && (
-                      <p className="text-xs text-red-500">{errorCliente}</p>
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertTriangle size={12} className="shrink-0" /> {errorCliente} — escribe el nombre manualmente
+                      </p>
                     )}
                     {docInvalido && (
                       <p className="text-[10px] text-red-500 pl-1 mt-0.5">
@@ -2881,54 +2912,29 @@ function FacturaContent() {
                 */}
               </div>
 
-              {(config?.isCredito || mostrarTrabajadores) && (
-                <div className={`grid gap-4 ${config?.isCredito && mostrarTrabajadores ? "grid-cols-2" : "grid-cols-1"}`}>
-                  {config?.isCredito && (
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase">Tipo de Pago</label>
-                      <select
-                        value={factura.tipoPago ?? "Contado"}
-                        onChange={(e) => {
-                          const nuevoTipo = e.target.value;
-                          setFactura((prev) => ({
-                            ...prev,
-                            tipoPago: nuevoTipo,
-                            ...(nuevoTipo === "Contado" && {
-                              fechaVencimiento: (prev.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10),
-                            }),
-                          }));
-                          setPagos([{ medioPago: "Efectivo", monto: "", numeroOperacion: "", entidadFinanciera: "", observaciones: "" }]);
-                          setPagosEditados([false]);
-                        }}
-                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
-                      >
-                        <option value="Contado">Contado</option>
-                        <option value="Credito">Crédito</option>
-                        <option value="CreditoInicial">Crédito con Inicial</option>
-                      </select>
-                    </div>
-                  )}
-                  {mostrarTrabajadores && (
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-gray-500 uppercase">Atendido por</label>
-                      <select
-                        value={trabajadorIdGlobal}
-                        onChange={(e) => {
-                          const id = Number(e.target.value);
-                          setTrabajadorIdGlobal(id);
-                          const nuevo: Record<string, number> = {};
-                          detalles.filter((d) => !d._esIcbper).forEach((d, i) => { nuevo[d._id ?? String(i)] = id; });
-                          setTrabajadoresPorItem(nuevo);
-                        }}
-                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-purple-400"
-                      >
-                        <option value={0}>Seleccionar trabajador...</option>
-                        {trabajadores.map((t) => (
-                          <option key={t.id} value={t.id}>{t.nombreCompleto}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+              {config?.isCredito && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase">Tipo de Pago</label>
+                  <select
+                    value={factura.tipoPago ?? "Contado"}
+                    onChange={(e) => {
+                      const nuevoTipo = e.target.value;
+                      setFactura((prev) => ({
+                        ...prev,
+                        tipoPago: nuevoTipo,
+                        ...(nuevoTipo === "Contado" && {
+                          fechaVencimiento: (prev.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10),
+                        }),
+                      }));
+                      setPagos([{ medioPago: "Efectivo", monto: "", numeroOperacion: "", entidadFinanciera: "", observaciones: "" }]);
+                      setPagosEditados([false]);
+                    }}
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                  >
+                    <option value="Contado">Contado</option>
+                    <option value="Credito">Crédito</option>
+                    <option value="CreditoInicial">Crédito con Inicial</option>
+                  </select>
                 </div>
               )}
 
@@ -3039,61 +3045,81 @@ function FacturaContent() {
                   </div>
                 )}
 
-              {/* ── Vales ── */}
-              {config?.isVale && vales.length > 0 && (
-                <div className="border border-gray-100 rounded-xl overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setShowVales((v) => !v)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-gray-500 uppercase">
-                        Vales
-                      </span>
-                      {valesSeleccionados.length > 0 && (
-                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                          {valesSeleccionados.length} seleccionado{valesSeleccionados.length > 1 ? "s" : ""}
-                        </span>
-                      )}
+              {/* ── Atendido por + Vales (misma fila) ── */}
+              {(mostrarTrabajadores || (config?.isVale && vales.length > 0)) && (
+                <div className={`grid gap-3 ${mostrarTrabajadores && config?.isVale && vales.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {mostrarTrabajadores && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Atendido por</label>
+                      <select
+                        value={trabajadorIdGlobal}
+                        onChange={(e) => {
+                          const id = Number(e.target.value);
+                          setTrabajadorIdGlobal(id);
+                          const nuevo: Record<string, number> = {};
+                          detalles.filter((d) => !d._esIcbper).forEach((d, i) => { nuevo[d._id ?? String(i)] = id; });
+                          setTrabajadoresPorItem(nuevo);
+                        }}
+                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                      >
+                        <option value={0}>Seleccionar trabajador...</option>
+                        {trabajadores.map((t) => (
+                          <option key={t.id} value={t.id}>{t.nombreCompleto}</option>
+                        ))}
+                      </select>
                     </div>
-                    {showVales ? (
-                      <ChevronUp className="w-4 h-4 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
-                    )}
-                  </button>
-
-                  {showVales && (
-                    <div className="p-3 space-y-2">
+                  )}
+                  {config?.isVale && vales.length > 0 && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Vales</label>
                       {loadingVales ? (
-                        <p className="text-xs text-gray-400 text-center py-2">Cargando vales...</p>
+                        <div className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-400">Cargando...</div>
+                      ) : vales.length === 1 ? (
+                        <label className="flex items-center gap-2 py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={valesSeleccionados.includes(vales[0].idVale)}
+                            onChange={() => toggleVale(vales[0].idVale)}
+                            className="w-3.5 h-3.5 accent-brand-blue cursor-pointer shrink-0"
+                          />
+                          <span className="text-sm text-gray-700 flex-1 truncate">{vales[0].nombre}</span>
+                          <span className="text-[10px] text-gray-400 shrink-0">{vales[0].duracion}d</span>
+                        </label>
                       ) : (
-                        vales.map((vale) => (
-                          <label
-                            key={vale.idVale}
-                            className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
-                              valesSeleccionados.includes(vale.idVale)
-                                ? "border-brand-blue bg-blue-50"
-                                : "border-gray-200 hover:bg-gray-50"
-                            }`}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setShowVales((v) => !v)}
+                            onBlur={() => setTimeout(() => setShowVales(false), 150)}
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none text-left flex items-center justify-between hover:border-brand-blue transition-colors"
                           >
-                            <input
-                              type="checkbox"
-                              checked={valesSeleccionados.includes(vale.idVale)}
-                              onChange={() => toggleVale(vale.idVale)}
-                              className="mt-0.5 w-4 h-4 accent-brand-blue cursor-pointer shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-gray-800 leading-tight">
-                                {vale.nombre}
-                              </p>
-                              <p className="text-[10px] text-gray-400 mt-0.5">
-                                Duración: {vale.duracion} días
-                              </p>
+                            <span className={valesSeleccionados.length ? "text-gray-800" : "text-gray-400"}>
+                              {valesSeleccionados.length
+                                ? `${valesSeleccionados.length} vale${valesSeleccionados.length > 1 ? "s" : ""} seleccionado${valesSeleccionados.length > 1 ? "s" : ""}`
+                                : "Seleccionar vale..."}
+                            </span>
+                            <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                          </button>
+                          {showVales && (
+                            <div className="absolute z-30 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                              {vales.map((vale) => (
+                                <label
+                                  key={vale.idVale}
+                                  className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={valesSeleccionados.includes(vale.idVale)}
+                                    onChange={() => toggleVale(vale.idVale)}
+                                    className="w-3.5 h-3.5 accent-brand-blue cursor-pointer shrink-0"
+                                  />
+                                  <span className="text-xs text-gray-700 flex-1 truncate">{vale.nombre}</span>
+                                  <span className="text-[10px] text-gray-400 shrink-0">{vale.duracion}d</span>
+                                </label>
+                              ))}
                             </div>
-                          </label>
-                        ))
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

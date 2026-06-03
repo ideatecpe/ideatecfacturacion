@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
 import { Card } from '@/app/components/ui/Card';
+import { CardTable } from '@/app/components/ui/CardTable';
 import { Badge } from '@/app/components/ui/Badge';
 import { cn } from '@/app/utils/cn';
 import { ModalEliminar } from '@/app/components/ui/ModalEliminar';
@@ -294,7 +295,7 @@ export default function ClientesPage() {
   const totalWidth = isSuperAdmin ? 1400 : 1270; 
 
   return (
-  <div className="space-y-3 animate-in fade-in duration-500">
+  <div className="space-y-2 animate-in fade-in duration-500">
     {/* ── Modales ────────────────────────────────────────────────────────── */}
     {clienteCorreo && (
       <EnviarCorreoCliente
@@ -329,23 +330,23 @@ export default function ClientesPage() {
     )}
 
     {/* ── Barra de búsqueda y filtros ──────────────────────────────────── */}
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div className="relative flex-1 max-w-md">
+    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="relative flex-1 max-w-sm">
+        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar por RUC, DNI o Nombre..."
-          className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm text-xs"
+          className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
         />
-        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
         {search && (
           <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
             <X size={14} />
           </button>
         )}
       </div>
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         {isSuperAdmin && (
           <DropdownFiltro
             label="Sucursal: Todas"
@@ -366,17 +367,21 @@ export default function ClientesPage() {
           options={["Todos", "RUC", "DNI", "CE"]}
           onChange={(v) => setFilterTipo(v as any)}
         />
-        <Button onClick={() => setIsNuevoOpen(true)} className="py-2.5 px-3 text-xs rounded-md h-auto">
+        <Button onClick={() => setIsNuevoOpen(true)} className="py-2 px-3 text-xs h-auto">
           <Plus className="w-3.5 h-3.5" /> Nuevo Cliente
         </Button>
       </div>
     </div>
 
-    {/* ── Contador ── */}
     <div className="flex items-center justify-between">
-      <p className="text-sm text-gray-500">
-        Mostrando <span className="font-semibold text-gray-900">{filtered.length}</span> de <span className="font-semibold text-gray-900">{clientes.length}</span> clientes
+      <p className="text-[12px] text-gray-500">
+        Total{" "}
+        <span className="font-semibold text-gray-900">{filtered.length}</span>{" "}
+        clientes
       </p>
+      {search && filtered.length === 0 && (
+        <p className="text-sm text-amber-600 font-medium">Sin resultados para esta búsqueda</p>
+      )}
     </div>
 
     {/* ── Estilos tabla ── */}
@@ -399,80 +404,78 @@ export default function ClientesPage() {
   }
 `}</style>
 
-<Card className="p-0 overflow-hidden">
+<CardTable className="overflow-hidden">
   <div className="overflow-x-auto">
     <table className="w-full text-left border-collapse clientes-table" style={{minWidth: 900}}>
       <thead>
-        <tr className="bg-gray-100" style={{borderTopLeftRadius: '12px', borderTopRightRadius: '12px', overflow: 'hidden'}}>
-          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">DOCUMENTO</th>
-          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">RAZÓN SOCIAL</th>
-          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">DIRECCIÓN</th>
-          {isSuperAdmin && (<th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">SUCURSAL</th>)}
-          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-44 whitespace-normal wrap-break-word">CORREO</th>
-          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">TELÉFONO</th>
-          {/* FECHA oculta */}
-          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">ESTADO</th>
-          <th className="px-5 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-36">ACCIONES</th>
+        <tr style={{ background: "#F5F8FD" }}>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-24">Documento</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-40">Razón Social</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-40">Dirección</th>
+          {isSuperAdmin && (<th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-24">Sucursal</th>)}
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-44">Correo</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-24">Teléfono</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-16">Estado</th>
+          <th className="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider w-36">Acciones</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-gray-100">
+      <tbody className="divide-y divide-[#EEF3FB]">
         {loadingClientes ? (
           <tr>
-            <td colSpan={isSuperAdmin ? 10 : 9} className="px-6 py-16 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
-                <div className="w-5 h-5 border-2 border-gray-300 border-t-brand-blue rounded-full animate-spin" />
+            <td colSpan={isSuperAdmin ? 8 : 7} className="px-4 py-12 text-center">
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+                <div className="w-4 h-4 border-2 border-slate-200 border-t-brand-blue rounded-full animate-spin" />
                 Cargando clientes...
               </div>
             </td>
           </tr>
         ) : filtered.length === 0 ? (
           <tr>
-            <td colSpan={isSuperAdmin ? 10 : 9} className="px-6 py-16 text-center text-sm text-gray-400">
+            <td colSpan={isSuperAdmin ? 8 : 7} className="px-4 py-12 text-center text-xs text-slate-400">
               No se encontraron clientes con ese criterio.
             </td>
           </tr>
         ) : filtered.map((client) => (
           <tr key={client.clienteId} className="hover:bg-gray-50/50 transition-colors">
-            <td className="px-5 py-2 w-24">
-              <p className="text-xs font-bold text-gray-400 uppercase">{client.tipoDocumento.tipoDocumentoNombre}</p>
-              <p className="text-sm font-mono text-gray-700">{client.numeroDocumento}</p>
+            <td className="px-3 py-1 w-24">
+              <p className="text-[11px] text-gray-400">{client.tipoDocumento.tipoDocumentoNombre}</p>
+              <p className="text-[12px] font-medium text-gray-900">{client.numeroDocumento}</p>
             </td>
-            <td className="px-5 py-2 text-[11px] font-semibold text-gray-900 uppercase w-40">{client.razonSocialNombre}</td>
-            <td className="px-5 py-2 text-[11px] text-gray-600 uppercase w-40">
+            <td className="px-3 py-1 text-[12px] font-medium text-gray-900 w-40">{client.razonSocialNombre}</td>
+            <td className="px-3 py-1 text-[12px] text-gray-600 w-40">
               {formatDireccion(client.direccion, client.tipoDocumento.tipoDocumentoId)}
             </td>
             {isSuperAdmin && (
-              <td className="px-5 py-2 text-sm text-gray-600 w-24">
+              <td className="px-3 py-1 text-[12px] text-gray-600 w-24">
                 {sucursales.find(s => s.sucursalId === client.sucursalID)?.nombre ?? "-"}
               </td>
             )}
-            <td className="px-5 py-2 text-sm text-gray-600 w-44 whitespace-normal wrap-break-word">{client.correo ?? '-'}</td>
-            <td className="px-5 py-2 text-sm text-gray-600 w-20">{client.telefono ?? '-'}</td>
-            {/* FECHA oculta */}
-            <td className="px-5 py-2 w-16">
+            <td className="px-3 py-1 text-[12px] text-gray-600 w-44 whitespace-normal">{client.correo ?? '-'}</td>
+            <td className="px-3 py-1 text-[12px] text-gray-600 w-20">{client.telefono ?? '-'}</td>
+            <td className="px-3 py-1 w-16">
               <Badge variant={client.estado ? 'success' : 'default'}>
                 {client.estado ? 'Activo' : 'Inactivo'}
               </Badge>
             </td>
-            <td className="px-5 py-2 w-36">
+            <td className="px-3 py-1 w-36">
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => setClienteCorreo(client)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap"
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors whitespace-nowrap"
                 >
-                  <Send size={12} /> Correo
+                  <Send size={11} /> Correo
                 </button>
                 <button
                   onClick={() => setClienteEditar(client)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-[#0f2e64] bg-[#EEF3FB] hover:bg-[#E2EAF6] rounded-md transition-colors"
                 >
-                  <Edit2 size={12} />
+                  <Edit2 size={11} />
                 </button>
                 <button
                   onClick={() => setEliminarCliente(client)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors"
                 >
-                  <Trash2 size={12} />
+                  <Trash2 size={11} />
                 </button>
               </div>
             </td>
@@ -481,7 +484,7 @@ export default function ClientesPage() {
       </tbody>
     </table>
   </div>
-</Card>
+</CardTable>
 
     {/* ── Modal: Nuevo Cliente ──────────────────────────────────────────── */}
     <AgregarCliente

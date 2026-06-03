@@ -162,7 +162,7 @@ export default function DashboardLayout({
             toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             activeView={activeView}
           />
-          <main className="flex-1 px-6 overflow-y-auto overflow-x-hidden custom-scrollbar py-2">
+          <main className="flex-1 p-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
             <div className="mx-auto">{children}</div>
           </main>
         </div>
