@@ -737,6 +737,7 @@ export default function DashboardPage() {
                 >
                   Ver todas las alertas
                 </Button>
+                
               </div>
             </Card>
           )}
