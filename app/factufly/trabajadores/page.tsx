@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import axios from "axios";
-import { Search, Plus, Edit2, Trash2, X } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, X, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { Badge } from "@/app/components/ui/Badge";
@@ -21,6 +21,7 @@ import {
   EditarTrabajadorDTO,
 } from "./gestionTrabajadores/typesTrabajador";
 import { ReporteCliente } from "./gestionTrabajadores/reportes/Reportecliente";
+import { ModalReporteMatriz } from "./gestionTrabajadores/reportes/ModalReporteMatriz";
 
 type Tab = "crud" | "reporte" | "ranking" | "servicios" | "cliente";
 
@@ -70,6 +71,7 @@ export default function TrabajadoresPage() {
   const [trabajadorEliminar, setTrabajadorEliminar] =
     useState<Trabajador | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReporteOpen, setIsReporteOpen] = useState(false);
 
   const filtered = useMemo(
     () =>
@@ -183,7 +185,15 @@ export default function TrabajadoresPage() {
   };
 
   return (
-    <div className="space-y-3 animate-in fade-in duration-500">
+    <div className="space-y-full animate-in fade-in duration-500">
+      {/* ── Modal Reporte Matriz ── */}
+      {isReporteOpen && (
+        <ModalReporteMatriz
+          sucursalId={sucursalId}
+          onClose={() => setIsReporteOpen(false)}
+        />
+      )}
+
       {/* ── Modales ── */}
       <AgregarTrabajador
         isOpen={isNuevoOpen}
@@ -232,23 +242,31 @@ export default function TrabajadoresPage() {
       {activeTab === "crud" && (
         <div className="space-y-3">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="relative flex-1 max-w-md">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por nombre, DNI o correo..."
-                className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm text-xs"
-              />
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={14} />
-                </button>
-              )}
+            <div className="flex items-center gap-2 flex-1">
+              <div className="relative flex-1 max-w-md">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar por nombre, DNI o correo..."
+                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm text-xs"
+                />
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setIsReporteOpen(true)}
+                className="flex items-center gap-1.5 py-2.5 px-3 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors whitespace-nowrap"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" /> Reporte Trabajadores
+              </button>
             </div>
             {!soloLectura && (
               <Button

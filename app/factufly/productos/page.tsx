@@ -42,6 +42,7 @@ import { useSucursalRuc } from "../operaciones/boleta/gestionBoletas/useSucursal
 import { useRegistrarCategoria } from "./gestioProductos/useRegistrarCategoria";
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import ModalReporteProductos from "@/app/components/modalProductos/Modalreporteproductos";
+import { ModalVentasProductoExcel } from "./gestioProductos/ModalVentasProductoExcel";
 import { generarCodigoProducto } from "./gestioProductos/generarCodigoProducto";
 
 export default function ProductosPage() {
@@ -224,6 +225,8 @@ export default function ProductosPage() {
 
   //modal reporte
   const [isReporteOpen, setIsReporteOpen] = useState(false);
+  const [isVentasProductoOpen, setIsVentasProductoOpen] = useState(false);
+  const sucursalId = parseInt(user?.sucursalID ?? "0");
 
   //Categorias
   const { categorias, setCategorias, loadingCategorias, fetchCategorias } =
@@ -612,8 +615,14 @@ export default function ProductosPage() {
               onClick={() => setIsReporteOpen(true)}
               className="py-2.5 px-3 text-xs rounded-md h-auto"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" /> Reporte Excel
+              <FileSpreadsheet className="w-3.5 h-3.5" /> Reporte Productos
             </Button>
+            <button
+              onClick={() => setIsVentasProductoOpen(true)}
+              className="flex items-center gap-1.5 py-2.5 px-3 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors whitespace-nowrap"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" /> Reporte Ventas
+            </button>
             {config?.isVale && (
               <Button
                 variant="outline"
@@ -907,6 +916,12 @@ export default function ProductosPage() {
         categorias={categorias}
         sucursales={sucursales}
       />
+      {isVentasProductoOpen && (
+        <ModalVentasProductoExcel
+          sucursalId={sucursalId}
+          onClose={() => setIsVentasProductoOpen(false)}
+        />
+      )}
 
       {/* ── Modal Administrar Vales ── */}
       {showModalVales && (
