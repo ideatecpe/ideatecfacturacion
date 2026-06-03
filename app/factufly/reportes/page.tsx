@@ -271,7 +271,7 @@ export default function ReportesPage() {
     const filtros = { ...getParamsBase(), ...modal.filtros, codEstablecimiento: codEst };
     // Facturador siempre filtra por su propio usuarioCreacion — no puede ver datos de otros
     if (!puedeVerUsuarios && user?.id) {
-      filtros.usuarioCreacion = user.id;
+      filtros.usuarioCreacion = Number(user.id);
     }
     return filtros;
   };
