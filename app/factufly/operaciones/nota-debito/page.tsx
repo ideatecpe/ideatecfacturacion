@@ -1065,7 +1065,9 @@ function NotaDebitoContent() {
                                       className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">−</button>
                                     <input type="number" min={1} step="1" value={d.cantidad}
                                       onChange={(e) => actualizarCantidad(i, e.target.value === "" ? "" : Number(e.target.value))}
-                                      className="w-12 py-1 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue" />
+                                      onWheel={(e) => e.currentTarget.blur()}
+                                      onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                                      className="w-12 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                     <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad) || 0) + 1)}
                                       className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">+</button>
                                   </div>
@@ -1077,10 +1079,12 @@ function NotaDebitoContent() {
                               {/* Monto con IGV + precio original debajo (motivo 02) */}
                               <td className="px-2 py-1.5">
                                 <div className="space-y-0.5">
-                                  <input type="number" min={0} step="0.01" value={d._montoConIgv ?? ""}
+                                  <input type="number" min={0} step="0.10" value={d._montoConIgv ?? ""}
                                     onChange={(e) => actualizarMontoConIgv(i, e.target.value === "" ? "" : Number(e.target.value))}
+                                    onWheel={(e) => e.currentTarget.blur()}
+                                    onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                     disabled={codMotivo === "01" && comprobante?.tipoPago === "Contado"}
-                                    className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono disabled:opacity-50 disabled:cursor-not-allowed" />
+                                    className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono disabled:opacity-50 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                   {/* Precio venta original — solo motivo 02 */}
                                   {codMotivo === "02" && d._precioVentaOriginal !== undefined && (
                                     <p className="text-[9px] text-right text-gray-400">

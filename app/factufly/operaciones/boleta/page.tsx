@@ -2798,7 +2798,9 @@ function BoletaContent() {
                               <input type="number" min={0} value={pago.monto} placeholder={`${simbolo} 0.00`}
                                 onChange={(e) => { actualizarPago(i, "monto", e.target.value); setPagosEditados((prev) => { const n = [...prev]; n[i] = e.target.value !== ""; if (pagos.length === 2) n[i === 0 ? 1 : 0] = true; return n; }); }}
                                 onBlur={(e) => { if (!e.target.value || e.target.value === "0") { setPagosEditados((prev) => { const n = [...prev]; n[i] = false; return n; }); actualizarPago(i, "monto", ""); } }}
-                                className="w-20 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs"
+                                onWheel={(e) => e.currentTarget.blur()}
+                                onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                                className="w-20 shrink-0 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                               {pago.medioPago === "Transferencia" && (<>
                                 <input type="text" value={pago.numeroOperacion} onChange={(e) => actualizarPago(i, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-16 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
@@ -2931,7 +2933,9 @@ function BoletaContent() {
                         onChange={(e) =>
                           setNumeroCuotas(Number(e.target.value))
                         }
-                        className="w-16 py-1.5 px-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue text-center"
+                        onWheel={(e) => e.currentTarget.blur()}
+                        onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                        className="w-16 py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   </div>
@@ -2962,7 +2966,9 @@ function BoletaContent() {
                               n[i].monto = e.target.value;
                               setCuotas(n);
                             }}
-                            className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue"
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                            className="w-full py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
                         <div className="space-y-1">
@@ -3465,14 +3471,15 @@ function BoletaContent() {
                                         type="number"
                                         min={1}
                                         value={d.cantidad ?? 1}
-                                        onFocus={(e) => e.target.select()}
+                                        onWheel={(e) => e.currentTarget.blur()}
+                                        onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                         onChange={(e) =>
                                           actualizarCantidad(
                                             i,
                                             Number(e.target.value),
                                           )
                                         }
-                                        className="w-10 py-1 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        className="w-10 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       />
                                       <button
                                         type="button"
@@ -3524,7 +3531,7 @@ function BoletaContent() {
                                     e.target.select();
                                   }}
                                   onChange={(e) => {
-                                    const raw = e.target.value;
+                                    const raw = e.target.value.replace(/[^0-9.,]/g, "");
                                     setPrecioInputValues(prev => ({ ...prev, [i]: raw }));
                                     const num = Number(raw.replace(",", "."));
                                     if (!isNaN(num) && raw !== "" && !raw.replace(",", ".").endsWith(".")) {
@@ -3537,7 +3544,7 @@ function BoletaContent() {
                                     setPrecioInputValues(prev => { const n = { ...prev }; delete n[i]; return n; });
                                   }}
                                   disabled={!!d._esIcbper}
-                                  className={`w-full py-1 px-1 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono ${d._esIcbper ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
+                                  className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono ${d._esIcbper ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
                                 />
                               </td>
 
@@ -3573,7 +3580,8 @@ function BoletaContent() {
                                   min={0}
                                   step="0.01"
                                   value={d.descuentoUnitario ?? 0}
-                                  onFocus={(e) => e.target.select()}
+                                  onWheel={(e) => e.currentTarget.blur()}
+                                  onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                   onChange={(e) =>
                                     actualizarDescuento(
                                       i,
@@ -3581,7 +3589,7 @@ function BoletaContent() {
                                     )
                                   }
                                   disabled={!!d._esIcbper || esPorConsumo}
-                                  className={`w-full py-1 px-1 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono ${d._esIcbper || esPorConsumo ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
+                                  className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${d._esIcbper || esPorConsumo ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
                                 />
                               </td>
                               )}
@@ -3758,11 +3766,12 @@ function BoletaContent() {
                         min={0}
                         step="0.01"
                         value={descuentoGlobal}
-                        onFocus={(e) => e.target.select()}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                         onChange={(e) =>
                           setDescuentoGlobal(Number(e.target.value))
                         }
-                        className="w-24 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue font-mono"
+                        className="w-24 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   </div>

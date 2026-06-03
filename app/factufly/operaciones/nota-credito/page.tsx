@@ -1176,9 +1176,9 @@ function NotaCreditoContent() {
                                       <div className="flex items-center gap-1">
                                         <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad)||0) - 1)}
                                           className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">−</button>
-                                        <input type="number" min={0} max={detallesOriginales[i]?.cantidad ? Number(detallesOriginales[i].cantidad) : undefined} step="0.01" value={d.cantidad}
+                                        <input type="number" min={0} max={detallesOriginales[i]?.cantidad ? Number(detallesOriginales[i].cantidad) : undefined} step="0.10" value={d.cantidad} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                           onChange={(e) => actualizarCantidad(i, e.target.value)}
-                                          className="w-14 py-1 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue" />
+                                          className="w-14 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                         <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad)||0) + 1)}
                                           className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">+</button>
                                       </div>
@@ -1195,15 +1195,15 @@ function NotaCreditoContent() {
                                 <td className="px-2 py-1.5">
                                   {puedeEditarPrecioReferencial ? (
                                     // Motivo 08: precio referencial con IGV
-                                    <input type="number" min={0} step="0.01" value={d.mtoPrecioUnitario}
+                                    <input type="number" min={0} step="0.10" value={d.mtoPrecioUnitario} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                       onChange={(e) => actualizarPrecioReferencial(i, Number(e.target.value))}
-                                      className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono" />
+                                      className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                   ) : puedeIngresarMontoConIgv ? (
                                     // Motivos 04/05/09: monto CON igv
                                     <div className="space-y-0.5">
-                                      <input type="number" min={0} step="0.01" value={d._montoConIgv ?? ""}
+                                      <input type="number" min={0} step="0.10" value={d._montoConIgv ?? ""} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                         onChange={(e) => actualizarMontoConIgv(i, e.target.value)}
-                                        className={`w-full py-1 px-1 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono ${excede ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`} />
+                                        className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${excede ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`} />
                                       {/* Máximo permitido debajo del input */}
                                       {maxDesc !== undefined && (
                                         <p className={`text-[9px] text-right ${excede ? "text-red-500" : "text-gray-400"}`}>
@@ -1213,9 +1213,9 @@ function NotaCreditoContent() {
                                     </div>
                                   ) : puedeEditarLibre ? (
                                     // Motivo 10: edición libre sin IGV
-                                    <input type="number" min={0} step="0.01" value={d.mtoValorUnitario}
+                                    <input type="number" min={0} step="0.10" value={d.mtoValorUnitario} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                       onChange={(e) => actualizarPrecioLibre(i, Number(e.target.value))}
-                                      className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono" />
+                                      className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                   ) : (
                                     <span className="text-xs text-gray-700 text-right block font-mono">
                                       {d.tipAfeIgv === 15 ? d.mtoPrecioUnitario.toFixed(2) : d.mtoValorUnitario.toFixed(2)}

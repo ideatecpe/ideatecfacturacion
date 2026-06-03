@@ -308,7 +308,6 @@ export function ModalCargaMasivaComprobantes({
                     value={fechaEmision}
                     min={dosAntesISO}
                     max={hoy}
-                    disabled
                     onChange={(e) => setFechaEmision(e.target.value)}
                     className="py-1.5 px-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all"
                     />

@@ -103,20 +103,7 @@ export async function parsearExcel(file: File): Promise<{
   const ws = wb.Sheets[wb.SheetNames[0]];
   const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) as any[][];
 
-  // ── Leer fecha de I2 directamente desde la celda ──────────────────────────
-  let fechaEmision = "";
-  const celdaI2 = ws["I2"];
-  if (celdaI2) {
-    fechaEmision = parsearFechaCelda(celdaI2.v);
-  }
-  // Fallback: buscar en raw[1][8]
-  if (!fechaEmision && raw[1]?.[8]) {
-    fechaEmision = parsearFechaCelda(raw[1][8]);
-  }
-
-  if (!fechaEmision) {
-    erroresGlobales.push("No se encontró la fecha de emisión en la celda I2 del Excel");
-  }
+  const fechaEmision = "";
 
   // ── Buscar fila de cabeceras dinámicamente ────────────────────────────────
   // Usa startsWith para no confundir celdas de instrucción que contengan "RUC/DNI" en su texto
