@@ -33,7 +33,7 @@ export const ModalReporteCuentasPorCobrar = ({
   const { sucursales } = useSucursalRuc(isSuperAdmin)
   const { sucursal } = useSucursal()
 
-  const hoy = new Date().toLocaleDateString('en-CA')
+  const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date())
 
   const [sucursalFiltro, setSucursalFiltro] = useState<string>('')
   const [fechaDesde, setFechaDesde]         = useState('')
