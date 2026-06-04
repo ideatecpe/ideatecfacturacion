@@ -8,8 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSucursal } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursal";
 import { useEmpresaEmisor } from "@/app/factufly/operaciones/boleta/gestionBoletas/useEmpresaEmisor";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
-import { consultaDni } from "@/app/components/apiConsultasJsonPe/consultaDni";
-import { consultaRuc } from "@/app/components/apiConsultasJsonPe/consultaRuc";
+import { buscarDocumento } from "./clienteLookup";
 
 import type { FilaCarga, FilaErrores, PeriodoKey, ResultadoEmitido, ProgresoEmision } from "./types";
 import { PERIODO_ORDER, PERIODO_CFG } from "./constants";
@@ -278,24 +277,27 @@ export function useCargaComprobantes() {
       ),
     ];
     if (!pendientes.length) return rows;
-    const mapa = new Map<string, string>();
+
+    // Mapa numdoc → { razonSocial, correo, whatsapp }
+    const mapa = new Map<string, { razonSocial: string; correo: string | null; whatsapp: string | null }>();
     await Promise.allSettled(
       pendientes.map(async (numdoc) => {
-        try {
-          const nombre =
-            numdoc.length === 11
-              ? ((await consultaRuc(numdoc))?.razonSocial ?? "")
-              : ((await consultaDni(numdoc))?.nombreCompleto ?? "");
-          mapa.set(numdoc, nombre);
-        } catch {
-          mapa.set(numdoc, "");
-        }
+        const res = await buscarDocumento(numdoc, accessToken ?? "", user?.ruc ?? "");
+        mapa.set(numdoc, res);
       }),
     );
-    return rows.map((r) => ({
-      ...r,
-      razonSocial: !r.razonSocial.trim() && mapa.has(r.numdoc) ? (mapa.get(r.numdoc) ?? "") : r.razonSocial,
-    }));
+
+    return rows.map((r) => {
+      if (r.razonSocial.trim() || !mapa.has(r.numdoc)) return r;
+      const found = mapa.get(r.numdoc)!;
+      return {
+        ...r,
+        razonSocial: found.razonSocial || r.razonSocial,
+        // Solo autocompleta correo/whatsapp si vinieron de local y el campo está vacío
+        correo:   (!r.correo   && found.correo)   ? found.correo   : r.correo,
+        whatsapp: (!r.whatsapp && found.whatsapp) ? found.whatsapp : r.whatsapp,
+      };
+    });
   };
 
   // ── Agregar fila manualmente → POST ──
@@ -541,21 +543,32 @@ export function useCargaComprobantes() {
       return actualizadas;
     });
 
-    // 2 — Auto-consulta razón social cuando numdoc alcanza 8 (DNI) u 11 (RUC) dígitos
+    // 2 — Auto-consulta cuando numdoc alcanza 8 (DNI) u 11 (RUC) dígitos
+    //     Primero busca en clientes locales (con correo/whatsapp); si no, json.pe
     if (campo === "numdoc" && (valor.length === 8 || valor.length === 11)) {
       setLoadingRazonSocialIds((prev) => new Set(prev).add(id));
       (async () => {
         try {
-          const nombre =
-            valor.length === 11
-              ? ((await consultaRuc(valor))?.razonSocial ?? "")
-              : ((await consultaDni(valor))?.nombreCompleto ?? "");
-          if (nombre) {
-            setFilas((prev) => prev.map((f) => (f.id === id ? { ...f, razonSocial: nombre } : f)));
-            // PATCH razonSocial en API
+          const found = await buscarDocumento(valor, accessToken ?? "", user?.ruc ?? "");
+          if (found.razonSocial) {
+            setFilas((prev) => prev.map((f) => {
+              if (f.id !== id) return f;
+              return {
+                ...f,
+                razonSocial: found.razonSocial,
+                // Autocompleta correo y whatsapp solo si estaban vacíos y vienen de local
+                correo:   (!f.correo   && found.correo)   ? found.correo   : f.correo,
+                whatsapp: (!f.whatsapp && found.whatsapp) ? found.whatsapp : f.whatsapp,
+              };
+            }));
+            // PATCH en API — incluye correo/whatsapp si vinieron de local
             await axios.patch(
               `${PLANTILLA_API}/${id}`,
-              { razonSocial: nombre },
+              {
+                razonSocial: found.razonSocial,
+                ...(found.correo   ? { correo:   found.correo   } : {}),
+                ...(found.whatsapp ? { whatsapp: found.whatsapp } : {}),
+              },
               { headers: getHeaders() },
             );
           }

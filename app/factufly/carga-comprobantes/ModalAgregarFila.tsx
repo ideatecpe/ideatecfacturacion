@@ -18,8 +18,8 @@ import {
 import { Modal }    from "@/app/components/ui/Modal";
 import { Button }   from "@/app/components/ui/Button";
 import { useToast } from "@/app/components/ui/Toast";
-import { consultaDni } from "@/app/components/apiConsultasJsonPe/consultaDni";
-import { consultaRuc } from "@/app/components/apiConsultasJsonPe/consultaRuc";
+import { useAuth }        from "@/context/AuthContext";
+import { buscarDocumento } from "./clienteLookup";
 import type { FilaCarga } from "./types";
 import { PERIODO_CFG } from "./constants";
 import {
@@ -77,7 +77,8 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
   const [periodoCustom,  setPeriodoCustom]  = useState(false);
   const lastNdRef = useRef("");
 
-  const { showToast } = useToast();
+  const { showToast }    = useToast();
+  const { accessToken, user } = useAuth();
 
   // Resetear al cerrar
   useEffect(() => {
@@ -101,7 +102,8 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.fechaini, form.periodo, form.placa]);
 
-  // Auto-consultar razón social al llegar a 8 (DNI) u 11 (RUC) dígitos
+  // Auto-consultar al llegar a 8 (DNI) u 11 (RUC) dígitos
+  // Primero busca en clientes locales (con correo + whatsapp); si no, json.pe
   useEffect(() => {
     const numdoc = form.numdoc.trim().replace(/\D/g, "");
     if ((numdoc.length !== 8 && numdoc.length !== 11) || numdoc === lastNdRef.current) return;
@@ -109,10 +111,16 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
     setConsultando(true);
     (async () => {
       try {
-        const nombre = numdoc.length === 11
-          ? ((await consultaRuc(numdoc))?.razonSocial    ?? "")
-          : ((await consultaDni(numdoc))?.nombreCompleto ?? "");
-        if (nombre) setForm((p) => ({ ...p, razonSocial: nombre }));
+        const found = await buscarDocumento(numdoc, accessToken ?? "", user?.ruc ?? "");
+        if (found.razonSocial || found.correo || found.whatsapp) {
+          setForm((p) => ({
+            ...p,
+            razonSocial: found.razonSocial || p.razonSocial,
+            // Solo autocompleta si el campo estaba vacío
+            correo:   (!p.correo   && found.correo)   ? found.correo   : p.correo,
+            whatsapp: (!p.whatsapp && found.whatsapp) ? found.whatsapp : p.whatsapp,
+          }));
+        }
       } catch { /* silencioso */ } finally {
         setConsultando(false);
       }

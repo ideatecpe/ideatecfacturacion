@@ -224,6 +224,8 @@ export function agruparComprobantes(filas: FilaExcel[]): ComprobanteAgrupado[] {
       tipoDoc,
       tipoComprobante,
       moneda: fila.moneda || "PEN",
+      correo: null,
+      whatsapp: null,
       items: [item],
       consultandoApi: false,
       apiEncontrado: null,
