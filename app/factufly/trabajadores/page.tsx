@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import axios from "axios";
-import { Search, Plus, Edit2, Trash2, X } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, X, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { CardTable } from "@/app/components/ui/CardTable";
@@ -22,6 +22,7 @@ import {
   EditarTrabajadorDTO,
 } from "./gestionTrabajadores/typesTrabajador";
 import { ReporteCliente } from "./gestionTrabajadores/reportes/Reportecliente";
+import { ModalReporteMatriz } from "./gestionTrabajadores/reportes/ModalReporteMatriz";
 
 type Tab = "crud" | "reporte" | "ranking" | "servicios" | "cliente";
 
@@ -71,6 +72,7 @@ export default function TrabajadoresPage() {
   const [trabajadorEliminar, setTrabajadorEliminar] =
     useState<Trabajador | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReporteOpen, setIsReporteOpen] = useState(false);
 
   const filtered = useMemo(
     () =>
@@ -184,7 +186,15 @@ export default function TrabajadoresPage() {
   };
 
   return (
-    <div className="space-y-3 animate-in fade-in duration-500">
+    <div className="space-y-full animate-in fade-in duration-500">
+      {/* ── Modal Reporte Matriz ── */}
+      {isReporteOpen && (
+        <ModalReporteMatriz
+          sucursalId={sucursalId}
+          onClose={() => setIsReporteOpen(false)}
+        />
+      )}
+
       {/* ── Modales ── */}
       <AgregarTrabajador
         isOpen={isNuevoOpen}
@@ -233,23 +243,31 @@ export default function TrabajadoresPage() {
       {activeTab === "crud" && (
         <div className="space-y-2">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <div className="flex items-center gap-2 flex-1">
+              <div className="relative flex-1 max-w-sm">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por nombre, DNI o correo..."
-                className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={14} />
-                </button>
-              )}
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar por nombre, DNI o correo..."
+                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
+                />
+                  {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setIsReporteOpen(true)}
+                className="flex items-center gap-1.5 py-2.5 px-3 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors whitespace-nowrap"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" /> Reporte Trabajadores
+              </button>
             </div>
             {!soloLectura && (
               <Button onClick={() => setIsNuevoOpen(true)} className="py-2.5 px-3 text-xs h-auto">
@@ -339,7 +357,7 @@ export default function TrabajadoresPage() {
                             <button
                               onClick={() => !soloLectura && setTrabajadorEditar(t)}
                               disabled={soloLectura}
-                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-[#0f2e64] bg-[#EEF3FB] hover:bg-[#E2EAF6] rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-brand-blue bg-[#EEF3FB] hover:bg-[#E2EAF6] rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Edit2 size={11} />
                             </button>
