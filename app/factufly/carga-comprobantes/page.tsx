@@ -89,7 +89,7 @@ export default function CargaComprobantesPage() {
 
   // ── Notificaciones de vencimiento ─────────────────────────────────────────
   const {
-    diasAviso, setDiasAviso,
+    diasAviso, diasAvisoCargado, setDiasAviso,
     gruposParaNotificar,
     estadoEmail, estadoWsp,
     enviandoBulk, progresoBulk,
@@ -1243,6 +1243,7 @@ export default function CargaComprobantesPage() {
         isOpen={modalNotificacionesOpen}
         onClose={() => setModalNotificacionesOpen(false)}
         diasAviso={diasAviso}
+        diasAvisoCargado={diasAvisoCargado}
         setDiasAviso={setDiasAviso}
         gruposParaNotificar={gruposParaNotificar}
         estadoEmail={estadoEmail}

@@ -202,7 +202,11 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
   // ── Buscar cliente en API local (/api/Cliente/ruc/{ruc}) ───────────────────
   const buscarEnClientesLocales = useCallback(async (
     numeroDocumento: string
-  ): Promise<{ razonSocial: string; ubigeo: string; direccionLineal: string; departamento: string; provincia: string; distrito: string } | null> => {
+  ): Promise<{
+    razonSocial: string; ubigeo: string; direccionLineal: string;
+    departamento: string; provincia: string; distrito: string;
+    correo: string | null; whatsapp: string | null;
+  } | null> => {
     try {
       const ruc = user?.ruc;
       if (!ruc) return null;
@@ -213,13 +217,16 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       const clientes: any[] = res.data ?? [];
       const found = clientes.find((c: any) => c.numeroDocumento === numeroDocumento);
       if (!found) return null;
+      const dir = found.direccion?.[0] ?? found.direcciones?.[0] ?? {};
       return {
-        razonSocial: found.razonSocialNombre ?? "",
-        ubigeo: found.direcciones?.[0]?.ubigeo ?? "",
-        direccionLineal: found.direcciones?.[0]?.direccionLineal ?? "",
-        departamento: found.direcciones?.[0]?.departamento ?? "",
-        provincia: found.direcciones?.[0]?.provincia ?? "",
-        distrito: found.direcciones?.[0]?.distrito ?? "",
+        razonSocial:     found.razonSocialNombre ?? "",
+        ubigeo:          dir.ubigeo ?? "",
+        direccionLineal: dir.direccionLineal ?? "",
+        departamento:    dir.departamento ?? "",
+        provincia:       dir.provincia ?? "",
+        distrito:        dir.distrito ?? "",
+        correo:          found.correo ?? null,
+        whatsapp:        found.telefono ?? null,
       };
     } catch {
       return null;
@@ -239,12 +246,14 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
           tieneAdvertencia: false,
           apiError: null,
           consultandoApi: false,
-          razonSocial: local.razonSocial || comp.razonSocial,
-          ubigeo: local.ubigeo,
+          razonSocial:     local.razonSocial || comp.razonSocial,
+          ubigeo:          local.ubigeo,
           direccionLineal: local.direccionLineal,
-          departamento: local.departamento,
-          provincia: local.provincia,
-          distrito: local.distrito,
+          departamento:    local.departamento,
+          provincia:       local.provincia,
+          distrito:        local.distrito,
+          correo:          local.correo,
+          whatsapp:        local.whatsapp,
         };
       }
 
@@ -423,9 +432,9 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
         departamento: comp.departamento || null,
         provincia: comp.provincia || null,
         distrito: comp.distrito || null,
-        correo: null,
+        correo: comp.correo || null,
         enviadoPorCorreo: false,
-        whatsApp: null,
+        whatsApp: comp.whatsapp || null,
         enviadoPorWhatsApp: false,
       },
       details,

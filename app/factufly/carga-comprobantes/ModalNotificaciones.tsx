@@ -25,6 +25,7 @@ type Props = {
   isOpen:               boolean;
   onClose:              () => void;
   diasAviso:            number;
+  diasAvisoCargado:     boolean;
   setDiasAviso:         (n: number) => void;
   gruposParaNotificar:  GrupoData[];
   estadoEmail:          Record<string, EstadoEnvio>;
@@ -50,7 +51,7 @@ const getDiasInfo = (dias: number) => {
 // ─── Componente ───────────────────────────────────────────────────────────────
 export function ModalNotificaciones({
   isOpen, onClose,
-  diasAviso, setDiasAviso,
+  diasAviso, diasAvisoCargado, setDiasAviso,
   gruposParaNotificar,
   estadoEmail, estadoWsp,
   enviandoBulk, progresoBulk,
@@ -97,17 +98,23 @@ export function ModalNotificaciones({
         <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl">
           <Settings className="w-4 h-4 text-gray-400 shrink-0" />
           <span className="text-xs text-gray-500 whitespace-nowrap">Avisar</span>
-          <input
-            type="number" min={1} max={365}
-            value={diasInput}
-            onChange={(e) => setDiasInput(e.target.value)}
-            onBlur={() => {
-              const n = Number(diasInput);
-              if (n > 0) { setDiasAviso(n); }
-              else setDiasInput(String(diasAviso));
-            }}
-            className="w-14 px-2 py-1 text-xs font-bold text-center border border-gray-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-          />
+          {!diasAvisoCargado ? (
+            <div className="w-14 h-7 flex items-center justify-center">
+              <RefreshCw className="w-3.5 h-3.5 text-gray-300 animate-spin" />
+            </div>
+          ) : (
+            <input
+              type="number" min={1} max={365}
+              value={diasInput}
+              onChange={(e) => setDiasInput(e.target.value)}
+              onBlur={() => {
+                const n = Number(diasInput);
+                if (n > 0) { setDiasAviso(n); }
+                else setDiasInput(String(diasAviso));
+              }}
+              className="w-14 px-2 py-1 text-xs font-bold text-center border border-gray-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
+          )}
           <span className="text-xs text-gray-500 flex-1 whitespace-nowrap">días antes del vencimiento</span>
           <div className="flex items-center gap-1.5 shrink-0">
             {vencidos > 0 && (
