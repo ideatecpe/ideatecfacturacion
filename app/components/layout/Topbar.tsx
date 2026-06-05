@@ -134,10 +134,10 @@ export const Topbar = ({
           {/* Botón hamburguesa */}
           <button
             onClick={toggleSidebar}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`p-2 rounded-lg border transition-all shadow-sm ${
               isBeta
-                ? "hover:bg-amber-100 text-amber-600"
-                : "hover:bg-white text-slate-400 hover:text-[#0f2e64]"
+                ? "bg-amber-100 border-amber-200 text-amber-700 hover:bg-amber-200"
+                : "bg-white border-[#D9E4F5] text-[#0f2e64] hover:bg-[#EEF3FB] hover:border-[#0f2e64]/20"
             }`}
           >
             {isSidebarOpen ? (
@@ -149,10 +149,10 @@ export const Topbar = ({
 
           {/* Breadcrumb */}
           <div className="hidden md:flex items-center gap-1.5">
-            <span className="text-xs font-medium tracking-wide uppercase text-slate-400">
+            <span className="text-xs font-semibold text-[#0f2e64]/50 tracking-wide">
               Sistema
             </span>
-            <ChevronRight className="w-3 h-3 text-slate-300" />
+            <ChevronRight className="w-3 h-3 text-[#0f2e64]/25" />
             <span className="font-semibold text-[#0f2e64] capitalize text-sm">
               {activeView === "operaciones" ? "Emisión" : activeView}
             </span>
@@ -164,7 +164,7 @@ export const Topbar = ({
         {/* ── Derecha ── */}
         <div className="flex items-center gap-3">
           {/* Context badge */}
-          <div className="flex items-center gap-2 px-3 py-2">
+          <div className="hidden lg:flex items-center gap-2 px-3 py-2">
             <div className="flex flex-col leading-none">
               <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">
                 Empresa
@@ -372,7 +372,7 @@ export const Topbar = ({
             )}
           </div>
 
-          <div className="h-5 w-px bg-[#D9E4F5]" />
+          <div className="hidden lg:block h-5 w-px bg-[#D9E4F5]" />
 
           {/* Menú de usuario */}
           <div className="relative" ref={userRef}>
