@@ -764,7 +764,7 @@ function FacturaContent() {
       setCargandoTipoCambio(true);
       try {
         const venta = await obtenerTipoCambioVenta(fechaConsulta);
-        if (!cancelado) setTipoCambio(venta);
+        if (!cancelado) setTipoCambio(parseFloat(venta.toFixed(2)));
       } catch (error) {
         console.warn("No se pudo obtener el tipo de cambio JSON.PE", error);
       } finally {
@@ -2905,7 +2905,7 @@ function FacturaContent() {
                   >
                     <option value="PEN">PEN - Soles</option>
                     <option value="USD">
-                      USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})
+                      USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(2)})
                     </option>
                   </select>
                 </div>
@@ -4496,7 +4496,7 @@ function FacturaContent() {
                     className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs"
                   >
                     <option value="PEN">PEN - Soles</option>
-                    <option value="USD">USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})</option>
+                    <option value="USD">USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(2)})</option>
                   </select>
                 </div>
               </div>

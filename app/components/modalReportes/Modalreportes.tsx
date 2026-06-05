@@ -408,6 +408,7 @@ export function ModalReportes({
 
                   {/* 4 reportes con formato seleccionado */}
                   <div className="flex gap-2 mb-2">
+                    {/* Libro Contable 
                     <ReporteBtn
                       icon={formato === 'pdf' ? FileBarChart2 : FileSpreadsheet}
                       label="Libro Contable"
@@ -416,6 +417,7 @@ export function ModalReportes({
                       onClick={() => onDescargarListado(filtros, formato)}
                       color="border-blue-100 hover:border-blue-300 hover:bg-blue-50/50 text-blue-600"
                     />
+                    */}
                     <ReporteBtn
                       icon={formato === 'pdf' ? FileBarChart2 : FileSpreadsheet}
                       label="Control de Caja"
