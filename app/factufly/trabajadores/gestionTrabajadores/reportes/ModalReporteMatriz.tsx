@@ -14,21 +14,24 @@ interface Props {
 export function ModalReporteMatriz({ sucursalId, onClose }: Props) {
   const { accessToken } = useAuth();
   const { showToast } = useToast();
-  const [fechaDesde, setFechaDesde] = useState("");
+  const today = new Date();
+  const formatDate = (d: Date) => d.toISOString().split("T")[0];
+  const [fechaDesde, setFechaDesde] = useState(formatDate(today));
   const [fechaHasta, setFechaHasta] = useState("");
   const [isDescargando, setIsDescargando] = useState(false);
 
   const handleDescargar = async () => {
-    if (!fechaDesde || !fechaHasta) {
-      showToast("Selecciona las fechas de inicio y fin.", "info");
+    if (!fechaDesde) {
+      showToast("Selecciona la fecha desde.", "info");
       return;
     }
+    const fechaHastaFinal = fechaHasta || fechaDesde;
     setIsDescargando(true);
     try {
       const res = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/api/trabajador/matriz-excel/${sucursalId}`,
         {
-          params: { fechaDesde, fechaHasta },
+          params: { fechaDesde, fechaHasta: fechaHastaFinal },
           headers: { Authorization: `Bearer ${accessToken}` },
           responseType: "blob",
         },
@@ -36,7 +39,7 @@ export function ModalReporteMatriz({ sucursalId, onClose }: Props) {
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.download = `reporte-trabajadores-${fechaDesde}-${fechaHasta}.xlsx`;
+      link.download = `reporte-trabajadores-${fechaDesde}-${fechaHastaFinal}.xlsx`;
       link.click();
       window.URL.revokeObjectURL(url);
       onClose();
