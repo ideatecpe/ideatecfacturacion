@@ -240,7 +240,7 @@ export const Topbar = ({
             </button>
 
             {notifOpen && (
-              <div className="absolute right-0 mt-2 w-[calc(100vw-1rem)] sm:w-80 max-w-80 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in">
+              <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-[3.75rem] sm:top-auto sm:mt-2 sm:w-80 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                   <span className="text-sm font-bold text-gray-900">
                     Notificaciones
@@ -419,7 +419,7 @@ export const Topbar = ({
             </button>
 
             {userOpen && (
-              <div className="absolute right-0 mt-2 w-[calc(100vw-1rem)] sm:w-56 max-w-56 bg-white rounded-2xl shadow-xl overflow-hidden z-50 animate-fade-in">
+              <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-[3.75rem] sm:top-auto sm:mt-2 sm:w-56 bg-white rounded-2xl shadow-xl overflow-hidden z-50 animate-fade-in">
                 <div className="px-4 py-3 border-b border-brand-blue/20 bg-brand-blue">
                   <p className="text-sm font-bold text-gray-100">
                     {user?.username}

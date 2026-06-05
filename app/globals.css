@@ -15,6 +15,14 @@
   body {
     @apply bg-brand-light text-brand-dark font-sans;
   }
+
+  /* Los selects no heredan font-family por defecto en la mayoría de browsers */
+  select,
+  input,
+  textarea,
+  button {
+    font-family: inherit;
+  }
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -31,6 +39,17 @@
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400;
+}
+
+/* Evita el zoom automático de iOS Safari al enfocar inputs.
+   iOS hace zoom cuando el font-size del input es < 16px.
+   Solo aplica en pantallas móviles (≤ 640px). */
+@media screen and (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Fondo de app con patrón de puntos sutil */

@@ -153,7 +153,10 @@ export default function DashboardLayout({
         <Sidebar
           isOpen={isSidebarOpen}
           activeView={activeView}
-          onViewChange={(view) => router.push(`/factufly/${view}`)}
+          onViewChange={(view) => {
+            router.push(`/factufly/${view}`);
+            if (window.innerWidth < 1280) setIsSidebarOpen(false);
+          }}
           menuItems={menuItems}
         />
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">

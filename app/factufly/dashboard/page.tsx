@@ -283,11 +283,11 @@ const DesgloseNotasCard: React.FC<{
 
         {/* Ventas netas */}
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#D9E4F5] bg-[#EEF3FB]">
-          <BarChart3 size={13} className="text-[#0f2e64] shrink-0" />
+          <BarChart3 size={13} className="text-brand-blue shrink-0" />
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-[#0f2e64]/60 uppercase tracking-wide">Netas del Día</p>
-            <p className="text-sm font-bold text-[#0f2e64] truncate">{formatMoneda(dashboard?.ventasNetas ?? 0)}</p>
-            <p className="text-[9px] text-[#0f2e64]/40 mt-0.5">Brutas + ND − NC del día</p>
+            <p className="text-[10px] font-semibold text-brand-blue/60 uppercase tracking-wide">Netas del Día</p>
+            <p className="text-sm font-bold text-brand-blue truncate">{formatMoneda(dashboard?.ventasNetas ?? 0)}</p>
+            <p className="text-[9px] text-brand-blue/40 mt-0.5">Brutas + ND − NC del día</p>
           </div>
         </div>
       </div>
@@ -541,7 +541,7 @@ export default function DashboardPage() {
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                         {kpi.label}
                       </p>
-                      <p className="text-sm font-bold text-[#0f2e64] mt-0.5 truncate">
+                      <p className="text-sm font-bold text-brand-blue mt-0.5 truncate">
                         {kpi.value}
                       </p>
                     </div>
@@ -784,7 +784,7 @@ export default function DashboardPage() {
             action={
               <Button
                 variant="ghost"
-                className="text-[#0f2e64] text-xs py-1.5 px-2 h-auto"
+                className="text-brand-blue text-xs py-1.5 px-2 h-auto"
                 onClick={() => router.push("/factufly/comprobantes")}
               >
                 Ver todos <ChevronRight className="w-3.5 h-3.5" />
@@ -813,19 +813,19 @@ export default function DashboardPage() {
                     (dashboard?.comprobantesRecientes ?? []).map((doc, i) => (
                       <tr key={i} className="hover:bg-[#F5F8FD] transition-colors">
                         <td className="px-4 py-2">
-                          <span className="text-xs font-semibold text-[#0f2e64]">{doc.numeroCompleto}</span>
+                          <span className="text-xs font-semibold text-brand-blue">{doc.numeroCompleto}</span>
                         </td>
-                        <td className="px-4 py-2 text-xs text-slate-600 max-w-[160px] truncate">
+                        <td className="px-4 py-2 text-xs text-slate-600 max-w-40 truncate">
                           {doc.clienteRznSocial}
                         </td>
                         <td className="px-4 py-2 text-xs text-slate-400">
                           {formatFecha(doc.fechaEmision)}
                         </td>
-                        <td className="px-4 py-2 text-xs font-semibold text-[#0f2e64]">
+                        <td className="px-4 py-2 text-xs font-semibold text-brand-blue">
                           {formatMoneda(doc.importeTotal)}
                         </td>
 <td className="px-4 py-2">
-  <Badge variant={estadoSunatLabel(doc.estadoSunat)} className="!text-[10px]">
+  <Badge variant={estadoSunatLabel(doc.estadoSunat)} className="text-[10px]!">
     {doc.estadoSunat}
   </Badge>
 </td>

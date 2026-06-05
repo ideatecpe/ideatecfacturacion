@@ -836,7 +836,7 @@ function NotaCreditoContent() {
                         setCorrelativoNCFactura(res.data.correlativoNotaCreditoFactura ?? null);
                         setCorrelativoNCBoleta(res.data.correlativoNotaCreditoBoleta ?? null);
                       }}
-                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
                     >
                       <option value="">Seleccionar sucursal</option>
                       {sucursales.map((s: Sucursal) => (
@@ -912,23 +912,23 @@ function NotaCreditoContent() {
               )}
 
               {/* ── Buscador ── */}
-              <div className="bg-gray-50/80 border border-gray-100 rounded-xl p-2 space-y-4">
+              <div className="bg-gray-50/80 border border-gray-100 rounded-xl p-2 space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
-                    <Search className="w-4 h-4 text-brand-blue" />
+                  <div className="w-5 h-5 rounded-md bg-blue-50 flex items-center justify-center">
+                    <Search className="w-3 h-3 text-brand-blue" />
                   </div>
-                  <h3 className="text-sm font-bold text-gray-800">Comprobante de Referencia</h3>
+                  <h3 className="text-xs font-semibold text-gray-800">Comprobante de Referencia</h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   {/* Serie filtrada por sucursal */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-gray-600 uppercase">Serie</label>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Serie</label>
                     <select
                       value={serieInput}
                       onChange={(e) => { setSerieInput(e.target.value); if (comprobante) limpiarBuscador(); }}
                       disabled={isSuperAdmin && sinSucursal || vieneDesdeLista}
-                      className="w-full py-2 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm font-mono disabled:cursor-not-allowed"
+                      className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm disabled:cursor-not-allowed"
                     >
                       <option value="">Seleccionar serie</option>
                       {seriesDisponibles.map((s) => (
@@ -938,15 +938,15 @@ function NotaCreditoContent() {
                   </div>
 
                   {/* Correlativo con X dentro */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-gray-600 uppercase">Correlativo</label>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Correlativo</label>
                     <div className="relative">
                       <input
                         type="text" value={correlativoInput}
                         onChange={(e) => setCorrelativoInput(e.target.value.replace(/\D/g, ""))}
                         placeholder="127" maxLength={10} disabled={vieneDesdeLista}
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscarComprobante(serieInput, correlativoInput); } }}
-                        className="w-full py-2 pl-4 pr-10 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm font-mono disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-1.5 pl-3 pr-9 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       {(correlativoInput || comprobante) && (
                         <button type="button" 
@@ -964,7 +964,7 @@ function NotaCreditoContent() {
 
                   {/* Buscar */}
                   <div className="flex items-end">
-                    <Button type="button" className="w-full h-10"
+                    <Button type="button" className="w-full py-2 text-xs"
                       onClick={() => buscarComprobante(serieInput, correlativoInput)}
                       disabled={loadingComprobante || !serieInput || !correlativoInput}>
                       {loadingComprobante ? (
@@ -997,31 +997,31 @@ function NotaCreditoContent() {
 
               {/* ── Datos del cliente ── */}
               {comprobante && (
-                <div className="bg-gray-50/80 border border-gray-100 rounded-xl p-2 space-y-3">
+                <div className="bg-gray-50/80 border border-gray-100 rounded-xl p-2 space-y-2">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
-                      <UserRound className="w-4 h-4 text-brand-blue" />
+                    <div className="w-5 h-5 rounded-md bg-blue-50 flex items-center justify-center">
+                      <UserRound className="w-3 h-3 text-brand-blue" />
                     </div>
-                    <h3 className="text-sm font-bold text-gray-800">Datos del Cliente</h3>
+                    <h3 className="text-xs font-semibold text-gray-800">Datos del Cliente</h3>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-gray-600 uppercase">{comprobante.cliente.tipoDocumento === "6" ? "RUC" : "DNI / Doc"}</label>
-                      <input disabled value={comprobante.cliente.numeroDocumento} className="w-full py-2 px-3 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-600 font-mono" />
+                      <input disabled value={comprobante.cliente.numeroDocumento} className="w-full py-1.5 px-3 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-600 font-mono" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-gray-600 uppercase">Razón Social</label>
-                      <input disabled value={comprobante.cliente.razonSocial} className="w-full py-2 px-3 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-600" />
+                      <input disabled value={comprobante.cliente.razonSocial} className="w-full py-1.5 px-3 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-600" />
                     </div>
                     {comprobante.cliente.direccionLineal && (
                       <div className="md:col-span-2 space-y-1">
                         <label className="text-[10px] font-bold text-gray-400 uppercase">Dirección</label>
-                        <input disabled value={comprobante.cliente.direccionLineal} className="w-full py-2 px-3 bg-gray-100 border border-gray-200 rounded-xl text-xs text-gray-500" />
+                        <input disabled value={comprobante.cliente.direccionLineal} className="w-full py-1.5 px-3 bg-gray-100 border border-gray-200 rounded-xl text-xs text-gray-500" />
                       </div>
                     )}
                     <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                       <div className="space-y-1">
-                        <div className={`flex items-center gap-1.5 bg-white border rounded-xl px-3 py-2 ${enviarCorreo && !correoCliente ? "border-red-300 bg-red-50" : "border-gray-200"}`}>
+                        <div className={`flex items-center gap-1.5 bg-white border rounded-xl px-3 py-1.5 ${enviarCorreo && !correoCliente ? "border-red-300 bg-red-50" : "border-gray-200"}`}>
                           <input type="email" value={correoCliente} placeholder="Correo del cliente"
                             onChange={(e) => { setCorreoCliente(e.target.value); if (!e.target.value) setEnviarCorreo(false); }}
                             className="flex-1 bg-transparent text-sm outline-none min-w-0 placeholder:text-gray-400" />
@@ -1032,7 +1032,7 @@ function NotaCreditoContent() {
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <div className={`flex items-center gap-1.5 bg-white border rounded-xl px-3 py-2 ${(telefonoCliente && (telefonoCliente.length < 9 || !telefonoCliente.startsWith("9"))) ? "border-red-300 bg-red-50" : "border-gray-200"}`}>
+                        <div className={`flex items-center gap-1.5 bg-white border rounded-xl px-3 py-1.5 ${(telefonoCliente && (telefonoCliente.length < 9 || !telefonoCliente.startsWith("9"))) ? "border-red-300 bg-red-50" : "border-gray-200"}`}>
                           <input type="tel" value={telefonoCliente} maxLength={9} placeholder="Teléfono / WhatsApp"
                             onChange={(e) => { 
                               const s = e.target.value.replace(/\D/g, ""); 
@@ -1058,7 +1058,7 @@ function NotaCreditoContent() {
               )}
 
               {/* ── Motivo y fecha ── */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-gray-600 uppercase">Motivo</label>
                   <select
@@ -1069,7 +1069,7 @@ function NotaCreditoContent() {
                       const motivo = MOTIVOS_NC.find((m) => m.code === cod);
                       setDesMotivo(motivo?.label ?? "");
                     }}
-                    className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
                   >
                     <option value="">Seleccionar motivo</option>
                     {MOTIVOS_NC.map((m) => (
@@ -1082,7 +1082,7 @@ function NotaCreditoContent() {
                       <label className="text-[10px] font-bold text-gray-400 uppercase">Descripción del motivo</label>
                       <input type="text" value={desMotivo} onChange={(e) => setDesMotivo(e.target.value)}
                         maxLength={250} placeholder="Descripción del motivo..."
-                        className="w-full py-2 px-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm" />
+                        className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm" />
                     </div>
                   )}
                 </div>
@@ -1093,7 +1093,7 @@ function NotaCreditoContent() {
                     max={obtenerFechaLocal(0)}
                     min={obtenerFechaLocal(-2)}
                     onChange={(e) => setFechaEmision(e.target.value)}
-                    className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm" />
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm" />
                 </div>
               </div>
 
@@ -1103,10 +1103,10 @@ function NotaCreditoContent() {
                   {/* Cabecera tabla con badge motivo + info al costado */}
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
-                        <ClipboardList className="w-4 h-4 text-brand-blue" />
+                      <div className="w-5 h-5 rounded-md bg-blue-50 flex items-center justify-center">
+                        <ClipboardList className="w-3 h-3 text-brand-blue" />
                       </div>
-                      <label className="text-sm font-bold text-gray-800">Ítems a acreditar</label>
+                      <label className="text-xs font-semibold text-gray-800">Ítems a acreditar</label>
                       <span className="text-[10px] bg-brand-blue/10 text-brand-blue px-2 py-0.5 rounded-full font-medium">
                         Motivo {codMotivo}
                       </span>
@@ -1425,9 +1425,9 @@ function NotaCreditoContent() {
               </div>
             )}
 
-            <div className="mt-6 space-y-3">
+            <div className="mt-3 space-y-2">
               <Button
-                className="w-full py-3 text-base" type="button"
+                className="w-full py-2 text-sm" type="button"
                 onClick={emitido ? nuevaNotaCredito : emitirNotaCredito}
                 disabled={emitiendo || (!emitido && (sinSucursal || !comprobante || !codMotivo)) || descuentoExcedeTotalOriginal}
               >

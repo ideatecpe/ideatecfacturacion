@@ -157,95 +157,105 @@ export default function CargaComprobantesPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
 
       {/* ── Cabecera ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap pb-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
 
-        {/* Stats inline + Listo para emitir */}
+        {/* Izquierda: stats */}
         {hayFilas && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             {[
-              { label: "Placas:",       value: String(stats.filas) },
-              { label: "Comprobantes:", value: String(stats.comprobantes) },
+              { label: "Placas",       value: String(stats.filas) },
+              { label: "Comprobantes", value: String(stats.comprobantes) },
               { label: "Total",        value: `S/ ${stats.total.toFixed(2)}` },
             ].map(({ label, value }) => (
-              <div key={label} className="flex items-center gap-1.5 px-3 py-2 bg-blue-100 border border-gray-200 rounded-lg shadow-sm whitespace-nowrap">
-                <span className="text-[11px] text-gray-600 font-medium">{label}</span>
+              <div key={label} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-100 border border-gray-200 rounded-lg shadow-sm">
+                <span className="text-[11px] text-gray-600 font-medium">{label}:</span>
                 <span className="text-[13px] font-bold text-gray-800 tabular-nums">{value}</span>
               </div>
             ))}
             {nErrores === 0 && (
-              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 pl-1">
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Listo para emitir
               </span>
             )}
           </div>
         )}
 
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
-          {/* Fecha de emisión */}
-          <div className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-xs shadow-sm">
-            <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-            <span className="text-gray-500 whitespace-nowrap">Emisión:</span>
-            <input
-              type="date"
-              value={fechaEmision}
-              onChange={(e) => setFechaEmision(e.target.value)}
-              className="outline-none text-gray-900 font-semibold bg-transparent cursor-pointer text-xs"
-            />
-          </div>
-          <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) cargarExcel(f); e.currentTarget.value = ""; }}
-          />
-          {filasDeshabilitadas.length > 0 && (
-            <button
-              onClick={abrirModalDeshabilitados}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50 text-xs font-semibold text-gray-500 hover:text-amber-700 transition-all shadow-sm"
-            >
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-[10px] font-black">{filasDeshabilitadas.length}</span>
-              Deshabilitados
-            </button>
-          )}
-          {/* Notificaciones de vencimiento */}
-          <button
-            onClick={() => setModalNotificacionesOpen(true)}
-            title="Notificaciones de vencimiento de servicio"
-            className={`relative flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-xs font-semibold transition-all shadow-sm ${
-              gruposParaNotificar.length > 0
-                ? "border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700"
-                : "border-gray-200 bg-white hover:border-gray-300 text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <Bell className={`w-3.5 h-3.5 ${gruposParaNotificar.length > 0 ? "text-amber-500" : ""}`} />
-            {gruposParaNotificar.length > 0 ? (
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black">
-                {gruposParaNotificar.length}
-              </span>
-            ) : null}
-            Avisos
-          </button>
+        {/* Derecha: controles + emitir */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
 
-          <Button variant="outline" onClick={() => setModalPlantillaOpen(true)}>
-            <Upload className="w-4 h-4" /> Cargar Excel
-          </Button>
-          <Button variant="outline" onClick={() => setModalAgregarOpen(true)}>
-            <Plus className="w-4 h-4" /> Agregar ítem
-          </Button>
+          {/* Fila de botones secundarios */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Fecha de emisión */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs shadow-sm">
+              <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <span className="text-gray-500 whitespace-nowrap">Emisión:</span>
+              <input
+                type="date"
+                value={fechaEmision}
+                onChange={(e) => setFechaEmision(e.target.value)}
+                className="outline-none text-gray-900 font-semibold bg-transparent cursor-pointer text-xs"
+              />
+            </div>
+            <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) cargarExcel(f); e.currentTarget.value = ""; }}
+            />
+            {/* Notificaciones */}
+            <button
+              onClick={() => setModalNotificacionesOpen(true)}
+              title="Notificaciones de vencimiento de servicio"
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold transition-all shadow-sm ${
+                gruposParaNotificar.length > 0
+                  ? "border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700"
+                  : "border-gray-200 bg-white hover:border-gray-300 text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Bell className={`w-3.5 h-3.5 ${gruposParaNotificar.length > 0 ? "text-amber-500" : ""}`} />
+              {gruposParaNotificar.length > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black">
+                  {gruposParaNotificar.length}
+                </span>
+              )}
+              <span className="hidden sm:inline">Avisos</span>
+            </button>
+            {filasDeshabilitadas.length > 0 && (
+              <button
+                onClick={abrirModalDeshabilitados}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50 text-xs font-semibold text-gray-500 hover:text-amber-700 transition-all shadow-sm"
+              >
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-[10px] font-black">{filasDeshabilitadas.length}</span>
+                <span className="hidden sm:inline">Deshabilitados</span>
+              </button>
+            )}
+            <Button variant="outline" onClick={() => setModalPlantillaOpen(true)}>
+              <Upload className="w-4 h-4" />
+              <span className="hidden sm:inline">Cargar Excel</span>
+            </Button>
+            <Button variant="outline" onClick={() => setModalAgregarOpen(true)}>
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Agregar ítem</span>
+            </Button>
+          </div>
+
+          {/* Botón Emitir — full width en móvil, auto en desktop */}
           <Button
+            className="w-full sm:w-auto"
             onClick={() => setModalConfirmarOpen(true)}
             disabled={emitiendo || tabActiva === "todos" || gruposFiltrados.length === 0 || !sucursal || !empresa}
           >
             {emitiendo ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            {emitiendo
-              ? "Emitiendo…"
-              : tabActiva === "todos" && hayFilas
-                ? "Selecciona un período para emitir"
-                : gruposFiltrados.length > 0
-                  ? `Emitir ${gruposFiltrados.length} comprobante${gruposFiltrados.length !== 1 ? "s" : ""}`
-                  : "Emitir"}
+            <span className="truncate">
+              {emitiendo
+                ? "Emitiendo…"
+                : tabActiva === "todos" && hayFilas
+                  ? "Selecciona un período"
+                  : gruposFiltrados.length > 0
+                    ? `Emitir ${gruposFiltrados.length} comprobante${gruposFiltrados.length !== 1 ? "s" : ""}`
+                    : "Emitir"}
+            </span>
           </Button>
-
         </div>
       </div>
 
@@ -402,15 +412,15 @@ export default function CargaComprobantesPage() {
               <div key={i} className="flex items-center gap-2 px-3 py-2">
                 <div className={`w-5 h-5 rounded-full shrink-0 ${i % 7 === 0 ? "bg-red-100" : "bg-gray-100"}`} />
                 <div className="w-2 h-2 rounded-full bg-gray-200 shrink-0" />
-                <div className="w-[72px] h-6 bg-gray-100 rounded-md shrink-0" />
+                <div className="w-18 h-6 bg-gray-100 rounded-md shrink-0" />
                 <div className={`h-6 bg-gray-100 rounded-md shrink-0 ${i % 2 === 0 ? "w-20" : "w-16"}`} />
                 <div className="flex-1 h-6 bg-gray-100 rounded-md min-w-0" style={{ maxWidth: "18%" }} />
                 <div className={`h-6 bg-gray-100 rounded-md shrink-0 ${i % 3 === 0 ? "w-14" : "w-10"}`} />
                 <div className="flex-1 h-6 bg-gray-100 rounded-md min-w-0" style={{ maxWidth: "22%" }} />
                 <div className={`h-6 bg-gray-100 rounded-md shrink-0 ${i % 2 === 0 ? "w-16" : "w-14"}`} />
                 <div className="w-16 h-6 bg-gray-100 rounded-md shrink-0" />
-                <div className="w-[88px] h-6 bg-gray-100 rounded-md shrink-0" />
-                <div className="w-[88px] h-6 bg-gray-100 rounded-md shrink-0" />
+                <div className="w-22 h-6 bg-gray-100 rounded-md shrink-0" />
+                <div className="w-22 h-6 bg-gray-100 rounded-md shrink-0" />
                 <div className="w-14 h-6 bg-gray-100 rounded-md shrink-0" />
                 <div className="w-4 h-4 bg-gray-100 rounded-md shrink-0" />
               </div>
@@ -491,7 +501,7 @@ export default function CargaComprobantesPage() {
 
           {/* Barra de búsqueda */}
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/60">
-            <div className="relative flex-1 max-w-sm">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
               <input
                 type="text"
@@ -526,7 +536,7 @@ export default function CargaComprobantesPage() {
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-[11px] font-semibold text-gray-600 hover:text-blue-700 transition-all"
               >
                 <Calendar className="w-3.5 h-3.5 shrink-0" />
-                1° del mes
+                <span className="hidden sm:inline">1° del mes</span>
               </button>
             </div>
           </div>
@@ -685,7 +695,7 @@ export default function CargaComprobantesPage() {
                           return (
                             <td key={col.key} className="px-1 py-1.5">
                               {consultando ? (
-                                <div className="w-full px-2 py-1 bg-blue-50 border border-blue-200 rounded-md flex items-center gap-1.5 h-[26px]">
+                                <div className="w-full px-2 py-1 bg-blue-50 border border-blue-200 rounded-md flex items-center gap-1.5 h-6.5">
                                   <RefreshCw className="w-3 h-3 text-blue-400 animate-spin shrink-0" />
                                   <span className="text-[10px] text-blue-400 truncate">Buscando…</span>
                                 </div>
@@ -1022,7 +1032,7 @@ export default function CargaComprobantesPage() {
                 emitir();
               }}
               disabled={emitiendo}
-              className={advertenciaTemprana ? "!bg-amber-500 hover:!bg-amber-600" : ""}
+              className={advertenciaTemprana ? "bg-amber-500! hover:bg-amber-600!" : ""}
             >
               {emitiendo
                 ? <><RefreshCw className="w-4 h-4 animate-spin" /> Emitiendo…</>
@@ -1167,7 +1177,7 @@ export default function CargaComprobantesPage() {
             className="fixed z-50 w-56 pointer-events-none"
           >
             {/* flecha izquierda */}
-            <div className="absolute -left-1.5 top-4 w-3 h-3 bg-white border-l border-t border-red-100 rotate-[-45deg] rounded-sm shadow-[-2px_-2px_4px_rgba(0,0,0,0.04)]" />
+            <div className="absolute -left-1.5 top-4 w-3 h-3 bg-white border-l border-t border-red-100 -rotate-45 rounded-sm shadow-[-2px_-2px_4px_rgba(0,0,0,0.04)]" />
 
             <div className="bg-white border border-red-100 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.14)] overflow-hidden">
               {/* cabecera */}
@@ -1215,7 +1225,7 @@ export default function CargaComprobantesPage() {
             className="fixed z-50 w-56 pointer-events-none"
           >
             {/* flecha izquierda */}
-            <div className="absolute -left-1.5 top-4 w-3 h-3 bg-white border-l border-t border-amber-100 rotate-[-45deg] rounded-sm shadow-[-2px_-2px_4px_rgba(0,0,0,0.04)]" />
+            <div className="absolute -left-1.5 top-4 w-3 h-3 bg-white border-l border-t border-amber-100 -rotate-45 rounded-sm shadow-[-2px_-2px_4px_rgba(0,0,0,0.04)]" />
 
             <div className="bg-white border border-amber-100 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.14)] overflow-hidden">
               {/* cabecera */}
@@ -1366,7 +1376,7 @@ export default function CargaComprobantesPage() {
               <p className="text-sm text-gray-400">No hay registros deshabilitados</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100 max-h-[420px] overflow-y-auto">
+            <div className="rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100 max-h-105 overflow-y-auto">
               {filasDeshabilitadas.map((fila) => {
                 const cfg  = PERIODO_CFG[periodoTexto(fila.periodo)];
                 const tipo = getTipoDoc(fila);

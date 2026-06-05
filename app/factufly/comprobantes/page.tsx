@@ -845,125 +845,116 @@ export default function VerComprobantesPage() {
       )}
 
       <div className="sticky top-0 z-20">
-        <div className="space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 flex flex-wrap items-center gap-2">
-              <div className="relative w-full sm:w-auto sm:flex-1 min-w-48 max-w-sm">
-                <Search
-                  size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por cliente, RUC/DNI o N° comprobante..."
-                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-              <DropdownFiltro
-                label="Tipo de comprobante"
-                value={filtroTipo}
-                options={TIPOS_OPTS}
-                onChange={setFiltroTipo}
+        <div className="space-y-2">
+          {/* ── Fila 1: Búsqueda + Nuevo Comprobante ── */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search
+                size={16}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
               />
-              <DropdownFiltro
-                label="Estado SUNAT"
-                value={filtroEstado}
-                options={ESTADOS_OPTS}
-                onChange={setFiltroEstado}
-                colorMap={ESTADO_COLORS_MAP}
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar cliente, RUC/DNI o N° comprobante..."
+                className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
               />
-              <button
-                onClick={() => setShowAvanzado((o) => !o)}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md transition-all shadow-sm",
-                  showAvanzado
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50",
-                )}
-              >
-                <Filter size={14} /> Opciones avanzadas
-                <ChevronDown
-                  size={13}
-                  className={cn(
-                    "transition-transform",
-                    showAvanzado && "rotate-180",
-                  )}
-                />
-              </button>
-              {isSuperAdmin && (
-                <DropdownFiltro
-                  label="Todas las sucursales"
-                  value={
-                    sucursalFiltro
-                      ? (sucursales.find(
-                          (s: any) => s.sucursalId === sucursalFiltro,
-                        )?.nombre ??
-                        sucursales.find(
-                          (s: any) => s.sucursalId === sucursalFiltro,
-                        )?.codEstablecimiento ??
-                        "Todos")
-                      : "Todos"
-                  }
-                  options={[
-                    "Todos",
-                    ...sucursales.map(
-                      (s: any) => s.nombre ?? s.codEstablecimiento,
-                    ),
-                  ]}
-                  onChange={(v) => {
-                    if (v === "Todos") {
-                      setSucursalFiltro(null);
-                      return;
-                    }
-                    const found = sucursales.find(
-                      (s: any) => (s.nombre ?? s.codEstablecimiento) === v,
-                    );
-                    setSucursalFiltro(found ? found.sucursalId : null);
-                  }}
-                />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={14} />
+                </button>
               )}
             </div>
-            <div className="shrink-0 flex items-center gap-2">
-              {pendientes.length >= 2 && (
-                <Button
-                  className="py-2.5 px-3 text-xs rounded-md h-auto bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 shadow-sm"
-                  onClick={() => setShowModalEnvioMasivo(true)}
-                >
-                  <RotateCcw className="w-3.5 h-3.5" /> Enviar pendientes (
-                  {pendientes.length})
-                </Button>
-              )}
+            <Button
+              className="shrink-0 py-2.5 px-3 text-xs rounded-md h-auto"
+              onClick={() => router.push("/factufly/operaciones")}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Nuevo Comprobante</span>
+            </Button>
+          </div>
 
-              {config?.cargaComprobantes && (
-                <Button
-                  className="py-2.5 px-3 text-xs rounded-md h-auto"
-                  onClick={() => setShowModalCargaMasiva(true)}
-                >
-                  <Upload className="w-3.5 h-3.5" /> Carga Masiva
-                </Button>
+          {/* ── Fila 2: Filtros + acciones secundarias ── */}
+          <div className="flex flex-wrap items-center gap-2">
+            <DropdownFiltro
+              label="Tipo"
+              value={filtroTipo}
+              options={TIPOS_OPTS}
+              onChange={setFiltroTipo}
+            />
+            <DropdownFiltro
+              label="Estado SUNAT"
+              value={filtroEstado}
+              options={ESTADOS_OPTS}
+              onChange={setFiltroEstado}
+              colorMap={ESTADO_COLORS_MAP}
+            />
+            <button
+              onClick={() => setShowAvanzado((o) => !o)}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md transition-all shadow-sm",
+                showAvanzado
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50",
               )}
+            >
+              <Filter size={14} />
+              <span className="hidden sm:inline">Opciones avanzadas</span>
+              <span className="sm:hidden">Filtros</span>
+              <ChevronDown
+                size={13}
+                className={cn("transition-transform", showAvanzado && "rotate-180")}
+              />
+            </button>
+            {isSuperAdmin && (
+              <DropdownFiltro
+                label="Sucursales"
+                value={
+                  sucursalFiltro
+                    ? (sucursales.find((s: any) => s.sucursalId === sucursalFiltro)?.nombre ??
+                       sucursales.find((s: any) => s.sucursalId === sucursalFiltro)?.codEstablecimiento ??
+                       "Todos")
+                    : "Todos"
+                }
+                options={[
+                  "Todos",
+                  ...sucursales.map((s: any) => s.nombre ?? s.codEstablecimiento),
+                ]}
+                onChange={(v) => {
+                  if (v === "Todos") { setSucursalFiltro(null); return; }
+                  const found = sucursales.find((s: any) => (s.nombre ?? s.codEstablecimiento) === v);
+                  setSucursalFiltro(found ? found.sucursalId : null);
+                }}
+              />
+            )}
+            {pendientes.length >= 2 && (
+              <Button
+                className="py-2.5 px-3 text-xs rounded-md h-auto bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 shadow-sm"
+                onClick={() => setShowModalEnvioMasivo(true)}
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Enviar pendientes ({pendientes.length})</span>
+                <span className="sm:hidden">Pendientes ({pendientes.length})</span>
+              </Button>
+            )}
+            {config?.cargaComprobantes && (
               <Button
                 className="py-2.5 px-3 text-xs rounded-md h-auto"
-                onClick={() => router.push("/factufly/operaciones")}
+                onClick={() => setShowModalCargaMasiva(true)}
               >
-                <Plus className="w-3.5 h-3.5" /> Nuevo Comprobante
+                <Upload className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Carga Masiva</span>
               </Button>
-            </div>
+            )}
           </div>
 
           {showAvanzado && (
             <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-in slide-in-from-top-2 duration-200">
-              <div className="flex border-b border-gray-100">
+              <div className="flex border-b border-gray-100 overflow-x-auto">
                 {(
                   [
                     {
@@ -1014,8 +1005,8 @@ export default function VerComprobantesPage() {
                   </button>
                 ))}
               </div>
-              <div className="p-4">
-                <div className="flex flex-wrap items-end gap-3">
+              <div className="p-3">
+                <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-end gap-2 sm:gap-3">
                   {(modoAvanzado === "fechas" ||
                     modoAvanzado === "cliente" ||
                     modoAvanzado === "usuario") && (
@@ -1029,7 +1020,7 @@ export default function VerComprobantesPage() {
                             value={avClienteDoc}
                             onChange={(e) => setAvClienteDoc(e.target.value)}
                             placeholder="20601234567"
-                            className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-40"
+                            className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-full sm:w-40"
                           />
                         </div>
                       )}
@@ -1043,50 +1034,48 @@ export default function VerComprobantesPage() {
                             value={avUsuarioId}
                             onChange={(e) => setAvUsuarioId(e.target.value)}
                             placeholder="1"
-                            className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-15"
+                            className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-full sm:w-20"
                           />
                         </div>
                       )}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase">
-                          Fecha desde
-                        </label>
-                        <input
-                          type="date"
-                          value={avFechaDesde}
-                          max={hoy}
-                          onChange={(e) => {
-                            setAvFechaDesde(e.target.value);
-                            // Si "hasta" está vacío, autocompletar con la misma fecha "desde"
-                            if (!avFechaHasta && e.target.value) {
-                              setAvFechaHasta(e.target.value);
-                            } else if (
-                              avFechaHasta &&
-                              e.target.value > avFechaHasta
-                            ) {
-                              setAvFechaHasta(e.target.value);
-                            }
-                          }}
-                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase">
-                          Fecha hasta
-                        </label>
-                        <input
-                          type="date"
-                          value={avFechaHasta}
-                          min={avFechaDesde || undefined}
-                          max={hoy}
-                          onChange={(e) => setAvFechaHasta(e.target.value)}
-                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
-                        />
+                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-end gap-2 sm:gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-semibold text-gray-500 uppercase">
+                            Fecha desde
+                          </label>
+                          <input
+                            type="date"
+                            value={avFechaDesde}
+                            max={hoy}
+                            onChange={(e) => {
+                              setAvFechaDesde(e.target.value);
+                              if (!avFechaHasta && e.target.value) {
+                                setAvFechaHasta(e.target.value);
+                              } else if (avFechaHasta && e.target.value > avFechaHasta) {
+                                setAvFechaHasta(e.target.value);
+                              }
+                            }}
+                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-semibold text-gray-500 uppercase">
+                            Fecha hasta
+                          </label>
+                          <input
+                            type="date"
+                            value={avFechaHasta}
+                            min={avFechaDesde || undefined}
+                            max={hoy}
+                            onChange={(e) => setAvFechaHasta(e.target.value)}
+                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                          />
+                        </div>
                       </div>
                     </>
                   )}
                   {modoAvanzado === "unico" && (
-                    <>
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-end gap-2 sm:gap-3">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-semibold text-gray-500 uppercase">
                           Serie
@@ -1095,7 +1084,7 @@ export default function VerComprobantesPage() {
                           value={avSerie}
                           onChange={(e) => setAvSerie(e.target.value)}
                           placeholder="F001"
-                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-28"
+                          className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -1107,10 +1096,10 @@ export default function VerComprobantesPage() {
                           value={avNumero}
                           onChange={(e) => setAvNumero(e.target.value)}
                           placeholder="135"
-                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-28"
+                          className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
                       </div>
-                    </>
+                    </div>
                   )}
                   <div className="flex items-center gap-2 self-end">
                     <button

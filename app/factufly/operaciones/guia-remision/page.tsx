@@ -91,10 +91,10 @@ const MOTIVOS_TRASLADO = [
 ];
 
 const inputClass =
-  "w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all";
+  "w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm";
 const selectClass =
-  "w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue";
-const labelClass = "text-[10px] font-bold text-gray-600 uppercase";
+  "w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm";
+const labelClass = "text-[10px] font-bold text-gray-500 uppercase";
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
@@ -1371,34 +1371,23 @@ function GuiaRemisionContent() {
         <button
           type="button"
           onClick={() => setTipoGuia("remitente")}
-          className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+          className={`flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl border-2 transition-all text-left ${
             tipoGuia === "remitente"
               ? "border-brand-blue bg-brand-blue/5"
               : "border-gray-200 bg-white hover:border-gray-300"
           }`}
         >
-          <div
-            className={`p-2 rounded-lg ${
-              tipoGuia === "remitente" ? "bg-brand-blue/10" : "bg-gray-100"
-            }`}
-          >
-            <FileText
-              className={`w-5 h-5 ${
-                tipoGuia === "remitente" ? "text-brand-blue" : "text-gray-400"
-              }`}
-            />
+          <div className={`shrink-0 p-1.5 sm:p-2 rounded-lg ${tipoGuia === "remitente" ? "bg-brand-blue/10" : "bg-gray-100"}`}>
+            <FileText className={`w-4 h-4 sm:w-5 sm:h-5 ${tipoGuia === "remitente" ? "text-brand-blue" : "text-gray-400"}`} />
           </div>
-          <div>
-            <p
-              className={`text-sm font-bold ${
-                tipoGuia === "remitente" ? "text-brand-blue" : "text-gray-700"
-              }`}
-            >
+          <div className="min-w-0">
+            <p className={`text-xs font-semibold truncate ${tipoGuia === "remitente" ? "text-brand-blue" : "text-gray-700"}`}>
               Guía Remitente
             </p>
-            <p className="text-xs text-gray-400">
+            <p className="hidden sm:block text-[10px] text-gray-400 truncate">
               Serie T — Quien envía los bienes
             </p>
+            <p className="sm:hidden text-[10px] text-gray-400">Serie T</p>
           </div>
         </button>
 
@@ -1411,52 +1400,37 @@ function GuiaRemisionContent() {
             setVehiculos([]);
             setConductores([]);
           }}
-          className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+          className={`flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl border-2 transition-all text-left ${
             tipoGuia === "transportista"
               ? "border-brand-blue bg-brand-blue/5"
               : "border-gray-200 bg-white hover:border-gray-300"
           }`}
         >
-          <div
-            className={`p-2 rounded-lg ${
-              tipoGuia === "transportista" ? "bg-brand-blue/10" : "bg-gray-100"
-            }`}
-          >
-            <Truck
-              className={`w-5 h-5 ${
-                tipoGuia === "transportista"
-                  ? "text-brand-blue"
-                  : "text-gray-400"
-              }`}
-            />
+          <div className={`shrink-0 p-1.5 sm:p-2 rounded-lg ${tipoGuia === "transportista" ? "bg-brand-blue/10" : "bg-gray-100"}`}>
+            <Truck className={`w-4 h-4 sm:w-5 sm:h-5 ${tipoGuia === "transportista" ? "text-brand-blue" : "text-gray-400"}`} />
           </div>
-          <div>
-            <p
-              className={`text-sm font-bold ${
-                tipoGuia === "transportista"
-                  ? "text-brand-blue"
-                  : "text-gray-700"
-              }`}
-            >
+          <div className="min-w-0">
+            <p className={`text-xs font-semibold truncate ${tipoGuia === "transportista" ? "text-brand-blue" : "text-gray-700"}`}>
               Guía Transportista
             </p>
-            <p className="text-xs text-gray-400">
+            <p className="hidden sm:block text-[10px] text-gray-400 truncate">
               Serie V — Empresa transportista
             </p>
+            <p className="sm:hidden text-[10px] text-gray-400">Serie V</p>
           </div>
         </button>
       </div>
 
       {/* ── Cuerpo principal ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="lg:col-span-2 space-y-3">
           <Card
             title="Datos del Traslado"
             subtitle="Completa la información requerida"
           >
-            <form className="space-y-6">
+            <form className="space-y-3">
               {/* Serie y número */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Select de sucursal — solo superadmin */}
                 {isSuperAdmin && sucursales.length > 0 && (
                   <div className="space-y-1.5">
@@ -1493,11 +1467,11 @@ function GuiaRemisionContent() {
                 )}
 
                 {/* Serie y correlativo — siempre visible */}
-                <div className="space-y-1.5">
+                <div >
                   <label className={labelClass}>Serie y Número</label>
                   <div className="flex gap-2">
                     <div
-                      className={`w-1/3 py-2 px-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-mono text-sm flex items-center ${
+                      className={`w-1/3 py-1 px-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-800  text-sm flex items-center ${
                         loadingSucursal ? "animate-pulse" : ""
                       }`}
                     >
@@ -1509,7 +1483,7 @@ function GuiaRemisionContent() {
                       value={
                         loadingSucursal ? "Cargando..." : correlativoFormateado
                       }
-                      className="w-2/3 py-2 bg-gray-100 border border-gray-200 rounded-xl px-4 text-gray-500 font-mono"
+                      className="w-2/3 py-1 bg-gray-100 border border-gray-200 rounded-xl px-4 text-gray-800"
                     />
                   </div>
                   {errorSucursal && (
@@ -1534,7 +1508,7 @@ function GuiaRemisionContent() {
               </div>
 
               {/* Motivo + Modalidad */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className={labelClass}>Motivo de Traslado</label>
                   <select
@@ -1587,7 +1561,7 @@ function GuiaRemisionContent() {
               </div>
 
               {/* Puntos de partida y llegada */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Partida */}
                 <div className="space-y-1.5">
                   <label className={labelClass}>Punto de Partida</label>
@@ -1608,7 +1582,7 @@ function GuiaRemisionContent() {
                     <button
                       type="button"
                       onClick={() => setModalPartida(true)}
-                      className="w-full py-2 px-4 text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-300 rounded-xl hover:border-brand-blue hover:text-brand-blue transition-colors text-left"
+                      className="w-full py-1.5 px-3 text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-300 rounded-xl hover:border-brand-blue hover:text-brand-blue transition-colors text-left"
                     >
                       + Agregar punto de partida
                     </button>
@@ -1635,7 +1609,7 @@ function GuiaRemisionContent() {
                     <button
                       type="button"
                       onClick={() => setModalLlegada(true)}
-                      className="w-full py-2 px-4 text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-300 rounded-xl hover:border-brand-blue hover:text-brand-blue transition-colors text-left"
+                      className="w-full py-1.5 px-3 text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-300 rounded-xl hover:border-brand-blue hover:text-brand-blue transition-colors text-left"
                     >
                       + Agregar punto de llegada
                     </button>
@@ -1700,7 +1674,7 @@ function GuiaRemisionContent() {
                 </div>
               ) : modalidad === "02" ? (
                 /* — TRANSPORTE PRIVADO — */
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {/* Vehículos */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -1808,7 +1782,7 @@ function GuiaRemisionContent() {
                 </div>
               ) : (
                 /* — TRANSPORTE PÚBLICO — */
-                <div className="space-y-4">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-bold text-gray-500 uppercase">
                       Transportista
@@ -1866,7 +1840,7 @@ function GuiaRemisionContent() {
 
                 {destinatarioSeleccionado ? (
                   /* — Estado: cliente seleccionado — */
-                  <div className="flex items-center justify-between px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+                  <div className="flex items-center justify-between px-4 py-2 bg-green-50 border border-green-200 rounded-xl">
                     <div>
                       <p className="text-sm font-semibold text-gray-800">
                         {destinatarioSeleccionado.razonSocialNombre}
@@ -1931,7 +1905,7 @@ function GuiaRemisionContent() {
                           setDestinatarioSunatResultado(null);
                           setDestinatarioSunatHint(null);
                         }}
-                        className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all"
+                        className="w-full pl-10 pr-4 py-1 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all"
                       />
                       <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
 
@@ -1981,7 +1955,7 @@ function GuiaRemisionContent() {
                               destinatarioQuery.replace(/\D/g, ""),
                             )
                           }
-                          className="w-full py-2 px-4 text-sm text-brand-blue border border-dashed border-brand-blue/40 rounded-xl hover:bg-brand-blue/5 transition-colors disabled:opacity-50"
+                          className="w-full py-1.5 px-3 text-sm text-brand-blue border border-dashed border-brand-blue/40 rounded-xl hover:bg-brand-blue/5 transition-colors disabled:opacity-50"
                         >
                           {loadingSunat
                             ? "Consultando SUNAT..."
@@ -2298,7 +2272,7 @@ function GuiaRemisionContent() {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-3">
           <Card
             title="Vista Previa"
             subtitle="Representación gráfica de la guía"
@@ -2319,13 +2293,13 @@ function GuiaRemisionContent() {
                   rel="noopener noreferrer"
                   download
                 >
-                  <Button className="w-full py-3 text-base">
+                  <Button className="w-full py-2 text-sm">
                     Descargar PDF
                   </Button>
                 </a>
                 {/* Botones secundarios */}
                 <div className="space-y-3">
-                  <div className="w-full py-3 text-base">
+                  <div className="w-full py-2 text-sm">
                     <Button
                       type="button"
                       variant="outline"
@@ -2359,7 +2333,7 @@ function GuiaRemisionContent() {
                   </div>
                 )}
                 <Button
-                  className="w-full py-3 text-base"
+                  className="w-full py-2 text-sm"
                   disabled={emitiendo}
                   onClick={handleEmitir}
                 >
