@@ -465,8 +465,8 @@ export default function DashboardPage() {
       )}
 
       {/* ─── Header ─────────────────────────────────────────────────── */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="flex flex-1 min-w-fit items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-1 min-w-[180px] sm:flex-none items-center gap-3">
           {isSuperAdmin && (
             <DropdownSucursal
               sucursales={sucursales}
@@ -482,11 +482,11 @@ export default function DashboardPage() {
               value={fecha}
               max={getFechaHoy()}
               onChange={(e) => handleFechaChange(e.target.value)}
-              className="text-xs text-brand-blue font-medium border-none outline-none bg-transparent cursor-pointer"
+              className="text-xs text-brand-blue font-medium border-none outline-none bg-transparent cursor-pointer h-4 leading-none [&::-webkit-datetime-edit]:p-0 [&::-webkit-datetime-edit-fields-wrapper]:p-0 [&::-webkit-date-and-time-value]:m-0"
             />
           </div>
         </div>
-        <Button onClick={() => router.push("/factufly/operaciones")} className="flex-1 whitespace-nowrap">
+        <Button onClick={() => router.push("/factufly/operaciones")} className="flex-1 min-w-[180px] sm:flex-none whitespace-nowrap">
           <Plus className="w-4 h-4" /> Nuevo Comprobante
         </Button>
       </div>

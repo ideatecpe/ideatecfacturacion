@@ -45,10 +45,20 @@
    iOS hace zoom cuando el font-size del input es < 16px.
    Solo aplica en pantallas móviles (≤ 640px). */
 @media screen and (max-width: 640px) {
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  /* Previene zoom automático de iOS en inputs de texto */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="date"]):not([type="time"]):not([type="datetime-local"]):not([type="month"]):not([type="week"]),
   select,
   textarea {
     font-size: 16px !important;
+  }
+
+  /* Fija el tamaño de inputs de fecha/hora al diseñado (text-xs) */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    font-size: 0.75rem !important;
   }
 }
 
