@@ -495,7 +495,7 @@ export function useCargaComprobantes() {
         const fechaini      = toIsoDate(getValue("fechaini"));
         const periodo       = String(getValue("periodo") || "1");
         const placa         = String(getValue("placa")).trim();
-        const fechafin      = toIsoDate(getValue("fechafin")) || finPeriodo(fechaini, periodo);
+        const fechafin      = finPeriodo(fechaini, periodo); // siempre calculado por el sistema, no del Excel
         const conceptoExcel = String(getValue("concepto")).trim();
         const concepto      = conceptoExcel || generarConcepto(periodo, fechaini, fechafin, placa);
         const monedaRaw     = String(getValue("moneda")).trim().toUpperCase();
@@ -811,7 +811,6 @@ export function useCargaComprobantes() {
       { key: "importe",  width: 12 },
       { key: "moneda",   width: 8  },
       { key: "fechaini", width: 14 },
-      { key: "fechafin", width: 14 },
       { key: "placa",    width: 12 },
     ];
 
@@ -821,7 +820,7 @@ export function useCargaComprobantes() {
     const AMBER  = "FEF3C7";
     const VERDE  = "DCFCE7";
 
-    ws.mergeCells("A1:G1");
+    ws.mergeCells("A1:F1");
     ws.getRow(1).height = 34;
     const title = ws.getCell("A1");
     title.value     = "CARGA COMPROBANTES VELSAT — PLANTILLA";
@@ -829,7 +828,7 @@ export function useCargaComprobantes() {
     title.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${OSCURO}` } };
     title.alignment = { horizontal: "center", vertical: "middle" };
 
-    ws.mergeCells("A2:G2");
+    ws.mergeCells("A2:F2");
     ws.getRow(2).height = 30;
     const instr = ws.getCell("A2");
     instr.value     = "Una fila por placa. Mismo numdoc + mismo período = un solo comprobante. IGV siempre 18%. Moneda: PEN o USD.";
@@ -837,7 +836,7 @@ export function useCargaComprobantes() {
     instr.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${AMBER}` } };
     instr.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
-    const cabeceras = ["numdoc", "periodo", "importe", "moneda", "fechaini", "fechafin", "placa"];
+    const cabeceras = ["numdoc", "periodo", "importe", "moneda", "fechaini", "placa"];
     ws.getRow(3).height = 30;
     cabeceras.forEach((header, index) => {
       const cell     = ws.getCell(3, index + 1);
@@ -854,11 +853,11 @@ export function useCargaComprobantes() {
     });
 
     const ejemplos = [
-      ["41431773",    1,     39, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "M3N-046"],
-      ["09647995",    1,     50, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "BHR-277"],
-      ["09647995",    1,     50, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "ADE-442"],
-      ["09647995",   "1/2",  25, "PEN", new Date(2026, 4, 16), new Date(2026, 4, 31), "ABC-123"],
-      ["20601234567", 1,    295, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "XYZ-999"],
+      ["41431773",    1,     39, "PEN", new Date(2026, 4, 1),  "M3N-046"],
+      ["09647995",    1,     50, "PEN", new Date(2026, 4, 1),  "BHR-277"],
+      ["09647995",    1,     50, "PEN", new Date(2026, 4, 1),  "ADE-442"],
+      ["09647995",   "1/2",  25, "PEN", new Date(2026, 4, 16), "ABC-123"],
+      ["20601234567", 1,    295, "PEN", new Date(2026, 4, 1),  "XYZ-999"],
     ];
 
     ejemplos.forEach((row, rowIndex) => {
@@ -879,12 +878,12 @@ export function useCargaComprobantes() {
         };
         cell.alignment = { horizontal: isAmber ? "center" : "left", vertical: "middle" };
         if (colIdx === 2) { cell.numFmt = "#,##0.00"; cell.alignment = { horizontal: "right", vertical: "middle" }; }
-        if (colIdx === 4 || colIdx === 5) { cell.numFmt = "dd/mm/yyyy"; cell.alignment = { horizontal: "center", vertical: "middle" }; }
+        if (colIdx === 4) { cell.numFmt = "dd/mm/yyyy"; cell.alignment = { horizontal: "center", vertical: "middle" }; }
       });
     });
 
     ws.views      = [{ state: "frozen", ySplit: 3, topLeftCell: "A4" }];
-    ws.autoFilter = "A3:G3";
+    ws.autoFilter = "A3:F3";
 
     const wsI = wb.addWorksheet("Instrucciones");
     wsI.columns = [{ width: 100 }];
@@ -896,7 +895,7 @@ export function useCargaComprobantes() {
       ["periodo: 1/2=quincenal, 1=mensual, 2=bimestral, 3=trimestral, 6=semestral, 12=anual. Para días exactos use Nd (ej: 17d).", false, "FF1E293B"],
       ["importe: monto por placa CON IGV incluido (IGV siempre 18%). Moneda: PEN o USD.", false, "FF1E293B"],
       ["moneda: PEN (soles) o USD (dólares). Por defecto PEN.", false, "FF1E293B"],
-      ["fechaini / fechafin: fechas del servicio. Formato DD/MM/YYYY.", false, "FF1E293B"],
+      ["fechaini: fecha de inicio del servicio. Formato DD/MM/YYYY. La fecha fin se calcula automáticamente según el período.", false, "FF1E293B"],
       ["placa: placa de la unidad (requerido).", false, "FF1E293B"],
       ["correo y WhatsApp: se completan automáticamente desde la base de clientes.", false, "FF1E293B"],
       ["", false, "FF1E293B"],

@@ -419,33 +419,33 @@ export const Topbar = ({
             </button>
 
             {userOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in">
-                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                  <p className="text-sm font-bold text-gray-900">
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl  overflow-hidden z-50 animate-fade-in">
+                <div className="px-4 py-3 border-b border-brand-blue/20 bg-brand-blue">
+                  <p className="text-sm font-bold text-gray-100">
                     {user?.username}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">{user?.email}</p>
+                  <p className="text-xs text-gray-200 mt-0.5">{user?.email}</p>
                   {!isSuperAdmin && user?.nombreSucursal && (
-                    <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
                       <MapPin className="w-2.5 h-2.5" />
                       {user.nombreSucursal}
                     </span>
                   )}
                   {isSuperAdmin && (
-                    <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md">
                       <Globe className="w-2.5 h-2.5" />
                       Acceso Global
                     </span>
                   )}
                   {isBeta && (
-                    <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                       <FlaskConical className="w-2.5 h-2.5" />
                       Entorno Beta
                     </span>
                   )}
                 </div>
 
-                <ul className="py-1.5">
+                <ul className="">
                   <li>
                     <Link
                       href="/factufly/empresa"
@@ -454,7 +454,7 @@ export const Topbar = ({
                       <div className="p-1.5 bg-gray-100 rounded-lg group-hover:bg-blue-50 transition-colors">
                         <Settings className="w-3.5 h-3.5 text-gray-500 group-hover:text-blue-600 transition-colors" />
                       </div>
-                      <span className="font-medium">Empresa</span>
+                      <span className="text-[12px]">Empresa</span>
                     </Link>
                   </li>
                   <li>
@@ -465,12 +465,12 @@ export const Topbar = ({
                       <div className="p-1.5 bg-gray-100 rounded-lg group-hover:bg-blue-50 transition-colors">
                         <Zap className="w-3.5 h-3.5 text-gray-500 group-hover:text-blue-600 transition-colors" />
                       </div>
-                      <span className="font-medium">SUNAT</span>
+                      <span className="text-[12px]">SUNAT</span>
                     </Link>
                   </li>
                 </ul>
 
-                <div className="border-t border-gray-100 py-1.5">
+                <div className="border-t border-gray-100 ">
                   <button
                     onClick={() => signOut({ callbackUrl: "/" })}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors group"
@@ -478,7 +478,7 @@ export const Topbar = ({
                     <div className="p-1.5 bg-red-50 rounded-lg group-hover:bg-red-100 transition-colors">
                       <LogOut className="w-3.5 h-3.5 text-red-500" />
                     </div>
-                    <span className="font-medium">Cerrar sesión</span>
+                    <span className="text-[12px]">Cerrar sesión</span>
                   </button>
                 </div>
               </div>

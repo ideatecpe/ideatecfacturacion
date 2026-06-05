@@ -22,7 +22,6 @@ export const alias: Record<keyof Omit<FilaCarga, "id" | "tipoOverride">, string[
   correo:      ["correo", "email", "correoelectronico", "mail"],
   whatsapp:    ["whatsapp", "celular", "telefono", "wsp", "ws"],
   fechaini:    ["fechaini", "fechainicio", "desde", "inicio"],
-  fechafin:    ["fechafin", "fechafinal", "hasta", "fin"],
   placa:       ["placa", "unidad", "vehiculo"],
 };
 
