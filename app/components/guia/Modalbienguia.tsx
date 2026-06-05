@@ -281,7 +281,7 @@ export default function ModalBienGuia({
           {/* ── Modo manual ───────────────────────────────────────────────── */}
           {modo === "manual" && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className={labelClass}>
                     Código{" "}
@@ -329,7 +329,7 @@ export default function ModalBienGuia({
 
           {/* ── Cantidad y peso — campos comunes ─────────────────────────── */}
           {(productoSeleccionado || modo === "manual") && (
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-100">
               <div className="space-y-1.5">
                 <label className={labelClass}>Cantidad</label>
                 <input

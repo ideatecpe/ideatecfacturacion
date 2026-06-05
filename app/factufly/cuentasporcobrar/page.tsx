@@ -438,7 +438,7 @@ export default function CuentasPorCobrarPage() {
 
                   return (
                     <div key={cuota.cuotaId} className={cn("py-4 transition-colors", vencida ? "bg-red-50/40 hover:bg-red-50" : "hover:bg-gray-50/50")}>
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-3 sm:gap-4">
 
                         {/* Número + fecha */}
                         <div className="flex items-center gap-3 shrink-0">
@@ -462,7 +462,7 @@ export default function CuentasPorCobrarPage() {
                           </div>
                         </div>
                         {/* Montos */}
-                        <div className="flex-1 grid grid-cols-3 gap-3">
+                        <div className="flex-1 min-w-0 grid grid-cols-3 gap-1 sm:gap-3">
                           <div className="text-center">
                             <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Monto</p>
                             <p className="text-sm font-semibold text-gray-800">{formatMoneda(cuota.monto, comprobanteSeleccionado.tipoMoneda)}</p>

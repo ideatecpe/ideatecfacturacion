@@ -3155,7 +3155,7 @@ function FacturaContent() {
                     </div>
                     <div className="space-y-2">
                       {cuotas.map((cuota, i) => (
-                        <div key={i} className="grid grid-cols-3 gap-3">
+                        <div key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div className="space-y-1">
                             <label className="text-[10px] text-gray-400">
                               Cuota
@@ -3264,7 +3264,7 @@ function FacturaContent() {
                 {showGuias && (
                   <div className="p-4 space-y-3">
                     {guias.map((g, i) => (
-                      <div key={i} className="grid grid-cols-3 gap-3 items-end">
+                      <div key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                         <div className="space-y-1">
                           <label className="text-[10px] text-gray-400">
                             Tipo Doc

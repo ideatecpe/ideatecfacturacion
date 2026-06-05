@@ -154,7 +154,7 @@ export const ModalReporteDeudaContado = ({
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
               <Calendar size={10} /> Rango de fechas
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>
                 <p className="text-[10px] text-gray-400 mb-1">Desde</p>
                 <input type="date" value={fechaDesde} max={hoy}

@@ -121,7 +121,7 @@ export default function ModalConductor({ onAgregar, onCerrar }: Props) {
           </div>
 
           {/* Tipo documento + Número */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className={labelClass}>Tipo de documento</label>
               <select
@@ -156,7 +156,7 @@ export default function ModalConductor({ onAgregar, onCerrar }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className={labelClass}>Apellidos</label>
               <input

@@ -104,7 +104,7 @@ export function ModalGuardarClienteBoleta({ cliente, onGuardar, onCerrar }: Prop
                   className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase">Teléfono (opcional)</label>
                   <input
@@ -131,7 +131,7 @@ export function ModalGuardarClienteBoleta({ cliente, onGuardar, onCerrar }: Prop
 
           {/* Para DNI: teléfono y correo opcionales también */}
           {esDNI && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase">Teléfono (opcional)</label>
                 <input

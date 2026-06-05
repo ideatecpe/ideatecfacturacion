@@ -106,7 +106,7 @@ export const ReporteIndividual: React.FC<Props> = ({
       {/* ── Cards totales ── */}
       {reporte && (
         <>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <Card className="p-2">
               <p className="text-xs font-semibold text-gray-400 uppercase">
                 Total Monto

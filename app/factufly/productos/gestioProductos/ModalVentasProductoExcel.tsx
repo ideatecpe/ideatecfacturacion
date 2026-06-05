@@ -150,7 +150,7 @@ export function ModalVentasProductoExcel({ sucursalId, onClose }: Props) {
             <label className="text-xs font-bold text-gray-400 uppercase tracking-wide">
               Tipo de agrupación
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {AGRUPACIONES.map((op) => (
                 <button
                   key={op.id}
@@ -198,7 +198,7 @@ export function ModalVentasProductoExcel({ sucursalId, onClose }: Props) {
           {/* ── Parámetros: mes + año (mensual / quincenal) ── */}
           {usaMesAnio && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-gray-600">Mes</label>
                   <select
@@ -229,7 +229,7 @@ export function ModalVentasProductoExcel({ sucursalId, onClose }: Props) {
               {agrupacion === "quincenal" && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-gray-600">Quincena</label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {([1, 2] as const).map((q) => (
                       <button
                         key={q}

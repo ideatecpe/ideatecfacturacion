@@ -380,7 +380,7 @@ export const ModalDetalleGuia = ({
               )}
 
               {/* Info general */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <DataCard
                   icon={<Hash size={14} className="text-gray-400" />}
                   label="N° Guía"
@@ -412,7 +412,7 @@ export const ModalDetalleGuia = ({
               {/* Traslado */}
               <div className="border border-gray-100 rounded-xl overflow-hidden">
                 <SectionHeader label="Datos del traslado" />
-                <div className="p-4 grid grid-cols-2 gap-3">
+                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <DataCard
                     icon={<Navigation size={14} className="text-gray-400" />}
                     label="Motivo"
@@ -456,7 +456,7 @@ export const ModalDetalleGuia = ({
                 </div>
 
                 {/* Partida → Llegada */}
-                <div className="border-t border-gray-100 grid grid-cols-2 divide-x divide-gray-100">
+                <div className="border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
                   <div className="p-4 space-y-1">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                       <MapPin size={11} className="text-gray-400" /> Punto de
@@ -516,7 +516,7 @@ export const ModalDetalleGuia = ({
                   <SectionHeader label="Transportista y vehículo" />
                   <div className="p-4 space-y-3">
                     {guia.transportistaNumDoc && (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <DataCard
                           icon={
                             <FileText size={14} className="text-gray-400" />
@@ -569,7 +569,7 @@ export const ModalDetalleGuia = ({
                   <SectionHeader label="Conductores" />
                   <div className="divide-y divide-gray-100">
                     {tieneChoferPrincipal && (
-                      <div className="p-4 grid grid-cols-2 gap-3">
+                      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="col-span-2">
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
                             <User size={11} /> Conductor principal
@@ -598,7 +598,7 @@ export const ModalDetalleGuia = ({
                       </div>
                     )}
                     {tieneChoferSecundario && (
-                      <div className="p-4 grid grid-cols-2 gap-3">
+                      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="col-span-2">
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
                             <User size={11} /> Conductor secundario
@@ -627,7 +627,7 @@ export const ModalDetalleGuia = ({
                       </div>
                     )}
                     {tieneChoferSecundario2 && (
-                      <div className="p-4 grid grid-cols-2 gap-3">
+                      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="col-span-2">
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mb-2">
                             <User size={11} /> Conductor secundario 2

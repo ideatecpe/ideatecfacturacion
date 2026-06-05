@@ -189,7 +189,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
             1 · Cliente
           </p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
             {/* numdoc */}
             <div className="space-y-1">
@@ -337,7 +337,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
             3 · Fechas del servicio
           </p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
@@ -402,7 +402,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
             4 · Vehículo e importe
           </p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
             {/* Placa */}
             <div className="space-y-1">
@@ -489,7 +489,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
             5 · Contacto{" "}
             <span className="normal-case font-normal">(opcional — para envío del comprobante)</span>
           </p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
                 <Mail className="w-3 h-3 text-gray-400" /> Correo electrónico

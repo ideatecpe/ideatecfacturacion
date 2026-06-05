@@ -215,7 +215,7 @@ const DesgloseNotasCard: React.FC<{
             <Skeleton className="h-3 w-64" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
@@ -465,8 +465,8 @@ export default function DashboardPage() {
       )}
 
       {/* ─── Header ─────────────────────────────────────────────────── */}
-      <div className="mb-3 flex items-center justify-between gap-4 ">
-        <div className="flex items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex flex-1 min-w-fit items-center gap-3">
           {isSuperAdmin && (
             <DropdownSucursal
               sucursales={sucursales}
@@ -474,7 +474,7 @@ export default function DashboardPage() {
               onSelect={handleSucursalChange}
             />
           )}
-          <div className="flex items-center gap-2 bg-white border border-[#E2EAF6] rounded-lg px-3 py-2.5 hover:border-brand-blue/30 transition-colors">
+          <div className="flex flex-1 items-center gap-2 bg-white border border-[#E2EAF6] rounded-lg px-3 py-2.5 hover:border-brand-blue/30 transition-colors">
             <Calendar size={13} className="text-slate-400 shrink-0" />
             <span className="text-xs text-slate-500 font-medium">Fecha</span>
             <input
@@ -486,7 +486,7 @@ export default function DashboardPage() {
             />
           </div>
         </div>
-        <Button onClick={() => router.push("/factufly/operaciones")}>
+        <Button onClick={() => router.push("/factufly/operaciones")} className="flex-1 whitespace-nowrap">
           <Plus className="w-4 h-4" /> Nuevo Comprobante
         </Button>
       </div>

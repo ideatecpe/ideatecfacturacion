@@ -184,7 +184,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                             )}
 
                             {/* Info básica */}
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <DataCard icon={<Building2 size={14} className="text-gray-400" />} label="CLIENTE / RECEPTOR" value={comprobante.cliente.razonSocial} />
                                 <DataCard icon={<Hash size={14} className="text-gray-400" />} label="RUC / DNI" value={comprobante.cliente.numeroDocumento} />
                                 <DataCard icon={<Calendar size={14} className="text-gray-400" />} label="FECHA DE EMISIÓN" value={formatFecha(comprobante.fechaEmision)} />

@@ -146,7 +146,7 @@ export const ReporteCliente: React.FC<Props> = ({ sucursalId }) => {
       {!loading && resultados.length > 0 && (
         <div className="space-y-3">
           {/* Cards resumen global */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <Card className="p-4">
               <p className="text-xs font-semibold text-gray-400 uppercase">
                 Total Monto

@@ -146,7 +146,7 @@ export function ModalNotificaciones({
         ) : (
           <>
             {/* ── Resumen canales ───────────────────────────────────── */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="flex items-center gap-2.5 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl">
                 <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                   <Mail className="w-3.5 h-3.5 text-blue-500" />

@@ -397,7 +397,7 @@ export default function ModalPuntoDireccion({
                 Ingrese una dirección
               </p>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Departamento */}
                 <div className="space-y-1.5">
                   <label className={labelClass}>Departamento</label>

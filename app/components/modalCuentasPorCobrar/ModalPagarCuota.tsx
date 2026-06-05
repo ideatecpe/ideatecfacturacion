@@ -135,7 +135,7 @@ export const ModalPagarCuota = ({
           )}
 
           {/* Resumen cuota */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-center">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Monto Total</p>
               <p className="text-sm font-bold text-gray-900">{formatMoneda(cuota.monto, tipoMoneda)}</p>
@@ -228,7 +228,7 @@ export const ModalPagarCuota = ({
 
           {/* Entidad + N° operación */}
           {requiereEntidad && (
-            <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-1 duration-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in slide-in-from-top-1 duration-200">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Entidad</label>
                 <input type="text" value={entidadFinanciera} onChange={e => setEntidadFinanciera(e.target.value)}

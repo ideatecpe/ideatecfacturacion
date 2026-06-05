@@ -187,7 +187,7 @@ export const ModalDeudasPorCobrar = ({
           </div>
 
           {/* Resumen montos */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-center">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
                 Total
@@ -299,7 +299,7 @@ export const ModalDeudasPorCobrar = ({
 
               {/* Entidad + N° operación */}
               {(requiereEntidad || requiereNumOp) && (
-                <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-1 duration-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in slide-in-from-top-1 duration-200">
                   {requiereEntidad && (
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Entidad</label>
