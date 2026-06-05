@@ -433,28 +433,28 @@ export default function DeudasPorCobrarPage() {
           <table className="w-full text-left border-collapse dc-table">
             <thead>
               <tr className="bg-gray-100">
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32">
                   Fecha
                 </th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-44">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-44">
                   Comprobante
                 </th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                   Cliente
                 </th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">
                   Total
                 </th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">
                   Pagado
                 </th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">
                   Restante
                 </th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-28 text-center">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-28 text-center">
                   Estado
                 </th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-36 text-center">
+                <th className="px-3 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-36 text-center">
                   Acción
                 </th>
               </tr>
@@ -495,11 +495,11 @@ export default function DeudasPorCobrarPage() {
                       key={d.pagoId}
                       className="hover:bg-gray-50/50 transition-colors"
                     >
-                      <td className="px-5 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-32">
+                      <td className="px-3 py-1 text-xs text-gray-900 font-medium whitespace-nowrap w-32">
                         {formatFecha(d.fechaEmision)}
                       </td>
-                      <td className="px-5 py-2 whitespace-nowrap w-44">
-                        <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                      <td className="px-3 py-1 whitespace-nowrap w-44">
+                        <p className="text-[12px] font-medium text-gray-900 flex items-center gap-1.5">
                           {d.numeroCompleto}
                           {d.tieneNotas && (
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
@@ -514,16 +514,16 @@ export default function DeudasPorCobrarPage() {
                           )}
                         </p>
                       </td>
-                      <td className="px-5 py-2">
-                        <p className="text-sm font-semibold text-gray-900">
+                      <td className="px-3 py-1">
+                        <p className="text-[12px] font-semibold text-gray-900">
                           {d.clienteRznSocial}
                         </p>
                         <p className="text-xs text-gray-400">
                           {d.clienteNumDoc}
                         </p>
                       </td>
-                      <td className="px-5 py-2 text-right whitespace-nowrap w-32">
-                        <p className="text-sm font-semibold text-gray-900">
+                      <td className="px-3 py-1 text-right whitespace-nowrap w-32">
+                        <p className="text-[12px] font-semibold text-gray-900">
                           {formatMoneda(d.montoTotal, d.tipoMoneda)}
                         </p>
                         {d.tieneNotas && (() => {
@@ -536,13 +536,13 @@ export default function DeudasPorCobrarPage() {
                           );
                         })()}
                       </td>
-                      <td className="px-5 py-2 text-sm font-semibold text-emerald-600 text-right whitespace-nowrap w-32">
+                      <td className="px-3 py-1 text-xs font-semibold text-emerald-600 text-right whitespace-nowrap w-32">
                         {formatMoneda(d.montoPagado, d.tipoMoneda)}
                       </td>
-                      <td className="px-5 py-2 text-sm font-semibold text-blue-700 text-right whitespace-nowrap w-32">
+                      <td className="px-3 py-1 text-xs font-semibold text-blue-700 text-right whitespace-nowrap w-32">
                         {formatMoneda(restante, d.tipoMoneda)}
                       </td>
-                      <td className="px-5 py-2 text-center w-28">
+                      <td className="px-3 py-1 text-center w-28">
                         <span
                           className={cn(
                             "text-[11px] font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap",
@@ -552,7 +552,7 @@ export default function DeudasPorCobrarPage() {
                           {d.estado}
                         </span>
                       </td>
-                      <td className="px-5 py-2 text-center w-36">
+                      <td className="px-3 py-1 text-center w-36">
                         {yaEstaPagado ? (
                           <button
                             onClick={() => setDeudaPagar(d)}

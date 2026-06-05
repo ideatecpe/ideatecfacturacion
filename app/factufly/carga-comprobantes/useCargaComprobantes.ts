@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSucursal } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursal";
 import { useEmpresaEmisor } from "@/app/factufly/operaciones/boleta/gestionBoletas/useEmpresaEmisor";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
-import { buscarDocumento } from "./clienteLookup";
+import { buscarDocumento, invalidarCacheClientes } from "./clienteLookup";
 
 import type { FilaCarga, FilaErrores, PeriodoKey, ResultadoEmitido, ProgresoEmision } from "./types";
 import { PERIODO_ORDER, PERIODO_CFG } from "./constants";
@@ -41,7 +41,7 @@ const apiRowToFila = (row: any): FilaCarga => ({
   id:           String(row.id),
   numdoc:       String(row.numdoc       ?? ""),
   razonSocial:  String(row.razonSocial  ?? ""),
-  periodo:      String(row.periodo      ?? "1"),
+  periodo:      String(row.periodo ?? "1"),
   concepto:     String(row.concepto     ?? ""),
   importe:      Number(row.importe)     || 0,
   igv:          18,   // fijo — no está en la API
@@ -83,6 +83,8 @@ export function useCargaComprobantes() {
   const [cargandoPlantilla,     setCargandoPlantilla]    = useState(false);
   const [emitiendo,             setEmitiendo]            = useState(false);
   const [modalPlantillaOpen,    setModalPlantillaOpen]   = useState(false);
+  const [erroresCarga,          setErroresCarga]         = useState<{ numdoc: string; placa: string; mensaje: string }[]>([]);
+  const [modalErroresCargaOpen, setModalErroresCargaOpen] = useState(false);
   const [tabActiva,             setTabActiva]            = useState<PeriodoKey>("todos");
   const [fechaEmision,          setFechaEmision]         = useState<string>(toLocalIso(new Date()));
   const [periodosExpandidos,    setPeriodosExpandidos]   = useState<Set<string>>(() => new Set());
@@ -239,6 +241,15 @@ export function useCargaComprobantes() {
     if (accessToken && esUsuarioVelsat) cargarDesdeApi();
   }, [accessToken, esUsuarioVelsat]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-sync contactos en background — una sola vez al cargar los datos
+  const autoSyncDoneRef = useRef(false);
+  useEffect(() => {
+    if (autoSyncDoneRef.current || filas.length === 0 || !accessToken) return;
+    autoSyncDoneRef.current = true;
+    sincronizarContactos(true); // silencioso — sin toast
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filas.length, accessToken]);
+
   // ── Recuperar TODOS los deshabilitados de golpe (botón de emergencia) ──
   const recuperarDatos = useCallback(async () => {
     if (!accessToken) return;
@@ -387,6 +398,45 @@ export function useCargaComprobantes() {
   };
 
   // ── Limpiar carga → DELETE lógico de todas las filas ──
+  // ── Sincronizar correo/whatsapp desde API de clientes ──────────────────────
+  // Invalida el cache y re-trae los datos frescos. Útil cuando cambiaste un
+  // contacto en el módulo de clientes y quieres reflejarlo aquí.
+  const sincronizarContactos = async (silencioso = false) => {
+    if (!filas.length) return;
+    invalidarCacheClientes(user?.ruc ?? "");
+    const numdocsUnicos = [...new Set(filas.map((f) => f.numdoc).filter((n) => n.length === 8 || n.length === 11))];
+    const mapa = new Map<string, { correo: string; whatsapp: string }>();
+    await Promise.allSettled(
+      numdocsUnicos.map(async (nd) => {
+        const found = await buscarDocumento(nd, accessToken ?? "", user?.ruc ?? "");
+        if (found.fromLocal) {
+          mapa.set(nd, { correo: found.correo ?? "", whatsapp: found.whatsapp ?? "" });
+        }
+      }),
+    );
+    if (!mapa.size) return;
+
+    setFilas((prev) => prev.map((f) => {
+      const datos = mapa.get(f.numdoc);
+      if (!datos) return f;
+      const correoNuevo   = datos.correo   || f.correo;
+      const whatsappNuevo = datos.whatsapp || f.whatsapp;
+      if (correoNuevo === f.correo && whatsappNuevo === f.whatsapp) return f;
+      return { ...f, correo: correoNuevo, whatsapp: whatsappNuevo };
+    }));
+
+    filasRef.current.forEach((f) => {
+      const datos = mapa.get(f.numdoc);
+      if (!datos) return;
+      const correoNuevo   = datos.correo   || f.correo;
+      const whatsappNuevo = datos.whatsapp || f.whatsapp;
+      if (correoNuevo === f.correo && whatsappNuevo === f.whatsapp) return;
+      axios.patch(`${PLANTILLA_API}/${f.id}`, { correo: correoNuevo || null, whatsapp: whatsappNuevo || null }, { headers: getHeaders() }).catch(() => {});
+    });
+
+    if (!silencioso) showToast("Contactos actualizados desde clientes locales", "success");
+  };
+
   const limpiarCarga = async () => {
     const ids = filas.map((f) => f.id);
     setFilas([]);
@@ -439,16 +489,16 @@ export function useCargaComprobantes() {
         const concepto      = conceptoExcel || generarConcepto(periodo, fechaini, fechafin, placa);
         const monedaRaw     = String(getValue("moneda")).trim().toUpperCase();
         return {
-          id:          `tmp-${Date.now()}-${index}`, // temporal, se reemplaza con id real
+          id:          `tmp-${Date.now()}-${index}`,
           numdoc:      String(getValue("numdoc")).trim(),
           razonSocial: String(getValue("razonSocial")).trim(),
           periodo,
           concepto,
           importe:     Number(getValue("importe")) || 0,
-          igv:         18,
+          igv:         18, // siempre 18, no viene del Excel
           moneda:      monedaRaw === "USD" ? "USD" : "PEN",
-          correo:      String(getValue("correo")).trim(),
-          whatsapp:    String(getValue("whatsapp")).trim(),
+          correo:      "", // se autocompleta desde clientes locales
+          whatsapp:    "", // se autocompleta desde clientes locales
           fechaini,
           fechafin,
           placa,
@@ -461,16 +511,48 @@ export function useCargaComprobantes() {
       return;
     }
 
+    // ── Enriquecer con datos de clientes locales (correo + whatsapp + razonSocial) ──
+    const numdocsUnicos = [...new Set(parsed.map((f) => f.numdoc).filter((n) => n.length === 8 || n.length === 11))];
+    const lookupMap = new Map<string, { razonSocial: string; correo: string; whatsapp: string }>();
+    await Promise.allSettled(
+      numdocsUnicos.map(async (nd) => {
+        const found = await buscarDocumento(nd, accessToken ?? "", user?.ruc ?? "");
+        lookupMap.set(nd, {
+          razonSocial: found.razonSocial,
+          correo:      found.correo   ?? "",
+          whatsapp:    found.whatsapp ?? "",
+        });
+      }),
+    );
+    const enriched = parsed.map((f) => {
+      const found = lookupMap.get(f.numdoc);
+      if (!found) return f;
+      return {
+        ...f,
+        razonSocial: f.razonSocial || found.razonSocial,
+        correo:      found.correo   || f.correo,
+        whatsapp:    found.whatsapp || f.whatsapp,
+      };
+    });
+
     setModalPlantillaOpen(false);
     setCargandoPlantilla(true);
-    showToast(`Subiendo ${parsed.length} filas al servidor…`, "success");
+    showToast(`Subiendo ${enriched.length} filas al servidor…`, "success");
 
     try {
       // POST en paralelo — cada fila crea un registro en la API
       const resultadosPost = await Promise.allSettled(
-        parsed.map((fila) =>
+        enriched.map((fila) =>
           axios.post(PLANTILLA_API, filaToPostBody(fila), { headers: getHeaders() })
-            .then((r) => apiRowToFila(r.data)),
+            .then((r) => {
+              try {
+                return apiRowToFila(r.data);
+              } catch (parseErr) {
+                console.error("[cargarExcel] apiRowToFila falló al parsear respuesta:", r.data, parseErr);
+                // Devolver fila con id real si viene en la respuesta
+                return { ...fila, id: String(r.data?.id ?? `err-${Date.now()}`) };
+              }
+            }),
         ),
       );
 
@@ -478,13 +560,52 @@ export function useCargaComprobantes() {
         .filter((r): r is PromiseFulfilledResult<FilaCarga> => r.status === "fulfilled")
         .map((r) => r.value);
 
-      const fallidos = resultadosPost.filter((r) => r.status === "rejected").length;
+      // Capturar filas fallidas con su mensaje de error
+      const filasConError = resultadosPost
+        .map((r, i) => ({ result: r, fila: enriched[i] }))
+        .filter(({ result }) => result.status === "rejected")
+        .map(({ result, fila }) => {
+          const reason = (result as PromiseRejectedResult).reason;
+          const data   = reason?.response?.data;
+          const status = reason?.response?.status;
+
+          // Intentar extraer el mensaje en cualquier formato que devuelva el backend
+          let mensaje: string =
+            data?.mensaje ??
+            data?.message ??
+            data?.title ??
+            data?.error ??
+            data?.errors?.[Object.keys(data?.errors ?? {})[0]]?.[0] ??
+            (typeof data === "string" && data.trim() ? data.trim() : null) ??
+            reason?.message ??
+            "";
+
+          // Si no se pudo extraer, mostrar el JSON crudo para diagnosticar
+          if (!mensaje && data) {
+            try { mensaje = JSON.stringify(data); } catch { mensaje = ""; }
+          }
+
+          if (!mensaje) mensaje = "Error desconocido al guardar la fila";
+
+          // Si no hay status HTTP, puede ser un error JS (ej: apiRowToFila falló)
+          if (!status) {
+            console.error("[cargarExcel] error JS (sin respuesta HTTP):", reason);
+          } else {
+            console.error("[cargarExcel] error HTTP:", status, data);
+          }
+
+          const label = status ? `[${status}] ${mensaje}` : mensaje;
+
+          return { numdoc: fila.numdoc, placa: fila.placa, mensaje: label };
+        });
 
       setFilas((prev) => [...prev, ...creadosOk]);
       setTabActiva("todos");
 
-      if (fallidos > 0) {
-        showToast(`${creadosOk.length} filas guardadas · ${fallidos} con error`, "error");
+      if (filasConError.length > 0) {
+        setErroresCarga(filasConError);
+        setModalErroresCargaOpen(true);
+        showToast(`${creadosOk.length} filas guardadas · ${filasConError.length} con error`, "error");
       } else {
         showToast(`${creadosOk.length} filas cargadas correctamente`, "success");
       }
@@ -607,8 +728,28 @@ export function useCargaComprobantes() {
         case "importe":     body.importe   = fila.importe; break;
         case "moneda":      body.moneda    = fila.moneda;  break;
         case "concepto":    body.concepto  = fila.concepto; break;
-        case "correo":      body.correo    = fila.correo    || null; break;
-        case "whatsapp":    body.whatsapp  = fila.whatsapp  || null; break;
+        case "correo":
+          body.correo = fila.correo || null;
+          // Propagar a todas las filas del mismo numdoc
+          setFilas((prev) => prev.map((f) =>
+            f.numdoc === fila.numdoc && f.id !== fila.id ? { ...f, correo: fila.correo } : f,
+          ));
+          // PATCH masivo en background para el mismo numdoc
+          filasRef.current
+            .filter((f) => f.numdoc === fila.numdoc && f.id !== fila.id)
+            .forEach((f) => axios.patch(`${PLANTILLA_API}/${f.id}`, { correo: fila.correo || null }, { headers: getHeaders() }).catch(() => {}));
+          break;
+        case "whatsapp":
+          body.whatsapp = fila.whatsapp || null;
+          // Propagar a todas las filas del mismo numdoc
+          setFilas((prev) => prev.map((f) =>
+            f.numdoc === fila.numdoc && f.id !== fila.id ? { ...f, whatsapp: fila.whatsapp } : f,
+          ));
+          // PATCH masivo en background para el mismo numdoc
+          filasRef.current
+            .filter((f) => f.numdoc === fila.numdoc && f.id !== fila.id)
+            .forEach((f) => axios.patch(`${PLANTILLA_API}/${f.id}`, { whatsapp: fila.whatsapp || null }, { headers: getHeaders() }).catch(() => {}));
+          break;
         case "placa":
           body.placa   = fila.placa;
           body.concepto = fila.concepto;
@@ -655,13 +796,10 @@ export function useCargaComprobantes() {
       { key: "numdoc",   width: 14 },
       { key: "periodo",  width: 10 },
       { key: "importe",  width: 12 },
-      { key: "igv",      width: 8  },
       { key: "moneda",   width: 8  },
       { key: "fechaini", width: 14 },
       { key: "fechafin", width: 14 },
       { key: "placa",    width: 12 },
-      { key: "correo",   width: 28 },
-      { key: "whatsapp", width: 14 },
     ];
 
     const AZUL   = "2563EB";
@@ -670,7 +808,7 @@ export function useCargaComprobantes() {
     const AMBER  = "FEF3C7";
     const VERDE  = "DCFCE7";
 
-    ws.mergeCells("A1:J1");
+    ws.mergeCells("A1:G1");
     ws.getRow(1).height = 34;
     const title = ws.getCell("A1");
     title.value     = "CARGA COMPROBANTES VELSAT — PLANTILLA";
@@ -678,15 +816,15 @@ export function useCargaComprobantes() {
     title.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${OSCURO}` } };
     title.alignment = { horizontal: "center", vertical: "middle" };
 
-    ws.mergeCells("A2:J2");
+    ws.mergeCells("A2:G2");
     ws.getRow(2).height = 30;
     const instr = ws.getCell("A2");
-    instr.value     = "Una fila por placa. Mismo numdoc + mismo período = un solo comprobante. IGV=18 → gravada. Moneda: PEN o USD.";
+    instr.value     = "Una fila por placa. Mismo numdoc + mismo período = un solo comprobante. IGV siempre 18%. Moneda: PEN o USD.";
     instr.font      = { name: "Calibri", size: 9, italic: true, color: { argb: "FF92400E" } };
     instr.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${AMBER}` } };
     instr.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
-    const cabeceras = ["numdoc", "periodo", "importe", "igv", "moneda", "fechaini", "fechafin", "placa", "correo", "whatsapp"];
+    const cabeceras = ["numdoc", "periodo", "importe", "moneda", "fechaini", "fechafin", "placa"];
     ws.getRow(3).height = 30;
     cabeceras.forEach((header, index) => {
       const cell     = ws.getCell(3, index + 1);
@@ -703,11 +841,11 @@ export function useCargaComprobantes() {
     });
 
     const ejemplos = [
-      ["41431773",    1,     39,  18, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "M3N-046", "cliente1@gmail.com", "987654321"],
-      ["09647995",    1,     50,  18, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "BHR-277", "cliente2@gmail.com", ""],
-      ["09647995",    1,     50,  18, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "ADE-442", "",                   ""],
-      ["09647995",   "1/2",  25,  18, "PEN", new Date(2026, 4, 16), new Date(2026, 4, 31), "ABC-123", "",                   ""],
-      ["20601234567", 1,    295,  18, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "XYZ-999", "empresa@ruc.com",    ""],
+      ["41431773",    1,     39, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "M3N-046"],
+      ["09647995",    1,     50, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "BHR-277"],
+      ["09647995",    1,     50, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "ADE-442"],
+      ["09647995",   "1/2",  25, "PEN", new Date(2026, 4, 16), new Date(2026, 4, 31), "ABC-123"],
+      ["20601234567", 1,    295, "PEN", new Date(2026, 4, 1),  new Date(2026, 4, 31), "XYZ-999"],
     ];
 
     ejemplos.forEach((row, rowIndex) => {
@@ -717,7 +855,7 @@ export function useCargaComprobantes() {
         const cell    = ws.getCell(rowIndex + 4, colIdx + 1);
         cell.value    = value === "" ? null : value;
         cell.font     = { name: "Calibri", size: 10, color: { argb: "FF1E293B" } };
-        const isAmber = colIdx === 1 || colIdx === 2 || colIdx === 3 || colIdx === 4;
+        const isAmber = colIdx === 1 || colIdx === 2 || colIdx === 3; // periodo, importe, moneda
         cell.fill = {
           type: "pattern", pattern: "solid",
           fgColor: { argb: isAmber ? `FF${AMBER}` : rowIndex % 2 === 0 ? "FFF0F9FF" : "FFEFF6FF" },
@@ -728,12 +866,12 @@ export function useCargaComprobantes() {
         };
         cell.alignment = { horizontal: isAmber ? "center" : "left", vertical: "middle" };
         if (colIdx === 2) { cell.numFmt = "#,##0.00"; cell.alignment = { horizontal: "right", vertical: "middle" }; }
-        if (colIdx === 5 || colIdx === 6) { cell.numFmt = "dd/mm/yyyy"; cell.alignment = { horizontal: "center", vertical: "middle" }; }
+        if (colIdx === 4 || colIdx === 5) { cell.numFmt = "dd/mm/yyyy"; cell.alignment = { horizontal: "center", vertical: "middle" }; }
       });
     });
 
     ws.views      = [{ state: "frozen", ySplit: 3, topLeftCell: "A4" }];
-    ws.autoFilter = "A3:J3";
+    ws.autoFilter = "A3:G3";
 
     const wsI = wb.addWorksheet("Instrucciones");
     wsI.columns = [{ width: 100 }];
@@ -744,10 +882,10 @@ export function useCargaComprobantes() {
       ["numdoc: DNI (8 dígitos = Boleta) o RUC (11 dígitos = Factura) del cliente.", false, "FF1E293B"],
       ["periodo: 1/2=quincenal, 1=mensual, 2=bimestral, 3=trimestral, 6=semestral, 12=anual. Para días exactos use Nd (ej: 17d).", false, "FF1E293B"],
       ["importe: monto por placa CON IGV incluido (IGV siempre 18%). Moneda: PEN o USD.", false, "FF1E293B"],
+      ["moneda: PEN (soles) o USD (dólares). Por defecto PEN.", false, "FF1E293B"],
       ["fechaini / fechafin: fechas del servicio. Formato DD/MM/YYYY.", false, "FF1E293B"],
       ["placa: placa de la unidad (requerido).", false, "FF1E293B"],
-      ["correo: correo del cliente para envío de comprobante (opcional).", false, "FF1E293B"],
-      ["whatsapp: número WhatsApp, 9 dígitos empezando con 9 (opcional).", false, "FF1E293B"],
+      ["correo y WhatsApp: se completan automáticamente desde la base de clientes.", false, "FF1E293B"],
       ["", false, "FF1E293B"],
       ["REGLAS:", true, `FF${AZUL}`],
       ["• Una fila = una placa.", false, "FF1E293B"],
@@ -971,22 +1109,28 @@ export function useCargaComprobantes() {
       });
       setFilas(siguientes);
 
-      // PATCH fechas avanzadas en API (background, no bloquea UI)
-      Promise.allSettled(
-        siguientes
-          .filter((f) => idsFilasExitosas.has(f.id))
-          .map((f) =>
-            axios.patch(
-              `${PLANTILLA_API}/${f.id}`,
-              {
-                fechaini: `${f.fechaini}T00:00:00`,
-                fechafin: `${f.fechafin}T00:00:00`,
-                concepto: f.concepto,
-              },
-              { headers: getHeaders() },
-            ),
+      // PATCH fechas avanzadas en API — avisamos si alguna falla
+      const filasParaPatch = siguientes.filter((f) => idsFilasExitosas.has(f.id));
+      const patchResultados = await Promise.allSettled(
+        filasParaPatch.map((f) =>
+          axios.patch(
+            `${PLANTILLA_API}/${f.id}`,
+            {
+              fechaini: `${f.fechaini}T00:00:00`,
+              fechafin: `${f.fechafin}T00:00:00`,
+              concepto: f.concepto,
+            },
+            { headers: getHeaders() },
           ),
+        ),
       );
+      const patchFallidos = patchResultados.filter((r) => r.status === "rejected").length;
+      if (patchFallidos > 0) {
+        showToast(
+          `⚠️ ${patchFallidos} fecha${patchFallidos !== 1 ? "s" : ""} no se avanzaron en el servidor. Recarga la página para verificar.`,
+          "error",
+        );
+      }
 
       // ── Toast resumen ──
       const fallidos = resultados.filter((r) => !r.ok).length;
@@ -1033,8 +1177,10 @@ export function useCargaComprobantes() {
     periodosExpandidos,
     loadingRazonSocialIds,
     emitiendo,
-    modalPlantillaOpen,   setModalPlantillaOpen,
-    modalResultadoOpen,   setModalResultadoOpen,
+    modalPlantillaOpen,      setModalPlantillaOpen,
+    modalResultadoOpen,      setModalResultadoOpen,
+    erroresCarga,
+    modalErroresCargaOpen,   setModalErroresCargaOpen,
     resultadoEmision,
     progresoEmision,
     advertenciaTemprana,
@@ -1047,6 +1193,7 @@ export function useCargaComprobantes() {
     cargarDesdeApi,
     recuperarDatos,
     cargarExcel,
+    sincronizarContactos,
     descargarPlantilla,
     actualizarFila,
     agregarFila,
