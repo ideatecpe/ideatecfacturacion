@@ -389,7 +389,7 @@ export default function ClientesPage() {
   .clientes-table tbody {
     display: block;
     overflow-y: auto;
-    max-height: calc(100vh - ${isBeta ? 280 : 220}px);
+    max-height: calc(100vh - ${isBeta ? 230 : 200}px);
     scrollbar-width: thin;
     scrollbar-color: #CBD5E1 transparent;
   }

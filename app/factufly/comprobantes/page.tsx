@@ -462,7 +462,9 @@ export default function VerComprobantesPage() {
 
   const paginated = filtered;
 
-  const enviarSunat = async (c: ComprobanteListado) => {
+  // refetch=true → recarga la lista al terminar (para ver XML/CDR)
+  // refetch=false → usado en envío masivo para recargar solo una vez al final
+  const enviarSunat = async (c: ComprobanteListado, refetch = true) => {
     if ((c as CargaComprobantePendiente)._cargaEstatica) {
       setLoadingSunatMap((prev) => ({ ...prev, [c.comprobanteId]: true }));
       const actualizado = marcarComprobanteCargaEnviado(c.comprobanteId);
@@ -485,30 +487,25 @@ export default function VerComprobantesPage() {
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const tipoDoc = tipoLabel(c.tipoComprobante);
+      // Actualizar estado inmediatamente (optimista)
       setComprobantes((prev) =>
         prev.map((comp) => {
           if (comp.comprobanteId !== c.comprobanteId) return comp;
           return {
             ...comp,
-            estadoSunat: res.data.estadoSunat ?? comp.estadoSunat,
-            codigoRespuestaSunat:
-              res.data.codigoRespuesta ?? comp.codigoRespuestaSunat,
-            mensajeRespuestaSunat:
-              res.data.mensajeRespuesta ?? comp.mensajeRespuestaSunat,
+            estadoSunat:           res.data.estadoSunat      ?? comp.estadoSunat,
+            codigoRespuestaSunat:  res.data.codigoRespuesta  ?? comp.codigoRespuestaSunat,
+            mensajeRespuestaSunat: res.data.mensajeRespuesta ?? comp.mensajeRespuestaSunat,
           };
         }),
       );
       if (res.data.exitoso) {
-        showToast(
-          res.data.mensaje ?? `${tipoDoc} enviada correctamente a SUNAT`,
-          "success",
-        );
+        showToast(res.data.mensaje ?? `${tipoDoc} enviada correctamente a SUNAT`, "success");
       } else {
-        showToast(
-          `${tipoDoc} ${c.numeroCompleto} rechazada por SUNAT`,
-          "error",
-        );
+        showToast(`${tipoDoc} ${c.numeroCompleto} rechazada por SUNAT`, "error");
       }
+      // Recargar lista para traer xmlGenerado y xmlRespuestaSunat del servidor
+      if (refetch) cargarComprobantes(offset);
     } catch {
       showToast("Error al enviar a SUNAT", "error");
     } finally {
@@ -518,13 +515,14 @@ export default function VerComprobantesPage() {
 
   const enviarTodosEnBackground = useCallback(
     async (lista: ComprobanteListado[]) => {
-      // SUNAT serializa por RUC emisor → deben ir uno tras otro.
-      // Sin pausa artificial: el siguiente arranca apenas termina el anterior.
+      // SUNAT serializa por RUC emisor → uno tras otro, sin refetch intermedio
       for (const c of lista) {
-        await enviarSunat(c);
+        await enviarSunat(c, false);
       }
+      // Una sola recarga al final para traer XML/CDR de todos
+      cargarComprobantes(offset);
     },
-    [enviarSunat],
+    [enviarSunat], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const editarenviarSunat = (c: ComprobanteListado) => {

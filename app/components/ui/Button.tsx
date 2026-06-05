@@ -10,7 +10,7 @@ export const Button = ({ children, variant = 'primary', className, ...props }: R
     danger: "bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200",
   };
   return (
-    <button className={cn("px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed", variants[variant], className)} {...props}>
+    <button className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed", variants[variant], className)} {...props}>
       {children}
     </button>
   );

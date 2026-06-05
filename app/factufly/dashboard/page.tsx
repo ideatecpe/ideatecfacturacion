@@ -474,7 +474,7 @@ export default function DashboardPage() {
               onSelect={handleSucursalChange}
             />
           )}
-          <div className="flex items-center gap-2 bg-white border border-[#E2EAF6] rounded-lg px-3 py-3 hover:border-[#0f2e64]/30 transition-colors">
+          <div className="flex items-center gap-2 bg-white border border-[#E2EAF6] rounded-lg px-3 py-2.5 hover:border-brand-blue/30 transition-colors">
             <Calendar size={13} className="text-slate-400 shrink-0" />
             <span className="text-xs text-slate-500 font-medium">Fecha</span>
             <input
@@ -482,7 +482,7 @@ export default function DashboardPage() {
               value={fecha}
               max={getFechaHoy()}
               onChange={(e) => handleFechaChange(e.target.value)}
-              className="text-xs text-[#0f2e64] font-medium border-none outline-none bg-transparent cursor-pointer"
+              className="text-xs text-brand-blue font-medium border-none outline-none bg-transparent cursor-pointer"
             />
           </div>
         </div>
