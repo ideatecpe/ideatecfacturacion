@@ -161,7 +161,28 @@ export default function CargaComprobantesPage() {
 
       {/* ── Cabecera ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap pb-1">
-    
+
+        {/* Stats inline + Listo para emitir */}
+        {hayFilas && (
+          <div className="flex items-center gap-2 shrink-0">
+            {[
+              { label: "Placas:",       value: String(stats.filas) },
+              { label: "Comprobantes:", value: String(stats.comprobantes) },
+              { label: "Total",        value: `S/ ${stats.total.toFixed(2)}` },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center gap-1.5 px-3 py-2 bg-blue-100 border border-gray-200 rounded-lg shadow-sm whitespace-nowrap">
+                <span className="text-[11px] text-gray-600 font-medium">{label}</span>
+                <span className="text-[13px] font-bold text-gray-800 tabular-nums">{value}</span>
+              </div>
+            ))}
+            {nErrores === 0 && (
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 pl-1">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Listo para emitir
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 flex-wrap shrink-0">
           {/* Fecha de emisión */}
           <div className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-xs shadow-sm">
@@ -224,6 +245,7 @@ export default function CargaComprobantesPage() {
                   ? `Emitir ${gruposFiltrados.length} comprobante${gruposFiltrados.length !== 1 ? "s" : ""}`
                   : "Emitir"}
           </Button>
+
         </div>
       </div>
 
@@ -267,40 +289,6 @@ export default function CargaComprobantesPage() {
         </div>
       )}
 
-      {/* ── Stats ────────────────────────────────────────────────────────── */}
-      {hayFilas && (
-        <div className="flex items-center gap-1 flex-wrap">
-          {[
-            { label: "Placas",            value: String(stats.filas) },
-            { label: "Comprobantes",      value: String(stats.comprobantes) },
-            { label: "Total",             value: `S/ ${stats.total.toFixed(2)}` },
-          ].map(({ label, value }, i) => (
-            <div key={label} className="flex items-center">
-              {i > 0 && <span className="w-px h-6 bg-gray-200 mx-3" />}
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-[11px] text-gray-400 font-medium">{label}</span>
-                <span className="text-sm font-bold text-gray-800 tabular-nums">{value}</span>
-              </div>
-            </div>
-          ))}
-          {tabActiva !== "todos" && (
-            <>
-              <span className="w-px h-6 bg-gray-200 mx-3" />
-              <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${PERIODO_CFG[tabActiva]?.badgeClass}`}>
-                {PERIODO_CFG[tabActiva]?.label}
-              </span>
-            </>
-          )}
-          {nErrores === 0 && (
-            <>
-              <span className="w-px h-6 bg-gray-200 mx-3" />
-              <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Listo para emitir
-              </span>
-            </>
-          )}
-        </div>
-      )}
 
       {/* ── Banner de notificaciones de vencimiento ──────────────────────── */}
       {gruposParaNotificar.length > 0 && (
