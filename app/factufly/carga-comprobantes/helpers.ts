@@ -301,6 +301,29 @@ export function validarFila(fila: FilaCarga): FilaErrores {
   return e;
 }
 
+/**
+ * Devuelve advertencias (no bloquean emisión) para una fila.
+ * Por ahora detecta cuando fechafin excede el rango esperado según el periodo.
+ */
+export function advertenciasFila(fila: FilaCarga): Partial<Record<keyof FilaCarga, string>> {
+  const w: Partial<Record<keyof FilaCarga, string>> = {};
+
+  if (fila.fechaini && fila.fechafin && fila.periodo) {
+    const esperado = finPeriodo(fila.fechaini, fila.periodo);
+    if (esperado && fila.fechafin > esperado) {
+      const ini         = parseIsoLocalDate(fila.fechaini);
+      const fin         = parseIsoLocalDate(fila.fechafin);
+      const finEsperado = parseIsoLocalDate(esperado);
+      const diasActual  = ini && fin         ? Math.round((fin.getTime()         - ini.getTime()) / 86_400_000) + 1 : null;
+      const diasMax     = ini && finEsperado ? Math.round((finEsperado.getTime() - ini.getTime()) / 86_400_000) + 1 : null;
+      const label       = periodoLabel(fila.periodo);
+      w.fechafin = `Periodo ${label}: máximo ${diasMax ?? "?"} días, pero tiene ${diasActual ?? "?"} días`;
+    }
+  }
+
+  return w;
+}
+
 // ─── localStorage ─────────────────────────────────────────────────────────────
 
 // ─── Historial de emisiones (anti-duplicados) ─────────────────────────────────

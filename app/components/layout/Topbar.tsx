@@ -128,7 +128,7 @@ export const Topbar = ({
         }`}
         style={!isBeta ? { boxShadow: "0 1px 3px rgba(15,46,100,0.06)" } : undefined}
       >
-      <div className="h-14 flex items-center justify-between px-6">
+      <div className="h-14 flex items-center justify-between px-4">
         {/* ── Izquierda ── */}
         <div className="flex items-center gap-3">
           {/* Botón hamburguesa */}

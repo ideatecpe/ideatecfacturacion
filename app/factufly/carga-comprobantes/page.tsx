@@ -59,10 +59,19 @@ export default function CargaComprobantesPage() {
   const [errorTipPos, setErrorTipPos] = useState({ top: 0, left: 0 });
   const mostrarErrorTip = (id: string, el: HTMLElement) => {
     const r = el.getBoundingClientRect();
-    // prefiere abrirse a la derecha; si no cabe, a la izquierda
     const left = Math.min(r.right + 8, window.innerWidth - 232);
     setErrorTipPos({ top: r.top - 6, left });
     setErrorTipId(id);
+  };
+
+  // tooltip de advertencias
+  const [warnTipId,  setWarnTipId]  = useState<string | null>(null);
+  const [warnTipPos, setWarnTipPos] = useState({ top: 0, left: 0 });
+  const mostrarWarnTip = (id: string, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    const left = Math.min(r.right + 8, window.innerWidth - 232);
+    setWarnTipPos({ top: r.top - 6, left });
+    setWarnTipId(id);
   };
 
   const abrirOpciones = (id: string, btn: HTMLButtonElement) => {
@@ -75,7 +84,7 @@ export default function CargaComprobantesPage() {
 
   const {
     filas, filasDeshabilitadas, filasFiltradas, gruposFiltrados, grupos, periodosPresentes,
-    stats, statsPorPeriodo, erroresPorFila,
+    stats, statsPorPeriodo, erroresPorFila, advertenciasPorFila,
     cargandoPlantilla, cargarDesdeApi,
     tabActiva, setTabActiva, fechaEmision, setFechaEmision,
     periodosExpandidos, loadingRazonSocialIds, emitiendo,
@@ -152,16 +161,7 @@ export default function CargaComprobantesPage() {
 
       {/* ── Cabecera ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap pb-1">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Carga Comprobantes</h1>
-          <p className="text-[13px] text-gray-400 mt-0.5">
-            {cargandoPlantilla && !hayFilas
-              ? "Cargando datos del servidor…"
-              : hayFilas
-                ? `${filas.length} ítem${filas.length !== 1 ? "s" : ""} · revisa y emite cuando estés listo`
-                : "Carga el Excel o agrega ítems manualmente para empezar"}
-          </p>
-        </div>
+    
         <div className="flex items-center gap-2 flex-wrap shrink-0">
           {/* Fecha de emisión */}
           <div className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-xs shadow-sm">
@@ -336,11 +336,30 @@ export default function CargaComprobantesPage() {
               {nErrores} fila{nErrores !== 1 ? "s" : ""} con datos incompletos
             </p>
             <p className="text-xs text-red-500/80 mt-0.5">
-              Corrígelas antes de emitir. Los campos con error se marcan en rojo — pasa el cursor sobre el ícono para ver el detalle.
+              Corrígelas antes de emitir. Los campos con error se marcan en rojo - pasa el cursor sobre el ícono para ver el detalle.
             </p>
           </div>
         </div>
       )}
+
+      {/* ── Banner de advertencias ───────────────────────────────────────── */}
+      {(() => {
+        const nAdvert = filasFiltradas.filter((f) => advertenciasPorFila.has(f.id)).length;
+        if (nAdvert === 0) return null;
+        return (
+          <div className="flex items-start gap-3 pl-4 pr-5 py-3.5 bg-amber-50 border border-amber-100 border-l-4 border-l-amber-400 rounded-xl">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[13px] font-semibold text-amber-700">
+                {nAdvert} fila{nAdvert !== 1 ? "s" : ""} con advertencia{nAdvert !== 1 ? "s" : ""}
+              </p>
+              <p className="text-xs text-amber-600/80 mt-0.5">
+                No bloquean la emisión, pero revísalas. Las filas con advertencia se marcan en amarillo - pasa el cursor sobre el ícono para ver el detalle.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Barra de progreso de emisión ─────────────────────────────────── */}
       {emitiendo && progresoEmision && (
@@ -573,23 +592,53 @@ export default function CargaComprobantesPage() {
                   </tr>
                 ) : (
                   filasVisibles.map((fila, idx) => {
-                    const pt       = periodoTexto(fila.periodo);
-                    const cfg      = PERIODO_CFG[pt];
-                    const tipo     = getTipoDoc(fila);
-                    const hayError = erroresPorFila.has(fila.id);
+                    const pt            = periodoTexto(fila.periodo);
+                    const cfg           = PERIODO_CFG[pt];
+                    const tipo          = getTipoDoc(fila);
+                    const hayError      = erroresPorFila.has(fila.id);
+                    const hayAdvertencia = advertenciasPorFila.has(fila.id);
                     return (
                       <tr key={fila.id}
                         className={`group/row transition-colors ${
-                          hayError ? "bg-red-50/60 hover:bg-red-50" : "hover:bg-gray-50"
+                          hayError
+                            ? "bg-red-50/60 hover:bg-red-50"
+                            : hayAdvertencia
+                              ? "bg-amber-50/60 hover:bg-amber-50"
+                              : "hover:bg-gray-50"
                         }`}
                       >
-                        {/* # / error */}
+                        {/* # / error / advertencia */}
                         <td className="py-1.5 text-center">
-                          {hayError ? (
+                          {hayError && hayAdvertencia ? (
+                            <div className="inline-flex items-center gap-0.5">
+                              <button
+                                onMouseEnter={(e) => mostrarErrorTip(fila.id, e.currentTarget)}
+                                onMouseLeave={() => setErrorTipId(null)}
+                                className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 hover:bg-red-200 text-red-500 transition-colors cursor-default"
+                              >
+                                <AlertCircle className="w-3 h-3" />
+                              </button>
+                              <button
+                                onMouseEnter={(e) => mostrarWarnTip(fila.id, e.currentTarget)}
+                                onMouseLeave={() => setWarnTipId(null)}
+                                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-500 transition-colors cursor-default"
+                              >
+                                <AlertCircle className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          ) : hayError ? (
                             <button
                               onMouseEnter={(e) => mostrarErrorTip(fila.id, e.currentTarget)}
                               onMouseLeave={() => setErrorTipId(null)}
                               className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 hover:bg-red-200 text-red-500 transition-colors cursor-default"
+                            >
+                              <AlertCircle className="w-3 h-3" />
+                            </button>
+                          ) : hayAdvertencia ? (
+                            <button
+                              onMouseEnter={(e) => mostrarWarnTip(fila.id, e.currentTarget)}
+                              onMouseLeave={() => setWarnTipId(null)}
+                              className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-500 transition-colors cursor-default"
                             >
                               <AlertCircle className="w-3 h-3" />
                             </button>
@@ -642,9 +691,9 @@ export default function CargaComprobantesPage() {
 
                         {/* Campos editables */}
                         {columnas.map((col) => {
-                          const isRazonSocial = col.key === "razonSocial";
-                          const consultando   = isRazonSocial && loadingRazonSocialIds.has(fila.id);
-                          const campoError    = erroresPorFila.get(fila.id)?.[col.key];
+                          const isRazonSocial  = col.key === "razonSocial";
+                          const consultando    = isRazonSocial && loadingRazonSocialIds.has(fila.id);
+                          const campoError     = erroresPorFila.get(fila.id)?.[col.key];
                           return (
                             <td key={col.key} className="px-1 py-1.5">
                               {consultando ? (
@@ -1161,6 +1210,54 @@ export default function CargaComprobantesPage() {
               {/* pie */}
               <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
                 <p className="text-[9px] text-gray-400">Edita el campo directamente en la tabla</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Tooltip de advertencias (fixed, escapa overflow de la tabla) ── */}
+      {warnTipId && (() => {
+        const warns = advertenciasPorFila.get(warnTipId);
+        if (!warns) return null;
+        const entries = Object.entries(warns) as [keyof FilaCarga, string][];
+        return (
+          <div
+            style={{ top: warnTipPos.top, left: warnTipPos.left }}
+            className="fixed z-50 w-56 pointer-events-none"
+          >
+            {/* flecha izquierda */}
+            <div className="absolute -left-1.5 top-4 w-3 h-3 bg-white border-l border-t border-amber-100 rotate-[-45deg] rounded-sm shadow-[-2px_-2px_4px_rgba(0,0,0,0.04)]" />
+
+            <div className="bg-white border border-amber-100 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.14)] overflow-hidden">
+              {/* cabecera */}
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-50 border-b border-amber-100">
+                <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-3 h-3 text-amber-500" />
+                </div>
+                <span className="text-[11px] font-bold text-amber-600">
+                  {entries.length} advertencia{entries.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              {/* lista de advertencias */}
+              <div className="px-3 py-2.5 space-y-2">
+                {entries.map(([field, msg]) => (
+                  <div key={field} className="flex items-start gap-2">
+                    <span className="inline-block mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-500 leading-none mb-0.5">
+                        {CAMPO_LABEL[field] ?? field}
+                      </p>
+                      <p className="text-[9px] text-amber-600 font-medium leading-tight">{msg}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* pie */}
+              <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
+                <p className="text-[9px] text-gray-400">No bloquea la emisión — revisa si es correcto</p>
               </div>
             </div>
           </div>

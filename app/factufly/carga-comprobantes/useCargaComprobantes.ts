@@ -26,6 +26,7 @@ import {
   calcItemVelsat,
   calcTotalesGrupo,
   validarFila,
+  advertenciasFila,
 } from "./helpers";
 
 // ─── Base URL de la API PlantillaVelsat ──────────────────────────────────────
@@ -190,6 +191,16 @@ export function useCargaComprobantes() {
     for (const fila of filas) {
       const errs = validarFila(fila);
       if (Object.keys(errs).length > 0) map.set(fila.id, errs);
+    }
+    return map;
+  }, [filas]);
+
+  /** Mapa id → advertencias (no bloquean emisión); solo filas con al menos una advertencia */
+  const advertenciasPorFila = useMemo(() => {
+    const map = new Map<string, Partial<Record<keyof FilaCarga, string>>>();
+    for (const fila of filas) {
+      const warns = advertenciasFila(fila);
+      if (Object.keys(warns).length > 0) map.set(fila.id, warns);
     }
     return map;
   }, [filas]);
@@ -649,6 +660,8 @@ export function useCargaComprobantes() {
         };
         if (campo === "numdoc") {
           next.razonSocial  = "";
+          next.correo       = "";
+          next.whatsapp     = "";
           next.tipoOverride = undefined;
         }
         if (campo === "fechaini" || campo === "periodo") {
@@ -1170,6 +1183,7 @@ export function useCargaComprobantes() {
     stats,
     statsPorPeriodo,
     erroresPorFila,
+    advertenciasPorFila,
     // estado UI
     cargandoPlantilla,
     tabActiva,          setTabActiva,

@@ -14,6 +14,7 @@ import {
   Check,
   FileText,
   DollarSign,
+  AlertTriangle,
 } from "lucide-react";
 import { Modal }    from "@/app/components/ui/Modal";
 import { Button }   from "@/app/components/ui/Button";
@@ -28,6 +29,7 @@ import {
   generarConcepto,
   toLocalIso,
   validarFila,
+  advertenciasFila,
   calcItemVelsat,
   periodoLabel,
 } from "./helpers";
@@ -109,18 +111,17 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
     if ((numdoc.length !== 8 && numdoc.length !== 11) || numdoc === lastNdRef.current) return;
     lastNdRef.current = numdoc;
     setConsultando(true);
+    // Limpia los campos de contacto antes de buscar para no heredar datos del cliente anterior
+    setForm((p) => ({ ...p, razonSocial: "", correo: "", whatsapp: "" }));
     (async () => {
       try {
         const found = await buscarDocumento(numdoc, accessToken ?? "", user?.ruc ?? "");
-        if (found.razonSocial || found.correo || found.whatsapp) {
-          setForm((p) => ({
-            ...p,
-            razonSocial: found.razonSocial || p.razonSocial,
-            // Solo autocompleta si el campo estaba vacío
-            correo:   (!p.correo   && found.correo)   ? found.correo   : p.correo,
-            whatsapp: (!p.whatsapp && found.whatsapp) ? found.whatsapp : p.whatsapp,
-          }));
-        }
+        setForm((p) => ({
+          ...p,
+          razonSocial: found.razonSocial || p.razonSocial,
+          correo:      found.correo   ?? "",
+          whatsapp:    found.whatsapp ?? "",
+        }));
       } catch { /* silencioso */ } finally {
         setConsultando(false);
       }
@@ -132,9 +133,10 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((p) => ({ ...p, [k]: v }));
 
-  const tipo     = getTipoDoc({ ...form, id: "" });
-  const errores  = intentoGuardar ? validarFila({ ...form, id: "" }) : {} as Record<string, string>;
-  const hayError = Object.keys(validarFila({ ...form, id: "" })).length > 0;
+  const tipo       = getTipoDoc({ ...form, id: "" });
+  const errores    = intentoGuardar ? validarFila({ ...form, id: "" }) : {} as Record<string, string>;
+  const hayError   = Object.keys(validarFila({ ...form, id: "" })).length > 0;
+  const advertencias = advertenciasFila({ ...form, id: "" });
 
   // Desglose IGV
   const calcIgv  = form.importe > 0 ? calcItemVelsat(form.importe, 18) : null;
@@ -372,6 +374,12 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                 }`}
               />
               {errores.fechafin && <p className="text-[10px] text-red-500">{errores.fechafin}</p>}
+              {advertencias.fechafin && (
+                <p className="flex items-center gap-1 text-[10px] text-amber-600 font-medium">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  {advertencias.fechafin}
+                </p>
+              )}
             </div>
           </div>
 
