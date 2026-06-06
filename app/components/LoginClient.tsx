@@ -651,6 +651,7 @@ const LoginClient: React.FC = () => {
   const [apiError, setApiError] = useState<string>("");
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [environment, setEnvironment] = useState<"beta" | "production">("production");
+  const [doorOpen, setDoorOpen] = useState(false);
 
   // Detectar entorno desde la URL
   useEffect(() => {
@@ -737,7 +738,6 @@ const LoginClient: React.FC = () => {
         return;
       }
       if (result?.ok) {
-        // Guardar o borrar credenciales según la opción de "Recordarme"
         if (formData.rememberMe) {
           localStorage.setItem(
             "rememberedCredentials",
@@ -751,9 +751,13 @@ const LoginClient: React.FC = () => {
         }
 
         setStatus(LoginStatus.SUCCESS);
-        setTimeout(() => {
-          window.location.href = "/factufly/dashboard";
-        }, 800);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setDoorOpen(true);
+            // Navegar a mitad de la animación: dashboard monta mientras las puertas aún se abren
+            setTimeout(() => router.push("/factufly/dashboard"), 300);
+          });
+        });
       }
     } catch (error) {
       console.error("Error en login:", error);
@@ -803,9 +807,15 @@ const LoginClient: React.FC = () => {
 
       {/* ── Layout Principal ─────────────────────────────────────────────────── */}
 
-      <div className="min-h-screen flex flex-col md:flex-row bg-white">
+      <div className="min-h-screen flex flex-col md:flex-row bg-white" style={{ overflow: doorOpen ? "hidden" : "visible" }}>
         {/* Left Column: Login Form */}
-        <section className="w-full md:w-[45%] lg:w-[40%] flex flex-col justify-center min-h-screen p-6 sm:p-10 lg:p-16 relative overflow-hidden">
+        <section
+          className="w-full md:w-[45%] lg:w-[40%] flex flex-col justify-center min-h-screen p-6 sm:p-10 lg:p-16 relative overflow-hidden"
+          style={{
+            transform: doorOpen ? "translateX(-100%)" : "translateX(0)",
+            transition: doorOpen ? "transform 0.5s cubic-bezier(0.87, 0, 0.13, 1)" : "none",
+          }}
+        >
           <IncaPattern />
 
           <div className="w-full max-w-md mx-auto space-y-8 relative z-10">
@@ -1039,7 +1049,13 @@ const LoginClient: React.FC = () => {
         </section>
 
         {/* Right Column: Hero / Brand Panel */}
-        <section className="hidden md:flex md:w-[55%] lg:w-[60%] bg-[#0f2e64] relative overflow-hidden items-center justify-center p-8 lg:p-16">
+        <section
+          className="hidden md:flex md:w-[55%] lg:w-[60%] bg-[#0f2e64] relative overflow-hidden items-center justify-center p-8 lg:p-16"
+          style={{
+            transform: doorOpen ? "translateX(100%)" : "translateX(0)",
+            transition: doorOpen ? "transform 0.5s cubic-bezier(0.87, 0, 0.13, 1)" : "none",
+          }}
+        >
           <div className="absolute top-0 right-0 w-1/2 h-full bg-linear-to-l from-red-600/15 to-transparent pointer-events-none" />
           <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-red-600/5 rounded-full blur-[100px]" />
 

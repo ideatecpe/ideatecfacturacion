@@ -466,7 +466,7 @@ export default function DashboardPage() {
 
       {/* ─── Header ─────────────────────────────────────────────────── */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-1 min-w-[180px] sm:flex-none items-center gap-3">
+        <div className="flex flex-1 min-w-45 sm:flex-none items-center gap-3">
           {isSuperAdmin && (
             <DropdownSucursal
               sucursales={sucursales}
@@ -475,7 +475,6 @@ export default function DashboardPage() {
             />
           )}
           <div className="flex flex-1 items-center gap-2 bg-white border border-[#E2EAF6] rounded-lg px-3 py-2.5 hover:border-brand-blue/30 transition-colors">
-            <Calendar size={13} className="text-slate-400 shrink-0" />
             <span className="text-xs text-slate-500 font-medium">Fecha</span>
             <input
               type="date"
@@ -486,8 +485,9 @@ export default function DashboardPage() {
             />
           </div>
         </div>
-        <Button onClick={() => router.push("/factufly/operaciones")} className="flex-1 min-w-[180px] sm:flex-none whitespace-nowrap">
-          <Plus className="w-4 h-4" /> Nuevo Comprobante
+        <Button onClick={() => router.push("/factufly/operaciones")} className="flex-1 min-w-0 sm:flex-none whitespace-nowrap">
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">Nuevo </span>Comprobante
         </Button>
       </div>
 

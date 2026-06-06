@@ -147,6 +147,42 @@ export default function VerComprobantesPage() {
   const [avFechaDesde, setAvFechaDesde] = useState("");
   const [avFechaHasta, setAvFechaHasta] = useState("");
 
+  // ── Búsqueda server-side por número de documento ──
+  const [serverSearch, setServerSearch] = useState<ComprobanteListado[] | null>(null);
+  const [serverSearchLoading, setServerSearchLoading] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    const trimmed = search.trim();
+    const isDocNumber = /^\d{6,}$/.test(trimmed);
+    if (!isDocNumber) {
+      setServerSearch(null);
+      return;
+    }
+    searchTimerRef.current = setTimeout(async () => {
+      setServerSearchLoading(true);
+      try {
+        const params = { fechaDesde: null, fechaHasta: null, offset: 0, limit: 200 };
+        let data: ComprobanteListado[] = [];
+        if (isSuperAdmin && sucursalFiltro) {
+          data = await hookClienteSucursal.fetchComprobantes({ ...params, sucursalId: sucursalFiltro, clienteNumDoc: trimmed });
+        } else if (isSuperAdmin) {
+          data = await hookCliente.fetchComprobantes({ ...params, rucEmpresa, clienteNumDoc: trimmed });
+        } else {
+          data = await hookClienteSucursal.fetchComprobantes({ ...params, sucursalId, clienteNumDoc: trimmed });
+        }
+        setServerSearch(data);
+      } catch {
+        setServerSearch(null);
+      } finally {
+        setServerSearchLoading(false);
+      }
+    }, 600);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, isSuperAdmin, sucursalFiltro, rucEmpresa, sucursalId]);
+
   //CARGA MASIVA
   const [showModalCargaMasiva, setShowModalCargaMasiva] = useState(false);
   const { empresa } = useEmpresaEmisor();
@@ -161,7 +197,8 @@ export default function VerComprobantesPage() {
     hookUnico.loading ||
     hookCliente.loading ||
     hookUsuario.loading ||
-    hookClienteSucursal.loading;
+    hookClienteSucursal.loading ||
+    serverSearchLoading;
 
   const hasMore = useMemo(() => {
     if (modoAvanzado === "unico") return false;
@@ -429,15 +466,19 @@ export default function VerComprobantesPage() {
   };
 
   const filtered = useMemo(() => {
-    return comprobantes
+    // Si hay resultados del servidor (búsqueda por núm. doc), úsalos como base
+    const base = serverSearch ?? comprobantes;
+    return base
       .filter((c) => {
         const tipo = tipoLabel(c.tipoComprobante);
-        const matchSearch =
-          (c.cliente?.razonSocial ?? "")
-            .toLowerCase()
-            .includes(search.toLowerCase()) ||
-          (c.cliente?.numeroDocumento ?? "").includes(search) ||
-          (c.numeroCompleto ?? "").toLowerCase().includes(search.toLowerCase());
+        // Si el servidor ya filtró por documento, no re-aplicar el filtro de texto
+        const matchSearch = serverSearch
+          ? true
+          : ((c.cliente?.razonSocial ?? "")
+              .toLowerCase()
+              .includes(search.toLowerCase()) ||
+            (c.cliente?.numeroDocumento ?? "").includes(search) ||
+            (c.numeroCompleto ?? "").toLowerCase().includes(search.toLowerCase()));
         const matchTipo = filtroTipo === "Todos" || tipo === filtroTipo;
         const estadoLabel =
           c.estadoSunat === "ACEPTADO"
@@ -459,7 +500,7 @@ export default function VerComprobantesPage() {
         //  independiente del tipo de comprobante: B001, F001, notas de crédito, etc.)
         return b.comprobanteId - a.comprobanteId;
       });
-  }, [comprobantes, search, filtroTipo, filtroEstado]);
+  }, [comprobantes, serverSearch, search, filtroTipo, filtroEstado]);
 
   const paginated = filtered;
 
@@ -850,14 +891,24 @@ export default function VerComprobantesPage() {
           {/* ── Barra ── */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-36">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              {serverSearchLoading
+                ? <RefreshCw size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 animate-spin" />
+                : <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              }
               <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente, RUC/DNI o N° comprobante"
                 className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
               />
-              {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <X size={13} />
-                </button>
+              {search && !serverSearchLoading && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {serverSearch !== null && (
+                    <span className="text-[10px] text-blue-500 font-semibold bg-blue-50 px-1 py-0.5 rounded">
+                      servidor
+                    </span>
+                  )}
+                  <button onClick={() => { setSearch(""); setServerSearch(null); }} className="text-gray-400 hover:text-gray-600">
+                    <X size={13} />
+                  </button>
+                </div>
               )}
             </div>
             <DropdownFiltro label="Tipo" value={filtroTipo} options={TIPOS_OPTS} onChange={setFiltroTipo} />

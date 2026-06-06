@@ -35,10 +35,18 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [entered, setEntered] = useState(false);
 
   const activeView = (pathname.split("/")[2] as View) || "dashboard";
 
   // ── Auto-open/close sidebar según ancho de ventana (umbral: 1280px) ──────
+  // Animación de entrada
+  React.useEffect(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setEntered(true));
+    });
+  }, []);
+
   React.useEffect(() => {
     const BREAKPOINT = 1280;
     // Estado inicial correcto en el cliente
@@ -142,7 +150,7 @@ export default function DashboardLayout({
 
   return (
     <ToastProvider>
-      <div className="h-screen flex overflow-x-hidden" style={{ background: "#F5F8FD" }}>
+      <div className="h-screen flex overflow-hidden" style={{ background: "#F5F8FD" }}>
         {/* Backdrop oscuro al abrir sidebar en pantallas < 1280px */}
         {isSidebarOpen && (
           <div
@@ -150,16 +158,35 @@ export default function DashboardLayout({
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
-        <Sidebar
-          isOpen={isSidebarOpen}
-          activeView={activeView}
-          onViewChange={(view) => {
-            router.push(`/factufly/${view}`);
-            if (window.innerWidth < 1280) setIsSidebarOpen(false);
+        {/* Sidebar — entra desde la izquierda */}
+        <div
+          style={{
+            transform: entered ? "translateX(0)" : "translateX(-110%)",
+            opacity: entered ? 1 : 0,
+            transition: entered ? "transform 1s cubic-bezier(0.22, 1, 0.36, 1), opacity 1s ease" : "none",
+            zIndex: 50,
+            position: "relative",
           }}
-          menuItems={menuItems}
-        />
-        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        >
+          <Sidebar
+            isOpen={isSidebarOpen}
+            activeView={activeView}
+            onViewChange={(view) => {
+              router.push(`/factufly/${view}`);
+              if (window.innerWidth < 1280) setIsSidebarOpen(false);
+            }}
+            menuItems={menuItems}
+          />
+        </div>
+        {/* Contenido — entra desde la derecha */}
+        <div
+          className="flex-1 flex flex-col min-w-0 h-full overflow-hidden"
+          style={{
+            transform: entered ? "translateX(0)" : "translateX(110%)",
+            opacity: entered ? 1 : 0,
+            transition: entered ? "transform 1s cubic-bezier(0.22, 1, 0.36, 1), opacity 1s ease" : "none",
+          }}
+        >
           <Topbar
             isSidebarOpen={isSidebarOpen}
             toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
