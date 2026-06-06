@@ -899,16 +899,9 @@ export default function VerComprobantesPage() {
                 className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
               />
               {search && !serverSearchLoading && (
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  {serverSearch !== null && (
-                    <span className="text-[10px] text-blue-500 font-semibold bg-blue-50 px-1 py-0.5 rounded">
-                      servidor
-                    </span>
-                  )}
-                  <button onClick={() => { setSearch(""); setServerSearch(null); }} className="text-gray-400 hover:text-gray-600">
-                    <X size={13} />
-                  </button>
-                </div>
+                <button onClick={() => { setSearch(""); setServerSearch(null); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={13} />
+                </button>
               )}
             </div>
             <DropdownFiltro label="Tipo" value={filtroTipo} options={TIPOS_OPTS} onChange={setFiltroTipo} />
