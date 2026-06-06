@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import {
   FileSpreadsheet,
   RefreshCw,
@@ -54,6 +54,7 @@ export default function CargaComprobantesPage() {
   const [modalNotificacionesOpen,  setModalNotificacionesOpen]  = useState(false);
   const [fechasRehab, setFechasRehab] = useState<Record<string, string>>({});
 
+
   // tooltip de errores (fixed, escapa el overflow de la tabla)
   const [errorTipId,  setErrorTipId]  = useState<string | null>(null);
   const [errorTipPos, setErrorTipPos] = useState({ top: 0, left: 0 });
@@ -92,7 +93,7 @@ export default function CargaComprobantesPage() {
     modalResultadoOpen,    setModalResultadoOpen,
     erroresCarga,
     modalErroresCargaOpen, setModalErroresCargaOpen,
-    resultadoEmision, progresoEmision, advertenciaTemprana,
+    resultadoEmision, progresoEmision, advertenciaTemprana: advertenciaTempranaBruta,
     accessToken, esUsuarioVelsat, sucursal, empresa,
     cargarExcel, descargarPlantilla, actualizarFila,
     agregarFila, deshabilitarFila, habilitarFila, ajustarFechasInicioMes,
@@ -124,6 +125,52 @@ export default function CargaComprobantesPage() {
     setFechasRehab(defaults);
     setModalDeshabilitadosOpen(true);
   };
+
+  // ── Selección de grupos para emisión parcial ──────────────────────────────
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+
+  const toggleSelected = (key: string) =>
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+
+  const toggleSelectAll = () =>
+    setSelectedKeys((prev) =>
+      prev.size === gruposFiltrados.length
+        ? new Set()
+        : new Set(gruposFiltrados.map((g) => g.key)),
+    );
+
+  // Limpiar selección al cambiar de tab
+  React.useEffect(() => { setSelectedKeys(new Set()); }, [tabActiva]);
+
+  // Limpiar selección cuando termina la emisión (emitiendo pasa de true → false)
+  const prevEmitiendo = React.useRef(false);
+  React.useEffect(() => {
+    if (prevEmitiendo.current && !emitiendo) {
+      setSelectedKeys(new Set());
+    }
+    prevEmitiendo.current = emitiendo;
+  }, [emitiendo]);
+
+  // Cuando hay selección explícita, recalcular la advertencia solo para los grupos seleccionados
+  const advertenciaTemprana = useMemo(() => {
+    if (selectedKeys.size === 0) return advertenciaTempranaBruta;
+    // Calcular sobre los grupos seleccionados
+    const gruposSelec = gruposFiltrados.filter((g) => selectedKeys.has(g.key));
+    const fechas = gruposSelec.flatMap((g) => g.items.map((i) => i.fechafin)).filter(Boolean);
+    if (!fechas.length) return null;
+    const fechaFinMin = [...fechas].sort()[0];
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const fin = fechaFinMin ? new Date(`${fechaFinMin}T00:00:00`) : null;
+    if (!fin) return null;
+    const diasHasta = Math.floor((fin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+    if (diasHasta <= 7) return null;
+    const cfg = PERIODO_CFG[tabActiva];
+    return { diasHasta, fechaFinMin, periodoLabel: cfg?.label ?? tabActiva };
+  }, [selectedKeys, gruposFiltrados, advertenciaTempranaBruta, tabActiva]);
 
   // ── Búsqueda dentro de la tabla ───────────────────────────────────────────
   const [busqueda, setBusqueda] = useState("");
@@ -240,22 +287,27 @@ export default function CargaComprobantesPage() {
           </div>
 
           {/* Botón Emitir — full width en móvil, auto en desktop */}
-          <Button
-            className="w-full sm:w-auto"
-            onClick={() => setModalConfirmarOpen(true)}
-            disabled={emitiendo || tabActiva === "todos" || gruposFiltrados.length === 0 || !sucursal || !empresa}
-          >
-            {emitiendo ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            <span className="truncate">
-              {emitiendo
-                ? "Emitiendo…"
-                : tabActiva === "todos" && hayFilas
-                  ? "Selecciona un período"
-                  : gruposFiltrados.length > 0
-                    ? `Emitir ${gruposFiltrados.length} comprobante${gruposFiltrados.length !== 1 ? "s" : ""}`
-                    : "Emitir"}
-            </span>
-          </Button>
+          {(() => {
+            const nEmitir = selectedKeys.size > 0 ? selectedKeys.size : gruposFiltrados.length;
+            return (
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => setModalConfirmarOpen(true)}
+                disabled={emitiendo || tabActiva === "todos" || gruposFiltrados.length === 0 || !sucursal || !empresa}
+              >
+                {emitiendo ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <span className="truncate">
+                  {emitiendo
+                    ? "Emitiendo…"
+                    : tabActiva === "todos" && hayFilas
+                      ? "Selecciona un período"
+                      : nEmitir > 0
+                        ? `Emitir ${nEmitir} comprobante${nEmitir !== 1 ? "s" : ""}${selectedKeys.size > 0 ? " ✓" : ""}`
+                        : "Emitir"}
+                </span>
+              </Button>
+            );
+          })()}
         </div>
       </div>
 
@@ -788,9 +840,45 @@ export default function CargaComprobantesPage() {
               })
             : (() => {
                 const cfg = PERIODO_CFG[tabActiva] ?? PERIODO_CFG["mensual"];
+                const todosSeleccionados = selectedKeys.size === gruposFiltrados.length && gruposFiltrados.length > 0;
+                const algunoSeleccionado = selectedKeys.size > 0;
                 return (
-                  <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 p-3 border ${cfg.borderClass} rounded-xl bg-white shadow-sm`}>
-                    {gruposFiltrados.map((grupo) => <GrupoCard key={grupo.key} grupo={grupo} cfg={cfg} />)}
+                  <div className="space-y-2">
+                    {/* Barra de selección */}
+                    <div className="flex items-center gap-3 px-1">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={todosSeleccionados}
+                          ref={(el) => { if (el) el.indeterminate = algunoSeleccionado && !todosSeleccionados; }}
+                          onChange={toggleSelectAll}
+                          className="w-3.5 h-3.5 accent-brand-blue cursor-pointer"
+                        />
+                        <span className="text-[11px] font-semibold text-gray-500">
+                          {todosSeleccionados
+                            ? "Deseleccionar todo"
+                            : algunoSeleccionado
+                              ? `${selectedKeys.size} de ${gruposFiltrados.length} seleccionados`
+                              : "Seleccionar todo"}
+                        </span>
+                      </label>
+                      {algunoSeleccionado && (
+                        <span className="text-[11px] text-gray-400">
+                          → Se emitirán solo los seleccionados
+                        </span>
+                      )}
+                    </div>
+                    <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 p-3 border ${cfg.borderClass} rounded-xl bg-white shadow-sm`}>
+                      {gruposFiltrados.map((grupo) => (
+                        <GrupoCard
+                          key={grupo.key}
+                          grupo={grupo}
+                          cfg={cfg}
+                          selected={selectedKeys.has(grupo.key)}
+                          onToggle={() => toggleSelected(grupo.key)}
+                        />
+                      ))}
+                    </div>
                   </div>
                 );
               })()}
@@ -892,7 +980,19 @@ export default function CargaComprobantesPage() {
           </div>
 
           {/* Resumen de lo que se va a emitir */}
+          {(() => {
+            const gruposAMostrar = selectedKeys.size > 0
+              ? gruposFiltrados.filter((g) => selectedKeys.has(g.key))
+              : gruposFiltrados;
+            return (
           <div className="rounded-xl border border-gray-200 overflow-hidden">
+            {selectedKeys.size > 0 && (
+              <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
+                <span className="text-[10px] font-semibold text-blue-600">
+                  Emitiendo {selectedKeys.size} de {gruposFiltrados.length} comprobantes seleccionados
+                </span>
+              </div>
+            )}
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Resumen de emisión</p>
             </div>
@@ -900,12 +1000,12 @@ export default function CargaComprobantesPage() {
               {[
                 {
                   label: "Comprobantes",
-                  value: `${gruposFiltrados.length} comprobante${gruposFiltrados.length !== 1 ? "s" : ""}`,
+                  value: `${gruposAMostrar.length} comprobante${gruposAMostrar.length !== 1 ? "s" : ""}`,
                   color: "text-gray-900",
                 },
                 {
                   label: "Ítems (placas)",
-                  value: `${gruposFiltrados.flatMap((g) => g.items).length} ítem${gruposFiltrados.flatMap((g) => g.items).length !== 1 ? "s" : ""}`,
+                  value: `${gruposAMostrar.flatMap((g) => g.items).length} ítem${gruposAMostrar.flatMap((g) => g.items).length !== 1 ? "s" : ""}`,
                   color: "text-gray-900",
                 },
                 {
@@ -920,7 +1020,7 @@ export default function CargaComprobantesPage() {
                 },
                 {
                   label: "Importe total",
-                  value: `S/ ${stats.total.toFixed(2)}`,
+                  value: `S/ ${gruposAMostrar.reduce((s, g) => s + g.total, 0).toFixed(2)}`,
                   color: "text-gray-900 font-black",
                 },
               ].map(({ label, value, color }) => (
@@ -931,11 +1031,16 @@ export default function CargaComprobantesPage() {
               ))}
             </div>
           </div>
+          );
+          })()}
 
           {/* Boletas vs facturas */}
           {(() => {
-            const boletas  = gruposFiltrados.filter((g) => g.tipoDoc === "B").length;
-            const facturas = gruposFiltrados.filter((g) => g.tipoDoc === "F").length;
+            const gruposAMostrar2 = selectedKeys.size > 0
+              ? gruposFiltrados.filter((g) => selectedKeys.has(g.key))
+              : gruposFiltrados;
+            const boletas  = gruposAMostrar2.filter((g) => g.tipoDoc === "B").length;
+            const facturas = gruposAMostrar2.filter((g) => g.tipoDoc === "F").length;
             return (boletas > 0 || facturas > 0) ? (
               <div className="flex items-center gap-2">
                 {boletas > 0 && (
@@ -972,12 +1077,12 @@ export default function CargaComprobantesPage() {
                     Aún no es momento de emitir estos comprobantes
                   </p>
                   <p className="text-xs text-amber-700 leading-relaxed">
-                    Acabas de emitir los comprobantes <span className="font-semibold">{advertenciaTemprana.periodoLabel}</span>.
-                    Los nuevos tienen fecha de inicio <span className="font-semibold">{formatFechaEs(advertenciaTemprana.fechaIniMin)}</span>,
+                    El período <span className="font-semibold">{advertenciaTemprana.periodoLabel}</span> termina el{" "}
+                    <span className="font-semibold">{formatFechaEs(advertenciaTemprana.fechaFinMin)}</span>,
                     que es en <span className="font-black text-amber-900">{advertenciaTemprana.diasHasta} día{advertenciaTemprana.diasHasta !== 1 ? "s" : ""}</span>.
                   </p>
                   <p className="text-[11px] text-amber-600">
-                    Se recomienda emitir cuando falten 7 días o menos para esa fecha.
+                    Se recomienda emitir cuando falten 7 días o menos para el fin del período.
                   </p>
                 </div>
               </div>
@@ -991,7 +1096,7 @@ export default function CargaComprobantesPage() {
                   <div className="px-4 pb-3 space-y-1">
                     <div className="flex items-center justify-between text-[10px] text-amber-500 font-medium">
                       <span>Hoy</span>
-                      <span className="font-bold text-amber-700">{formatFechaEs(advertenciaTemprana.fechaIniMin)}</span>
+                      <span className="font-bold text-amber-700">{formatFechaEs(advertenciaTemprana.fechaFinMin)}</span>
                     </div>
                     <div className="w-full h-1.5 bg-amber-100 rounded-full overflow-hidden">
                       <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
@@ -1028,18 +1133,23 @@ export default function CargaComprobantesPage() {
             <Button
               type="button"
               onClick={() => {
+                const gruposSeleccionados = selectedKeys.size > 0
+                  ? gruposFiltrados.filter((g) => selectedKeys.has(g.key))
+                  : undefined;
                 setModalConfirmarOpen(false);
-                emitir();
+                emitir(gruposSeleccionados);
               }}
               disabled={emitiendo}
               className={advertenciaTemprana ? "bg-amber-500! hover:bg-amber-600!" : ""}
             >
-              {emitiendo
-                ? <><RefreshCw className="w-4 h-4 animate-spin" /> Emitiendo…</>
-                : advertenciaTemprana
-                  ? <><Send className="w-4 h-4" /> Emitir igual (no recomendado)</>
-                  : <><Send className="w-4 h-4" /> Sí, emitir {gruposFiltrados.length} comprobante{gruposFiltrados.length !== 1 ? "s" : ""}</>
-              }
+              {(() => {
+                const n = selectedKeys.size > 0 ? selectedKeys.size : gruposFiltrados.length;
+                return emitiendo
+                  ? <><RefreshCw className="w-4 h-4 animate-spin" /> Emitiendo…</>
+                  : advertenciaTemprana
+                    ? <><Send className="w-4 h-4" /> Emitir igual (no recomendado)</>
+                    : <><Send className="w-4 h-4" /> Sí, emitir {n} comprobante{n !== 1 ? "s" : ""}</>;
+              })()}
             </Button>
           </div>
 

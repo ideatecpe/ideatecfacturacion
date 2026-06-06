@@ -135,6 +135,8 @@ export default function VerComprobantesPage() {
 
   // ── Filtros cabecera ──
   const [showAvanzado, setShowAvanzado] = useState(false);
+  const showAvanzadoRef = useRef(false);
+  useEffect(() => { showAvanzadoRef.current = showAvanzado; }, [showAvanzado]);
   const [sucursalFiltro, setSucursalFiltro] = useState<number | null>(null);
 
   const [modoAvanzado, setModoAvanzado] = useState< "fechas" | "unico" | "cliente" | "usuario" >("fechas");
@@ -212,7 +214,7 @@ export default function VerComprobantesPage() {
       } else {
         data = await fetchSucursal({ ...params, sucursalId });
       }
-      if (esUsuarioVelsat && offset === 0 && !showAvanzado) {
+      if (esUsuarioVelsat && offset === 0 && !showAvanzadoRef.current) {
         data = [...leerComprobantesCarga(), ...data];
       }
       setComprobantes(data);
@@ -225,7 +227,6 @@ export default function VerComprobantesPage() {
       sucursalId,
       limit,
       esUsuarioVelsat,
-      showAvanzado,
     ],
   );
 
@@ -846,84 +847,38 @@ export default function VerComprobantesPage() {
 
       <div className="sticky top-0 z-20">
         <div className="space-y-2">
-          {/* ── Fila 1: Búsqueda + Nuevo Comprobante ── */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <Search
-                size={16}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar cliente, RUC/DNI o N° comprobante..."
-                className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
+          {/* ── Barra ── */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-36">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente, RUC/DNI o N° comprobante"
+                className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
               />
               {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={14} />
+                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={13} />
                 </button>
               )}
             </div>
-            <Button
-              className="shrink-0 py-2.5 px-3 text-xs rounded-md h-auto"
-              onClick={() => router.push("/factufly/operaciones")}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Nuevo Comprobante</span>
-            </Button>
-          </div>
-
-          {/* ── Fila 2: Filtros + acciones secundarias ── */}
-          <div className="flex flex-wrap items-center gap-2">
-            <DropdownFiltro
-              label="Tipo"
-              value={filtroTipo}
-              options={TIPOS_OPTS}
-              onChange={setFiltroTipo}
-            />
-            <DropdownFiltro
-              label="Estado SUNAT"
-              value={filtroEstado}
-              options={ESTADOS_OPTS}
-              onChange={setFiltroEstado}
-              colorMap={ESTADO_COLORS_MAP}
-            />
+            <DropdownFiltro label="Tipo" value={filtroTipo} options={TIPOS_OPTS} onChange={setFiltroTipo} />
+            <DropdownFiltro label="Estado SUNAT" value={filtroEstado} options={ESTADOS_OPTS} onChange={setFiltroEstado} colorMap={ESTADO_COLORS_MAP} />
             <button
               onClick={() => setShowAvanzado((o) => !o)}
               className={cn(
                 "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md transition-all shadow-sm",
-                showAvanzado
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50",
+                showAvanzado ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50",
               )}
             >
               <Filter size={14} />
               <span className="hidden sm:inline">Opciones avanzadas</span>
               <span className="sm:hidden">Filtros</span>
-              <ChevronDown
-                size={13}
-                className={cn("transition-transform", showAvanzado && "rotate-180")}
-              />
+              <ChevronDown size={13} className={cn("transition-transform", showAvanzado && "rotate-180")} />
             </button>
             {isSuperAdmin && (
               <DropdownFiltro
                 label="Sucursales"
-                value={
-                  sucursalFiltro
-                    ? (sucursales.find((s: any) => s.sucursalId === sucursalFiltro)?.nombre ??
-                       sucursales.find((s: any) => s.sucursalId === sucursalFiltro)?.codEstablecimiento ??
-                       "Todos")
-                    : "Todos"
-                }
-                options={[
-                  "Todos",
-                  ...sucursales.map((s: any) => s.nombre ?? s.codEstablecimiento),
-                ]}
+                value={sucursalFiltro ? (sucursales.find((s: any) => s.sucursalId === sucursalFiltro)?.nombre ?? sucursales.find((s: any) => s.sucursalId === sucursalFiltro)?.codEstablecimiento ?? "Todos") : "Todos"}
+                options={["Todos", ...sucursales.map((s: any) => s.nombre ?? s.codEstablecimiento)]}
                 onChange={(v) => {
                   if (v === "Todos") { setSucursalFiltro(null); return; }
                   const found = sucursales.find((s: any) => (s.nombre ?? s.codEstablecimiento) === v);
@@ -932,24 +887,22 @@ export default function VerComprobantesPage() {
               />
             )}
             {pendientes.length >= 2 && (
-              <Button
-                className="py-2.5 px-3 text-xs rounded-md h-auto bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 shadow-sm"
-                onClick={() => setShowModalEnvioMasivo(true)}
-              >
+              <Button className="py-2.5 px-3 text-xs rounded-md h-auto bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 shadow-sm" onClick={() => setShowModalEnvioMasivo(true)}>
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Enviar pendientes ({pendientes.length})</span>
-                <span className="sm:hidden">Pendientes ({pendientes.length})</span>
+                <span className="sm:hidden">({pendientes.length})</span>
               </Button>
             )}
             {config?.cargaComprobantes && (
-              <Button
-                className="py-2.5 px-3 text-xs rounded-md h-auto"
-                onClick={() => setShowModalCargaMasiva(true)}
-              >
+              <Button className="py-2.5 px-3 text-xs rounded-md h-auto" onClick={() => setShowModalCargaMasiva(true)}>
                 <Upload className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Carga Masiva</span>
               </Button>
             )}
+            <Button className="py-2.5 px-3 text-xs rounded-md h-auto" onClick={() => router.push("/factufly/operaciones")}>
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Nuevo Comprobante</span>
+            </Button>
           </div>
 
           {showAvanzado && (

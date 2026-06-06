@@ -20,9 +20,11 @@ import { formatFechaEs } from "./helpers";
 type Props = {
   grupo: GrupoData;
   cfg: (typeof PERIODO_CFG)[string];
+  selected?: boolean;
+  onToggle?: () => void;
 };
 
-export function GrupoCard({ grupo, cfg }: Props) {
+export function GrupoCard({ grupo, cfg, selected, onToggle }: Props) {
   const simbolo  = grupo.moneda === "USD" ? "$" : "S/";
   const esBoleta = grupo.tipoDoc === "B";
   const fechaIni = grupo.items[0]?.fechaini ?? "";
@@ -34,6 +36,15 @@ export function GrupoCard({ grupo, cfg }: Props) {
       {/* ── Cabecera: tipo + período + rango fechas ── */}
       <div className={`px-3 py-2 ${cfg.bgCard} border-b ${cfg.borderClass} flex items-center justify-between gap-2`}>
         <div className="flex items-center gap-1.5">
+          {onToggle !== undefined && (
+            <input
+              type="checkbox"
+              checked={selected ?? false}
+              onChange={onToggle}
+              onClick={(e) => e.stopPropagation()}
+              className="w-3.5 h-3.5 accent-brand-blue cursor-pointer shrink-0"
+            />
+          )}
           <span
             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${
               esBoleta

@@ -124,7 +124,10 @@ export function useCargaComprobantes() {
       const pt     = periodoTexto(fila.periodo);
       const moneda = (fila.moneda || "PEN").toUpperCase().trim();
       const tipo   = getTipoDoc(fila);
-      const key    = `${fila.numdoc.trim()}||${pt}||${moneda}||${tipo}`;
+      // Para períodos anuales: si las fechas de inicio son distintas,
+      // cada fecha de inicio genera un comprobante separado.
+      const sufijFecha = pt === "anual" ? `||${fila.fechaini}` : "";
+      const key    = `${fila.numdoc.trim()}||${pt}||${moneda}||${tipo}${sufijFecha}`;
       if (!fila.numdoc.trim()) return;
       map.set(key, [...(map.get(key) ?? []), fila]);
     });
@@ -210,24 +213,27 @@ export function useCargaComprobantes() {
 
   const advertenciaTemprana = useMemo((): {
     diasHasta: number;
-    fechaIniMin: string;
+    fechaFinMin: string;
     periodoLabel: string;
   } | null => {
     if (tabActiva === "todos") return null;
+    // Usamos fechafin: si la fecha de fin más próxima está a más de 7 días
+    // es demasiado temprano para emitir.
     const fechas = gruposFiltrados
-      .flatMap((g) => g.items.map((i) => i.fechaini))
+      .flatMap((g) => g.items.map((i) => i.fechafin))
       .filter(Boolean);
     if (!fechas.length) return null;
-    const fechaIniMin = [...fechas].sort()[0];
+    const fechaFinMin = [...fechas].sort()[0];
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
-    const siguiente = parseIsoLocalDate(fechaIniMin);
-    if (!siguiente) return null;
+    const fin = parseIsoLocalDate(fechaFinMin);
+    if (!fin) return null;
     const diasHasta = Math.floor(
-      (siguiente.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24),
+      (fin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24),
     );
+    // Si quedan 7 días o menos para el fin del período → OK para emitir → sin advertencia
     if (diasHasta <= DIAS_VENTANA_EMISION) return null;
-    return { diasHasta, fechaIniMin, periodoLabel: PERIODO_CFG[tabActiva]?.label ?? tabActiva };
+    return { diasHasta, fechaFinMin, periodoLabel: PERIODO_CFG[tabActiva]?.label ?? tabActiva };
   }, [gruposFiltrados, tabActiva]);
 
   // ── Cargar registros desde la API ──
@@ -929,7 +935,7 @@ export function useCargaComprobantes() {
   };
 
   // ── Emitir → POST /api/Comprobantes/GenerarMasivo ──
-  const emitir = async () => {
+  const emitir = async (gruposOverride?: import("./types").GrupoData[]) => {
     if (tabActiva === "todos") {
       showToast("Selecciona un período específico antes de emitir", "error");
       return;
@@ -968,7 +974,7 @@ export function useCargaComprobantes() {
       let correlativoFactura: number = sucursalActual.correlativoFactura;
 
       const fechaISO      = `${fechaEmision}T00:00:00`;
-      const gruposAEmitir = gruposFiltrados;
+      const gruposAEmitir = gruposOverride ?? gruposFiltrados;
 
       const payloads = gruposAEmitir.map((grupo) => {
         const esBoleta       = grupo.tipoDoc === "B";
@@ -1101,11 +1107,10 @@ export function useCargaComprobantes() {
       setModalResultadoOpen(true);
 
       // ── Avanzar fechas en API solo para grupos exitosos ──
-      const exitosos = resultados.filter((r) => r.ok);
-      const idsGruposExitosos = new Set(exitosos.map((r) => `${r.numdoc}||${r.periodoTipo}||${r.moneda}||${r.tipoDoc}`));
-      const idsFilasExitosas  = new Set(
+      // Usamos el índice para correlacionar resultado↔grupo (el loop emite en el mismo orden)
+      const idsFilasExitosas = new Set(
         gruposAEmitir
-          .filter((g) => idsGruposExitosos.has(g.key))
+          .filter((_, i) => resultados[i]?.ok)
           .flatMap((g) => g.items.map((i) => i.id)),
       );
 
@@ -1145,17 +1150,18 @@ export function useCargaComprobantes() {
       }
 
       // ── Toast resumen ──
-      const fallidos = resultados.filter((r) => !r.ok).length;
+      const nExitosos = resultados.filter((r) => r.ok).length;
+      const fallidos  = resultados.filter((r) => !r.ok).length;
       const periodoEmitido = PERIODO_CFG[tabActiva]?.label.toLowerCase() ?? tabActiva;
       if (fallidos === 0) {
         showToast(
-          `${exitosos.length} comprobante${exitosos.length !== 1 ? "s" : ""} generado${exitosos.length !== 1 ? "s" : ""} (${periodoEmitido})`,
+          `${nExitosos} comprobante${nExitosos !== 1 ? "s" : ""} generado${nExitosos !== 1 ? "s" : ""} (${periodoEmitido})`,
           "success",
         );
       } else {
         showToast(
-          `${exitosos.length} OK · ${fallidos} con error — revisa el resultado`,
-          exitosos.length > 0 ? "success" : "error",
+          `${nExitosos} OK · ${fallidos} con error — revisa el resultado`,
+          nExitosos > 0 ? "success" : "error",
         );
       }
     } catch (err: unknown) {
