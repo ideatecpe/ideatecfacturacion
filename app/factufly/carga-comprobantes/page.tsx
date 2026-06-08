@@ -107,8 +107,8 @@ export default function CargaComprobantesPage() {
     estadoEmail, estadoWsp,
     enviandoBulk, progresoBulk,
     getDiasRestantes, getFirstFechaFin, getItemsProximosAVencer,
-    buildMensajeGrupo, SUBJECT_DEFAULT,
-    enviarEmail, enviarWhatsApp, enviarTodosEmail,
+    buildMensajeGrupo, buildMensajeWsp, SUBJECT_DEFAULT,
+    enviarEmail, enviarWhatsApp, enviarTodosEmail, enviarTodosWsp,
   } = useNotificaciones(grupos, accessToken);
 
   const nErrores = filasFiltradas.filter((f) => erroresPorFila.has(f.id)).length;
@@ -606,13 +606,13 @@ export default function CargaComprobantesPage() {
                 <col style={{ width: 30 }} />
               </colgroup>
 
-              <thead className="sticky top-0 z-10 bg-white border-b border-gray-200">
+              <thead className="sticky top-0 z-10 bg-gray-200 border-b border-gray-200">
                 <tr>
-                  <th className="px-2 py-3 text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider">#</th>
-                  <th className="px-1 py-3 text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider" title="Período" />
-                  <th className="px-2 py-3 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Comprobante</th>
+                  <th className="px-2 py-3 text-center text-[10px] font-semibold text-gray-800 uppercase tracking-wider">#</th>
+                  <th className="px-1 py-3 text-center text-[10px] font-semibold text-gray-800 uppercase tracking-wider" title="Período" />
+                  <th className="px-2 py-3 text-left text-[10px] font-semibold text-gray-800 uppercase tracking-wider">Comprobante</th>
                   {columnas.map((col) => (
-                    <th key={col.key} className="px-2 py-3 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider truncate">
+                    <th key={col.key} className="px-2 py-3 text-left text-[10px] font-semibold text-gray-800 uppercase tracking-wider truncate">
                       {col.label}
                     </th>
                   ))}
@@ -659,7 +659,7 @@ export default function CargaComprobantesPage() {
                         }`}
                       >
                         {/* # / error / advertencia */}
-                        <td className="py-1.5 text-center">
+                        <td className="py-1.5 text-center ">
                           {hayError && hayAdvertencia ? (
                             <div className="inline-flex items-center gap-0.5">
                               <button
@@ -694,7 +694,7 @@ export default function CargaComprobantesPage() {
                               <AlertCircle className="w-3 h-3" />
                             </button>
                           ) : (
-                            <span className="text-gray-300 text-[10px] tabular-nums">{idx + 1}</span>
+                            <span className="text-gray-800 text-[10px] tabular-nums">{idx + 1}</span>
                           )}
                         </td>
 
@@ -1461,10 +1461,12 @@ export default function CargaComprobantesPage() {
         getFirstFechaFin={getFirstFechaFin}
         getItemsProximosAVencer={getItemsProximosAVencer}
         buildMensajeGrupo={buildMensajeGrupo}
+        buildMensajeWsp={buildMensajeWsp}
         SUBJECT_DEFAULT={SUBJECT_DEFAULT}
         enviarEmail={enviarEmail}
         enviarWhatsApp={enviarWhatsApp}
         enviarTodosEmail={enviarTodosEmail}
+        enviarTodosWsp={enviarTodosWsp}
       />
 
       {/* ── Modal registros deshabilitados ──────────────────────────────── */}
