@@ -106,9 +106,9 @@ export default function CargaComprobantesPage() {
     gruposParaNotificar,
     estadoEmail, estadoWsp,
     enviandoBulk, progresoBulk,
-    getDiasRestantes, getFirstFechaFin,
+    getDiasRestantes, getFirstFechaFin, getItemsProximosAVencer,
     buildMensajeGrupo, SUBJECT_DEFAULT,
-    enviarEmail, abrirWhatsApp, enviarTodosEmail,
+    enviarEmail, enviarWhatsApp, enviarTodosEmail,
   } = useNotificaciones(grupos, accessToken);
 
   const nErrores = filasFiltradas.filter((f) => erroresPorFila.has(f.id)).length;
@@ -1459,10 +1459,11 @@ export default function CargaComprobantesPage() {
         progresoBulk={progresoBulk}
         getDiasRestantes={getDiasRestantes}
         getFirstFechaFin={getFirstFechaFin}
+        getItemsProximosAVencer={getItemsProximosAVencer}
         buildMensajeGrupo={buildMensajeGrupo}
         SUBJECT_DEFAULT={SUBJECT_DEFAULT}
         enviarEmail={enviarEmail}
-        abrirWhatsApp={abrirWhatsApp}
+        enviarWhatsApp={enviarWhatsApp}
         enviarTodosEmail={enviarTodosEmail}
       />
 

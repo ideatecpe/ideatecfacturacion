@@ -114,15 +114,15 @@ export const sumarPeriodo = (fecha: string, periodo: string): string => {
     // Período en días sueltos (ej: "17", "45") → suma esos días exactos
     date.setDate(date.getDate() + valor);
   } else if (meses === 1) {
-    // Mensual → siempre al 1 del mes SIGUIENTE, sin importar el día de inicio.
-    // setDate(1) primero evita overflow (ej: Jan 31 → Mar 3 si se suma el mes directo).
-    // finPeriodo restará 1 día → último día del mes de inicio:
-    //   Jan 06 → Feb 01 → fin = Jan 31
-    //   Feb 01 → Mar 01 → fin = Feb 28/29
-    //   May 01 → Jun 01 → fin = May 31
-    //   Jun 15 → Jul 01 → fin = Jun 30
-    date.setDate(1);
+    // Suma exactamente 1 mes calendario, preservando el día de inicio.
+    //   Jun 01 → Jul 01 → finPeriodo -1 → Jun 30  (empieza el 1° → mes completo)
+    //   Jun 25 → Jul 25 → finPeriodo -1 → Jul 24  (empieza a mitad → 30 días)
+    //   Ene 31 → Feb 28 (clamp) → finPeriodo -1 → Feb 27  (overflow seguro)
+    const dia = date.getDate();
+    date.setDate(1);                                          // evita overflow al avanzar el mes
     date.setMonth(date.getMonth() + 1);
+    const maxDia = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    date.setDate(Math.min(dia, maxDia));
   } else {
     // Bimestral (2), trimestral (3), semestral (6), anual (12) → aritmética de calendario
     date.setMonth(date.getMonth() + meses);

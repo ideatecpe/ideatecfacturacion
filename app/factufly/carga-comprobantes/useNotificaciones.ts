@@ -56,6 +56,8 @@ export function useNotificaciones(
   // ── Estados transitorios de envío ─────────────────────────────────────────
   const [sendingEmail, setSendingEmail] = useState<Set<string>>(new Set());
   const [errorEmail,   setErrorEmail]   = useState<Set<string>>(new Set());
+  const [sendingWsp,   setSendingWsp]   = useState<Set<string>>(new Set());
+  const [errorWsp,     setErrorWsp]     = useState<Set<string>>(new Set());
   const [enviandoBulk, setEnviandoBulk] = useState(false);
   const [progresoBulk, setProgresoBulk] = useState<{ actual: number; total: number } | null>(null);
 
@@ -128,20 +130,61 @@ export function useNotificaciones(
   const getFirstFechaFin = useCallback((g: GrupoData): string =>
     g.items.map((i) => i.fechafin).filter(Boolean).sort()[0] ?? "", []);
 
+  // Devuelve solo los ítems del grupo cuya fechafin vence dentro de diasAviso días
+  const getItemsProximosAVencer = useCallback((g: GrupoData) => {
+    const umbral = diasAviso ?? 0;
+    return g.items.filter((item) => {
+      if (!item.fechafin) return false;
+      return getDiasRestantes(item.fechafin) <= umbral;
+    });
+  }, [diasAviso, getDiasRestantes]);
+
   // ── Builder de mensaje por defecto ────────────────────────────────────────
   const buildMensajeGrupo = useCallback((g: GrupoData): string => {
-    const fechafin    = getFirstFechaFin(g);
-    const periodoInt  = parseInt(String(g.items[0]?.periodo ?? "1"), 10);
-    const periodoLbl  = getPeriodoLabel(isNaN(periodoInt) ? 1 : periodoInt);
-    const concepto    = g.items[0]?.concepto?.trim() || "servicio de monitoreo GPS";
-    const moneda      = g.moneda === "USD" ? "$" : "S/.";
-    const monto       = g.total.toFixed(2);
+    const itemsProximos = getItemsProximosAVencer(g);
+    const items         = itemsProximos.length > 0 ? itemsProximos : g.items;
+
+    const periodoInt = parseInt(String(items[0]?.periodo ?? "1"), 10);
+    const periodoLbl = getPeriodoLabel(isNaN(periodoInt) ? 1 : periodoInt);
+    const moneda     = g.moneda === "USD" ? "$" : "S/.";
+    const monto      = items.reduce((s, i) => s + (i.importe || 0), 0).toFixed(2);
+
+    // ¿Todas las placas vencen la misma fecha?
+    const fechafins = [...new Set(items.map((i) => i.fechafin).filter(Boolean))];
+
+    let primeraLinea: string;
+
+    if (fechafins.length <= 1) {
+      // Misma fecha → mensaje agrupado
+      const fechafin   = fechafins[0] ?? getFirstFechaFin(g);
+      const vencido    = getDiasRestantes(fechafin) < 0;
+      const placas     = items.map((i) => i.placa).filter(Boolean);
+      const placasText = placas.length === 1
+        ? `, placa ${placas[0]},`
+        : placas.length > 1
+          ? `, placas ${placas.slice(0, -1).join(", ")} y ${placas[placas.length - 1]},`
+          : "";
+      primeraLinea =
+        `Por medio de la presente les comunicamos que el servicio de monitoreo ${periodoLbl}${placasText} ` +
+        (vencido ? `venció el ${formatFechaLarga(fechafin)}` : `vencerá el ${formatFechaLarga(fechafin)}`) + ".";
+    } else {
+      // Fechas distintas → una línea por placa
+      const listaPlacas = items
+        .filter((i) => i.placa && i.fechafin)
+        .map((i) => {
+          const vencido = getDiasRestantes(i.fechafin) < 0;
+          return `  • Placa ${i.placa}: ${vencido ? `venció el ${formatFechaLarga(i.fechafin)}` : `vencerá el ${formatFechaLarga(i.fechafin)}`}`;
+        })
+        .join("\n");
+      primeraLinea =
+        `Por medio de la presente les comunicamos que los siguientes servicios de monitoreo ${periodoLbl} están próximos a vencer:\n\n${listaPlacas}`;
+    }
 
     return (
-      `Por medio de la presente les comunicamos que el ${concepto} vencerá el ${formatFechaLarga(fechafin)}.\n\n` +
+      `${primeraLinea}\n\n` +
       `Para la renovación del servicio ${periodoLbl}, sírvanse realizar el pago de ${moneda}${monto} a cualquiera de nuestras cuentas soles a nombre de VESAT SAC:`
     );
-  }, [getFirstFechaFin, formatFechaLarga]);
+  }, [getFirstFechaFin, getItemsProximosAVencer, getDiasRestantes, formatFechaLarga]);
 
   const SUBJECT_DEFAULT = "Notificación de vencimiento de servicio";
 
@@ -210,10 +253,12 @@ export function useNotificaciones(
   const estadoWsp = useMemo<Record<string, EstadoEnvio>>(() => {
     const res: Record<string, EstadoEnvio> = {};
     for (const g of gruposParaNotificar) {
+      if (sendingWsp.has(g.key)) { res[g.key] = "enviando"; continue; }
+      if (errorWsp.has(g.key))   { res[g.key] = "error";    continue; }
       res[g.key] = notifMap.get(getGrupoId(g))?.whatsappEnviado ? "enviado" : "pendiente";
     }
     return res;
-  }, [gruposParaNotificar, notifMap]);
+  }, [gruposParaNotificar, notifMap, sendingWsp, errorWsp]);
 
   // ── PUT para marcar email/wsp ─────────────────────────────────────────────
   const marcarEnvio = useCallback(async (
@@ -269,21 +314,63 @@ export function useNotificaciones(
     }
   }, [accessToken, marcarEnvio]);
 
-  // ── Abrir WhatsApp ────────────────────────────────────────────────────────
-  const abrirWhatsApp = useCallback((grupo: GrupoData): void => {
+  // ── Enviar WhatsApp vía API ───────────────────────────────────────────────
+  const enviarWhatsApp = useCallback(async (grupo: GrupoData): Promise<void> => {
     const raw = (grupo.whatsapp ?? "").replace(/\D/g, "");
     if (!raw) return;
-    const numero     = raw.startsWith("51") ? raw : `51${raw}`;
-    const fechafin   = getFirstFechaFin(grupo);
+    const numeroFormateado = raw.startsWith("51") ? raw : `51${raw}`;
+
+    // Solo los ítems próximos a vencer (o todos si ninguno aplica)
+    const itemsProximos = getItemsProximosAVencer(grupo);
+    const items  = itemsProximos.length > 0 ? itemsProximos : grupo.items;
+    const fechafin   = items.map((i) => i.fechafin).filter(Boolean).sort()[0] ?? getFirstFechaFin(grupo);
     const vencido    = getDiasRestantes(fechafin) < 0;
-    const periodoStr = PERIODO_CFG[grupo.periodoTipo]?.label?.toLowerCase() ?? grupo.periodoTipo;
-    const monto      = `${grupo.moneda === "USD" ? "$" : "S/"} ${grupo.total.toFixed(2)}`;
-    const texto = vencido
-      ? `Estimado/a ${grupo.razonSocial}, le informamos que su servicio de monitoreo GPS ${periodoStr} *venció el ${formatFechaEs(fechafin)}*. El monto pendiente es *${monto}*. Por favor, coordine su pago para restablecer el servicio. Gracias.`
-      : `Estimado/a ${grupo.razonSocial}, le recordamos que su servicio de monitoreo GPS ${periodoStr} *vencerá el ${formatFechaEs(fechafin)}*. El monto a abonar es *${monto}*. Por favor, coordine su pago con anticipación. Gracias.`;
-    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(texto)}`, "_blank");
-    marcarEnvio(grupo, { whatsappEnviado: true });
-  }, [getDiasRestantes, getFirstFechaFin, marcarEnvio]);
+    const periodoStr  = PERIODO_CFG[grupo.periodoTipo]?.label?.toLowerCase() ?? grupo.periodoTipo;
+    const totalProx   = items.reduce((s, i) => s + (i.importe || 0), 0);
+    const monto       = `${grupo.moneda === "USD" ? "$" : "S/"} ${totalProx.toFixed(2)}`;
+    const fechafins   = [...new Set(items.map((i) => i.fechafin).filter(Boolean))];
+
+    let texto: string;
+    if (fechafins.length <= 1) {
+      // Misma fecha → mensaje agrupado
+      const placas     = items.map((i) => i.placa).filter(Boolean);
+      const placasText = placas.length > 0 ? ` (${placas.join(", ")})` : "";
+      texto = vencido
+        ? `Estimado/a ${grupo.razonSocial}, le informamos que su servicio de monitoreo GPS ${periodoStr}${placasText} *venció el ${formatFechaEs(fechafin)}*. El monto pendiente es *${monto}*. Por favor, coordine su pago para restablecer el servicio. Gracias.`
+        : `Estimado/a ${grupo.razonSocial}, le recordamos que su servicio de monitoreo GPS ${periodoStr}${placasText} *vencerá el ${formatFechaEs(fechafin)}*. El monto a abonar es *${monto}*. Por favor, coordine su pago con anticipación. Gracias.`;
+    } else {
+      // Fechas distintas → lista por placa
+      const listaPlacas = items
+        .filter((i) => i.placa && i.fechafin)
+        .map((i) => {
+          const v = getDiasRestantes(i.fechafin) < 0;
+          return `• ${i.placa}: ${v ? `venció el ${formatFechaEs(i.fechafin)}` : `vence el ${formatFechaEs(i.fechafin)}`}`;
+        })
+        .join("\n");
+      texto =
+        `Estimado/a ${grupo.razonSocial}, le recordamos que los siguientes servicios de monitoreo GPS ${periodoStr} están próximos a vencer:\n\n${listaPlacas}\n\nEl monto total a abonar es *${monto}*. Por favor, coordine su pago con anticipación. Gracias.`;
+    }
+
+    const whatsappApiKey = process.env.NEXT_PUBLIC_WHATSAPP_API_KEY!;
+    const whatsappBase   = "https://do.velsat.pe:8443/whatsapp";
+
+    setSendingWsp((p) => new Set(p).add(grupo.key));
+    setErrorWsp((p) => { const n = new Set(p); n.delete(grupo.key); return n; });
+
+    try {
+      const res = await fetch(`${whatsappBase}/api/send/single`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": whatsappApiKey },
+        body: JSON.stringify({ phone: numeroFormateado, type: "texto", text: texto }),
+      });
+      if (!res.ok) throw new Error("Error al enviar WhatsApp");
+      setSendingWsp((p) => { const n = new Set(p); n.delete(grupo.key); return n; });
+      await marcarEnvio(grupo, { whatsappEnviado: true });
+    } catch {
+      setSendingWsp((p) => { const n = new Set(p); n.delete(grupo.key); return n; });
+      setErrorWsp((p) => new Set(p).add(grupo.key));
+    }
+  }, [getDiasRestantes, getFirstFechaFin, getItemsProximosAVencer, marcarEnvio]);
 
   // ── Envío masivo (auto-genera mensaje para cada grupo) ────────────────────
   const enviarTodosEmail = useCallback(async (lista: GrupoData[]): Promise<ResumenNotif> => {
@@ -314,11 +401,12 @@ export function useNotificaciones(
     progresoBulk,
     getDiasRestantes,
     getFirstFechaFin,
+    getItemsProximosAVencer,
     formatFechaLarga,
     buildMensajeGrupo,
     SUBJECT_DEFAULT,
     enviarEmail,
-    abrirWhatsApp,
+    enviarWhatsApp,
     enviarTodosEmail,
   };
 }

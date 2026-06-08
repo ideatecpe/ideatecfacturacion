@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import {
-  Bell,
   Mail,
   MessageCircle,
   CheckCircle2,
@@ -18,7 +17,7 @@ import {
 } from "lucide-react";
 import { Modal }   from "@/app/components/ui/Modal";
 import { Button }  from "@/app/components/ui/Button";
-import type { GrupoData } from "./types";
+import type { GrupoData, FilaCarga } from "./types";
 import type { EstadoEnvio } from "./useNotificaciones";
 import { PERIODO_CFG } from "./constants";
 
@@ -34,12 +33,13 @@ type Props = {
   estadoWsp:            Record<string, EstadoEnvio>;
   enviandoBulk:         boolean;
   progresoBulk:         { actual: number; total: number } | null;
-  getDiasRestantes:     (fechafin: string) => number;
-  getFirstFechaFin:     (g: GrupoData) => string;
+  getDiasRestantes:           (fechafin: string) => number;
+  getFirstFechaFin:           (g: GrupoData) => string;
+  getItemsProximosAVencer:    (g: GrupoData) => FilaCarga[];
   buildMensajeGrupo:    (g: GrupoData) => string;
   SUBJECT_DEFAULT:      string;
   enviarEmail:          (g: GrupoData, subject: string, mensaje: string) => Promise<boolean>;
-  abrirWhatsApp:        (g: GrupoData) => void;
+  enviarWhatsApp:       (g: GrupoData) => Promise<void>;
   enviarTodosEmail:     (lista: GrupoData[]) => Promise<{ ok: number; err: number }>;
 };
 
@@ -59,9 +59,9 @@ export function ModalNotificaciones({
   gruposParaNotificar,
   estadoEmail, estadoWsp,
   enviandoBulk, progresoBulk,
-  getDiasRestantes, getFirstFechaFin,
+  getDiasRestantes, getFirstFechaFin, getItemsProximosAVencer,
   buildMensajeGrupo, SUBJECT_DEFAULT,
-  enviarEmail, abrirWhatsApp, enviarTodosEmail,
+  enviarEmail, enviarWhatsApp, enviarTodosEmail,
 }: Props) {
   const [diasInput,     setDiasInput]     = useState(String(diasAviso));
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
@@ -300,16 +300,19 @@ export function ModalNotificaciones({
             {/* ── Lista ────────────────────────────────────────────────── */}
             <div className="rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100 max-h-85 overflow-y-auto">
               {gruposParaNotificar.map((grupo) => {
-                const fechafin   = getFirstFechaFin(grupo);
-                const dias       = getDiasRestantes(fechafin);
-                const info       = getDiasInfo(dias);
-                const cfg        = PERIODO_CFG[grupo.periodoTipo];
-                const eEmail     = estadoEmail[grupo.key] ?? "pendiente";
-                const eWsp       = estadoWsp[grupo.key]   ?? "pendiente";
-                const tieneEmail = !!grupo.correo?.trim();
-                const tieneWsp   = !!grupo.whatsapp?.trim();
-                const isSel      = seleccionados.has(grupo.key);
-                const isEditing  = grupoEditando?.key === grupo.key;
+                const fechafin      = getFirstFechaFin(grupo);
+                const dias          = getDiasRestantes(fechafin);
+                const info          = getDiasInfo(dias);
+                const cfg           = PERIODO_CFG[grupo.periodoTipo];
+                const eEmail        = estadoEmail[grupo.key] ?? "pendiente";
+                const eWsp          = estadoWsp[grupo.key]   ?? "pendiente";
+                const tieneEmail    = !!grupo.correo?.trim();
+                const tieneWsp      = !!grupo.whatsapp?.trim();
+                const isSel         = seleccionados.has(grupo.key);
+                const isEditing     = grupoEditando?.key === grupo.key;
+                const itemsProximos = getItemsProximosAVencer(grupo);
+                const totalProximos = itemsProximos.reduce((s, i) => s + (i.importe || 0), 0);
+                const simbolo       = grupo.moneda === "USD" ? "$" : "S/";
 
                 return (
                   <div
@@ -334,6 +337,7 @@ export function ModalNotificaciones({
 
                     {/* Info cliente */}
                     <div className="flex-1 min-w-0">
+                      {/* Fila 1: tipo doc + razón social + periodo */}
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold ring-1 ring-inset ${
                           grupo.tipoDoc === "B"
@@ -348,12 +352,40 @@ export function ModalNotificaciones({
                           {cfg?.label ?? grupo.periodoTipo}
                         </span>
                       </div>
+
+                      {/* Fila 2: placas que vencen */}
+                      {itemsProximos.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {itemsProximos.map((item) => {
+                            const dItem = getDiasRestantes(item.fechafin);
+                            const infoItem = getDiasInfo(dItem);
+                            return (
+                              <span
+                                key={item.id}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-semibold"
+                                title={`Vence ${item.fechafin} · ${simbolo} ${item.importe.toFixed(2)}`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${infoItem.dot}`} />
+                                {item.placa || "—"}
+                                <span className="text-gray-400 font-normal">{simbolo}{item.importe.toFixed(2)}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Fila 3: días restantes + total de placas próximas */}
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${info.chip}`}>
                           {info.label}
                         </span>
-                        <span className="text-[10px] text-gray-400 tabular-nums font-medium">
-                          {grupo.moneda === "USD" ? "$" : "S/"} {grupo.total.toFixed(2)}
+                        <span className="text-[10px] text-gray-500 tabular-nums font-semibold">
+                          {simbolo} {totalProximos.toFixed(2)}
+                          {itemsProximos.length !== grupo.items.length && (
+                            <span className="text-gray-400 font-normal ml-0.5">
+                              ({itemsProximos.length}/{grupo.items.length} placas)
+                            </span>
+                          )}
                         </span>
                       </div>
                     </div>
@@ -408,16 +440,33 @@ export function ModalNotificaciones({
                       {/* WhatsApp */}
                       {tieneWsp ? (
                         <button
-                          onClick={() => abrirWhatsApp(grupo)}
-                          title={`Abrir chat con ${grupo.whatsapp}`}
+                          onClick={() => { if (eWsp === "enviando") return; enviarWhatsApp(grupo); }}
+                          disabled={eWsp === "enviando"}
+                          title={
+                            eWsp === "enviado"  ? `Enviado a ${grupo.whatsapp} — clic para reenviar`
+                            : eWsp === "error"  ? "Error — clic para reintentar"
+                            : eWsp === "enviando" ? "Enviando…"
+                            : `Enviar WhatsApp a ${grupo.whatsapp}`
+                          }
                           className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all border ${
                             eWsp === "enviado"
-                              ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-                              : "bg-white text-gray-500 border-gray-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50"
+                              ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100"
+                              : eWsp === "enviando"
+                                ? "bg-emerald-50 text-emerald-400 border-emerald-100 cursor-wait"
+                                : eWsp === "error"
+                                  ? "bg-red-50 text-red-500 border-red-200 hover:bg-red-100"
+                                  : "bg-white text-gray-500 border-gray-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50"
                           }`}
                         >
-                          <MessageCircle className="w-3 h-3" />
-                          {eWsp === "enviado" ? "Abierto" : "WSP"}
+                          {eWsp === "enviando"
+                            ? <RefreshCw className="w-3 h-3 animate-spin" />
+                            : eWsp === "enviado"
+                              ? <CheckCircle2 className="w-3 h-3" />
+                              : eWsp === "error"
+                                ? <AlertCircle className="w-3 h-3" />
+                                : <MessageCircle className="w-3 h-3" />
+                          }
+                          {eWsp === "enviado" ? "Enviado" : eWsp === "error" ? "Error" : eWsp === "enviando" ? "…" : "WSP"}
                         </button>
                       ) : (
                         <span
