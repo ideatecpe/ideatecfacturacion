@@ -27,7 +27,7 @@ export const Sidebar = ({
         isOpen ? "w-54" : "w-18",
         isOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
       )}
-      style={{ background: "#0f2e64" }}
+      style={{ background: "linear-gradient(180deg, #0f2e64 0%, #091a3d 100%)" }}
     >
       {/* Logo */}
       <div className={cn("flex items-center gap-3 px-4 h-16 shrink-0", !isOpen && "justify-center px-0")}>
@@ -43,9 +43,6 @@ export const Sidebar = ({
           </h1>
         )}
       </div>
-
-      {/* Línea divisoria */}
-      <div className="shrink-0 mx-4 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
 
       {/* Navegación */}
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden custom-scrollbar">
