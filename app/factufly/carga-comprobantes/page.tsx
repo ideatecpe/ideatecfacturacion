@@ -465,8 +465,8 @@ export default function CargaComprobantesPage() {
           </div>
           {/* Footer de carga */}
           <div className="flex items-center justify-center gap-2 py-3.5 border-t border-gray-100 bg-gray-50/40">
-            <RefreshCw className="w-3.5 h-3.5 text-gray-300 animate-spin" />
-            <span className="text-[12px] text-gray-300 font-medium">Cargando registros desde el servidor…</span>
+            <RefreshCw className="w-3.5 h-3.5 text-gray-800 animate-spin" />
+            <span className="text-[12px] text-gray-800 font-medium">Cargando registros desde el servidor…</span>
           </div>
         </div>
 
@@ -517,17 +517,6 @@ export default function CargaComprobantesPage() {
               </button>
             </div>
 
-            {/* Recuperar datos borrados */}
-            <div className="max-w-lg mx-auto w-full">
-              <button
-                onClick={recuperarDatos}
-                disabled={cargandoPlantilla}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-gray-200 text-[12px] text-gray-400 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50/50 transition-all disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${cargandoPlantilla ? "animate-spin" : ""}`} />
-                ¿Borraste los datos sin querer? Recuperar registros anteriores
-              </button>
-            </div>
           </div>
         </div>
 
@@ -565,17 +554,19 @@ export default function CargaComprobantesPage() {
               </span>
             )}
 
-            {/* Botón ajuste masivo de fecha */}
-            <div className="ml-auto shrink-0">
-              <button
-                onClick={ajustarFechasInicioMes}
-                title={`Poner fechaini al 1° del mes actual en las ${filasFiltradas.length} filas visibles`}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-[11px] font-semibold text-gray-600 hover:text-blue-700 transition-all"
-              >
-                <Calendar className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">1° del mes</span>
-              </button>
-            </div>
+            {/* Botón ajuste masivo de fecha — solo en desarrollo (beta interno) */}
+            {process.env.NODE_ENV === "development" && (
+              <div className="ml-auto shrink-0">
+                <button
+                  onClick={ajustarFechasInicioMes}
+                  title={`Poner fechaini al 1° del mes actual en las ${filasFiltradas.length} filas visibles`}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-[11px] font-semibold text-gray-600 hover:text-blue-700 transition-all"
+                >
+                  <Calendar className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">1° del mes</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-350px)]">
