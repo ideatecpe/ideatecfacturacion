@@ -107,6 +107,7 @@ export default function CargaComprobantesPage() {
     estadoEmail, estadoWsp,
     enviandoBulk, progresoBulk,
     getDiasRestantes, getFirstFechaFin,
+    buildMensajeGrupo, SUBJECT_DEFAULT,
     enviarEmail, abrirWhatsApp, enviarTodosEmail,
   } = useNotificaciones(grupos, accessToken);
 
@@ -1458,6 +1459,8 @@ export default function CargaComprobantesPage() {
         progresoBulk={progresoBulk}
         getDiasRestantes={getDiasRestantes}
         getFirstFechaFin={getFirstFechaFin}
+        buildMensajeGrupo={buildMensajeGrupo}
+        SUBJECT_DEFAULT={SUBJECT_DEFAULT}
         enviarEmail={enviarEmail}
         abrirWhatsApp={abrirWhatsApp}
         enviarTodosEmail={enviarTodosEmail}

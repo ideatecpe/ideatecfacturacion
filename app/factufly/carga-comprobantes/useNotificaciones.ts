@@ -13,7 +13,6 @@ export const STORAGE_DIAS_AVISO_KEY = "factufly:notif:dias-aviso";
 export type EstadoEnvio = "pendiente" | "enviando" | "enviado" | "error";
 export type ResumenNotif = { ok: number; err: number };
 
-// Lo único que guarda la API: id del billing row + flags de envío
 type NotifRecord = {
   id:              number;
   emailEnviado:    boolean;
@@ -22,10 +21,19 @@ type NotifRecord = {
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-// ─── Helper: ID numérico del grupo (primer item del billing) ─────────────────
+// ─── Helper: ID numérico del grupo ───────────────────────────────────────────
 const getGrupoId = (g: GrupoData): number => {
   const n = Number(g.items[0]?.id);
   return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+// ─── Helper: etiqueta de periodo ─────────────────────────────────────────────
+const getPeriodoLabel = (meses: number): string => {
+  if (meses === 1)  return "mensual";
+  if (meses === 3)  return "trimestral";
+  if (meses === 6)  return "semestral";
+  if (meses === 12) return "anual (12 meses)";
+  return `de ${meses} meses`;
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -35,14 +43,13 @@ export function useNotificaciones(
 ) {
   const { user } = useAuth();
 
-  // ── Días de aviso — fuente única: API NotificacionDias ────────────────────
+  // ── Días de aviso ─────────────────────────────────────────────────────────
   const [diasAviso,    _setDiasAviso] = useState<number | null>(null);
   const notificacionIdRef             = useRef<number | null>(null);
 
-  // ── Registros de NotificacionesEnviadas ───────────────────────────────────
+  // ── Registros de NotificacionesEnviadas ──────────────────────────────────
   const [notifRecords, setNotifRecords] = useState<NotifRecord[]>([]);
   const [notifLoaded,  setNotifLoaded]  = useState(false);
-  // Ref para leer en el efecto de sync sin añadirlo como dep (evita loop)
   const notifRecordsRef = useRef<NotifRecord[]>([]);
   useEffect(() => { notifRecordsRef.current = notifRecords; }, [notifRecords]);
 
@@ -85,7 +92,7 @@ export function useNotificaciones(
     }
   }, [accessToken, headers]);
 
-  // ── Fetch registros enviados ───────────────────────────────────────────────
+  // ── Fetch registros enviados ──────────────────────────────────────────────
   const fetchNotifEnviadas = useCallback(async () => {
     if (!accessToken) return;
     try {
@@ -121,6 +128,23 @@ export function useNotificaciones(
   const getFirstFechaFin = useCallback((g: GrupoData): string =>
     g.items.map((i) => i.fechafin).filter(Boolean).sort()[0] ?? "", []);
 
+  // ── Builder de mensaje por defecto ────────────────────────────────────────
+  const buildMensajeGrupo = useCallback((g: GrupoData): string => {
+    const fechafin    = getFirstFechaFin(g);
+    const periodoInt  = parseInt(String(g.items[0]?.periodo ?? "1"), 10);
+    const periodoLbl  = getPeriodoLabel(isNaN(periodoInt) ? 1 : periodoInt);
+    const concepto    = g.items[0]?.concepto?.trim() || "servicio de monitoreo GPS";
+    const moneda      = g.moneda === "USD" ? "$" : "S/.";
+    const monto       = g.total.toFixed(2);
+
+    return (
+      `Por medio de la presente les comunicamos que el ${concepto} vencerá el ${formatFechaLarga(fechafin)}.\n\n` +
+      `Para la renovación del servicio ${periodoLbl}, sírvanse realizar el pago de ${moneda}${monto} a cualquiera de nuestras cuentas soles a nombre de VESAT SAC:`
+    );
+  }, [getFirstFechaFin, formatFechaLarga]);
+
+  const SUBJECT_DEFAULT = "Notificación de vencimiento de servicio";
+
   // ── Grupos para notificar ─────────────────────────────────────────────────
   const gruposParaNotificar = useMemo(() => {
     if (diasAviso === null) return [];
@@ -130,7 +154,6 @@ export function useNotificaciones(
   }, [grupos, diasAviso, getDiasRestantes, getFirstFechaFin]);
 
   // ── Sync: POST nuevos, DELETE los que ya no están ─────────────────────────
-  // No incluye notifRecords en deps → usa ref para evitar loop infinito
   useEffect(() => {
     if (!notifLoaded || !accessToken || diasAviso === null) return;
 
@@ -206,28 +229,25 @@ export function useNotificaciones(
     };
     try {
       await axios.put(`${API}/api/notificacionesenviadas/${id}`, body, { headers });
-      // Actualizar localmente sin re-fetch
       setNotifRecords((prev) =>
         prev.map((r) => r.id === id ? { ...r, ...body } : r),
       );
     } catch { /* silencioso */ }
   }, [accessToken, headers, notifMap]);
 
-  // ── Enviar email ──────────────────────────────────────────────────────────
-  const enviarEmail = useCallback(async (grupo: GrupoData): Promise<boolean> => {
+  // ── Enviar email (recibe subject y mensaje ya definitivos) ────────────────
+  const enviarEmail = useCallback(async (
+    grupo:   GrupoData,
+    subject: string,
+    mensaje: string,
+  ): Promise<boolean> => {
     if (!grupo.correo?.trim() || !accessToken) return false;
 
-    const fechafin   = getFirstFechaFin(grupo);
-    const periodoInt = parseInt(String(grupo.items[0]?.periodo ?? "1"), 10);
-
     const fd = new FormData();
-    fd.append("toEmail",          grupo.correo.trim());
-    fd.append("toName",           grupo.razonSocial);
-    fd.append("concepto",         grupo.items[0]?.concepto ?? "Servicio de monitoreo GPS");
-    fd.append("fechavencimiento", formatFechaLarga(fechafin));
-    fd.append("periodo",          String(isNaN(periodoInt) ? 1 : periodoInt));
-    fd.append("monto",            grupo.total.toFixed(2));
-    fd.append("vencido",          "false");
+    fd.append("toEmail", grupo.correo.trim());
+    fd.append("toName",  grupo.razonSocial);
+    fd.append("subject", subject);
+    fd.append("mensaje", mensaje);
 
     setSendingEmail((p) => new Set(p).add(grupo.key));
     setErrorEmail((p)   => { const n = new Set(p); n.delete(grupo.key); return n; });
@@ -247,7 +267,7 @@ export function useNotificaciones(
       setErrorEmail((p)   => new Set(p).add(grupo.key));
       return false;
     }
-  }, [accessToken, formatFechaLarga, getFirstFechaFin, marcarEnvio]);
+  }, [accessToken, marcarEnvio]);
 
   // ── Abrir WhatsApp ────────────────────────────────────────────────────────
   const abrirWhatsApp = useCallback((grupo: GrupoData): void => {
@@ -265,7 +285,7 @@ export function useNotificaciones(
     marcarEnvio(grupo, { whatsappEnviado: true });
   }, [getDiasRestantes, getFirstFechaFin, marcarEnvio]);
 
-  // ── Envío masivo ──────────────────────────────────────────────────────────
+  // ── Envío masivo (auto-genera mensaje para cada grupo) ────────────────────
   const enviarTodosEmail = useCallback(async (lista: GrupoData[]): Promise<ResumenNotif> => {
     const conCorreo = lista.filter((g) => g.correo?.trim());
     if (!conCorreo.length) return { ok: 0, err: 0 };
@@ -274,12 +294,14 @@ export function useNotificaciones(
     let ok = 0, err = 0;
     for (let i = 0; i < conCorreo.length; i++) {
       setProgresoBulk({ actual: i + 1, total: conCorreo.length });
-      (await enviarEmail(conCorreo[i])) ? ok++ : err++;
+      const g = conCorreo[i];
+      const sent = await enviarEmail(g, SUBJECT_DEFAULT, buildMensajeGrupo(g));
+      sent ? ok++ : err++;
     }
     setEnviandoBulk(false);
     setProgresoBulk(null);
     return { ok, err };
-  }, [enviarEmail]);
+  }, [enviarEmail, buildMensajeGrupo]);
 
   return {
     diasAviso:        diasAviso ?? 0,
@@ -293,6 +315,8 @@ export function useNotificaciones(
     getDiasRestantes,
     getFirstFechaFin,
     formatFechaLarga,
+    buildMensajeGrupo,
+    SUBJECT_DEFAULT,
     enviarEmail,
     abrirWhatsApp,
     enviarTodosEmail,
