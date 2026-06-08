@@ -557,21 +557,26 @@ export function useCargaComprobantes() {
     showToast(`Subiendo ${enriched.length} filas al servidor…`, "success");
 
     try {
-      // POST en paralelo — cada fila crea un registro en la API
-      const resultadosPost = await Promise.allSettled(
-        enriched.map((fila) =>
-          axios.post(PLANTILLA_API, filaToPostBody(fila), { headers: getHeaders() })
-            .then((r) => {
-              try {
-                return apiRowToFila(r.data);
-              } catch (parseErr) {
-                console.error("[cargarExcel] apiRowToFila falló al parsear respuesta:", r.data, parseErr);
-                // Devolver fila con id real si viene en la respuesta
-                return { ...fila, id: String(r.data?.id ?? `err-${Date.now()}`) };
-              }
-            }),
-        ),
-      );
+      // POST secuencial — una fila a la vez para evitar race conditions en el servidor
+      // (mismo numdoc con varias placas fallaba cuando llegaban simultáneamente)
+      const resultadosPost: PromiseSettledResult<FilaCarga>[] = [];
+
+      for (const fila of enriched) {
+        const resultado = await axios.post(PLANTILLA_API, filaToPostBody(fila), { headers: getHeaders() })
+          .then((r) => {
+            try {
+              return apiRowToFila(r.data);
+            } catch (parseErr) {
+              console.error("[cargarExcel] apiRowToFila falló al parsear respuesta:", r.data, parseErr);
+              return { ...fila, id: String(r.data?.id ?? `err-${Date.now()}`) };
+            }
+          })
+          .then(
+            (value): PromiseSettledResult<FilaCarga> => ({ status: "fulfilled", value }),
+            (reason): PromiseSettledResult<FilaCarga> => ({ status: "rejected", reason }),
+          );
+        resultadosPost.push(resultado);
+      }
 
       const creadosOk: FilaCarga[] = resultadosPost
         .filter((r): r is PromiseFulfilledResult<FilaCarga> => r.status === "fulfilled")
