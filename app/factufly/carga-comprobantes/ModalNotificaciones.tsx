@@ -15,6 +15,7 @@ import {
   Pencil,
   X,
   Bell,
+  Search,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import type { GrupoData, FilaCarga } from "./types";
@@ -37,18 +38,19 @@ type Props = {
   getFirstFechaFin:        (g: GrupoData) => string;
   getItemsProximosAVencer: (g: GrupoData) => FilaCarga[];
   buildMensajeGrupo:       (g: GrupoData) => string;
+  buildMensajeWsp:         (g: GrupoData) => string;
   SUBJECT_DEFAULT:         string;
   enviarEmail:             (g: GrupoData, subject: string, mensaje: string) => Promise<boolean>;
-  enviarWhatsApp:          (g: GrupoData) => Promise<void>;
+  enviarWhatsApp:          (g: GrupoData, mensajeOverride?: string) => Promise<void>;
   enviarTodosEmail:        (lista: GrupoData[]) => Promise<{ ok: number; err: number }>;
+  enviarTodosWsp:          (lista: GrupoData[]) => Promise<{ ok: number; err: number }>;
 };
 
 // ─── Helper visual días ───────────────────────────────────────────────────────
 const getDiasInfo = (dias: number) => {
   if (dias < 0)   return { label: `Venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}`, chip: "bg-red-100 text-red-600",     dot: "bg-red-400"   };
   if (dias === 0) return { label: "Vence hoy",                                                              chip: "bg-red-100 text-red-600",     dot: "bg-red-400"   };
-  if (dias <= 3)  return { label: `Vence en ${dias} día${dias !== 1 ? "s" : ""}`,                          chip: "bg-red-50 text-red-500",      dot: "bg-red-300"   };
-  if (dias <= 7)  return { label: `Vence en ${dias} días`,                                                  chip: "bg-amber-100 text-amber-600", dot: "bg-amber-400" };
+  if (dias <= 7)  return { label: `Vence en ${dias} día${dias !== 1 ? "s" : ""}`,                          chip: "bg-amber-100 text-amber-600", dot: "bg-amber-400" };
   return            { label: `Vence en ${dias} días`,                                                       chip: "bg-blue-100 text-blue-600",   dot: "bg-blue-400"  };
 };
 
@@ -60,29 +62,40 @@ export function ModalNotificaciones({
   estadoEmail, estadoWsp,
   enviandoBulk, progresoBulk,
   getDiasRestantes, getFirstFechaFin, getItemsProximosAVencer,
-  buildMensajeGrupo, SUBJECT_DEFAULT,
-  enviarEmail, enviarWhatsApp, enviarTodosEmail,
+  buildMensajeGrupo, buildMensajeWsp, SUBJECT_DEFAULT,
+  enviarEmail, enviarWhatsApp, enviarTodosEmail, enviarTodosWsp,
 }: Props) {
   const [diasInput,     setDiasInput]     = useState(String(diasAviso));
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [busqueda,      setBusqueda]      = useState("");
+  const [filtroEstado,  setFiltroEstado]  = useState<"todos" | "vencidos" | "proximos">("todos");
 
-  // ── Editor individual ──────────────────────────────────────────────────────
+  // ── Editor email individual ───────────────────────────────────────────────
   const [grupoEditando, setGrupoEditando] = useState<GrupoData | null>(null);
   const [subjectEdit,   setSubjectEdit]   = useState("");
   const [mensajeEdit,   setMensajeEdit]   = useState("");
   const [enviandoEdit,  setEnviandoEdit]  = useState(false);
+
+  // ── Editor WhatsApp individual ────────────────────────────────────────────
+  const [grupoEditandoWsp, setGrupoEditandoWsp] = useState<GrupoData | null>(null);
+  const [mensajeEditWsp,   setMensajeEditWsp]   = useState("");
+  const [enviandoEditWsp,  setEnviandoEditWsp]  = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setDiasInput(String(diasAviso));
     setSeleccionados(new Set(gruposParaNotificar.filter((g) => g.correo?.trim()).map((g) => g.key)));
     setGrupoEditando(null);
+    setGrupoEditandoWsp(null);
+    setBusqueda("");
+    setFiltroEstado("todos");
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const abrirEditor = (g: GrupoData) => {
     setSubjectEdit(SUBJECT_DEFAULT);
     setMensajeEdit(buildMensajeGrupo(g));
     setGrupoEditando(g);
+    setGrupoEditandoWsp(null); // cierra editor WSP si estaba abierto
   };
   const cerrarEditor = () => setGrupoEditando(null);
   const confirmarEnvio = async () => {
@@ -93,18 +106,55 @@ export function ModalNotificaciones({
     setGrupoEditando(null);
   };
 
+  const abrirEditorWsp = (g: GrupoData) => {
+    setMensajeEditWsp(buildMensajeWsp(g));
+    setGrupoEditandoWsp(g);
+    setGrupoEditando(null); // cierra editor email si estaba abierto
+  };
+  const cerrarEditorWsp = () => setGrupoEditandoWsp(null);
+  const confirmarEnvioWsp = async () => {
+    if (!grupoEditandoWsp) return;
+    setEnviandoEditWsp(true);
+    await enviarWhatsApp(grupoEditandoWsp, mensajeEditWsp);
+    setEnviandoEditWsp(false);
+    setGrupoEditandoWsp(null);
+  };
+
   const toggle = (key: string) =>
     setSeleccionados((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
-  const conCorreo          = gruposParaNotificar.filter((g) => g.correo?.trim());
-  const conWsp             = gruposParaNotificar.filter((g) => g.whatsapp?.trim());
-  const selConCorreo       = conCorreo.filter((g) => seleccionados.has(g.key));
-  const todosSeleccionados = conCorreo.length > 0 && selConCorreo.length === conCorreo.length;
-  const toggleTodos        = () =>
-    setSeleccionados(todosSeleccionados ? new Set() : new Set(conCorreo.map((g) => g.key)));
+  const conCorreo = gruposParaNotificar.filter((g) => g.correo?.trim());
+  const conWsp    = gruposParaNotificar.filter((g) => g.whatsapp?.trim());
 
+  // Filtrado por estado (vencido / próximo)
   const vencidos  = gruposParaNotificar.filter((g) => getDiasRestantes(getFirstFechaFin(g)) < 0).length;
   const porVencer = gruposParaNotificar.length - vencidos;
+
+  const gruposPorEstado = filtroEstado === "vencidos"
+    ? gruposParaNotificar.filter((g) => getDiasRestantes(getFirstFechaFin(g)) < 0)
+    : filtroEstado === "proximos"
+      ? gruposParaNotificar.filter((g) => getDiasRestantes(getFirstFechaFin(g)) >= 0)
+      : gruposParaNotificar;
+
+  // Filtrado por búsqueda
+  const q = busqueda.trim().toLowerCase();
+  const gruposFiltrados = q
+    ? gruposPorEstado.filter((g) =>
+        g.razonSocial.toLowerCase().includes(q) ||
+        g.numdoc.includes(q) ||
+        g.items.some((i) => i.placa.toLowerCase().includes(q)),
+      )
+    : gruposPorEstado;
+
+  const conCorreoFiltrado  = gruposFiltrados.filter((g) => g.correo?.trim());
+  const conWspFiltrado     = gruposFiltrados.filter((g) => g.whatsapp?.trim());
+  const selConCorreo       = conCorreoFiltrado.filter((g) => seleccionados.has(g.key));
+  const todosSeleccionados = conCorreoFiltrado.length > 0 && conCorreoFiltrado.every((g) => seleccionados.has(g.key));
+  const toggleTodos        = () =>
+    setSeleccionados(todosSeleccionados
+      ? new Set([...seleccionados].filter((k) => !conCorreoFiltrado.some((g) => g.key === k)))
+      : new Set([...seleccionados, ...conCorreoFiltrado.map((g) => g.key)]),
+    );
 
   if (!isOpen) return null;
 
@@ -130,33 +180,53 @@ export function ModalNotificaciones({
           <div className="flex items-center gap-3">
             {/* Config días inline en header */}
             <div className="flex items-center gap-1.5">
-              <Settings className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-[11px] text-gray-400">Avisar</span>
+              <Settings className="w-3.5 h-3.5 text-gray-500" />
+              <span className="text-[11px] font-medium text-gray-700">Avisar</span>
               {!diasAvisoCargado ? (
-                <RefreshCw className="w-3 h-3 text-gray-300 animate-spin" />
+                <RefreshCw className="w-3 h-3 text-gray-400 animate-spin" />
               ) : (
                 <input
                   type="number" min={1} max={365}
                   value={diasInput}
                   onChange={(e) => setDiasInput(e.target.value)}
                   onBlur={() => { const n = Number(diasInput); if (n > 0) setDiasAviso(n); else setDiasInput(String(diasAviso)); }}
-                  className="w-12 px-1.5 py-0.5 text-[11px] font-bold text-center border border-gray-200 rounded-md outline-none focus:border-blue-400"
+                  className="w-12 px-1.5 py-0.5 text-[11px] font-bold text-center text-gray-800 border border-gray-300 rounded-md outline-none focus:border-blue-400"
                 />
               )}
-              <span className="text-[11px] text-gray-400">días</span>
+              <span className="text-[11px] font-medium text-gray-700">días</span>
             </div>
-            {/* Chips vencidos/por vencer */}
-            <div className="flex items-center gap-1">
-              {vencidos > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-600">
-                  {vencidos} vencido{vencidos !== 1 ? "s" : ""}
-                </span>
-              )}
-              {porVencer > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-600">
-                  {porVencer} por vencer
-                </span>
-              )}
+            {/* Switch Todos / Vencidos / Próximos */}
+            <div className="flex items-center gap-0.5 bg-gray-200 rounded-lg p-0.5">
+              <button
+                onClick={() => setFiltroEstado("todos")}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all ${
+                  filtroEstado === "todos"
+                    ? "bg-white text-gray-800 shadow-sm"
+                    : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                Todos <span className="font-black">{gruposParaNotificar.length}</span>
+              </button>
+              <button
+                onClick={() => setFiltroEstado("vencidos")}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all ${
+                  filtroEstado === "vencidos"
+                    ? "bg-red-500 text-white shadow-sm"
+                    : "text-gray-600 hover:text-red-600"
+                }`}
+              >
+                Vencidos <span className="font-black">{vencidos}</span>
+              </button>
+              <button
+                onClick={() => setFiltroEstado("proximos")}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all ${
+                  filtroEstado === "proximos"
+                    ? "bg-amber-500 text-white shadow-sm"
+                    : "text-gray-600 hover:text-amber-600"
+                }`}
+              >
+                Próximos <span className="font-black">{porVencer}</span>
+              </button>
             </div>
             <button onClick={onClose} className="p-1.5 hover:bg-gray-200 rounded-lg text-gray-400 hover:text-gray-600 transition-colors">
               <X className="w-4 h-4" />
@@ -210,6 +280,43 @@ export function ModalNotificaciones({
           </div>
         )}
 
+        {/* ── Editor WhatsApp inline ──────────────────────────────────────── */}
+        {grupoEditandoWsp && (
+          <div className="shrink-0 mx-4 mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Pencil className="w-3 h-3 text-emerald-500" />
+                <span className="text-[11px] font-bold text-emerald-700">
+                  WhatsApp para <span className="font-black">{grupoEditandoWsp.razonSocial}</span>
+                </span>
+              </div>
+              <button onClick={cerrarEditorWsp} className="text-emerald-300 hover:text-emerald-600 transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="flex items-center gap-1 text-[10px] text-emerald-500">
+              <MessageCircle className="w-3 h-3" />
+              <span>Para: <span className="font-semibold text-emerald-700">{grupoEditandoWsp.whatsapp}</span></span>
+            </div>
+            <div className="space-y-0.5">
+              <label className="text-[9px] font-bold text-emerald-400 uppercase tracking-wide">
+                Mensaje <span className="font-normal text-emerald-300 normal-case">(editable)</span>
+              </label>
+              <textarea
+                value={mensajeEditWsp} onChange={(e) => setMensajeEditWsp(e.target.value)}
+                rows={9}
+                className="w-full px-2 py-1.5 text-xs border border-emerald-200 rounded-lg bg-white outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 resize-y leading-relaxed text-gray-700"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={cerrarEditorWsp} className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700">Cancelar</button>
+              <Button onClick={confirmarEnvioWsp} disabled={enviandoEditWsp || !mensajeEditWsp.trim()} className="py-1 px-3 text-xs rounded-lg h-auto bg-emerald-600 hover:bg-emerald-700">
+                {enviandoEditWsp ? <><RefreshCw className="w-3 h-3 animate-spin" /> Enviando…</> : <><Send className="w-3 h-3" /> Enviar WSP</>}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* ── Cuerpo scrollable ────────────────────────────────────────────── */}
         <div className="flex-1 overflow-hidden flex flex-col px-4 py-3 gap-2 min-h-0">
 
@@ -239,11 +346,31 @@ export function ModalNotificaciones({
                 </div>
               </div>
 
+              {/* Buscador */}
+              <div className="relative shrink-0">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar por nombre, RUC/DNI o placa…"
+                  className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white placeholder:text-gray-400"
+                />
+                {busqueda && (
+                  <button
+                    onClick={() => setBusqueda("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
               {/* Select-all bar */}
               <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg shrink-0">
                 <input
                   type="checkbox" checked={todosSeleccionados} onChange={toggleTodos}
-                  disabled={conCorreo.length === 0}
+                  disabled={conCorreoFiltrado.length === 0}
                   className="w-3.5 h-3.5 rounded accent-blue-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
                 />
                 <span className="text-[11px] font-semibold text-gray-600 flex-1">
@@ -252,12 +379,20 @@ export function ModalNotificaciones({
                     : "Seleccionar todos para envío masivo"}
                 </span>
                 <Clock className="w-3.5 h-3.5 text-gray-300" />
-                <span className="text-[10px] text-gray-400">{gruposParaNotificar.length} cliente{gruposParaNotificar.length !== 1 ? "s" : ""}</span>
+                <span className="text-[10px] text-gray-400">
+                  {q ? `${gruposFiltrados.length} de ${gruposParaNotificar.length}` : gruposParaNotificar.length} cliente{gruposParaNotificar.length !== 1 ? "s" : ""}
+                </span>
               </div>
 
               {/* Lista — ocupa todo el espacio restante */}
               <div className="flex-1 overflow-y-auto custom-scrollbar rounded-xl border border-gray-200 divide-y divide-gray-100 min-h-0">
-                {gruposParaNotificar.map((grupo) => {
+                {gruposFiltrados.length === 0 && q ? (
+                  <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <Search className="w-6 h-6 text-gray-300" />
+                    <p className="text-sm text-gray-400">Sin resultados para <span className="font-semibold text-gray-500">&ldquo;{busqueda}&rdquo;</span></p>
+                    <button onClick={() => setBusqueda("")} className="text-xs text-blue-500 hover:underline">Limpiar búsqueda</button>
+                  </div>
+                ) : gruposFiltrados.map((grupo) => {
                   const fechafin      = getFirstFechaFin(grupo);
                   const dias          = getDiasRestantes(fechafin);
                   const info          = getDiasInfo(dias);
@@ -359,20 +494,21 @@ export function ModalNotificaciones({
 
                         {tieneWsp ? (
                           <button
-                            onClick={() => { if (eWsp === "enviando") return; enviarWhatsApp(grupo); }}
+                            onClick={() => { if (eWsp === "enviando") return; abrirEditorWsp(grupo); }}
                             disabled={eWsp === "enviando"}
-                            title={eWsp === "enviado" ? `Enviado — clic para reenviar` : eWsp === "error" ? "Error — reintentar" : `Enviar WhatsApp a ${grupo.whatsapp}`}
+                            title={eWsp === "enviado" ? "Enviado — clic para reenviar" : eWsp === "error" ? "Error — reintentar" : `Editar y enviar WhatsApp a ${grupo.whatsapp}`}
                             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all border ${
-                              eWsp === "enviado"   ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100"
+                              eWsp === "enviado"    ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100"
                               : eWsp === "enviando" ? "bg-emerald-50 text-emerald-400 border-emerald-100 cursor-wait"
                               : eWsp === "error"    ? "bg-red-50 text-red-500 border-red-200 hover:bg-red-100"
+                              : grupoEditandoWsp?.key === grupo.key ? "bg-emerald-100 text-emerald-600 border-emerald-300"
                               : "bg-white text-gray-500 border-gray-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50"
                             }`}
                           >
                             {eWsp === "enviando" ? <RefreshCw className="w-3 h-3 animate-spin" />
                               : eWsp === "enviado"  ? <CheckCircle2 className="w-3 h-3" />
                               : eWsp === "error"    ? <AlertCircle className="w-3 h-3" />
-                              : <MessageCircle className="w-3 h-3" />}
+                              : <Pencil className="w-3 h-3" />}
                             {eWsp === "enviado" ? "Enviado" : eWsp === "error" ? "Error" : eWsp === "enviando" ? "…" : "WSP"}
                           </button>
                         ) : (
@@ -390,7 +526,7 @@ export function ModalNotificaciones({
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
                       <RefreshCw className="w-3 h-3 animate-spin" />
-                      Enviando email {progresoBulk.actual} de {progresoBulk.total}…
+                      Enviando {progresoBulk.actual} de {progresoBulk.total}…
                     </span>
                     <span className="text-xs font-bold text-blue-600 tabular-nums">
                       {Math.round((progresoBulk.actual / progresoBulk.total) * 100)}%
@@ -405,17 +541,34 @@ export function ModalNotificaciones({
 
               {/* Footer envío masivo */}
               <div className="flex items-center justify-between gap-3 py-2 border-t border-gray-100 shrink-0">
-                <p className="text-[11px] text-gray-400">
+                <p className="text-[11px] text-gray-500">
                   {selConCorreo.length > 0
-                    ? <><span className="font-semibold text-gray-600">{selConCorreo.length}</span> email{selConCorreo.length !== 1 ? "s" : ""} listos</>
-                    : "Selecciona clientes para envío masivo"}
+                    ? <><span className="font-semibold text-gray-700">{selConCorreo.length}</span> email{selConCorreo.length !== 1 ? "s" : ""} · <span className="font-semibold text-gray-700">{conWspFiltrado.length}</span> WSP listos</>
+                    : <><span className="font-semibold text-gray-700">{conWspFiltrado.length}</span> WSP listos</>}
                 </p>
-                <Button type="button" onClick={() => enviarTodosEmail(selConCorreo)} disabled={selConCorreo.length === 0 || enviandoBulk}>
-                  {enviandoBulk
-                    ? <><RefreshCw className="w-4 h-4 animate-spin" /> Enviando…</>
-                    : <><Send className="w-4 h-4" /> Enviar {selConCorreo.length > 0 ? selConCorreo.length : ""} email{selConCorreo.length !== 1 ? "s" : ""}</>
-                  }
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => enviarTodosWsp(conWspFiltrado)}
+                    disabled={conWspFiltrado.length === 0 || enviandoBulk}
+                    className="bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
+                  >
+                    {enviandoBulk
+                      ? <><RefreshCw className="w-4 h-4 animate-spin" /> Enviando…</>
+                      : <><MessageCircle className="w-4 h-4" /> Enviar {conWspFiltrado.length > 0 ? conWspFiltrado.length : ""} WSP</>
+                    }
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => enviarTodosEmail(selConCorreo)}
+                    disabled={selConCorreo.length === 0 || enviandoBulk}
+                  >
+                    {enviandoBulk
+                      ? <><RefreshCw className="w-4 h-4 animate-spin" /> Enviando…</>
+                      : <><Send className="w-4 h-4" /> Enviar {selConCorreo.length > 0 ? selConCorreo.length : ""} email{selConCorreo.length !== 1 ? "s" : ""}</>
+                    }
+                  </Button>
+                </div>
               </div>
             </>
           )}

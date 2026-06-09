@@ -3,8 +3,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import axios from "axios";
 import type { GrupoData } from "./types";
-import { PERIODO_CFG } from "./constants";
-import { parseIsoLocalDate, formatFechaEs } from "./helpers";
+import { PERIODO_CFG as _PERIODO_CFG } from "./constants"; // eslint-disable-line @typescript-eslint/no-unused-vars
+import { parseIsoLocalDate } from "./helpers";
 import { useAuth } from "@/context/AuthContext";
 
 export const STORAGE_DIAS_AVISO_KEY = "factufly:notif:dias-aviso";
@@ -314,42 +314,35 @@ export function useNotificaciones(
     }
   }, [accessToken, marcarEnvio]);
 
+  // ── Builder mensaje WhatsApp completo ────────────────────────────────────
+  const buildMensajeWsp = useCallback((grupo: GrupoData): string => {
+    const cuerpo = buildMensajeGrupo(grupo);
+    return (
+      `*Notificación de vencimiento de servicio*\n` +
+      `Estimado/a ${grupo.razonSocial}\n\n` +
+      `${cuerpo}\n\n` +
+      `*BCP*\n` +
+      `Banco de Crédito\n\n` +
+      `Cta. Cte. 193-1806847-0-78\n` +
+      `CCI 002-193-001806847078-12\n\n` +
+      `*BBVA*\n` +
+      `Banco Continental\n\n` +
+      `Cta. Cte. 0011-0093-0100002830\n` +
+      `CCI 011-093-000100002830-26\n\n` +
+      `Después de realizar su pago, envíenos el voucher por esta misma vía o por WhatsApp al 952 075 881\n\n` +
+      `Atentamente,\n` +
+      `Carola Guevara\n` +
+      `Cobranzas Corporativas VELSAT\n` +
+      `cobranzas@velsat.com.pe`
+    );
+  }, [buildMensajeGrupo]);
+
   // ── Enviar WhatsApp vía API ───────────────────────────────────────────────
-  const enviarWhatsApp = useCallback(async (grupo: GrupoData): Promise<void> => {
+  const enviarWhatsApp = useCallback(async (grupo: GrupoData, mensajeOverride?: string): Promise<void> => {
     const raw = (grupo.whatsapp ?? "").replace(/\D/g, "");
     if (!raw) return;
     const numeroFormateado = raw.startsWith("51") ? raw : `51${raw}`;
-
-    // Solo los ítems próximos a vencer (o todos si ninguno aplica)
-    const itemsProximos = getItemsProximosAVencer(grupo);
-    const items  = itemsProximos.length > 0 ? itemsProximos : grupo.items;
-    const fechafin   = items.map((i) => i.fechafin).filter(Boolean).sort()[0] ?? getFirstFechaFin(grupo);
-    const vencido    = getDiasRestantes(fechafin) < 0;
-    const periodoStr  = PERIODO_CFG[grupo.periodoTipo]?.label?.toLowerCase() ?? grupo.periodoTipo;
-    const totalProx   = items.reduce((s, i) => s + (i.importe || 0), 0);
-    const monto       = `${grupo.moneda === "USD" ? "$" : "S/"} ${totalProx.toFixed(2)}`;
-    const fechafins   = [...new Set(items.map((i) => i.fechafin).filter(Boolean))];
-
-    let texto: string;
-    if (fechafins.length <= 1) {
-      // Misma fecha → mensaje agrupado
-      const placas     = items.map((i) => i.placa).filter(Boolean);
-      const placasText = placas.length > 0 ? ` (${placas.join(", ")})` : "";
-      texto = vencido
-        ? `Estimado/a ${grupo.razonSocial}, le informamos que su servicio de monitoreo GPS ${periodoStr}${placasText} *venció el ${formatFechaEs(fechafin)}*. El monto pendiente es *${monto}*. Por favor, coordine su pago para restablecer el servicio. Gracias.`
-        : `Estimado/a ${grupo.razonSocial}, le recordamos que su servicio de monitoreo GPS ${periodoStr}${placasText} *vencerá el ${formatFechaEs(fechafin)}*. El monto a abonar es *${monto}*. Por favor, coordine su pago con anticipación. Gracias.`;
-    } else {
-      // Fechas distintas → lista por placa
-      const listaPlacas = items
-        .filter((i) => i.placa && i.fechafin)
-        .map((i) => {
-          const v = getDiasRestantes(i.fechafin) < 0;
-          return `• ${i.placa}: ${v ? `venció el ${formatFechaEs(i.fechafin)}` : `vence el ${formatFechaEs(i.fechafin)}`}`;
-        })
-        .join("\n");
-      texto =
-        `Estimado/a ${grupo.razonSocial}, le recordamos que los siguientes servicios de monitoreo GPS ${periodoStr} están próximos a vencer:\n\n${listaPlacas}\n\nEl monto total a abonar es *${monto}*. Por favor, coordine su pago con anticipación. Gracias.`;
-    }
+    const texto = mensajeOverride ?? buildMensajeWsp(grupo);
 
     const whatsappApiKey = process.env.NEXT_PUBLIC_WHATSAPP_API_KEY!;
     const whatsappBase   = "https://do.velsat.pe:8443/whatsapp";
@@ -370,9 +363,9 @@ export function useNotificaciones(
       setSendingWsp((p) => { const n = new Set(p); n.delete(grupo.key); return n; });
       setErrorWsp((p) => new Set(p).add(grupo.key));
     }
-  }, [getDiasRestantes, getFirstFechaFin, getItemsProximosAVencer, marcarEnvio]);
+  }, [buildMensajeWsp, marcarEnvio]);
 
-  // ── Envío masivo (auto-genera mensaje para cada grupo) ────────────────────
+  // ── Envío masivo email ────────────────────────────────────────────────────
   const enviarTodosEmail = useCallback(async (lista: GrupoData[]): Promise<ResumenNotif> => {
     const conCorreo = lista.filter((g) => g.correo?.trim());
     if (!conCorreo.length) return { ok: 0, err: 0 };
@@ -390,6 +383,26 @@ export function useNotificaciones(
     return { ok, err };
   }, [enviarEmail, buildMensajeGrupo]);
 
+  // ── Envío masivo WhatsApp ─────────────────────────────────────────────────
+  const enviarTodosWsp = useCallback(async (lista: GrupoData[]): Promise<ResumenNotif> => {
+    const conWsp = lista.filter((g) => g.whatsapp?.trim());
+    if (!conWsp.length) return { ok: 0, err: 0 };
+    setEnviandoBulk(true);
+    setProgresoBulk({ actual: 0, total: conWsp.length });
+    let ok = 0, err = 0;
+    for (let i = 0; i < conWsp.length; i++) {
+      setProgresoBulk({ actual: i + 1, total: conWsp.length });
+      const g = conWsp[i];
+      try {
+        await enviarWhatsApp(g);
+        ok++;
+      } catch { err++; }
+    }
+    setEnviandoBulk(false);
+    setProgresoBulk(null);
+    return { ok, err };
+  }, [enviarWhatsApp]);
+
   return {
     diasAviso:        diasAviso ?? 0,
     diasAvisoCargado: diasAviso !== null,
@@ -404,9 +417,11 @@ export function useNotificaciones(
     getItemsProximosAVencer,
     formatFechaLarga,
     buildMensajeGrupo,
+    buildMensajeWsp,
     SUBJECT_DEFAULT,
     enviarEmail,
     enviarWhatsApp,
     enviarTodosEmail,
+    enviarTodosWsp,
   };
 }

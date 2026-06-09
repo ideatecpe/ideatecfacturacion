@@ -107,8 +107,8 @@ export default function CargaComprobantesPage() {
     estadoEmail, estadoWsp,
     enviandoBulk, progresoBulk,
     getDiasRestantes, getFirstFechaFin, getItemsProximosAVencer,
-    buildMensajeGrupo, SUBJECT_DEFAULT,
-    enviarEmail, enviarWhatsApp, enviarTodosEmail,
+    buildMensajeGrupo, buildMensajeWsp, SUBJECT_DEFAULT,
+    enviarEmail, enviarWhatsApp, enviarTodosEmail, enviarTodosWsp,
   } = useNotificaciones(grupos, accessToken);
 
   const nErrores = filasFiltradas.filter((f) => erroresPorFila.has(f.id)).length;
@@ -465,8 +465,8 @@ export default function CargaComprobantesPage() {
           </div>
           {/* Footer de carga */}
           <div className="flex items-center justify-center gap-2 py-3.5 border-t border-gray-100 bg-gray-50/40">
-            <RefreshCw className="w-3.5 h-3.5 text-gray-300 animate-spin" />
-            <span className="text-[12px] text-gray-300 font-medium">Cargando registros desde el servidor…</span>
+            <RefreshCw className="w-3.5 h-3.5 text-gray-800 animate-spin" />
+            <span className="text-[12px] text-gray-800 font-medium">Cargando registros desde el servidor…</span>
           </div>
         </div>
 
@@ -517,17 +517,6 @@ export default function CargaComprobantesPage() {
               </button>
             </div>
 
-            {/* Recuperar datos borrados */}
-            <div className="max-w-lg mx-auto w-full">
-              <button
-                onClick={recuperarDatos}
-                disabled={cargandoPlantilla}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-gray-200 text-[12px] text-gray-400 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50/50 transition-all disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${cargandoPlantilla ? "animate-spin" : ""}`} />
-                ¿Borraste los datos sin querer? Recuperar registros anteriores
-              </button>
-            </div>
           </div>
         </div>
 
@@ -565,17 +554,19 @@ export default function CargaComprobantesPage() {
               </span>
             )}
 
-            {/* Botón ajuste masivo de fecha */}
-            <div className="ml-auto shrink-0">
-              <button
-                onClick={ajustarFechasInicioMes}
-                title={`Poner fechaini al 1° del mes actual en las ${filasFiltradas.length} filas visibles`}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-[11px] font-semibold text-gray-600 hover:text-blue-700 transition-all"
-              >
-                <Calendar className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">1° del mes</span>
-              </button>
-            </div>
+            {/* Botón ajuste masivo de fecha — solo en desarrollo (beta interno) */}
+            {process.env.NODE_ENV === "development" && (
+              <div className="ml-auto shrink-0">
+                <button
+                  onClick={ajustarFechasInicioMes}
+                  title={`Poner fechaini al 1° del mes actual en las ${filasFiltradas.length} filas visibles`}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-[11px] font-semibold text-gray-600 hover:text-blue-700 transition-all"
+                >
+                  <Calendar className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">1° del mes</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-350px)]">
@@ -590,13 +581,13 @@ export default function CargaComprobantesPage() {
                 <col style={{ width: 30 }} />
               </colgroup>
 
-              <thead className="sticky top-0 z-10 bg-white border-b border-gray-200">
+              <thead className="sticky top-0 z-10 bg-gray-200 border-b border-gray-200">
                 <tr>
-                  <th className="px-2 py-3 text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider">#</th>
-                  <th className="px-1 py-3 text-center text-[10px] font-semibold text-gray-400 uppercase tracking-wider" title="Período" />
-                  <th className="px-2 py-3 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Comprobante</th>
+                  <th className="px-2 py-3 text-center text-[10px] font-semibold text-gray-800 uppercase tracking-wider">#</th>
+                  <th className="px-1 py-3 text-center text-[10px] font-semibold text-gray-800 uppercase tracking-wider" title="Período" />
+                  <th className="px-2 py-3 text-left text-[10px] font-semibold text-gray-800 uppercase tracking-wider">Comprobante</th>
                   {columnas.map((col) => (
-                    <th key={col.key} className="px-2 py-3 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wider truncate">
+                    <th key={col.key} className="px-2 py-3 text-left text-[10px] font-semibold text-gray-800 uppercase tracking-wider truncate">
                       {col.label}
                     </th>
                   ))}
@@ -643,7 +634,7 @@ export default function CargaComprobantesPage() {
                         }`}
                       >
                         {/* # / error / advertencia */}
-                        <td className="py-1.5 text-center">
+                        <td className="py-1.5 text-center ">
                           {hayError && hayAdvertencia ? (
                             <div className="inline-flex items-center gap-0.5">
                               <button
@@ -678,7 +669,7 @@ export default function CargaComprobantesPage() {
                               <AlertCircle className="w-3 h-3" />
                             </button>
                           ) : (
-                            <span className="text-gray-300 text-[10px] tabular-nums">{idx + 1}</span>
+                            <span className="text-gray-800 text-[10px] tabular-nums">{idx + 1}</span>
                           )}
                         </td>
 
@@ -1445,10 +1436,12 @@ export default function CargaComprobantesPage() {
         getFirstFechaFin={getFirstFechaFin}
         getItemsProximosAVencer={getItemsProximosAVencer}
         buildMensajeGrupo={buildMensajeGrupo}
+        buildMensajeWsp={buildMensajeWsp}
         SUBJECT_DEFAULT={SUBJECT_DEFAULT}
         enviarEmail={enviarEmail}
         enviarWhatsApp={enviarWhatsApp}
         enviarTodosEmail={enviarTodosEmail}
+        enviarTodosWsp={enviarTodosWsp}
       />
 
       {/* ── Modal registros deshabilitados ──────────────────────────────── */}
