@@ -131,9 +131,14 @@ export function useCargaComprobantes() {
       if (!fila.numdoc.trim()) return;
       map.set(key, [...(map.get(key) ?? []), fila]);
     });
-    return Array.from(map.entries()).map(([key, items]) => {
+    const lista = Array.from(map.entries()).map(([key, items]) => {
       const [numdoc, periodoTipo, moneda, tipoDoc] = key.split("||");
       const totales = calcTotalesGrupo(items);
+      // Fecha de vencimiento más próxima del grupo (para ordenar)
+      const fechafinMin = items
+        .map((i) => i.fechafin)
+        .filter(Boolean)
+        .sort()[0] ?? "";
       return {
         key,
         numdoc,
@@ -146,8 +151,32 @@ export function useCargaComprobantes() {
         items,
         total:   totales.importeTotal,
         totales,
+        fechafinMin,
       };
     });
+
+    // Ordenar: más próximos a vencer primero; sin fecha al final
+    const toMs = (f: string): number => {
+      if (!f) return Infinity;
+      // YYYY-MM-DD o YYYY-MM-DDTHH:mm:ss
+      if (/^\d{4}-\d{2}-\d{2}/.test(f)) {
+        const d = new Date(f);
+        return isNaN(d.getTime()) ? Infinity : d.getTime();
+      }
+      // DD/MM/YYYY  →  convertir a YYYY-MM-DD
+      const parts = f.split("/");
+      if (parts.length === 3) {
+        const [a, b, c] = parts;
+        // Si primer segmento > 12 es día; si no, asumimos DD/MM/YYYY igual
+        const iso = `${c}-${b.padStart(2,"0")}-${a.padStart(2,"0")}`;
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? Infinity : d.getTime();
+      }
+      return Infinity;
+    };
+    lista.sort((a, b) => toMs(a.fechafinMin) - toMs(b.fechafinMin));
+
+    return lista;
   }, [filas]);
 
   const periodosPresentes = useMemo(() => {

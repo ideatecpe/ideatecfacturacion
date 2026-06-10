@@ -177,13 +177,32 @@ export default function CargaComprobantesPage() {
   const [busqueda, setBusqueda] = useState("");
   const filasVisibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return filasFiltradas;
-    return filasFiltradas.filter(
-      (f) =>
-        f.numdoc.toLowerCase().includes(q) ||
-        f.razonSocial.toLowerCase().includes(q) ||
-        f.placa.toLowerCase().includes(q),
-    );
+    const base = !q
+      ? filasFiltradas
+      : filasFiltradas.filter(
+          (f) =>
+            f.numdoc.toLowerCase().includes(q) ||
+            f.razonSocial.toLowerCase().includes(q) ||
+            f.placa.toLowerCase().includes(q),
+        );
+
+    // Ordenar por fecha de vencimiento (fechafin) — más próximos primero
+    const toMs = (f: string): number => {
+      if (!f) return Infinity;
+      if (/^\d{4}-\d{2}-\d{2}/.test(f)) {
+        const d = new Date(f);
+        return isNaN(d.getTime()) ? Infinity : d.getTime();
+      }
+      const parts = f.split("/");
+      if (parts.length === 3) {
+        const [a, b, c] = parts;
+        const iso = `${c}-${b.padStart(2, "0")}-${a.padStart(2, "0")}`;
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? Infinity : d.getTime();
+      }
+      return Infinity;
+    };
+    return [...base].sort((x, y) => toMs(x.fechafin) - toMs(y.fechafin));
   }, [filasFiltradas, busqueda]);
 
 
@@ -731,7 +750,21 @@ export default function CargaComprobantesPage() {
                                 <input
                                   type={col.type ?? "text"}
                                   value={String(fila[col.key] ?? "")}
-                                  onChange={(e) => actualizarFila(fila.id, col.key, e.target.value)}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    // Para fechas: solo guardar si es YYYY-MM-DD completo y el año tiene 4 dígitos
+                                    // Esto evita que pasos intermedios al navegar el calendar disparen el guardado
+                                    if (col.type === "date") {
+                                      if (val === "" || /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                                        const year = val ? parseInt(val.slice(0, 4), 10) : 0;
+                                        if (val === "" || (year >= 2000 && year <= 2100)) {
+                                          actualizarFila(fila.id, col.key, val);
+                                        }
+                                      }
+                                      return;
+                                    }
+                                    actualizarFila(fila.id, col.key, val);
+                                  }}
                                   onDragStart={(e) => e.preventDefault()}
                                   title={campoError ?? col.label}
                                   className={`w-full px-2 py-1 rounded-md border outline-none transition-all text-gray-800 text-[11px] focus:ring-2 ${

@@ -124,7 +124,7 @@ export const Topbar = ({
         className={`flex flex-col shrink-0 sticky top-0 z-40 border-b transition-colors ${
           isBeta
             ? "bg-amber-50 border-amber-300"
-            : "bg-[#EEF3FB] border-[#D9E4F5]"
+            : "bg-[#ffffff] border-[#D9E4F5]"
         }`}
         style={!isBeta ? { boxShadow: "0 1px 3px rgba(15,46,100,0.06)" } : undefined}
       >
@@ -137,7 +137,7 @@ export const Topbar = ({
             className={`p-2 rounded-lg border transition-all shadow-sm ${
               isBeta
                 ? "bg-amber-100 border-amber-200 text-amber-700 hover:bg-amber-200"
-                : "bg-white border-[#D9E4F5] text-[#0f2e64] hover:bg-[#EEF3FB] hover:border-[#0f2e64]/20"
+                : "bg-white border-[#D9E4F5] text-brand-blue hover:bg-[#EEF3FB] hover:border-brand-blue/20"
             }`}
           >
             {isSidebarOpen ? (
@@ -149,11 +149,11 @@ export const Topbar = ({
 
           {/* Breadcrumb */}
           <div className="hidden md:flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-[#0f2e64]/50 tracking-wide">
+            <span className="text-[12px] font-semibold text-brand-blue tracking-wide">
               Sistema
             </span>
-            <ChevronRight className="w-3 h-3 text-[#0f2e64]/25" />
-            <span className="font-semibold text-[#0f2e64] capitalize text-sm">
+            <ChevronRight className="w-3 h-3 text-brand-blue/25" />
+            <span className="font-semibold text-brand-blue capitalize text-[12px] ">
               {activeView === "operaciones" ? "Emisión" : activeView}
             </span>
           </div>
@@ -166,12 +166,12 @@ export const Topbar = ({
           {/* Context badge */}
           <div className="hidden lg:flex items-center gap-2 px-3 py-2">
             <div className="flex flex-col leading-none">
-              <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">
+              <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">
                 Empresa
               </span>
               <span
                 className={`text-xs font-black uppercase tracking-wide mt-0.5 ${
-                  isBeta ? "text-amber-800" : "text-[#0f2e64]"
+                  isBeta ? "text-amber-800" : "text-brand-blue"
                 }`}
               >
                 {user?.nombreEmpresa}
@@ -183,11 +183,11 @@ export const Topbar = ({
                 <div className="w-px h-5 bg-[#D9E4F5] mx-1" />
                 <MapPin
                   className={`w-3.5 h-3.5 shrink-0 ${
-                    isBeta ? "text-amber-600" : "text-[#0f2e64]/50"
+                    isBeta ? "text-amber-600" : "text-brand-blue/80"
                   }`}
                 />
                 <div className="flex flex-col leading-none">
-                  <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">
+                  <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">
                     Sucursal
                   </span>
                   <span className="text-xs font-bold text-slate-700 mt-0.5 truncate">
@@ -381,27 +381,16 @@ export const Topbar = ({
                 setUserOpen((v) => !v);
                 setNotifOpen(false);
               }}
-              className={`flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-all group ${
-                isBeta ? "hover:bg-amber-100" : "hover:bg-white"
+              className={`flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-all group cursor-pointer ${
+                isBeta ? "hover:bg-amber-100" : "hover:bg-[#EEF3FB]"
               }`}
             >
-              <div className="text-right hidden md:block">
-                <p className="text-sm font-bold text-[#0f2e64] leading-none">
-                  {user?.username}
-                </p>
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
-                  {isSuperAdmin
-                    ? "Super Admin"
-                    : user?.rol === "admin"
-                      ? "Administrador"
-                      : user?.rol}
-                </p>
-              </div>
+              {/* Avatar circular */}
               <div
-                className={`w-9 h-9 rounded-lg overflow-hidden border transition-colors shrink-0 ${
+                className={`w-9 h-9 rounded-full overflow-hidden border-2 shrink-0 transition-colors ${
                   isBeta
                     ? "border-amber-300 group-hover:border-amber-400"
-                    : "border-[#D9E4F5] group-hover:border-[#0f2e64]/30"
+                    : "border-[#D9E4F5] group-hover:border-brand-blue/30"
                 }`}
               >
                 <img
@@ -411,8 +400,24 @@ export const Topbar = ({
                   referrerPolicy="no-referrer"
                 />
               </div>
+
+              {/* Nombre + email */}
+              <div className="hidden md:flex flex-col leading-none text-left">
+           <p className="text-[12px] font-bold text-brand-blue leading-none tracking-wide capitalize">
+  {user?.username}
+</p>
+                <p className="text-[10px] font-semibold text-slate-500  mt-0.5 uppercase tracking-widest">
+                  {isSuperAdmin
+                    ? "Super Admin"
+                    : user?.rol === "admin"
+                      ? "Administrador"
+                      : user?.rol}
+                </p>
+              </div>
+
+              {/* Chevron */}
               <ChevronRight
-                className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${
+                className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-200 shrink-0 ${
                   userOpen ? "rotate-90" : ""
                 }`}
               />
