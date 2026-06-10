@@ -1091,18 +1091,29 @@ function FacturaContent() {
   const totales = useMemo(() => {
     const esGratuito = (ta: string) => TIPOS_GRATUITOS.includes(ta);
 
-    const gravadas_bruto = detalles
+    // Agrupar ítems gravados por % IGV y derivar base/igv del totalVentaItem acumulado
+    // para evitar acumulación de error de redondeo por ítem
+    const gruposIGV = detalles
       .filter((d) => d.tipoAfectacionIGV === "10")
-      .reduce((acc, d) => acc + (d.baseIgv ?? 0), 0);
+      .reduce((acc, d) => {
+        const pct = d.porcentajeIGV ?? 18;
+        acc[pct] = (acc[pct] ?? 0) + (d.totalVentaItem ?? 0);
+        return acc;
+      }, {} as Record<number, number>);
+    let gravadas_bruto = 0, igv_bruto = 0;
+    for (const [pct, sumaVenta] of Object.entries(gruposIGV)) {
+      const base = parseFloat((sumaVenta / (1 + Number(pct) / 100)).toFixed(2));
+      gravadas_bruto += base;
+      igv_bruto += parseFloat((sumaVenta - base).toFixed(2));
+    }
+    gravadas_bruto = parseFloat(gravadas_bruto.toFixed(2));
+    igv_bruto = parseFloat(igv_bruto.toFixed(2));
     const exoneradas = detalles
       .filter((d) => d.tipoAfectacionIGV === "20")
       .reduce((acc, d) => acc + (d.baseIgv ?? 0), 0);
     const inafectas = detalles
       .filter((d) => d.tipoAfectacionIGV === "30")
       .reduce((acc, d) => acc + (d.baseIgv ?? 0), 0);
-    const igv_bruto = detalles
-      .filter((d) => d.tipoAfectacionIGV === "10")
-      .reduce((acc, d) => acc + (d.montoIGV ?? 0), 0);
 
     const gratuitas = detalles
       .filter((d) => esGratuito(d.tipoAfectacionIGV ?? ""))
@@ -4115,7 +4126,8 @@ function FacturaContent() {
                     {/* req 5: desactivar + si superadmin sin sucursal */}
                     <button
                       type="button"
-                      disabled={sinSucursal}
+                      disabled={sinSucursal || productosSucursal.length === 0}
+                      title={!sinSucursal && productosSucursal.length === 0 ? "Agregue el producto Bolsa Plástica al catálogo" : undefined}
                       onClick={() => setCantidadBolsa((prev) => prev + 1)}
                       className="w-7 h-7 flex items-center justify-center bg-white hover:bg-amber-100 border border-amber-200 rounded-lg text-amber-700 font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
