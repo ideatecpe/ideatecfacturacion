@@ -100,8 +100,6 @@ export function useCargaComprobantes() {
 
   useEffect(() => { filasRef.current = filas; }, [filas]);
 
-  const esUsuarioVelsat =
-    user?.username?.toLowerCase() === "velsat" || user?.ruc === "10073587382";
 
   // ── Cabeceras JWT ──
   const getHeaders = useCallback(() => ({
@@ -284,8 +282,8 @@ export function useCargaComprobantes() {
 
   // Carga inicial cuando el token está disponible
   useEffect(() => {
-    if (accessToken && esUsuarioVelsat) cargarDesdeApi();
-  }, [accessToken, esUsuarioVelsat]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (accessToken) cargarDesdeApi();
+  }, [accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-sync contactos en background — una sola vez al cargar los datos
   const autoSyncDoneRef = useRef(false);
@@ -1239,7 +1237,6 @@ export function useCargaComprobantes() {
     advertenciaTemprana,
     // acceso
     accessToken,
-    esUsuarioVelsat,
     sucursal,
     empresa,
     // acciones
