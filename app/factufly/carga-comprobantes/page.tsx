@@ -137,12 +137,7 @@ export default function CargaComprobantesPage() {
       return next;
     });
 
-  const toggleSelectAll = () =>
-    setSelectedKeys((prev) =>
-      prev.size === gruposFiltrados.length
-        ? new Set()
-        : new Set(gruposFiltrados.map((g) => g.key)),
-    );
+  // toggleSelectAll redefinido más abajo (después de gruposVisibles)
 
   // Limpiar selección al cambiar de tab
   React.useEffect(() => { setSelectedKeys(new Set()); }, [tabActiva]);
@@ -204,6 +199,25 @@ export default function CargaComprobantesPage() {
     };
     return [...base].sort((x, y) => toMs(x.fechafin) - toMs(y.fechafin));
   }, [filasFiltradas, busqueda]);
+
+  // Grupos filtrados por la misma búsqueda (para las cards agrupadas)
+  const gruposVisibles = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return gruposFiltrados;
+    return gruposFiltrados.filter(
+      (g) =>
+        g.numdoc.toLowerCase().includes(q) ||
+        g.razonSocial.toLowerCase().includes(q) ||
+        g.items.some((i) => i.placa.toLowerCase().includes(q)),
+    );
+  }, [gruposFiltrados, busqueda]);
+
+  const toggleSelectAll = () =>
+    setSelectedKeys((prev) =>
+      prev.size === gruposVisibles.length
+        ? new Set()
+        : new Set(gruposVisibles.map((g) => g.key)),
+    );
 
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -800,11 +814,11 @@ export default function CargaComprobantesPage() {
       )}
 
       {/* ── Acordeón de comprobantes ─────────────────────────────────────── */}
-      {gruposFiltrados.length > 0 && (
+      {gruposVisibles.length > 0 && (
         <div className="space-y-2">
           {tabActiva === "todos"
             ? PERIODO_ORDER.filter((p) => periodosPresentes.includes(p)).map((p) => {
-                const gs           = gruposFiltrados.filter((g) => g.periodoTipo === p);
+                const gs           = gruposVisibles.filter((g) => g.periodoTipo === p);
                 if (!gs.length) return null;
                 const cfg          = PERIODO_CFG[p];
                 const totalPeriodo = gs.reduce((s, g) => s + g.total, 0);
@@ -849,7 +863,7 @@ export default function CargaComprobantesPage() {
               })
             : (() => {
                 const cfg = PERIODO_CFG[tabActiva] ?? PERIODO_CFG["mensual"];
-                const todosSeleccionados = selectedKeys.size === gruposFiltrados.length && gruposFiltrados.length > 0;
+                const todosSeleccionados = selectedKeys.size === gruposVisibles.length && gruposVisibles.length > 0;
                 const algunoSeleccionado = selectedKeys.size > 0;
                 return (
                   <div className="space-y-2">
@@ -867,7 +881,7 @@ export default function CargaComprobantesPage() {
                           {todosSeleccionados
                             ? "Deseleccionar todo"
                             : algunoSeleccionado
-                              ? `${selectedKeys.size} de ${gruposFiltrados.length} seleccionados`
+                              ? `${selectedKeys.size} de ${gruposVisibles.length} seleccionados`
                               : "Seleccionar todo"}
                         </span>
                       </label>
@@ -878,7 +892,7 @@ export default function CargaComprobantesPage() {
                       )}
                     </div>
                     <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 p-3 border ${cfg.borderClass} rounded-xl bg-white shadow-sm`}>
-                      {gruposFiltrados.map((grupo) => (
+                      {gruposVisibles.map((grupo) => (
                         <GrupoCard
                           key={grupo.key}
                           grupo={grupo}
