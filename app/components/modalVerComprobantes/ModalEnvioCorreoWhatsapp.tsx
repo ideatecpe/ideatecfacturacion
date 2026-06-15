@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import JSZip from 'jszip';
 import { RefreshCw, Mail, MessageCircle, CheckCircle2, X, Send, Plus, Check } from 'lucide-react';
 import { cn } from '@/app/utils/cn';
 import { ComprobanteListado, ComprobanteDetalleItem } from '@/app/factufly/comprobantes/gestionComprobantes/Comprobante';
@@ -129,6 +130,27 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                     total: comprobante.importeTotal,
                 });
 
+                // Descargar ZIP, extraer el XML interno y adjuntarlo
+                let xmlFile: File | null = null;
+                if (comprobante.xmlGenerado) {
+                    const resZip = await fetch(
+                        `${process.env.NEXT_PUBLIC_STORAGE_URL}/files${comprobante.xmlGenerado}`
+                    );
+                    if (resZip.ok) {
+                        const zipBuf = await resZip.arrayBuffer();
+                        const zip = await JSZip.loadAsync(zipBuf);
+                        const entrada = Object.values(zip.files).find(f => f.name.endsWith('.xml'));
+                        if (entrada) {
+                            const xmlBlob = await entrada.async('blob');
+                            xmlFile = new File(
+                                [xmlBlob],
+                                `${ruc}-${tipoLabel(comprobante.tipoComprobante)}-${serieNum}.xml`,
+                                { type: 'application/xml' }
+                            );
+                        }
+                    }
+                }
+
                 const resultados = await Promise.allSettled(
                     aEnviar.map(correo => {
                         const formData = new FormData();
@@ -138,7 +160,8 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                         formData.append('body', `Adjuntamos su ${tipoLabel(comprobante.tipoComprobante)} electrónica.`);
                         formData.append('tipo', comprobante.tipoComprobante === '03' ? '3' : '1');
                         formData.append('comprobanteJson', comprobanteJson);
-                        formData.append('adjunto', pdfFile);
+                        formData.append('pdf', pdfFile);
+                        if (xmlFile) formData.append('xml', xmlFile);
                         return fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/email/send`, {
                             method: 'POST',
                             headers: { Authorization: `Bearer ${accessToken}` },
