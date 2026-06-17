@@ -7,7 +7,12 @@
       "Bash(xargs cat)",
       "Bash(sed -i '' 's/py-2 px-4 bg-/py-1.5 px-3 bg-/g; s/py-2 px-3 bg-/py-1.5 px-3 bg-/g; s/py-2 px-4\"/py-1.5 px-3\"/g; s/py-2 px-3\"/py-1.5 px-3\"/g' /Users/velsatsac/Desktop/ideatecfacturacion/app/factufly/operaciones/boleta/page.tsx)",
       "Bash(sed -i '' 's/py-2 px-4 bg-/py-1.5 px-3 bg-/g; s/py-2 px-3 bg-/py-1.5 px-3 bg-/g; s/py-2 px-4\"/py-1.5 px-3\"/g; s/py-2 px-3\"/py-1.5 px-3\"/g' /Users/velsatsac/Desktop/ideatecfacturacion/app/factufly/operaciones/factura/page.tsx)",
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\FrontFacturacion\\\\ideatecfacturacion\\\\app\" -Recurse -Depth 3 -Directory | Sort-Object FullName | Select-Object @{N='Path';E={$_.FullName.replace\\('C:\\\\Users\\\\Usuario\\\\Desktop\\\\FrontFacturacion\\\\ideatecfacturacion\\\\app\\\\',''\\)}} | Format-List)"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\FrontFacturacion\\\\ideatecfacturacion\\\\app\" -Recurse -Depth 3 -Directory | Sort-Object FullName | Select-Object @{N='Path';E={$_.FullName.replace\\('C:\\\\Users\\\\Usuario\\\\Desktop\\\\FrontFacturacion\\\\ideatecfacturacion\\\\app\\\\',''\\)}} | Format-List)",
+      "Bash(npm --version)",
+      "Bash(npx react-native *)",
+      "Bash(java --version)",
+      "Bash(where adb *)",
+      "Bash(npm install *)"
     ]
   }
 }
