@@ -23,6 +23,7 @@ import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/utils/cn";
 import { useAuth } from "@/context/AuthContext";
 import { LogoCropper } from "@/app/components/ui/LogoCropper";
+import { QRCodeSVG } from "qrcode.react";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -81,6 +82,7 @@ interface Configuracion {
   cargaComprobantes: boolean;
   afectacionIgv:     boolean;
   descUnitario:      boolean;
+  isStock:           boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -972,6 +974,35 @@ export default function ConfiguracionPage() {
                   onError={(msg) => showToast(msg, "error")}
                 />
 
+                {user?.ruc && (
+                  <div className="md:col-span-2 flex items-center gap-5 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="p-2 bg-white rounded-xl border border-gray-200 shadow-sm">
+                      <QRCodeSVG
+                        value={JSON.stringify({
+                          empresaRuc: user.ruc,
+                          sucursalId: user.sucursalID ?? "",
+                        })}
+                        size={96}
+                        fgColor="#0f2e64"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-gray-700">
+                        Código QR — FactuFly Alertas
+                      </p>
+                      <p className="text-[11px] text-gray-400 leading-relaxed">
+                        Escanea este código desde la app <strong>FactuFly Alertas</strong> en
+                        tu celular Android para vincular las notificaciones de Yape con esta
+                        empresa y sucursal.
+                      </p>
+                      <p className="text-[10px] text-gray-300 font-mono">
+                        RUC {user.ruc}
+                        {user.sucursalID ? ` · Sucursal ${user.sucursalID}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="md:col-span-2 mt-3 mx-3">
                   <SectionHeader
                     icon={Building2}
@@ -1277,6 +1308,7 @@ export default function ConfiguracionPage() {
                     { key: "deudasCobrar"        as const, label: "Deudas por cobrar",      desc: "Módulo de gestión de deudas" },
                     { key: "trabajadores"        as const, label: "Trabajadores",           desc: "Módulo de gestión de personal" },
                     { key: "cargaComprobantes"   as const, label: "Carga comprobantes",     desc: "Módulo de carga masiva de comprobantes" },
+                    { key: "isStock"             as const, label: "Stock / Proveedores",          desc: "Módulo de gestión de inventario" },
                   ] as { key: keyof Configuracion; label: string; desc: string }[]).map(({ key, label, desc }) => (
                     <div key={key} className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
                       <div>
