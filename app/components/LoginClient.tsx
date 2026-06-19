@@ -1143,7 +1143,7 @@ const LoginClient: React.FC = () => {
         </section>
 
         {/* Security Badge */}
-        <div className="fixed bottom-6 right-6 md:left-6 md:right-auto z-20 pointer-events-none">
+        <div className="fixed bottom-6 left-6 z-20 pointer-events-none">
           <div className="bg-white/90 backdrop-blur shadow-xl border border-slate-200 p-2 rounded-xl flex items-center gap-3">
             <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-600">
               <ShieldAlert size={16} />
