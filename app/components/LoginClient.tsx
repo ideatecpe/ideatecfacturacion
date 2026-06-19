@@ -844,7 +844,7 @@ const LoginClient: React.FC = () => {
             {/* Main Content */}
             <div>
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                <h2 className="text-xl font-bold text-slate-900 mb-2">
                   Iniciar Sesión
                 </h2>
                 <p className="text-slate-500 text-[14px]">
@@ -1061,13 +1061,13 @@ const LoginClient: React.FC = () => {
 
           <div className="relative z-10 w-full max-w-2xl">
             <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <h3 className="text-3xl lg:text-4xl xl:text-4xl font-brand font-extrabold text-white leading-tight">
+              <h3 className="text-2xl lg:text-3xl xl:text-3xl font-brand font-extrabold text-white leading-tight">
                 La Facturación
                 <span className="text-red-500 italic"> más confiable</span>{" "}
                 <br />
                 del Perú.
               </h3>
-              <p className="text-blue-200 text-[14px] mt-4 leading-relaxed max-w-lg">
+              <p className="text-blue-200 text-[12px] mt-4 leading-relaxed max-w-lg">
                 Optimiza la gestión tributaria de tu empresa con cumplimiento
                 100% SUNAT, reportes en tiempo real y soporte especializado.
               </p>
@@ -1109,7 +1109,7 @@ const LoginClient: React.FC = () => {
                   >
                     {card.icon}
                   </div>
-                  <h4 className="text-white font-bold mb-1 text-sm lg:text-base">
+                  <h4 className="text-white font-bold mb-1 text-[14px]">
                     {card.title}
                   </h4>
                   <p className="text-blue-200/70 text-xs lg:text-sm">
