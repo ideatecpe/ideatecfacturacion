@@ -580,8 +580,18 @@ function NotaDebitoContent() {
         }
         setEmitido(true);
 
+      } else if (resSunat.data.estadoSunat === "PENDIENTE") {
+        // ⏳ SUNAT caída / sin conexión — no es un rechazo real, queda PENDIENTE y se reintenta
+        const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
+        setErrorEmision(
+          resSunat.data.mensajeRespuestaSunat ?? "SUNAT no disponible. La nota quedó pendiente para reenvío.",
+        );
+        showToast(`SUNAT no disponible. La nota ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`, "error");
+        setEmitido(true);
+        await cargarPdf(comprobanteId, tamanoPdf);
+        reintentarEnSegundoPlano(comprobanteId); // ← sin await
       } else {
-        //  SUNAT rechazó con respuesta
+        //  SUNAT rechazó con respuesta (error de validación real)
         const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
         setErrorEmision(resSunat.data.mensajeRespuestaSunat ?? "Nota de débito rechazada por SUNAT");
         showToast(`La nota ${serieCorrelativo} fue rechazada por SUNAT.`, "error");
@@ -591,16 +601,17 @@ function NotaDebitoContent() {
     } catch (err: any) {
       const tieneRespuesta = !!err?.response;
       const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
+      const estadoSunat = err?.response?.data?.estadoSunat;
 
-      if (tieneRespuesta) {
-        //  SUNAT respondió con error HTTP — sin reintento
+      if (tieneRespuesta && estadoSunat !== "PENDIENTE") {
+        //  SUNAT respondió con error HTTP (rechazo real) — sin reintento
         const mensaje = err?.response?.data?.mensaje ?? err?.response?.data?.message ?? "";
         setErrorEmision(mensaje || "Nota de débito rechazada por SUNAT");
         showToast(`La nota ${serieCorrelativo} fue rechazada por SUNAT.`, "error");
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
       } else {
-        //  SUNAT no responde / timeout — reintento silencioso
+        //  SUNAT no responde / timeout / PENDIENTE — reintento silencioso
         setErrorEmision("No se pudo conectar con SUNAT.");
         showToast(`La nota ${serieCorrelativo} fue generada. Verificar estado en sección Comprobantes.`, "error");
         setEmitido(true);

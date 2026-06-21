@@ -143,7 +143,11 @@ const construirDetallesPorMotivo = (
     case "01": case "02":
       return originales.map((d) => ({ ...d }));
     case "03":
-      return originales.map((d) => ({ ...d }));
+      return originales.map((d) => ({
+        ...d,
+        mtoValorUnitario: 0, mtoBaseIgv: 0, igv: 0,
+        mtoValorVenta: 0, mtoPrecioUnitario: 0, totalVentaItem: 0,
+      }));
     case "04":
       return [{
         productoId: 0, codProducto: null, unidad: "NIU", descripcion: "DESCUENTO GLOBAL",
@@ -538,6 +542,17 @@ function NotaCreditoContent() {
       }
     }
 
+    // Motivo 03: la descripción debe haber cambiado en al menos un ítem
+    if (codMotivo === "03") {
+      const algunaDescripcionCambio = detalles.some((d, i) =>
+        d.descripcion.trim().toUpperCase() !== (detallesOriginales[i]?.descripcion ?? "").trim().toUpperCase()
+      );
+      if (!algunaDescripcionCambio) {
+        showToast("Debe modificar la descripción de al menos un ítem", "error");
+        return false;
+      }
+    }
+
     // Motivo 05: cada ítem debe tener monto > 0 y <= precioVenta original
     if (codMotivo === "05") {
       for (let i = 0; i < detalles.length; i++) {
@@ -582,7 +597,7 @@ function NotaCreditoContent() {
       }
     }
 
-    if (codMotivo !== "08" && totales.mtoImpVenta <= 0) { showToast("El monto total debe ser mayor a 0", "error"); return false; }
+    if (codMotivo !== "08" && codMotivo !== "03" && totales.mtoImpVenta <= 0) { showToast("El monto total debe ser mayor a 0", "error"); return false; }
     if (enviarCorreo && !correoCliente.trim()) { showToast("Ingrese el correo para enviar", "error"); return false; }
     return true;
   };
@@ -632,8 +647,18 @@ function NotaCreditoContent() {
         showToast(resSunat.data.mensajeRespuestaSunat ?? "Nota de crédito emitida correctamente.", "success");
         await procesarSegundoPlano(comprobanteId, payload);
         setEmitido(true);
+      } else if (resSunat.data.estadoSunat === "PENDIENTE") {
+        // ⏳ SUNAT caída / sin conexión — no es un rechazo real, queda PENDIENTE y se reintenta
+        const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
+        setErrorEmision(
+          resSunat.data.mensajeRespuestaSunat ?? "SUNAT no disponible. La nota quedó pendiente para reenvío.",
+        );
+        showToast(`SUNAT no disponible. La nota ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`, "error");
+        setEmitido(true);
+        await cargarPdf(comprobanteId, tamanoPdf);
+        reintentarEnSegundoPlano(comprobanteId); // ← sin await
       } else {
-        // ❌ SUNAT rechazó con respuesta
+        // ❌ SUNAT rechazó con respuesta (error de validación real)
         const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
         setErrorEmision(resSunat.data.mensajeRespuestaSunat ?? "Nota de crédito rechazada por SUNAT");
         showToast(`La nota ${serieCorrelativo} fue rechazada por SUNAT.`, "error");
@@ -643,16 +668,17 @@ function NotaCreditoContent() {
     } catch (err: any) {
       const tieneRespuesta = !!err?.response;
       const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
+      const estadoSunat = err?.response?.data?.estadoSunat;
 
-      if (tieneRespuesta) {
-        // ❌ SUNAT respondió con error HTTP — sin reintento
+      if (tieneRespuesta && estadoSunat !== "PENDIENTE") {
+        // ❌ SUNAT respondió con error HTTP (rechazo real) — sin reintento
         const mensaje = err?.response?.data?.mensaje ?? err?.response?.data?.message ?? "";
         setErrorEmision(mensaje || "Nota de crédito rechazada por SUNAT");
         showToast(`La nota ${serieCorrelativo} fue rechazada por SUNAT.`, "error");
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
       } else {
-        // ❌ SUNAT no responde / timeout — reintento silencioso
+        // ❌ SUNAT no responde / timeout / PENDIENTE — reintento silencioso
         setErrorEmision("No se pudo conectar con SUNAT.");
         showToast(`La nota ${serieCorrelativo} fue generada. Verificar estado en sección Comprobantes.`, "error");
         setEmitido(true);

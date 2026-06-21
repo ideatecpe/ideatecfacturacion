@@ -1876,26 +1876,61 @@ function BoletaContent() {
         setEmitido(true);
         procesarSegundoPlano(comprobanteId);
       } else {
-        // SUNAT rechazó
+        // exitoso=false: puede ser RECHAZADO (validación real de SUNAT)
+        // o PENDIENTE (SUNAT caída / sin conexión / HTML de error) — el backend
+        // ya distingue esto en estadoSunat, así que lo respetamos en vez de
+        // asumir siempre "rechazada".
         const serieCorrelativo = `${boleta.serie}-${boleta.correlativo}`;
+        const estadoSunat = resSunat.data.estadoSunat;
         setErrorEmision(
           resSunat.data.mensaje ?? "Comprobante rechazado por SUNAT",
         );
-        showToast(`La boleta ${serieCorrelativo} fue rechazada.`, "error");
+        if (estadoSunat === "PENDIENTE") {
+          showToast(
+            `SUNAT no disponible. La boleta ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`,
+            "error",
+          );
+          reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        } else {
+          showToast(`La boleta ${serieCorrelativo} fue rechazada.`, "error");
+        }
         setEmitido(true);
         procesarSegundoPlano(comprobanteId);
       }
-    } catch {
-      // SUNAT no responde / timeout — reintento silencioso
-      const serieCorrelativo = `${boleta.serie}-${boleta.correlativo}`;
-      setErrorEmision("No se pudo conectar con SUNAT.");
-      showToast(
-        `La boleta ${serieCorrelativo} fue generada. Verificar estado en sección Comprobantes.`,
-        "error",
-      );
-      setEmitido(true);
-      procesarSegundoPlano(comprobanteId);
-      reintentarEnSegundoPlano(comprobanteId); // ← sin await
+    } catch (err: any) {
+      const tieneRespuesta = !!err?.response;
+
+      if (tieneRespuesta) {
+        // Error HTTP devuelto por nuestra propia API (no necesariamente un
+        // rechazo de SUNAT: puede ser timeout/caída ya capturado server-side).
+        const serieCorrelativo = `${boleta.serie}-${boleta.correlativo}`;
+        const estadoSunat = err?.response?.data?.estadoSunat;
+        const mensaje =
+          err?.response?.data?.mensaje ?? err?.response?.data?.message ?? "";
+        setErrorEmision(mensaje || "Comprobante rechazado por SUNAT");
+        if (estadoSunat === "PENDIENTE") {
+          showToast(
+            `SUNAT no disponible. La boleta ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`,
+            "error",
+          );
+          reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        } else {
+          showToast(`La boleta ${serieCorrelativo} fue rechazada.`, "error");
+        }
+        setEmitido(true);
+        procesarSegundoPlano(comprobanteId);
+      } else {
+        // No hubo respuesta HTTP en absoluto (timeout/red del cliente) — reintento silencioso
+        const serieCorrelativo = `${boleta.serie}-${boleta.correlativo}`;
+        setErrorEmision("No se pudo conectar con SUNAT.");
+        showToast(
+          `La boleta ${serieCorrelativo} fue generada. Verificar estado en sección Comprobantes.`,
+          "error",
+        );
+        setEmitido(true);
+        procesarSegundoPlano(comprobanteId);
+        reintentarEnSegundoPlano(comprobanteId); // ← sin await
+      }
     }
   };
 

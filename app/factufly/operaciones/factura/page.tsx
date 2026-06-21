@@ -2099,12 +2099,24 @@ function FacturaContent() {
         setEmitido(true);
         procesarSegundoPlano(comprobanteId);
       } else {
-        // SUNAT respondió pero rechazó — sin reintento
+        // exitoso=false: puede ser RECHAZADO (validación real de SUNAT)
+        // o PENDIENTE (SUNAT caída / sin conexión / HTML de error) — el backend
+        // ya distingue esto en estadoSunat, así que lo respetamos en vez de
+        // asumir siempre "rechazada".
         const serieCorrelativo = `${factura.serie}-${factura.correlativo}`;
+        const estadoSunat = resSunat.data.estadoSunat;
         setErrorEmision(
           resSunat.data.mensaje ?? "Comprobante rechazado por SUNAT",
         );
-        showToast(`La factura ${serieCorrelativo} fue rechazada.`, "error");
+        if (estadoSunat === "PENDIENTE") {
+          showToast(
+            `SUNAT no disponible. La factura ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`,
+            "error",
+          );
+          reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        } else {
+          showToast(`La factura ${serieCorrelativo} fue rechazada.`, "error");
+        }
         setEmitido(true);
         procesarSegundoPlano(comprobanteId);
       }
@@ -2112,16 +2124,26 @@ function FacturaContent() {
       const tieneRespuesta = !!err?.response;
 
       if (tieneRespuesta) {
-        // SUNAT respondió con error HTTP — sin reintento
+        // Error HTTP devuelto por nuestra propia API (no necesariamente un
+        // rechazo de SUNAT: puede ser timeout/caída ya capturado server-side).
         const serieCorrelativo = `${factura.serie}-${factura.correlativo}`;
+        const estadoSunat = err?.response?.data?.estadoSunat;
         const mensaje =
           err?.response?.data?.mensaje ?? err?.response?.data?.message ?? "";
         setErrorEmision(mensaje || "Comprobante rechazado por SUNAT");
-        showToast(`La factura ${serieCorrelativo} fue rechazada.`, "error");
+        if (estadoSunat === "PENDIENTE") {
+          showToast(
+            `SUNAT no disponible. La factura ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`,
+            "error",
+          );
+          reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        } else {
+          showToast(`La factura ${serieCorrelativo} fue rechazada.`, "error");
+        }
         setEmitido(true);
         procesarSegundoPlano(comprobanteId);
       } else {
-        // SUNAT no responde / timeout — reintento silencioso
+        // No hubo respuesta HTTP en absoluto (timeout/red del cliente) — reintento silencioso
         const serieCorrelativo = `${factura.serie}-${factura.correlativo}`;
         setErrorEmision("No se pudo conectar con SUNAT.");
         showToast(
