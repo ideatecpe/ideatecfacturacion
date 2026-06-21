@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface NotificationDoc {
   id: number;
@@ -29,6 +29,13 @@ interface DashboardData {
   generatedAt: string;
 }
 
+export interface YapeAlert {
+  monto: string;
+  remitente: string;
+  codigoSeguridad?: string;
+  fechaHora?: string;
+}
+
 interface UseNotificationsParams {
   sucursalId?: number | null;
   empresaRuc?: string | null;
@@ -48,7 +55,10 @@ export function useNotifications({
   });
 
   const [connected, setConnected] = useState(false);
+  const [yapeAlert, setYapeAlert] = useState<YapeAlert | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+
+  const dismissYape = useCallback(() => setYapeAlert(null), []);
 
   useEffect(() => {
     if (!sucursalId && !empresaRuc) return; // espera a que lleguen los valores
@@ -74,6 +84,10 @@ export function useNotifications({
 
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
+        if (msg.type === "yape") {
+          setYapeAlert(msg.data as YapeAlert);
+          return;
+        }
         if (msg.type === "dashboard") {
           const { evento, ...newData } = msg.data;
           if (evento === "pending") {
@@ -116,5 +130,5 @@ export function useNotifications({
     };
   }, [sucursalId, empresaRuc]);
 
-  return { ...data, connected };
+  return { ...data, connected, yapeAlert, dismissYape };
 }

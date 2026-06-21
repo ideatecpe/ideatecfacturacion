@@ -137,12 +137,7 @@ export default function CargaComprobantesPage() {
       return next;
     });
 
-  const toggleSelectAll = () =>
-    setSelectedKeys((prev) =>
-      prev.size === gruposFiltrados.length
-        ? new Set()
-        : new Set(gruposFiltrados.map((g) => g.key)),
-    );
+  // toggleSelectAll redefinido más abajo (después de gruposVisibles)
 
   // Limpiar selección al cambiar de tab
   React.useEffect(() => { setSelectedKeys(new Set()); }, [tabActiva]);
@@ -177,14 +172,52 @@ export default function CargaComprobantesPage() {
   const [busqueda, setBusqueda] = useState("");
   const filasVisibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return filasFiltradas;
-    return filasFiltradas.filter(
-      (f) =>
-        f.numdoc.toLowerCase().includes(q) ||
-        f.razonSocial.toLowerCase().includes(q) ||
-        f.placa.toLowerCase().includes(q),
-    );
+    const base = !q
+      ? filasFiltradas
+      : filasFiltradas.filter(
+          (f) =>
+            f.numdoc.toLowerCase().includes(q) ||
+            f.razonSocial.toLowerCase().includes(q) ||
+            f.placa.toLowerCase().includes(q),
+        );
+
+    // Ordenar por fecha de vencimiento (fechafin) — más próximos primero
+    const toMs = (f: string): number => {
+      if (!f) return Infinity;
+      if (/^\d{4}-\d{2}-\d{2}/.test(f)) {
+        const d = new Date(f);
+        return isNaN(d.getTime()) ? Infinity : d.getTime();
+      }
+      const parts = f.split("/");
+      if (parts.length === 3) {
+        const [a, b, c] = parts;
+        const iso = `${c}-${b.padStart(2, "0")}-${a.padStart(2, "0")}`;
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? Infinity : d.getTime();
+      }
+      return Infinity;
+    };
+    return [...base].sort((x, y) => toMs(x.fechafin) - toMs(y.fechafin));
   }, [filasFiltradas, busqueda]);
+
+  // Grupos filtrados por la misma búsqueda (para las cards agrupadas)
+  const gruposVisibles = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return gruposFiltrados;
+    return gruposFiltrados.filter(
+      (g) =>
+        g.numdoc.toLowerCase().includes(q) ||
+        g.razonSocial.toLowerCase().includes(q) ||
+        g.items.some((i) => i.placa.toLowerCase().includes(q)),
+    );
+  }, [gruposFiltrados, busqueda]);
+
+  const toggleSelectAll = () =>
+    setSelectedKeys((prev) =>
+      prev.size === gruposVisibles.length
+        ? new Set()
+        : new Set(gruposVisibles.map((g) => g.key)),
+    );
 
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -731,7 +764,21 @@ export default function CargaComprobantesPage() {
                                 <input
                                   type={col.type ?? "text"}
                                   value={String(fila[col.key] ?? "")}
-                                  onChange={(e) => actualizarFila(fila.id, col.key, e.target.value)}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    // Para fechas: solo guardar si es YYYY-MM-DD completo y el año tiene 4 dígitos
+                                    // Esto evita que pasos intermedios al navegar el calendar disparen el guardado
+                                    if (col.type === "date") {
+                                      if (val === "" || /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                                        const year = val ? parseInt(val.slice(0, 4), 10) : 0;
+                                        if (val === "" || (year >= 2000 && year <= 2100)) {
+                                          actualizarFila(fila.id, col.key, val);
+                                        }
+                                      }
+                                      return;
+                                    }
+                                    actualizarFila(fila.id, col.key, val);
+                                  }}
                                   onDragStart={(e) => e.preventDefault()}
                                   title={campoError ?? col.label}
                                   className={`w-full px-2 py-1 rounded-md border outline-none transition-all text-gray-800 text-[11px] focus:ring-2 ${
@@ -767,11 +814,11 @@ export default function CargaComprobantesPage() {
       )}
 
       {/* ── Acordeón de comprobantes ─────────────────────────────────────── */}
-      {gruposFiltrados.length > 0 && (
+      {gruposVisibles.length > 0 && (
         <div className="space-y-2">
           {tabActiva === "todos"
             ? PERIODO_ORDER.filter((p) => periodosPresentes.includes(p)).map((p) => {
-                const gs           = gruposFiltrados.filter((g) => g.periodoTipo === p);
+                const gs           = gruposVisibles.filter((g) => g.periodoTipo === p);
                 if (!gs.length) return null;
                 const cfg          = PERIODO_CFG[p];
                 const totalPeriodo = gs.reduce((s, g) => s + g.total, 0);
@@ -816,7 +863,7 @@ export default function CargaComprobantesPage() {
               })
             : (() => {
                 const cfg = PERIODO_CFG[tabActiva] ?? PERIODO_CFG["mensual"];
-                const todosSeleccionados = selectedKeys.size === gruposFiltrados.length && gruposFiltrados.length > 0;
+                const todosSeleccionados = selectedKeys.size === gruposVisibles.length && gruposVisibles.length > 0;
                 const algunoSeleccionado = selectedKeys.size > 0;
                 return (
                   <div className="space-y-2">
@@ -834,7 +881,7 @@ export default function CargaComprobantesPage() {
                           {todosSeleccionados
                             ? "Deseleccionar todo"
                             : algunoSeleccionado
-                              ? `${selectedKeys.size} de ${gruposFiltrados.length} seleccionados`
+                              ? `${selectedKeys.size} de ${gruposVisibles.length} seleccionados`
                               : "Seleccionar todo"}
                         </span>
                       </label>
@@ -845,7 +892,7 @@ export default function CargaComprobantesPage() {
                       )}
                     </div>
                     <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 p-3 border ${cfg.borderClass} rounded-xl bg-white shadow-sm`}>
-                      {gruposFiltrados.map((grupo) => (
+                      {gruposVisibles.map((grupo) => (
                         <GrupoCard
                           key={grupo.key}
                           grupo={grupo}

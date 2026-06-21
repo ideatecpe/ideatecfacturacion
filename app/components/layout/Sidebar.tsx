@@ -1,6 +1,7 @@
 "use client";
-import { LogOut } from "lucide-react";
+import { LogOut, DollarSign, TrendingUp } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { useState, useEffect } from "react";
 
 import { cn } from "@/app/utils/cn";
 import { MenuItem, View } from "@/app/types";
@@ -12,6 +13,57 @@ interface SidebarProps {
   menuItems: MenuItem[];
 }
 
+interface TipoCambio {
+  compra: string;
+  venta: string;
+  fecha: string;
+}
+
+const TC_CACHE_KEY = "tipoCambio_cache";
+
+function useTipoCambio() {
+  const [tc, setTc] = useState<TipoCambio | null>(null);
+
+  useEffect(() => {
+    const hoy = new Date();
+    const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
+
+    // 1. Intentar leer del cache local
+    try {
+      const raw = localStorage.getItem(TC_CACHE_KEY);
+      if (raw) {
+        const cached: TipoCambio = JSON.parse(raw);
+        if (cached.fecha === fecha) {
+          // Cache válido para hoy → usar sin llamar a la API
+          setTc(cached);
+          return;
+        }
+      }
+    } catch {
+      // localStorage no disponible o dato corrupto, continuar con la API
+    }
+
+    // 2. No hay cache de hoy → llamar a la API
+    import("@/app/utils/tipoCambioJsonPe")
+      .then(({ obtenerTipoCambio }) => obtenerTipoCambio(fecha))
+      .then(({ compra, venta }) => {
+        const nuevo: TipoCambio = {
+          compra: compra.toFixed(3),
+          venta:  venta.toFixed(3),
+          fecha,
+        };
+        // Guardar en cache para el resto del día
+        try { localStorage.setItem(TC_CACHE_KEY, JSON.stringify(nuevo)); } catch { /* noop */ }
+        setTc(nuevo);
+      })
+      .catch(() => {
+        // silencioso — la card muestra "—"
+      });
+  }, []);
+
+  return tc;
+}
+
 export const Sidebar = ({
   isOpen,
   activeView,
@@ -19,6 +71,10 @@ export const Sidebar = ({
   menuItems,
 }: SidebarProps) => {
   const handleLogout = () => signOut({ callbackUrl: "/" });
+  const tc = useTipoCambio();
+
+  const hoy = new Date();
+  const fechaLabel = hoy.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
 
   return (
     <aside
@@ -30,16 +86,11 @@ export const Sidebar = ({
       style={{ background: "linear-gradient(180deg, #0f2e64 0%, #091a3d 100%)" }}
     >
       {/* Logo */}
-      <div className={cn("flex items-center gap-3 px-4 h-16 shrink-0", !isOpen && "justify-center px-0")}>
-        <div
-          className="shrink-0 flex items-center justify-center rounded-lg"
-          style={{ width: 36, height: 36, background: "rgba(255,255,255,0.1)" }}
-        >
-          <img src="/logofnsb.png" alt="" className="w-7 h-7 object-contain" />
-        </div>
+      <div className={cn("flex items-center gap-0 px-4 h-16 shrink-0", !isOpen && "justify-center px-0")}>
+        <img src="/logofnsb.png" alt="" className="w-9 h-9 object-contain" />
         {isOpen && (
-          <h1 className="text-[17px] font-extrabold tracking-tight text-white leading-none">
-            FACTU<span style={{ color: "#f15050" }}>FLY</span>
+          <h1 className="text-[20px] font-extrabold tracking-tight text-white leading-none ml-[-4]">
+            actuFly
           </h1>
         )}
       </div>
@@ -60,10 +111,9 @@ export const Sidebar = ({
                   : "text-white/50 hover:text-white/90 hover:bg-white/6",
               )}
             >
-              {/* Indicador activo */}
               {active && (
                 <span
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-5 rounded-r-full"
                   style={{ background: "#f15050" }}
                 />
               )}
@@ -74,10 +124,9 @@ export const Sidebar = ({
                 <span className="text-[13px] font-medium truncate">{item.label}</span>
               )}
 
-              {/* Tooltip */}
               {!isOpen && (
                 <span
-                  className="pointer-events-none absolute left-[68px] px-2.5 py-1 rounded-md text-[12px] font-medium text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                  className="pointer-events-none absolute left-17 px-2.5 py-1 rounded-md text-[12px] font-medium text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                   style={{ background: "#0a1f45", border: "1px solid rgba(255,255,255,0.1)" }}
                 >
                   {item.label}
@@ -88,20 +137,85 @@ export const Sidebar = ({
         })}
       </nav>
 
-      {/* Línea + Logout */}
+      {/* Card tipo de cambio */}
       <div className="shrink-0 px-3 pb-4">
-        <div className="mx-1 mb-3 h-px" style={{ background: "rgba(255,255,255,0.08)" }} />
-        <button
-          onClick={handleLogout}
-          className={cn(
-            "w-full flex items-center gap-3 px-3 py-2 rounded-lg group transition-colors duration-150",
-            "text-white/40 hover:text-red-400 hover:bg-red-500/[0.08]",
-            !isOpen && "justify-center",
-          )}
-        >
-          <LogOut className="w-[18px] h-[18px] shrink-0 transition-transform duration-150 group-hover:translate-x-0.5" />
-          {isOpen && <span className="text-[13px] font-medium">Cerrar Sesión</span>}
-        </button>
+        {isOpen ? (
+          <div
+            className="relative rounded-xl overflow-hidden p-3"
+            style={{
+              backgroundImage: "url('https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=400&q=70')",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }}
+          >
+            {/* Overlay */}
+            <div className="absolute inset-0 rounded-xl" style={{ background: "linear-gradient(135deg, rgba(5,15,40,0.88) 0%, rgba(10,31,69,0.80) 100%)" }} />
+
+            {/* Contenido sobre el overlay */}
+            <div className="relative z-10">
+
+            {/* Header card */}
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: "rgba(255,255,255,0.12)" }}>
+                  <TrendingUp className="w-3 h-3 text-white" />
+                </div>
+                <span className="text-[11px] font-bold text-white">Tipo de cambio</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                title="Cerrar sesión"
+                className="w-5 h-5 flex items-center justify-center rounded-md transition-colors hover:bg-red-500/20 text-white/30 hover:text-red-400"
+              >
+                <LogOut className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Fecha */}
+            <p className="text-[9px] text-white/80 mb-2 uppercase tracking-wide">{fechaLabel} · SUNAT</p>
+
+            {/* Valores */}
+            <div className="flex gap-2">
+              <div className="flex-1 rounded-lg px-2 py-1.5" style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                <p className="text-[8px] uppercase tracking-wide mb-0.5 text-white/90 font-bold">Compra</p>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-[9px]" style={{ color: "rgba(134,239,172,0.6)" }}>S/</span>
+                  <span className="text-[14px] font-black tabular-nums" style={{ color: "#86efac" }}>
+                    {tc ? tc.compra : "—"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex-1 rounded-lg px-2 py-1.5" style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                <p className="text-[8px] uppercase tracking-wide mb-0.5 text-white/90 font-bold">Venta</p>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-[9px]" style={{ color: "rgba(252,165,165,0.6)" }}>S/</span>
+                  <span className="text-[14px] font-black tabular-nums" style={{ color: "#fca5a5" }}>
+                    {tc ? tc.venta : "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Indicador USD */}
+            <div className="mt-2 flex items-center gap-1">
+              <DollarSign className="w-2.5 h-2.5 text-white/25" />
+              <span className="text-[8px] text-white/75">1 USD · Dólar americano</span>
+            </div>
+
+            </div>{/* fin z-10 */}
+          </div>
+        ) : (
+          /* Colapsado: icono logout visible */
+          <div className="flex justify-center">
+            <button
+              onClick={handleLogout}
+              title="Cerrar sesión"
+              className="p-2 rounded-lg text-white/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <LogOut className="w-4.5 h-4.5" />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

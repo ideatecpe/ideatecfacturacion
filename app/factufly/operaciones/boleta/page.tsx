@@ -677,28 +677,25 @@ function BoletaContent() {
     tipoPago: "Contado",
   });
 
-  useEffect(() => {
-    let cancelado = false;
+  // ── Tipo de cambio: carga LAZY — solo cuando el usuario abre el select de moneda ──
+  // Se cachea por fecha en este state para no repetir la llamada si vuelve a abrir.
+  const tipoCambioFechaCargada = useRef<string | null>(null);
+  const cargarTipoCambioLazy = useCallback(async () => {
     const fechaConsulta =
       (boleta.fechaEmision ?? formatoFechaActual().fechaHora).slice(0, 10) ||
       formatoFechaActual().fecha;
-
-    const cargarTipoCambio = async () => {
-      setCargandoTipoCambio(true);
-      try {
-        const venta = await obtenerTipoCambioVenta(fechaConsulta);
-        if (!cancelado) setTipoCambio(parseFloat(venta.toFixed(2)));
-      } catch (error) {
-        console.warn("No se pudo obtener el tipo de cambio JSON.PE", error);
-      } finally {
-        if (!cancelado) setCargandoTipoCambio(false);
-      }
-    };
-
-    cargarTipoCambio();
-    return () => {
-      cancelado = true;
-    };
+    // Si ya consultamos esta misma fecha en esta sesión, no volver a llamar
+    if (tipoCambioFechaCargada.current === fechaConsulta) return;
+    setCargandoTipoCambio(true);
+    try {
+      const venta = await obtenerTipoCambioVenta(fechaConsulta);
+      setTipoCambio(parseFloat(venta.toFixed(2)));
+      tipoCambioFechaCargada.current = fechaConsulta;
+    } catch (error) {
+      console.warn("No se pudo obtener el tipo de cambio JSON.PE", error);
+    } finally {
+      setCargandoTipoCambio(false);
+    }
   }, [boleta.fechaEmision]);
 
   // ── PDF ──────────────────────────────────────────────────────
@@ -4027,6 +4024,8 @@ function BoletaContent() {
                   <label className="text-[10px] font-bold text-gray-500 uppercase">Moneda</label>
                   <select
                     value={boleta.tipoMoneda ?? "PEN"}
+                    onMouseDown={cargarTipoCambioLazy}
+                    onFocus={cargarTipoCambioLazy}
                     onChange={(e) => {
                       const nueva = e.target.value, anterior = boleta.tipoMoneda ?? "PEN";
                       setBoleta((prev) => ({ ...prev, tipoMoneda: nueva }));
@@ -4043,7 +4042,7 @@ function BoletaContent() {
                     className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs"
                   >
                     <option value="PEN">PEN - Soles</option>
-                    <option value="USD">USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(2)})</option>
+                    <option value="USD">USD - Dólares{tipoCambioFechaCargada.current ? ` (${cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(2)})` : ""}</option>
                   </select>
                 </div>
               </div>
