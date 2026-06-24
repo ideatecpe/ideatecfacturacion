@@ -7,7 +7,11 @@ import {
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
+import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
+import { actualizarStock } from "../../productos/gestioProductos/actualizarStock";
+import { devolverStock } from "../../productos/gestioProductos/devolverStock";
 import axios from "axios";
 import { useToast } from "@/app/components/ui/Toast";
 import { useSucursal } from "../boleta/gestionBoletas/useSucursal";
@@ -143,7 +147,11 @@ const construirDetallesPorMotivo = (
     case "01": case "02":
       return originales.map((d) => ({ ...d }));
     case "03":
-      return originales.map((d) => ({ ...d }));
+      return originales.map((d) => ({
+        ...d,
+        mtoValorUnitario: 0, mtoBaseIgv: 0, igv: 0,
+        mtoValorVenta: 0, mtoPrecioUnitario: 0, totalVentaItem: 0,
+      }));
     case "04":
       return [{
         productoId: 0, codProducto: null, unidad: "NIU", descripcion: "DESCUENTO GLOBAL",
@@ -214,6 +222,11 @@ function NotaCreditoContent() {
 
   const { comprobante, loadingComprobante, errorComprobante, buscarComprobante, limpiarComprobante } =
     useComprobanteRucSerieCorrelativo();
+
+  const { config } = useConfiguracion();
+  const { productosSucursal, fetchProductosSucursal } = useProductosSucursal(
+    isSuperAdmin ? sucursal?.sucursalId : undefined,
+  );
 
   const [serieInput, setSerieInput] = useState("");
   const [correlativoInput, setCorrelativoInput] = useState("");
@@ -370,7 +383,7 @@ function NotaCreditoContent() {
 
   // ── Helpers edición por motivo ───────────────────────────────
   const puedeEditarDescripcion = ["03", "04", "05", "07", "08", "09", "10"].includes(codMotivo);
-  const puedeEditarCantidad = ["07", "08", "10"].includes(codMotivo);
+  const puedeEditarCantidad = ["07", "08"].includes(codMotivo);
   const puedeIngresarMontoConIgv = ["04", "05", "09"].includes(codMotivo);
   const puedeEditarLibre = codMotivo === "10"; // edición libre sin IGV
   const puedeEditarPrecioReferencial = codMotivo === "08";
@@ -538,6 +551,17 @@ function NotaCreditoContent() {
       }
     }
 
+    // Motivo 03: la descripción debe haber cambiado en al menos un ítem
+    if (codMotivo === "03") {
+      const algunaDescripcionCambio = detalles.some((d, i) =>
+        d.descripcion.trim().toUpperCase() !== (detallesOriginales[i]?.descripcion ?? "").trim().toUpperCase()
+      );
+      if (!algunaDescripcionCambio) {
+        showToast("Debe modificar la descripción de al menos un ítem", "error");
+        return false;
+      }
+    }
+
     // Motivo 05: cada ítem debe tener monto > 0 y <= precioVenta original
     if (codMotivo === "05") {
       for (let i = 0; i < detalles.length; i++) {
@@ -582,9 +606,63 @@ function NotaCreditoContent() {
       }
     }
 
-    if (codMotivo !== "08" && totales.mtoImpVenta <= 0) { showToast("El monto total debe ser mayor a 0", "error"); return false; }
+    if (codMotivo !== "08" && codMotivo !== "03" && totales.mtoImpVenta <= 0) { showToast("El monto total debe ser mayor a 0", "error"); return false; }
     if (enviarCorreo && !correoCliente.trim()) { showToast("Ingrese el correo para enviar", "error"); return false; }
     return true;
+  };
+
+  // ── Actualizar stock (solo según config.isStock) ────────────────
+  // 01/02/06: devuelve la cantidad completa de cada ítem (anulación/devolución total).
+  // 07: la cantidad del ítem ES la cantidad devuelta directamente (no se resta nada,
+  //     es como una venta negativa de esas unidades).
+  // 08: la cantidad del ítem ES la bonificación entregada — se RESTA del stock
+  //     (mercadería gratis que sale del almacén).
+  const stockActualizadoRef = useRef(false);
+  const actualizarStockSiAplica = async () => {
+    if (!config?.isStock) return;
+    if (stockActualizadoRef.current) return;
+    stockActualizadoRef.current = true;
+
+    const esDevolucion = ["01", "02", "06", "07"].includes(codMotivo);
+    const esBonificacion = codMotivo === "08";
+    if (!esDevolucion && !esBonificacion) return;
+
+    const acumulado = new Map<number, number>();
+    detalles.forEach((d) => {
+      if (!d.productoId) return;
+      const cantidad = Number(d.cantidad) || 0;
+      if (cantidad <= 0) return;
+
+      const producto = productosSucursal.find((p) => p.productoId === d.productoId);
+      if (!producto || producto.tipoProducto !== "BIEN") return;
+
+      const id = esDevolucion ? producto.productoId : producto.sucursalProducto.sucursalProductoId;
+      acumulado.set(id, (acumulado.get(id) ?? 0) + cantidad);
+    });
+
+    if (!acumulado.size) return;
+
+    try {
+      if (esDevolucion) {
+        const sucursalId = isSuperAdmin ? sucursal?.sucursalId : Number(user?.sucursalID);
+        if (!sucursalId) return;
+        const items = Array.from(acumulado.entries()).map(([productoId, cantidad]) => ({
+          productoId,
+          sucursalId,
+          cantidad,
+        }));
+        await devolverStock(items, accessToken);
+      } else {
+        const items = Array.from(acumulado.entries()).map(([sucursalProductoId, cantidad]) => ({
+          sucursalProductoId,
+          cantidad,
+        }));
+        await actualizarStock(items, accessToken);
+      }
+      fetchProductosSucursal();
+    } catch {
+      showToast("No se pudo actualizar el stock de los productos.", "error");
+    }
   };
 
   // ── Emitir ───────────────────────────────────────────────────
@@ -593,6 +671,7 @@ function NotaCreditoContent() {
     const payload = prepararNotaCredito();
     if (!payload) return;
     setEmitiendo(true); setErrorEmision(null);
+    stockActualizadoRef.current = false;
 
     try {
       // ── 1. Guardar en BD ──────────────────────────────────────
@@ -632,8 +711,20 @@ function NotaCreditoContent() {
         showToast(resSunat.data.mensajeRespuestaSunat ?? "Nota de crédito emitida correctamente.", "success");
         await procesarSegundoPlano(comprobanteId, payload);
         setEmitido(true);
+        actualizarStockSiAplica();
+      } else if (resSunat.data.estadoSunat === "PENDIENTE") {
+        // ⏳ SUNAT caída / sin conexión — no es un rechazo real, queda PENDIENTE y se reintenta
+        const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
+        setErrorEmision(
+          resSunat.data.mensajeRespuestaSunat ?? "SUNAT no disponible. La nota quedó pendiente para reenvío.",
+        );
+        showToast(`SUNAT no disponible. La nota ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`, "error");
+        setEmitido(true);
+        await cargarPdf(comprobanteId, tamanoPdf);
+        reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        actualizarStockSiAplica();
       } else {
-        // ❌ SUNAT rechazó con respuesta
+        // ❌ SUNAT rechazó con respuesta (error de validación real)
         const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
         setErrorEmision(resSunat.data.mensajeRespuestaSunat ?? "Nota de crédito rechazada por SUNAT");
         showToast(`La nota ${serieCorrelativo} fue rechazada por SUNAT.`, "error");
@@ -643,21 +734,23 @@ function NotaCreditoContent() {
     } catch (err: any) {
       const tieneRespuesta = !!err?.response;
       const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
+      const estadoSunat = err?.response?.data?.estadoSunat;
 
-      if (tieneRespuesta) {
-        // ❌ SUNAT respondió con error HTTP — sin reintento
+      if (tieneRespuesta && estadoSunat !== "PENDIENTE") {
+        // ❌ SUNAT respondió con error HTTP (rechazo real) — sin reintento
         const mensaje = err?.response?.data?.mensaje ?? err?.response?.data?.message ?? "";
         setErrorEmision(mensaje || "Nota de crédito rechazada por SUNAT");
         showToast(`La nota ${serieCorrelativo} fue rechazada por SUNAT.`, "error");
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
       } else {
-        // ❌ SUNAT no responde / timeout — reintento silencioso
+        // ❌ SUNAT no responde / timeout / PENDIENTE — reintento silencioso
         setErrorEmision("No se pudo conectar con SUNAT.");
         showToast(`La nota ${serieCorrelativo} fue generada. Verificar estado en sección Comprobantes.`, "error");
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        actualizarStockSiAplica();
       }
     }
 

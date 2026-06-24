@@ -17,6 +17,7 @@ export interface Configuracion {
   cargaComprobantes: boolean;
   afectacionIgv: boolean;
   descUnitario: boolean;
+  isStock: boolean;
 }
 
 export function useConfiguracion() {

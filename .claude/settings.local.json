@@ -12,7 +12,11 @@
       "Bash(npx react-native *)",
       "Bash(java --version)",
       "Bash(where adb *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(grep -rln \"interface IUnitOfWork\" \"C:/Users/HP/source/repos/IdeatecAPI/src/IdeatecAPI.Application\")",
+      "Bash(find \"C:/Users/HP/source/repos/IdeatecAPI\" -iname \"*.sql\" -not -path \"*/bin/*\" -not -path \"*/obj/*\" | head -20)",
+      "Bash(mkdir -p \"C:/Users/HP/source/repos/IdeatecAPI/src/IdeatecAPI.Domain/Entities/Proveedor\" \\\\ *)",
+      "Bash(dotnet build *)"
     ]
   }
 }

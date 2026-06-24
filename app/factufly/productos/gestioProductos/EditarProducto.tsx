@@ -8,6 +8,8 @@ import { InputBase } from "@/app/components/ui/InputBase";
 import { Categoria, EditProducto, NuevoProducto, ProductoSucursal } from "./Producto";
 import { useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
+import { useProductosEmpresaLista } from "./useProductosEmpresaLista";
 
 interface Props {
   isOpen: boolean;
@@ -24,6 +26,9 @@ interface FormFieldsProps {
   setPrecioInput: React.Dispatch<React.SetStateAction<string>>;
   onChange: (field: keyof NuevoProducto) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   categorias: Categoria[];
+  isStock?: boolean;
+  productosEmpresa: ProductoSucursal[];
+  productoActualId?: number;
 }
 
 const emptyForm: NuevoProducto = {
@@ -36,6 +41,10 @@ const emptyForm: NuevoProducto = {
   categoriaId: 0,
   sucursalId: 1,
   precioUnitario: 0,
+  codigoBarras: "",
+  esPaquete: false,
+  productoBaseId: null,
+  factorConversion: null,
 };
 
 export default function EditarProducto({
@@ -47,6 +56,8 @@ export default function EditarProducto({
 }: Props) {
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
+  const { config } = useConfiguracion();
+  const { productosEmpresa } = useProductosEmpresaLista();
   const [form, setForm] = React.useState<NuevoProducto>(emptyForm);
   const [precioInput, setPrecioInput] = React.useState("0.00");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -64,6 +75,11 @@ export default function EditarProducto({
       categoriaId: producto.categoria?.categoriaId ?? 0,
       sucursalId: 0, // solo para no romper inteface Nuevo Producto
       precioUnitario: producto.sucursalProducto.precioUnitario,
+      stock: producto.sucursalProducto.stock ?? 0,
+      codigoBarras: producto.codigoBarras ?? "",
+      esPaquete: producto.esPaquete ?? false,
+      productoBaseId: producto.productoBaseId ?? null,
+      factorConversion: producto.factorConversion ?? null,
     });
 
     setPrecioInput(producto.sucursalProducto.precioUnitario.toFixed(2));
@@ -132,6 +148,14 @@ export default function EditarProducto({
       categoriaId: form.categoriaId,
       sucursalProductoId: producto.sucursalProducto.sucursalProductoId,
       precioUnitario: Number(precioInput || 0),
+      stock:
+        config?.isStock && form.tipoProducto === "BIEN"
+          ? form.stock ?? 0
+          : null,
+      codigoBarras: form.codigoBarras || null,
+      esPaquete: form.esPaquete ?? false,
+      productoBaseId: form.esPaquete ? form.productoBaseId ?? null : null,
+      factorConversion: form.esPaquete ? form.factorConversion ?? null : null,
     };
 
     try {
@@ -155,9 +179,17 @@ export default function EditarProducto({
         tipoAfectacionIGV: form.tipoAfectacionIGV,
         incluirIGV: form.incluirIGV,
         categoria: categoriaActualizada,
+        codigoBarras: payload.codigoBarras,
+        esPaquete: payload.esPaquete,
+        productoBaseId: payload.productoBaseId,
+        factorConversion: payload.factorConversion,
         sucursalProducto: {
           ...producto.sucursalProducto,
           precioUnitario: Number(precioInput || 0),
+          stock:
+            config?.isStock && form.tipoProducto === "BIEN"
+              ? form.stock ?? 0
+              : null,
         },
       };
 
@@ -193,6 +225,9 @@ export default function EditarProducto({
           setPrecioInput={setPrecioInput}
           onChange={handleFormChange}
           categorias={categorias}
+          isStock={config?.isStock}
+          productosEmpresa={productosEmpresa}
+          productoActualId={producto?.productoId}
         />
 
         <div className="pt-4 flex justify-end gap-3">
@@ -208,7 +243,7 @@ export default function EditarProducto({
   );
 }
 
-function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias }: FormFieldsProps) {
+function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias, isStock, productosEmpresa, productoActualId }: FormFieldsProps) {
   return (
     <>
       <InputBase
@@ -315,6 +350,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             </div>
           )}
         </div>
+
         <InputBase
           label="Código"
           value={form.codigo}
@@ -322,6 +358,94 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           placeholder="PROD-001"
         />
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <InputBase
+          label="Código de Barras"
+          labelOptional="(opcional)"
+          value={form.codigoBarras ?? ""}
+          onChange={onChange("codigoBarras")}
+          placeholder="EAN13 / Code128"
+        />
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-gray-500 uppercase">&nbsp;</label>
+          <div className="flex items-center gap-2 h-10 px-1">
+            <input
+              type="checkbox"
+              checked={!!form.esPaquete}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setForm((prev) => ({
+                  ...prev,
+                  esPaquete: checked,
+                  productoBaseId: checked ? prev.productoBaseId : null,
+                  factorConversion: checked ? prev.factorConversion : null,
+                }));
+              }}
+              className="w-4 h-4 accent-brand-blue"
+            />
+            <label className="text-xs font-semibold text-gray-600">
+              ¿Es un paquete/caja con unidades dentro?
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {form.esPaquete && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">
+              Producto Base (unidad)
+            </label>
+            <select
+              value={form.productoBaseId ?? 0}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  productoBaseId: Number(e.target.value) || null,
+                }))
+              }
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+            >
+              <option value={0}>Seleccione el producto unidad</option>
+              {productosEmpresa
+                .filter((p) => p.productoId !== productoActualId)
+                .map((p) => (
+                  <option key={p.productoId} value={p.productoId}>
+                    {p.nomProducto} ({p.codigo})
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <InputBase
+            label="Factor de Conversión"
+            labelOptional="(unidades por paquete)"
+            type="number"
+            value={String(form.factorConversion ?? "")}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                factorConversion: e.target.value === "" ? null : Number(e.target.value),
+              }))
+            }
+            placeholder="Ej: 12"
+          />
+        </div>
+      )}
+
+      {isStock && form.tipoProducto === "BIEN" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <InputBase
+            label="Stock"
+            type="number"
+            value={String(form.stock ?? 0)}
+            onChange={onChange("stock")}
+            placeholder="0"
+          />
+        </div>
+      )}
     </>
   );
 }
