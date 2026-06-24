@@ -242,7 +242,9 @@ export default function ProductosPage() {
 
   // REEMPLAZA el bloque filtered:
   const filtrosAvanzadosActivos =
-    filtroStock || filtroAfectacion.length > 0 || filtroTipoProducto.length > 0;
+    (config?.isStock && filtroStock) ||
+    filtroAfectacion.length > 0 ||
+    filtroTipoProducto.length > 0;
 
   const filtered = productos.filter((p) => {
     const matchSearch =
@@ -253,7 +255,8 @@ export default function ProductosPage() {
       filterCategoria === "Todos" ||
       p.categoria?.categoriaNombre === filterCategoria;
 
-    const matchStock = !filtroStock || p.sucursalProducto.stock === 0;
+    const matchStock =
+      !config?.isStock || !filtroStock || p.sucursalProducto.stock === 0;
 
     const matchAfectacion =
       filtroAfectacion.length === 0 ||
@@ -592,7 +595,7 @@ export default function ProductosPage() {
                 <span className="bg-green-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                   {
                     [
-                      filtroStock,
+                      config?.isStock && filtroStock,
                       ...filtroAfectacion,
                       ...filtroTipoProducto,
                     ].filter(Boolean).length
@@ -701,6 +704,31 @@ export default function ProductosPage() {
                 })}
               </div>
             </div>
+
+            {config?.isStock && (
+              <>
+                <div className="w-px h-4 bg-gray-200 shrink-0" />
+
+                {/* Stock */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
+                    Stock
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroStock((prev) => !prev)}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-semibold border rounded-lg transition-all whitespace-nowrap",
+                      filtroStock
+                        ? "bg-rose-100 text-rose-700 border-rose-300"
+                        : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
+                    )}
+                  >
+                    Sin stock
+                  </button>
+                </div>
+              </>
+            )}
 
             <div className="w-px h-4 bg-gray-200 shrink-0" />
 
@@ -868,7 +896,21 @@ export default function ProductosPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 flex justify-end">
+                <div className="mt-3 flex justify-between items-end">
+                  <div>
+                    {config?.isStock && prod.tipoProducto === "BIEN" && (
+                      <p
+                        className={cn(
+                          "text-[15px] font-bold",
+                          prod.sucursalProducto.stock === 0
+                            ? "text-rose-500"
+                            : "text-gray-900",
+                        )}
+                      >
+                        STOCK: {prod.sucursalProducto.stock}
+                      </p>
+                    )}
+                  </div>
                   <div className="text-right">
                     <p className="text-[12px] text-gray-400 uppercase font-bold">
                       {prod.tipoAfectacionIGV === "10"

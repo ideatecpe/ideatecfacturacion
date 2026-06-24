@@ -13,6 +13,7 @@ import {
 } from "./Producto";
 import { useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { generarCodigoProducto } from "./generarCodigoProducto";
 import { useProductosEmpresaLista } from "./useProductosEmpresaLista";
 import { useSucursalRuc } from "../../operaciones/boleta/gestionBoletas/useSucursalRuc";
@@ -55,6 +56,7 @@ export default function AgregarProducto({
 }: Props) {
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
+  const { config } = useConfiguracion();
   const isSuperAdmin = user?.rol === "superadmin";
 
   const [form, setForm] = React.useState<NuevoProducto>(emptyForm);
@@ -219,7 +221,14 @@ export default function AgregarProducto({
     if (!validar()) return;
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const formConSucursal = { ...form, sucursalId: sucursalIdEfectivo };
+    const formConSucursal = {
+      ...form,
+      sucursalId: sucursalIdEfectivo,
+      stock:
+        config?.isStock && form.tipoProducto === "BIEN"
+          ? form.stock ?? 0
+          : null,
+    };
 
     try {
       const response = await axios.post<ProductoSucursal>(
@@ -493,6 +502,16 @@ export default function AgregarProducto({
               placeholder="Se genera automáticamente"
               showError={false}
               className="bg-gray-100 text-gray-500 cursor-not-allowed"
+            />
+          )}
+
+          {config?.isStock && form.tipoProducto === "BIEN" && (
+            <InputBase
+              label="Stock"
+              type="number"
+              value={String(form.stock ?? 0)}
+              onChange={handleFormChange("stock")}
+              placeholder="0"
             />
           )}
         </div>

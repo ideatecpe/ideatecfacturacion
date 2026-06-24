@@ -7,7 +7,11 @@ import {
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
+import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
+import { actualizarStock } from "../../productos/gestioProductos/actualizarStock";
+import { devolverStock } from "../../productos/gestioProductos/devolverStock";
 import axios from "axios";
 import { useToast } from "@/app/components/ui/Toast";
 import { useSucursal } from "../boleta/gestionBoletas/useSucursal";
@@ -219,6 +223,11 @@ function NotaCreditoContent() {
   const { comprobante, loadingComprobante, errorComprobante, buscarComprobante, limpiarComprobante } =
     useComprobanteRucSerieCorrelativo();
 
+  const { config } = useConfiguracion();
+  const { productosSucursal, fetchProductosSucursal } = useProductosSucursal(
+    isSuperAdmin ? sucursal?.sucursalId : undefined,
+  );
+
   const [serieInput, setSerieInput] = useState("");
   const [correlativoInput, setCorrelativoInput] = useState("");
   const [emitido, setEmitido] = useState(false);
@@ -374,7 +383,7 @@ function NotaCreditoContent() {
 
   // ── Helpers edición por motivo ───────────────────────────────
   const puedeEditarDescripcion = ["03", "04", "05", "07", "08", "09", "10"].includes(codMotivo);
-  const puedeEditarCantidad = ["07", "08", "10"].includes(codMotivo);
+  const puedeEditarCantidad = ["07", "08"].includes(codMotivo);
   const puedeIngresarMontoConIgv = ["04", "05", "09"].includes(codMotivo);
   const puedeEditarLibre = codMotivo === "10"; // edición libre sin IGV
   const puedeEditarPrecioReferencial = codMotivo === "08";
@@ -602,12 +611,67 @@ function NotaCreditoContent() {
     return true;
   };
 
+  // ── Actualizar stock (solo según config.isStock) ────────────────
+  // 01/02/06: devuelve la cantidad completa de cada ítem (anulación/devolución total).
+  // 07: la cantidad del ítem ES la cantidad devuelta directamente (no se resta nada,
+  //     es como una venta negativa de esas unidades).
+  // 08: la cantidad del ítem ES la bonificación entregada — se RESTA del stock
+  //     (mercadería gratis que sale del almacén).
+  const stockActualizadoRef = useRef(false);
+  const actualizarStockSiAplica = async () => {
+    if (!config?.isStock) return;
+    if (stockActualizadoRef.current) return;
+    stockActualizadoRef.current = true;
+
+    const esDevolucion = ["01", "02", "06", "07"].includes(codMotivo);
+    const esBonificacion = codMotivo === "08";
+    if (!esDevolucion && !esBonificacion) return;
+
+    const acumulado = new Map<number, number>();
+    detalles.forEach((d) => {
+      if (!d.productoId) return;
+      const cantidad = Number(d.cantidad) || 0;
+      if (cantidad <= 0) return;
+
+      const producto = productosSucursal.find((p) => p.productoId === d.productoId);
+      if (!producto || producto.tipoProducto !== "BIEN") return;
+
+      const id = esDevolucion ? producto.productoId : producto.sucursalProducto.sucursalProductoId;
+      acumulado.set(id, (acumulado.get(id) ?? 0) + cantidad);
+    });
+
+    if (!acumulado.size) return;
+
+    try {
+      if (esDevolucion) {
+        const sucursalId = isSuperAdmin ? sucursal?.sucursalId : Number(user?.sucursalID);
+        if (!sucursalId) return;
+        const items = Array.from(acumulado.entries()).map(([productoId, cantidad]) => ({
+          productoId,
+          sucursalId,
+          cantidad,
+        }));
+        await devolverStock(items, accessToken);
+      } else {
+        const items = Array.from(acumulado.entries()).map(([sucursalProductoId, cantidad]) => ({
+          sucursalProductoId,
+          cantidad,
+        }));
+        await actualizarStock(items, accessToken);
+      }
+      fetchProductosSucursal();
+    } catch {
+      showToast("No se pudo actualizar el stock de los productos.", "error");
+    }
+  };
+
   // ── Emitir ───────────────────────────────────────────────────
   const emitirNotaCredito = async () => {
     if (!validar()) return;
     const payload = prepararNotaCredito();
     if (!payload) return;
     setEmitiendo(true); setErrorEmision(null);
+    stockActualizadoRef.current = false;
 
     try {
       // ── 1. Guardar en BD ──────────────────────────────────────
@@ -647,6 +711,7 @@ function NotaCreditoContent() {
         showToast(resSunat.data.mensajeRespuestaSunat ?? "Nota de crédito emitida correctamente.", "success");
         await procesarSegundoPlano(comprobanteId, payload);
         setEmitido(true);
+        actualizarStockSiAplica();
       } else if (resSunat.data.estadoSunat === "PENDIENTE") {
         // ⏳ SUNAT caída / sin conexión — no es un rechazo real, queda PENDIENTE y se reintenta
         const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
@@ -657,6 +722,7 @@ function NotaCreditoContent() {
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        actualizarStockSiAplica();
       } else {
         // ❌ SUNAT rechazó con respuesta (error de validación real)
         const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
@@ -684,6 +750,7 @@ function NotaCreditoContent() {
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        actualizarStockSiAplica();
       }
     }
 

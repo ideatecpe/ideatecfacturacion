@@ -56,6 +56,7 @@ import { UserCircle, Car } from "lucide-react";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
+import { actualizarStock } from "../../productos/gestioProductos/actualizarStock";
 
 // ── Interfaces locales ───────────────────────────────────────
 interface DetalleLocal extends Partial<BoletaDetalle> {
@@ -1419,7 +1420,7 @@ function BoletaContent() {
       producto.tipoAfectacionIGV === "10"
         ? (detalles[index]?.porcentajeIGV ?? IGV_DEFAULT)
         : 0;
-    const cantidad = detalles[index]?.cantidad ?? 1;
+    const cantidad = 1;
     const precioBase =
       producto.tipoAfectacionIGV === "10" && producto.incluirIGV
         ? parseFloat((precioEnMoneda / (1 + porcentajeIGV / 100)).toFixed(6))
@@ -1508,17 +1509,32 @@ function BoletaContent() {
   const actualizarCantidad = (index: number, cantidad: number) => {
     const d = detalles[index];
     if (!d) return;
+
+    let cantidadFinal = cantidad;
+    if (
+      config?.isStock &&
+      d._tipoProducto === "BIEN" &&
+      d._stockDisponible != null &&
+      cantidadFinal > d._stockDisponible
+    ) {
+      cantidadFinal = d._stockDisponible;
+      showToast(
+        `Stock disponible: ${d._stockDisponible}. No puedes vender más de lo que hay.`,
+        "info",
+      );
+    }
+
     const calc = calcularDetalle(
       d._precioBase ?? d.precioUnitario ?? 0,
       d._precioVentaConIGV ?? d.precioVenta ?? 0,
-      cantidad,
+      cantidadFinal,
       d.porcentajeIGV ?? 18,
       d.tipoAfectacionIGV ?? "10",
       d.codigoTipoDescuento ?? "00",
       d.descuentoUnitario ?? 0,
     );
     const nuevos = [...detalles];
-    nuevos[index] = { ...d, cantidad, ...calc };
+    nuevos[index] = { ...d, cantidad: cantidadFinal, ...calc };
     setDetalles(nuevos);
   };
 
@@ -1719,6 +1735,35 @@ function BoletaContent() {
     ...(valesSeleccionados.length > 0 && { vales: valesSeleccionados }),
   });
 
+  // ── Descontar stock (solo si config.isStock) ───────────────────
+  const stockDescontadoRef = useRef(false);
+  const descontarStockSiAplica = async () => {
+    if (!config?.isStock) return;
+    if (stockDescontadoRef.current) return;
+    stockDescontadoRef.current = true;
+
+    const acumulado = new Map<number, number>();
+    detalles
+      .filter((d) => !d._esIcbper && d._tipoProducto === "BIEN" && d._sucursalProductoId)
+      .forEach((d) => {
+        const id = d._sucursalProductoId as number;
+        const cantidad = Number(d.cantidad) || 0;
+        acumulado.set(id, (acumulado.get(id) ?? 0) + cantidad);
+      });
+
+    const items = Array.from(acumulado.entries()).map(
+      ([sucursalProductoId, cantidad]) => ({ sucursalProductoId, cantidad }),
+    );
+    if (!items.length) return;
+
+    try {
+      await actualizarStock(items, accessToken);
+      fetchProductosSucursal();
+    } catch {
+      showToast("No se pudo actualizar el stock de los productos.", "error");
+    }
+  };
+
   // ── Emitir ───────────────────────────────────────────────────
   const emitirComprobante = async () => {
     if (!boleta.cliente?.razonSocial && !boleta.cliente?.numeroDocumento) {
@@ -1821,6 +1866,7 @@ function BoletaContent() {
 
     setEmitiendo(true);
     setErrorEmision(null);
+    stockDescontadoRef.current = false;
     try {
       const boletaFinal = prepararBoleta();
 
@@ -1841,6 +1887,7 @@ function BoletaContent() {
       } else {
         showToast("Boleta guardada como pendiente en resumen", "success");
         setEmitido(true);
+        descontarStockSiAplica();
         procesarSegundoPlano(comprobanteId);
       }
     } catch (err: any) {
@@ -1871,6 +1918,7 @@ function BoletaContent() {
           "success",
         );
         setEmitido(true);
+        descontarStockSiAplica();
         procesarSegundoPlano(comprobanteId);
       } else {
         // exitoso=false: puede ser RECHAZADO (validación real de SUNAT)
@@ -1888,6 +1936,7 @@ function BoletaContent() {
             "error",
           );
           reintentarEnSegundoPlano(comprobanteId); // ← sin await
+          descontarStockSiAplica();
         } else {
           showToast(`La boleta ${serieCorrelativo} fue rechazada.`, "error");
         }
@@ -1911,6 +1960,7 @@ function BoletaContent() {
             "error",
           );
           reintentarEnSegundoPlano(comprobanteId); // ← sin await
+          descontarStockSiAplica();
         } else {
           showToast(`La boleta ${serieCorrelativo} fue rechazada.`, "error");
         }
@@ -1925,6 +1975,7 @@ function BoletaContent() {
           "error",
         );
         setEmitido(true);
+        descontarStockSiAplica();
         procesarSegundoPlano(comprobanteId);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
       }
@@ -3399,15 +3450,26 @@ function BoletaContent() {
                                         }}
                                         className="bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto"
                                       >
-                                        {filtrados.map(
-                                          (p: ProductoSucursal) => (
+                                        {filtrados.map((p: ProductoSucursal) => {
+                                          const sinStock =
+                                            !!config?.isStock &&
+                                            p.tipoProducto === "BIEN" &&
+                                            (p.sucursalProducto.stock ?? 0) === 0;
+                                          return (
                                             <button
                                               key={p.productoId}
                                               type="button"
-                                              onMouseDown={() =>
-                                                seleccionarProducto(p, i)
+                                              disabled={sinStock}
+                                              onMouseDown={() => {
+                                                if (sinStock) return;
+                                                seleccionarProducto(p, i);
+                                              }}
+                                              className={
+                                                "w-full text-left px-3 py-1.5 border-b border-gray-50 last:border-0" +
+                                                (sinStock
+                                                  ? " opacity-50 cursor-not-allowed"
+                                                  : " hover:bg-gray-50")
                                               }
-                                              className="w-full text-left px-3 py-1.5 border-b border-gray-50 last:border-0 hover:bg-gray-50"
                                             >
                                               <p className="text-xs font-medium text-gray-800">
                                                 {p.nomProducto}
@@ -3417,20 +3479,24 @@ function BoletaContent() {
                                                 {p.sucursalProducto.precioUnitario.toFixed(
                                                   2,
                                                 )}
-                                                {p.tipoProducto === "BIEN" && (
-                                                  <span
-                                                    className={
-                                                      p.sucursalProducto
-                                                        .stock === 0
-                                                        ? " text-red-400"
-                                                        : " text-green-600"
-                                                    }
-                                                  ></span>
-                                                )}
+                                                {!!config?.isStock &&
+                                                  p.tipoProducto === "BIEN" && (
+                                                    <span
+                                                      className={
+                                                        (p.sucursalProducto.stock ?? 0) === 0
+                                                          ? " text-red-500"
+                                                          : " text-green-600"
+                                                      }
+                                                    >
+                                                      {" "}
+                                                      · Stock:{" "}
+                                                      {p.sucursalProducto.stock ?? 0}
+                                                    </span>
+                                                  )}
                                               </p>
                                             </button>
-                                          ),
-                                        )}
+                                          );
+                                        })}
                                       </div>
                                     );
                                   })()}
@@ -3513,6 +3579,13 @@ function BoletaContent() {
                                       <input
                                         type="number"
                                         min={1}
+                                        max={
+                                          config?.isStock &&
+                                          d._tipoProducto === "BIEN" &&
+                                          d._stockDisponible != null
+                                            ? d._stockDisponible
+                                            : undefined
+                                        }
                                         value={d.cantidad ?? 1}
                                         onWheel={(e) => e.currentTarget.blur()}
                                         onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}

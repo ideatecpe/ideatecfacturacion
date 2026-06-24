@@ -19,6 +19,10 @@ import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
 import { NotaCredito } from "../nota-credito/gestionNotaCredito/NotacreditoDebito";
 import { useComprobanteRucSerieCorrelativo } from "../nota-credito/gestionNotaCredito/Usecomprobanterucseriecorrelativo";
 import { useSearchParams } from 'next/navigation'
+import { useRef } from "react";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
+import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
+import { actualizarStock } from "../../productos/gestioProductos/actualizarStock";
 
 // ── Catálogo de motivos SUNAT Nota Débito ────────────────────
 const MOTIVOS_ND = [
@@ -55,6 +59,7 @@ interface DetalleEditable {
   factorIcbper: number;
   _montoConIgv?: number | string;
   _precioVentaOriginal?: number; // precio unitario con IGV original (referencia motivo 02)
+  _cantidadOriginal?: number; // cantidad del comprobante original (referencia motivo 03 sin penalidad)
 }
 
 // ── Helper: recalcular desde monto CON IGV ───────────────────
@@ -136,14 +141,20 @@ const construirDetallesPorMotivo = (
 
     case "03":
       // Si penalidad activa: un solo ítem POR PENALIDAD
-      // Si no: todos los ítems originales editables
+      // Si no: ítems originales como referencia — la cantidad editable
+      // representa las unidades ADICIONALES a debitar (no el total).
+      // Ej: original trae 7, si quieres añadir 3 más, el campo debe quedar en 3.
       if (incluyePenalidad) {
         return [itemVacio("POR PENALIDAD", pct)];
       }
-      return originales.map((d) => ({
-        ...d,
-        _montoConIgv: d.mtoPrecioUnitario,
-      }));
+      return originales.map((d) =>
+        recalcularDetalle({
+          ...d,
+          cantidad: 1,
+          _cantidadOriginal: Number(d.cantidad) || 0,
+          _montoConIgv: d.mtoPrecioUnitario,
+        }),
+      );
 
     default:
       return [itemVacio("", pct)];
@@ -169,6 +180,11 @@ function NotaDebitoContent() {
 
   const { comprobante, loadingComprobante, errorComprobante, buscarComprobante, limpiarComprobante } =
     useComprobanteRucSerieCorrelativo();
+
+  const { config } = useConfiguracion();
+  const { productosSucursal, fetchProductosSucursal } = useProductosSucursal(
+    isSuperAdmin ? sucursal?.sucursalId : undefined,
+  );
 
   const [serieInput, setSerieInput] = useState("");
   const [correlativoInput, setCorrelativoInput] = useState("");
@@ -250,7 +266,16 @@ function NotaDebitoContent() {
     if (incluyePenalidad) {
       setDetalles([itemVacio("POR PENALIDAD", detallesOriginales[0]?.porcentajeIgv ?? 18)]);
     } else {
-      setDetalles(detallesOriginales.map((d) => ({ ...d, _montoConIgv: d.mtoPrecioUnitario })));
+      setDetalles(
+        detallesOriginales.map((d) =>
+          recalcularDetalle({
+            ...d,
+            cantidad: 1,
+            _cantidadOriginal: Number(d.cantidad) || 0,
+            _montoConIgv: d.mtoPrecioUnitario,
+          }),
+        ),
+      );
     }
   }, [incluyePenalidad]);
 
@@ -494,12 +519,53 @@ function NotaDebitoContent() {
     return true;
   };
 
+  // ── Descontar stock (solo motivo 03 sin penalidad, según config.isStock) ──
+  // El campo "cantidad" en este flujo ya representa las unidades ADICIONALES
+  // a debitar (no el total): si el original trae 7 y se añaden 3, el campo
+  // queda en 3 y eso es exactamente lo que se descuenta del stock.
+  const stockDescontadoRef = useRef(false);
+  const descontarStockSiAplica = async () => {
+    if (!config?.isStock) return;
+    if (codMotivo !== "03" || incluyePenalidad) return;
+    if (stockDescontadoRef.current) return;
+    stockDescontadoRef.current = true;
+
+    const acumulado = new Map<number, number>();
+    detalles.forEach((d) => {
+      if (!d.productoId) return;
+      const cantidadAdicional = Number(d.cantidad) || 0;
+      if (cantidadAdicional <= 0) return;
+
+      const producto = productosSucursal.find((p) => p.productoId === d.productoId);
+      if (!producto || producto.tipoProducto !== "BIEN") return;
+
+      const sucursalProductoId = producto.sucursalProducto.sucursalProductoId;
+      acumulado.set(
+        sucursalProductoId,
+        (acumulado.get(sucursalProductoId) ?? 0) + cantidadAdicional,
+      );
+    });
+
+    const items = Array.from(acumulado.entries()).map(
+      ([sucursalProductoId, cantidad]) => ({ sucursalProductoId, cantidad }),
+    );
+    if (!items.length) return;
+
+    try {
+      await actualizarStock(items, accessToken);
+      fetchProductosSucursal();
+    } catch {
+      showToast("No se pudo actualizar el stock de los productos.", "error");
+    }
+  };
+
   // ── Emitir ───────────────────────────────────────────────────
   const emitirNotaDebito = async () => {
     if (!validar()) return;
     const payload = prepararNotaDebito();
     if (!payload) return;
     setEmitiendo(true); setErrorEmision(null);
+    stockDescontadoRef.current = false;
 
     try {
       // ── 1. Guardar en BD ──────────────────────────────────────
@@ -579,6 +645,7 @@ function NotaDebitoContent() {
           } catch { showToast("Error al procesar envíos", "error"); }
         }
         setEmitido(true);
+        descontarStockSiAplica();
 
       } else if (resSunat.data.estadoSunat === "PENDIENTE") {
         // ⏳ SUNAT caída / sin conexión — no es un rechazo real, queda PENDIENTE y se reintenta
@@ -590,6 +657,7 @@ function NotaDebitoContent() {
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        descontarStockSiAplica();
       } else {
         //  SUNAT rechazó con respuesta (error de validación real)
         const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
@@ -617,6 +685,7 @@ function NotaDebitoContent() {
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
+        descontarStockSiAplica();
       }
     }
 
@@ -1071,16 +1140,23 @@ function NotaDebitoContent() {
                               {/* Cantidad */}
                               <td className="px-2 py-1.5">
                                 {codMotivo === "03" && !incluyePenalidad ? (
-                                  <div className="flex items-center gap-1">
-                                    <button type="button" onClick={() => actualizarCantidad(i, Math.max(1, (Number(d.cantidad) || 0) - 1))}
-                                      className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">−</button>
-                                    <input type="number" min={1} step="1" value={d.cantidad}
-                                      onChange={(e) => actualizarCantidad(i, e.target.value === "" ? "" : Number(e.target.value))}
-                                      onWheel={(e) => e.currentTarget.blur()}
-                                      onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                                      className="w-12 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                                    <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad) || 0) + 1)}
-                                      className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">+</button>
+                                  <div className="space-y-0.5">
+                                    <div className="flex items-center gap-1">
+                                      <button type="button" onClick={() => actualizarCantidad(i, Math.max(1, (Number(d.cantidad) || 0) - 1))}
+                                        className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">−</button>
+                                      <input type="number" min={1} step="1" value={d.cantidad}
+                                        onChange={(e) => actualizarCantidad(i, e.target.value === "" ? "" : Number(e.target.value))}
+                                        onWheel={(e) => e.currentTarget.blur()}
+                                        onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                                        className="w-12 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                      <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad) || 0) + 1)}
+                                        className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">+</button>
+                                    </div>
+                                    {d._cantidadOriginal !== undefined && (
+                                      <p className="text-[9px] text-center text-gray-400">
+                                        Original: {d._cantidadOriginal} · Adicional
+                                      </p>
+                                    )}
                                   </div>
                                 ) : (
                                   <span className="text-xs text-gray-700 text-center block">{d.cantidad}</span>

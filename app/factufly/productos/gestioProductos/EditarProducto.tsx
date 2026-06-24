@@ -8,6 +8,7 @@ import { InputBase } from "@/app/components/ui/InputBase";
 import { Categoria, EditProducto, NuevoProducto, ProductoSucursal } from "./Producto";
 import { useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 
 interface Props {
   isOpen: boolean;
@@ -24,6 +25,7 @@ interface FormFieldsProps {
   setPrecioInput: React.Dispatch<React.SetStateAction<string>>;
   onChange: (field: keyof NuevoProducto) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   categorias: Categoria[];
+  isStock?: boolean;
 }
 
 const emptyForm: NuevoProducto = {
@@ -47,6 +49,7 @@ export default function EditarProducto({
 }: Props) {
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
+  const { config } = useConfiguracion();
   const [form, setForm] = React.useState<NuevoProducto>(emptyForm);
   const [precioInput, setPrecioInput] = React.useState("0.00");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -64,6 +67,7 @@ export default function EditarProducto({
       categoriaId: producto.categoria?.categoriaId ?? 0,
       sucursalId: 0, // solo para no romper inteface Nuevo Producto
       precioUnitario: producto.sucursalProducto.precioUnitario,
+      stock: producto.sucursalProducto.stock ?? 0,
     });
 
     setPrecioInput(producto.sucursalProducto.precioUnitario.toFixed(2));
@@ -132,6 +136,10 @@ export default function EditarProducto({
       categoriaId: form.categoriaId,
       sucursalProductoId: producto.sucursalProducto.sucursalProductoId,
       precioUnitario: Number(precioInput || 0),
+      stock:
+        config?.isStock && form.tipoProducto === "BIEN"
+          ? form.stock ?? 0
+          : null,
     };
 
     try {
@@ -158,6 +166,10 @@ export default function EditarProducto({
         sucursalProducto: {
           ...producto.sucursalProducto,
           precioUnitario: Number(precioInput || 0),
+          stock:
+            config?.isStock && form.tipoProducto === "BIEN"
+              ? form.stock ?? 0
+              : null,
         },
       };
 
@@ -193,6 +205,7 @@ export default function EditarProducto({
           setPrecioInput={setPrecioInput}
           onChange={handleFormChange}
           categorias={categorias}
+          isStock={config?.isStock}
         />
 
         <div className="pt-4 flex justify-end gap-3">
@@ -208,7 +221,7 @@ export default function EditarProducto({
   );
 }
 
-function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias }: FormFieldsProps) {
+function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias, isStock }: FormFieldsProps) {
   return (
     <>
       <InputBase
@@ -315,6 +328,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             </div>
           )}
         </div>
+
         <InputBase
           label="Código"
           value={form.codigo}
@@ -322,6 +336,18 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           placeholder="PROD-001"
         />
       </div>
+
+      {isStock && form.tipoProducto === "BIEN" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <InputBase
+            label="Stock"
+            type="number"
+            value={String(form.stock ?? 0)}
+            onChange={onChange("stock")}
+            placeholder="0"
+          />
+        </div>
+      )}
     </>
   );
 }
