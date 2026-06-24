@@ -1050,7 +1050,7 @@ const LoginClient: React.FC = () => {
 
         {/* Right Column: Hero / Brand Panel */}
         <section
-          className="hidden md:flex md:w-[55%] lg:w-[60%] bg-[#0f2e64] relative overflow-hidden items-center justify-center p-8 lg:p-16"
+          className="hidden md:flex md:w-[55%] lg:w-[60%] bg-brand-blue relative overflow-hidden items-center justify-center p-8 lg:p-16"
           style={{
             transform: doorOpen ? "translateX(100%)" : "translateX(0)",
             transition: doorOpen ? "transform 0.5s cubic-bezier(0.87, 0, 0.13, 1)" : "none",
