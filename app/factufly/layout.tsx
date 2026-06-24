@@ -16,6 +16,7 @@ import {
   DollarSign,
   Wallet,
   FileSpreadsheet,
+  Boxes,
 } from "lucide-react";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
@@ -132,6 +133,7 @@ export default function DashboardLayout({
     { id: "clientes", label: "Clientes", icon: Users },
     { id: "trabajadores", label: "Trabajadores", icon: UserCircle },
     { id: "productos", label: "Productos", icon: Package },
+    { id: "proveedores", label: "Proveedores", icon: Boxes },
     { id: "reportes", label: "Reportes", icon: BarChart3 },
     { id: "sunat", label: "SUNAT", icon: Zap },
     { id: "empresa", label: "Empresa", icon: Settings },
@@ -145,6 +147,7 @@ export default function DashboardLayout({
     if (item.id === "carga-comprobantes") return config?.cargaComprobantes ?? false;
     if (item.id === "deudasporcobrar")   return config?.deudasCobrar ?? false;
     if (item.id === "cuentasporcobrar")  return config?.isCredito ?? false;
+    if (item.id === "proveedores")       return config?.isStock ?? false;
     return true;
   });
 

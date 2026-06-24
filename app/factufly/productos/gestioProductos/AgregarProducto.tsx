@@ -44,6 +44,10 @@ const emptyForm: NuevoProducto = {
   categoriaId: 0,
   sucursalId: 0,
   precioUnitario: 0,
+  codigoBarras: "",
+  esPaquete: false,
+  productoBaseId: null,
+  factorConversion: null,
 };
 
 export default function AgregarProducto({
@@ -224,10 +228,8 @@ export default function AgregarProducto({
     const formConSucursal = {
       ...form,
       sucursalId: sucursalIdEfectivo,
-      stock:
-        config?.isStock && form.tipoProducto === "BIEN"
-          ? form.stock ?? 0
-          : null,
+      // El stock siempre arranca en 0: solo se incrementa desde el módulo de Compras a Proveedor.
+      stock: config?.isStock && form.tipoProducto === "BIEN" ? 0 : null,
     };
 
     try {
@@ -505,18 +507,90 @@ export default function AgregarProducto({
             />
           )}
 
-          {config?.isStock && form.tipoProducto === "BIEN" && (
-            <InputBase
-              label="Stock"
-              type="number"
-              value={String(form.stock ?? 0)}
-              onChange={handleFormChange("stock")}
-              placeholder="0"
-            />
-          )}
         </div>
 
+        {/* ── Código de barras / paquete ── */}
+        {!soloSucursal && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <InputBase
+                label="Código de Barras"
+                labelOptional="(opcional)"
+                value={form.codigoBarras ?? ""}
+                onChange={handleFormChange("codigoBarras")}
+                placeholder="EAN13 / Code128"
+                showError={false}
+              />
 
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-500 uppercase">
+                  &nbsp;
+                </label>
+                <div className="flex items-center gap-2 h-10 px-1">
+                  <input
+                    type="checkbox"
+                    checked={!!form.esPaquete}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setForm((prev) => ({
+                        ...prev,
+                        esPaquete: checked,
+                        productoBaseId: checked ? prev.productoBaseId : null,
+                        factorConversion: checked ? prev.factorConversion : null,
+                      }));
+                    }}
+                    className="w-4 h-4 accent-brand-blue"
+                  />
+                  <label className="text-xs font-semibold text-gray-600">
+                    ¿Es un paquete/caja con unidades dentro?
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {form.esPaquete && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-500 uppercase">
+                    Producto Base (unidad)
+                  </label>
+                  <select
+                    value={form.productoBaseId ?? 0}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        productoBaseId: Number(e.target.value) || null,
+                      }))
+                    }
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+                  >
+                    <option value={0}>Seleccione el producto unidad</option>
+                    {productosEmpresa.map((p) => (
+                      <option key={p.productoId} value={p.productoId}>
+                        {p.nomProducto} ({p.codigo})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <InputBase
+                  label="Factor de Conversión"
+                  labelOptional="(unidades por paquete)"
+                  type="number"
+                  value={String(form.factorConversion ?? "")}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      factorConversion: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                  placeholder="Ej: 12"
+                  showError={false}
+                />
+              </div>
+            )}
+          </>
+        )}
 
         <div className="pt-4 flex justify-end gap-3">
           <Button variant="outline" type="button" onClick={onClose}>

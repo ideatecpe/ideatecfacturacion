@@ -11,6 +11,8 @@ export interface SucursalProducto {
   nomSucursal: string | null;
   precioUnitario: number;
   stock?: number | null;
+  ultimoPrecioCompra?: number | null;
+  fechaUltimaCompra?: string | null;
 }
 
 // ─── Producto Base (sin datos de sucursal) ───────────────────
@@ -26,6 +28,10 @@ export interface ProductoBase {
   estado: boolean;
   fechaCreacion: string;
   categoria: Categoria | null;
+  codigoBarras?: string | null;
+  esPaquete?: boolean | null;
+  productoBaseId?: number | null;
+  factorConversion?: number | null;
 }
 
 // ─── Producto con datos de sucursal ──────────────────────────
@@ -46,6 +52,10 @@ export interface NuevoProducto {
   sucursalId: number;
   precioUnitario: number;
   stock?: number | null;
+  codigoBarras?: string | null;
+  esPaquete?: boolean | null;
+  productoBaseId?: number | null;
+  factorConversion?: number | null;
 }
 
 // ─── Para editar producto (PUT) ───────────────────────────────
@@ -62,4 +72,8 @@ export interface EditProducto {
   sucursalProductoId: number;
   precioUnitario: number;
   stock?: number | null;
+  codigoBarras?: string | null;
+  esPaquete?: boolean | null;
+  productoBaseId?: number | null;
+  factorConversion?: number | null;
 }

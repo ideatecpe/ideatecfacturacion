@@ -868,6 +868,11 @@ export default function ProductosPage() {
                     <p className="text-[10px] font-medium text-gray-400 bg-gray-100 w-fit px-1.5 py-0.5 rounded uppercase">
                       {prod.categoria?.categoriaNombre}
                     </p>
+                    {prod.codigoBarras && (
+                      <p className="text-[10px] text-gray-400">
+                        Cód. barras: {prod.codigoBarras}
+                      </p>
+                    )}
                     {isSuperAdmin && (
                       <p className="text-[10px] text-gray-400 flex mt-1 bg-blue-50 w-fit px-1.5 py-0.5 rounded">
                         <span className="font-bold">Sucursal: &nbsp; </span>{" "}
@@ -899,16 +904,32 @@ export default function ProductosPage() {
                 <div className="mt-3 flex justify-between items-end">
                   <div>
                     {config?.isStock && prod.tipoProducto === "BIEN" && (
-                      <p
-                        className={cn(
-                          "text-[15px] font-bold",
-                          prod.sucursalProducto.stock === 0
-                            ? "text-rose-500"
-                            : "text-gray-900",
+                      <>
+                        <p
+                          className={cn(
+                            "text-[15px] font-bold",
+                            prod.sucursalProducto.stock === 0
+                              ? "text-rose-500"
+                              : "text-gray-900",
+                          )}
+                        >
+                          STOCK: {prod.sucursalProducto.stock}
+                        </p>
+                        {!!prod.sucursalProducto.ultimoPrecioCompra && (
+                          <>
+                            <p className="text-[10px] text-gray-400">
+                              Costo: S/ {prod.sucursalProducto.ultimoPrecioCompra.toFixed(2)}
+                            </p>
+                            <p className="text-[10px] font-semibold text-emerald-600">
+                              Ganancia: S/{" "}
+                              {(
+                                prod.sucursalProducto.precioUnitario -
+                                prod.sucursalProducto.ultimoPrecioCompra
+                              ).toFixed(2)}
+                            </p>
+                          </>
                         )}
-                      >
-                        STOCK: {prod.sucursalProducto.stock}
-                      </p>
+                      </>
                     )}
                   </div>
                   <div className="text-right">
