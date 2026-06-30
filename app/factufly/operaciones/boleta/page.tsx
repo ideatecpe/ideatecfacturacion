@@ -688,8 +688,16 @@ function BoletaContent() {
 
   // ── Descuento global ─────────────────────────────────────────
   const [descuentoGlobal, setDescuentoGlobal] = useState(0);
+  const [modoDescGlobal, setModoDescGlobal] = useState<"monto" | "porcentaje">("monto");
+  const [porcentajeDescInput, setPorcentajeDescInput] = useState(0);
   const [precioInputValues, setPrecioInputValues] = useState<Record<number, string>>({});
   const [codigoTipoDescGlobal, setCodigoTipoDescGlobal] = useState("02");
+
+  useEffect(() => {
+    if (modoDescGlobal !== "porcentaje") return;
+    const base = detalles.reduce((acc, d) => acc + (d.totalVentaItem ?? 0), 0);
+    setDescuentoGlobal(parseFloat((base * porcentajeDescInput / 100).toFixed(2)));
+  }, [porcentajeDescInput, modoDescGlobal, detalles]);
 
   // ── Tipo de cambio USD ───────────────────────────────────────
   const [tipoCambio, setTipoCambio] = useState(3.75);
@@ -761,6 +769,10 @@ function BoletaContent() {
         setDescuentoGlobal(data.extra.descuentoGlobal);
       if (data.extra.codigoTipoDescGlobal !== undefined)
         setCodigoTipoDescGlobal(data.extra.codigoTipoDescGlobal);
+      if (data.extra.modoDescGlobal !== undefined)
+        setModoDescGlobal(data.extra.modoDescGlobal);
+      if (data.extra.porcentajeDescInput !== undefined)
+        setPorcentajeDescInput(data.extra.porcentajeDescInput);
       if (data.extra.trabajadorIdGlobal !== undefined)
         setTrabajadorIdGlobal(data.extra.trabajadorIdGlobal);
       if (data.extra.trabajadoresPorItem !== undefined)
@@ -871,6 +883,8 @@ function BoletaContent() {
       aplicarIcbper,
       descuentoGlobal,
       codigoTipoDescGlobal,
+      modoDescGlobal,
+      porcentajeDescInput,
       trabajadorIdGlobal,
       trabajadoresPorItem,
     });
@@ -883,6 +897,8 @@ function BoletaContent() {
     aplicarIcbper,
     descuentoGlobal,
     codigoTipoDescGlobal,
+    modoDescGlobal,
+    porcentajeDescInput,
   ]);
 
   useEffect(() => {
@@ -4002,32 +4018,67 @@ function BoletaContent() {
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-end gap-2 items-center">
-                    <span className="text-sm text-gray-900">Desc. Global:</span>
-                    {/* Select oculto según requerimiento de usar solo "02" */}
-                    <select
-                      value={codigoTipoDescGlobal}
-                      onChange={(e) => setCodigoTipoDescGlobal(e.target.value)}
-                      className="hidden"
-                    >
-                      <option value="03">03 - No afecta base</option>
-                      <option value="02">02 - Afecta base gravada</option>
-                    </select>
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm text-gray-400">{simbolo}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={descuentoGlobal}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                        onChange={(e) =>
-                          setDescuentoGlobal(Number(e.target.value))
-                        }
-                        className="w-24 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex justify-end gap-2 items-center">
+                      <span className="text-sm text-gray-900">Desc. Global:</span>
+                      {/* Select oculto según requerimiento de usar solo "02" */}
+                      <select
+                        value={codigoTipoDescGlobal}
+                        onChange={(e) => setCodigoTipoDescGlobal(e.target.value)}
+                        className="hidden"
+                      >
+                        <option value="03">03 - No afecta base</option>
+                        <option value="02">02 - Afecta base gravada</option>
+                      </select>
+                      <select
+                        value={modoDescGlobal}
+                        onChange={(e) => {
+                          setModoDescGlobal(e.target.value as "monto" | "porcentaje");
+                          setDescuentoGlobal(0);
+                          setPorcentajeDescInput(0);
+                        }}
+                        className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 outline-none focus:border-brand-blue cursor-pointer"
+                      >
+                        <option value="monto">{simbolo} Monto</option>
+                        <option value="porcentaje">% Porcentaje</option>
+                      </select>
+                      {modoDescGlobal === "monto" ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-gray-400">{simbolo}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={descuentoGlobal}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                            onChange={(e) => setDescuentoGlobal(Number(e.target.value))}
+                            className="w-20 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.1"
+                            value={porcentajeDescInput}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                            onChange={(e) => {
+                              const v = Math.min(100, Math.max(0, Number(e.target.value)));
+                              setPorcentajeDescInput(v);
+                            }}
+                            className="w-20 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-sm text-gray-400">%</span>
+                        </div>
+                      )}
                     </div>
+                    {modoDescGlobal === "porcentaje" && descuentoGlobal > 0 && (
+                      <span className="text-xs text-red-400 font-mono">-{simbolo} {fmtMonto(descuentoGlobal)}</span>
+                    )}
                   </div>
                   <div className="flex justify-end gap-4 text-sm font-bold text-brand-blue pt-1 border-t border-gray-100">
                     <span>Total:</span>
