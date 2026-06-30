@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import axios from "axios";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Camera, X as XIcon, ImageOff } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
@@ -35,6 +35,8 @@ interface Props {
   loadingCategoria: boolean; // ← nuevo
 }
 
+const URL_IMAGEN_DEMO = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&h=300&fit=crop&auto=format";
+
 const emptyForm: NuevoProducto = {
   codigo: "",
   tipoProducto: "BIEN",
@@ -45,6 +47,7 @@ const emptyForm: NuevoProducto = {
   categoriaId: 0,
   sucursalId: 0,
   precioUnitario: 0,
+  urlImagenProducto: null,
   codigoBarras: "",
   esPaquete: false,
   productoBaseId: null,
@@ -81,6 +84,30 @@ export default function AgregarProducto({
 
   const [isModalCategoriaOpen, setIsModalCategoriaOpen] = useState(false);
   const [showMayorista, setShowMayorista] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [imgPreview, setImgPreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleSeleccionarImagen = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImgError(false);
+    const localUrl = URL.createObjectURL(file);
+    setImgPreview(localUrl);
+    // URL que se guarda en DB — se reemplazará con Cloudinary
+    setForm((prev) => ({ ...prev, urlImagenProducto: URL_IMAGEN_DEMO }));
+  };
+
+  const handleQuitarImagen = () => {
+    setForm((prev) => ({ ...prev, urlImagenProducto: null }));
+    setImgPreview(null);
+    setImgError(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   //seleccionar sucursal para agregar si es superadmin
   const { sucursales } = useSucursalRuc(isSuperAdmin);
@@ -106,6 +133,7 @@ export default function AgregarProducto({
     if (isOpen) {
       setForm({ ...emptyForm, sucursalId: sucursalIdEfectivo });
       setErrors({});
+      setImgError(false);
     } else {
       setForm({ ...emptyForm, sucursalId: 0 });
       setProductoExistente(null);
@@ -117,6 +145,9 @@ export default function AgregarProducto({
       setNombreNuevaCategoria("");
       setIsModalCategoriaOpen(false);
       setShowMayorista(false);
+      setImgError(false);
+      setImgPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, [isOpen]);
 
@@ -318,6 +349,71 @@ export default function AgregarProducto({
                 Debe seleccionar una sucursal
               </p>
             )}
+          </div>
+        )}
+
+        {/* ── Imagen del producto ── */}
+        {!soloSucursal && (
+          <div className="flex items-start gap-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {/* Thumbnail */}
+            <div className="relative shrink-0">
+              <div className="w-28 h-28 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+                {(imgPreview || form.urlImagenProducto) && !imgError ? (
+                  <img
+                    src={imgPreview ?? form.urlImagenProducto!}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                    onError={() => setImgError(true)}
+                  />
+                ) : imgError ? (
+                  <ImageOff className="w-8 h-8 text-gray-300" />
+                ) : (
+                  <Camera className="w-8 h-8 text-gray-300" />
+                )}
+              </div>
+              {form.urlImagenProducto && (
+                <button
+                  type="button"
+                  onClick={handleQuitarImagen}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-sm transition-colors"
+                >
+                  <XIcon className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Texto + botón */}
+            <div className="flex flex-col justify-center gap-1.5 min-w-0 pt-1">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                Imagen del producto
+                <span className="ml-1 font-normal text-gray-400 normal-case">(opcional)</span>
+              </p>
+              {form.urlImagenProducto && !imgError ? (
+                <p className="text-[11px] text-emerald-600 font-semibold">
+                  ✓ Imagen seleccionada
+                </p>
+              ) : (
+                <p className="text-[11px] text-gray-400">
+                  JPG, PNG o WebP — máx. 2 MB
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleSeleccionarImagen}
+                className="w-fit flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                {form.urlImagenProducto ? "Cambiar imagen" : "Subir imagen"}
+              </button>
+            </div>
           </div>
         )}
 

@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import axios from "axios";
+import { Camera, X as XIcon, ImageOff } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
@@ -10,6 +11,8 @@ import { useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useProductosEmpresaLista } from "./useProductosEmpresaLista";
+
+const URL_IMAGEN_DEMO = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&h=300&fit=crop&auto=format";
 
 interface Props {
   isOpen: boolean;
@@ -29,6 +32,10 @@ interface FormFieldsProps {
   isStock?: boolean;
   productosEmpresa: ProductoSucursal[];
   productoActualId?: number;
+  imgError: boolean;
+  setImgError: React.Dispatch<React.SetStateAction<boolean>>;
+  imgPreview: string | null;
+  setImgPreview: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 const emptyForm: NuevoProducto = {
@@ -41,6 +48,7 @@ const emptyForm: NuevoProducto = {
   categoriaId: 0,
   sucursalId: 1,
   precioUnitario: 0,
+  urlImagenProducto: null,
   codigoBarras: "",
   esPaquete: false,
   productoBaseId: null,
@@ -65,6 +73,9 @@ export default function EditarProducto({
   const [form, setForm] = React.useState<NuevoProducto>(emptyForm);
   const [precioInput, setPrecioInput] = React.useState("0.00");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [imgPreview, setImgPreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Refresca la lista de productos base cada vez que se abre el modal.
   React.useEffect(() => {
@@ -74,6 +85,9 @@ export default function EditarProducto({
   React.useEffect(() => {
     if (!producto) return;
 
+    setImgError(false);
+    setImgPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setForm({
       codigo: producto.codigo,
       tipoProducto: producto.tipoProducto ?? "BIEN",
@@ -82,9 +96,10 @@ export default function EditarProducto({
       tipoAfectacionIGV: producto.tipoAfectacionIGV,
       incluirIGV: producto.incluirIGV,
       categoriaId: producto.categoria?.categoriaId ?? 0,
-      sucursalId: 0, // solo para no romper inteface Nuevo Producto
+      sucursalId: 0,
       precioUnitario: producto.sucursalProducto.precioUnitario,
       stock: producto.sucursalProducto.stock ?? 0,
+      urlImagenProducto: producto.urlImagenProducto ?? null,
       codigoBarras: producto.codigoBarras ?? "",
       esPaquete: producto.esPaquete ?? false,
       productoBaseId: producto.productoBaseId ?? null,
@@ -166,6 +181,7 @@ export default function EditarProducto({
       categoriaId: form.categoriaId,
       sucursalProductoId: producto.sucursalProducto.sucursalProductoId,
       precioUnitario: Number(precioInput || 0),
+      urlImagenProducto: form.urlImagenProducto ?? null,
       stock:
         config?.isStock && form.tipoProducto === "BIEN"
           ? form.stock ?? 0
@@ -201,6 +217,7 @@ export default function EditarProducto({
         tipoAfectacionIGV: form.tipoAfectacionIGV,
         incluirIGV: form.incluirIGV,
         categoria: categoriaActualizada,
+        urlImagenProducto: payload.urlImagenProducto,
         codigoBarras: payload.codigoBarras,
         esPaquete: payload.esPaquete,
         productoBaseId: payload.productoBaseId,
@@ -254,6 +271,10 @@ export default function EditarProducto({
           isStock={config?.isStock}
           productosEmpresa={productosEmpresa}
           productoActualId={producto?.productoId}
+          imgError={imgError}
+          setImgError={setImgError}
+          imgPreview={imgPreview}
+          setImgPreview={setImgPreview}
         />
 
         <div className="pt-4 flex justify-end gap-3">
@@ -269,9 +290,90 @@ export default function EditarProducto({
   );
 }
 
-function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias, isStock, productosEmpresa, productoActualId }: FormFieldsProps) {
+function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias, isStock, productosEmpresa, productoActualId, imgError, setImgError, imgPreview, setImgPreview }: FormFieldsProps) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleSeleccionarImagen = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImgError(false);
+    const localUrl = URL.createObjectURL(file);
+    setImgPreview(localUrl);
+    setForm((prev) => ({ ...prev, urlImagenProducto: URL_IMAGEN_DEMO }));
+  };
+
+  const handleQuitarImagen = () => {
+    setForm((prev) => ({ ...prev, urlImagenProducto: null }));
+    setImgPreview(null);
+    setImgError(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   return (
     <>
+      {/* ── Imagen del producto ── */}
+      <div className="flex items-start gap-4">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+
+        <div className="relative shrink-0">
+          <div className="w-28 h-28 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+            {(imgPreview || form.urlImagenProducto) && !imgError ? (
+              <img
+                src={imgPreview ?? form.urlImagenProducto!}
+                alt="Preview"
+                className="w-full h-full object-cover"
+                onError={() => setImgError(true)}
+              />
+            ) : imgError ? (
+              <ImageOff className="w-8 h-8 text-gray-300" />
+            ) : (
+              <Camera className="w-8 h-8 text-gray-300" />
+            )}
+          </div>
+          {form.urlImagenProducto && (
+            <button
+              type="button"
+              onClick={handleQuitarImagen}
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-sm transition-colors"
+            >
+              <XIcon className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-col justify-center gap-1.5 min-w-0 pt-1">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+            Imagen del producto
+            <span className="ml-1 font-normal text-gray-400 normal-case">(opcional)</span>
+          </p>
+          {form.urlImagenProducto && !imgError ? (
+            <p className="text-[11px] text-emerald-600 font-semibold">
+              ✓ Imagen seleccionada
+            </p>
+          ) : (
+            <p className="text-[11px] text-gray-400">JPG, PNG o WebP — máx. 2 MB</p>
+          )}
+          <button
+            type="button"
+            onClick={handleSeleccionarImagen}
+            className="w-fit flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            {form.urlImagenProducto ? "Cambiar imagen" : "Subir imagen"}
+          </button>
+        </div>
+      </div>
+
       <InputBase
         label="Nombre del Producto"
         value={form.nomProducto}

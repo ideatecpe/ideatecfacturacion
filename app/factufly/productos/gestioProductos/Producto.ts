@@ -32,6 +32,7 @@ export interface ProductoBase {
   estado: boolean;
   fechaCreacion: string;
   categoria: Categoria | null;
+  urlImagenProducto?: string | null;
   codigoBarras?: string | null;
   esPaquete?: boolean | null;
   productoBaseId?: number | null;
@@ -56,6 +57,7 @@ export interface NuevoProducto {
   sucursalId: number;
   precioUnitario: number;
   stock?: number | null;
+  urlImagenProducto?: string | null;
   codigoBarras?: string | null;
   esPaquete?: boolean | null;
   productoBaseId?: number | null;
@@ -80,6 +82,7 @@ export interface EditProducto {
   sucursalProductoId: number;
   precioUnitario: number;
   stock?: number | null;
+  urlImagenProducto?: string | null;
   codigoBarras?: string | null;
   esPaquete?: boolean | null;
   productoBaseId?: number | null;

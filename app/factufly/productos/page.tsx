@@ -1193,6 +1193,18 @@ export default function ProductosPage() {
                 key={prod.sucursalProducto.sucursalProductoId}
                 className="group hover:border-brand-blue transition-all"
               >
+                {/* ── Imagen ── */}
+                {prod.urlImagenProducto && (
+                  <div className="-mx-2 -mt-2 mb-2 h-28 bg-gray-100 overflow-hidden rounded-t-xl">
+                    <img
+                      src={prod.urlImagenProducto}
+                      alt={prod.nomProducto}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
+                    />
+                  </div>
+                )}
+
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">

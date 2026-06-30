@@ -1,7 +1,7 @@
 // gestionOrdenes/useOrdenesLista.ts
 
 import { useState, useCallback } from "react";
-import axios from "axios";
+import axios, { AxiosResponse } from "axios";
 import { CompraProveedor } from "../../proveedores/gestionProveedorCompra/Proveedor";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
@@ -62,7 +62,7 @@ export function useOrdenesLista() {
             ),
           );
           data = resultados
-            .filter((r): r is PromiseFulfilledResult<{ data: CompraProveedor[] }> => r.status === "fulfilled")
+            .filter((r): r is PromiseFulfilledResult<AxiosResponse<CompraProveedor[]>> => r.status === "fulfilled")
             .flatMap((r) => r.value.data ?? []);
         }
 
