@@ -133,9 +133,9 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                 // Descargar ZIP, extraer el XML interno y adjuntarlo
                 let xmlFile: File | null = null;
                 if (comprobante.xmlGenerado) {
-                    const resZip = await fetch(
-                        `${process.env.NEXT_PUBLIC_STORAGE_URL}/files${comprobante.xmlGenerado}`
-                    );
+                    const [entorno, ruc, tipoCarpeta, filename] = comprobante.xmlGenerado.split("/").filter(Boolean);
+                    const xmlZipUrl = `${process.env.NEXT_PUBLIC_STORAGE_URL}/files/${ruc}/${tipoCarpeta}/${filename}?entorno=${entorno}`;
+                    const resZip = await fetch(xmlZipUrl);
                     if (resZip.ok) {
                         const zipBuf = await resZip.arrayBuffer();
                         const zip = await JSZip.loadAsync(zipBuf);

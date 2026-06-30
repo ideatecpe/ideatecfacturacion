@@ -284,7 +284,9 @@ export default function GuiasRemisionPage() {
     const setLoading = tipo === "xml" ? setLoadingXmlMap : setLoadingCdrMap;
     setLoading((prev) => ({ ...prev, [guiaId]: true }));
     try {
-      const url = `${process.env.NEXT_PUBLIC_STORAGE_URL}/files${ruta}`;
+      const partes = ruta.split("/").filter(Boolean);
+      const [entorno, ruc, tipoCarpeta, filename] = partes;
+      const url = `${process.env.NEXT_PUBLIC_STORAGE_URL}/files/${ruc}/${tipoCarpeta}/${filename}?entorno=${entorno}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Error al descargar");
       const blob = await res.blob();
