@@ -93,7 +93,7 @@ export default function CargaComprobantesPage() {
     modalResultadoOpen,    setModalResultadoOpen,
     erroresCarga,
     modalErroresCargaOpen, setModalErroresCargaOpen,
-    resultadoEmision, progresoEmision, advertenciaTemprana: advertenciaTempranaBruta,
+    resultadoEmision, progresoEmision, progresoCargar, advertenciaTemprana: advertenciaTempranaBruta,
     accessToken, sucursal, empresa,
     cargarExcel, descargarPlantilla, actualizarFila,
     agregarFila, deshabilitarFila, habilitarFila, ajustarFechasInicioMes,
@@ -168,18 +168,46 @@ export default function CargaComprobantesPage() {
     return { diasHasta, fechaFinMin, periodoLabel: cfg?.label ?? tabActiva };
   }, [selectedKeys, gruposFiltrados, advertenciaTempranaBruta, tabActiva]);
 
-  // ── Búsqueda dentro de la tabla ───────────────────────────────────────────
-  const [busqueda, setBusqueda] = useState("");
+  // ── Búsqueda y filtros de fecha ───────────────────────────────────────────
+  const [busqueda,        setBusqueda]        = useState("");
+  const [filtroMes,       setFiltroMes]       = useState("");   // "YYYY-MM" o ""
+  const [filtroFechaExacta, setFiltroFechaExacta] = useState(""); // "YYYY-MM-DD" o ""
+
+  // Opciones del dropdown: mes actual + 5 anteriores
+  const opcionesMes = useMemo(() => {
+    const hoy = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      const valor = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("es-PE", { month: "long", year: "numeric" });
+      return { valor, label: label.charAt(0).toUpperCase() + label.slice(1) };
+    });
+  }, []);
+
+  const matchFecha = (fila: FilaCarga): boolean => {
+    if (filtroFechaExacta) {
+      return fila.fechaini.slice(0, 10) === filtroFechaExacta ||
+             fila.fechafin.slice(0, 10) === filtroFechaExacta;
+    }
+    if (filtroMes) {
+      return fila.fechaini.slice(0, 7) === filtroMes ||
+             fila.fechafin.slice(0, 7) === filtroMes;
+    }
+    return true;
+  };
+
+  const hayFiltroFecha = filtroMes !== "" || filtroFechaExacta !== "";
+  const limpiarFiltrosFecha = () => { setFiltroMes(""); setFiltroFechaExacta(""); };
+
   const filasVisibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    const base = !q
-      ? filasFiltradas
-      : filasFiltradas.filter(
-          (f) =>
-            f.numdoc.toLowerCase().includes(q) ||
-            f.razonSocial.toLowerCase().includes(q) ||
-            f.placa.toLowerCase().includes(q),
-        );
+    const base = filasFiltradas.filter((f) => {
+      const textoOk = !q ||
+        f.numdoc.toLowerCase().includes(q) ||
+        f.razonSocial.toLowerCase().includes(q) ||
+        f.placa.toLowerCase().includes(q);
+      return textoOk && matchFecha(f);
+    });
 
     // Ordenar por fecha de vencimiento (fechafin) — más próximos primero
     const toMs = (f: string): number => {
@@ -198,19 +226,22 @@ export default function CargaComprobantesPage() {
       return Infinity;
     };
     return [...base].sort((x, y) => toMs(x.fechafin) - toMs(y.fechafin));
-  }, [filasFiltradas, busqueda]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filasFiltradas, busqueda, filtroMes, filtroFechaExacta]);
 
-  // Grupos filtrados por la misma búsqueda (para las cards agrupadas)
+  // Grupos filtrados por texto + fecha
   const gruposVisibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return gruposFiltrados;
-    return gruposFiltrados.filter(
-      (g) =>
+    return gruposFiltrados.filter((g) => {
+      const textoOk = !q ||
         g.numdoc.toLowerCase().includes(q) ||
         g.razonSocial.toLowerCase().includes(q) ||
-        g.items.some((i) => i.placa.toLowerCase().includes(q)),
-    );
-  }, [gruposFiltrados, busqueda]);
+        g.items.some((i) => i.placa.toLowerCase().includes(q));
+      const fechaOk = g.items.some((i) => matchFecha(i));
+      return textoOk && fechaOk;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gruposFiltrados, busqueda, filtroMes, filtroFechaExacta]);
 
   const toggleSelectAll = () =>
     setSelectedKeys((prev) =>
@@ -558,9 +589,10 @@ export default function CargaComprobantesPage() {
         /* Tabla editable */
         <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
 
-          {/* Barra de búsqueda */}
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/60">
-            <div className="relative flex-1 min-w-0">
+          {/* Barra de búsqueda + filtros de fecha */}
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50/60">
+            {/* Input texto */}
+            <div className="relative flex-1 min-w-40">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
               <input
                 type="text"
@@ -578,7 +610,52 @@ export default function CargaComprobantesPage() {
                 </button>
               )}
             </div>
-            {busqueda.trim() && (
+
+            {/* Dropdown mes */}
+            <select
+              value={filtroMes}
+              onChange={(e) => { setFiltroMes(e.target.value); setFiltroFechaExacta(""); }}
+              className={`py-1.5 pl-2.5 pr-6 text-xs border rounded-lg outline-none transition-all cursor-pointer appearance-none bg-white bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")] bg-no-repeat bg-position-[center_right_8px] ${
+                filtroMes
+                  ? "border-blue-400 ring-2 ring-blue-100 text-blue-700 font-semibold"
+                  : "border-gray-200 text-gray-500 hover:border-gray-300"
+              }`}
+            >
+              <option value="">Todos los meses</option>
+              {opcionesMes.map(({ valor, label }) => (
+                <option key={valor} value={valor}>{label}</option>
+              ))}
+            </select>
+
+            {/* Input fecha exacta */}
+            <div className="relative">
+              <input
+                type="date"
+                value={filtroFechaExacta}
+                onChange={(e) => { setFiltroFechaExacta(e.target.value); setFiltroMes(""); }}
+                title="Filtrar por fecha exacta (fechaini o fechafin)"
+                className={`py-1.5 px-2.5 text-xs border rounded-lg outline-none transition-all cursor-pointer ${
+                  filtroFechaExacta
+                    ? "border-blue-400 ring-2 ring-blue-100 text-blue-700 font-semibold"
+                    : "border-gray-200 text-gray-500 hover:border-gray-300"
+                }`}
+              />
+            </div>
+
+            {/* Limpiar filtros fecha */}
+            {hayFiltroFecha && (
+              <button
+                onClick={limpiarFiltrosFecha}
+                title="Limpiar filtros de fecha"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-red-300 hover:bg-red-50 text-[11px] text-gray-400 hover:text-red-500 transition-all"
+              >
+                <X className="w-3 h-3" />
+                <span>Fecha</span>
+              </button>
+            )}
+
+            {/* Contador resultados */}
+            {(busqueda.trim() || hayFiltroFecha) && (
               <span className="text-[11px] text-gray-400 shrink-0">
                 {filasVisibles.length === 0
                   ? "Sin resultados"
@@ -1584,6 +1661,49 @@ export default function CargaComprobantesPage() {
 
         </div>
       </Modal>
+
+      {/* ── Modal progreso de carga Excel ───────────────────────────────── */}
+      {progresoCargar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-80 space-y-5">
+            {/* Ícono animado */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-full bg-blue-50 border-2 border-blue-100 flex items-center justify-center">
+                <FileSpreadsheet className="w-6 h-6 text-blue-500 animate-pulse" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-gray-900">Cargando Excel…</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Guardando fila{" "}
+                  <span className="font-black text-blue-600 tabular-nums">{progresoCargar.actual}</span>
+                  {" "}de{" "}
+                  <span className="font-black text-gray-700 tabular-nums">{progresoCargar.total}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Porcentaje */}
+            <div className="text-center">
+              <span className="text-4xl font-black text-blue-600 tabular-nums">
+                {Math.round((progresoCargar.actual / progresoCargar.total) * 100)}%
+              </span>
+            </div>
+
+            {/* Barra de progreso */}
+            <div className="space-y-1.5">
+              <div className="w-full h-2.5 bg-blue-50 rounded-full overflow-hidden border border-blue-100">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${(progresoCargar.actual / progresoCargar.total) * 100}%` }}
+                />
+              </div>
+              <p className="text-[12px] text-center text-gray-400">
+                Por favor espera, no cierres la página
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal errores de carga Excel ────────────────────────────────── */}
       <Modal

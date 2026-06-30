@@ -666,7 +666,10 @@ export default function VerComprobantesPage() {
     const setLoading = tipo === "xml" ? setLoadingXmlMap : setLoadingCdrMap;
     setLoading((prev) => ({ ...prev, [comprobanteId]: true }));
     try {
-      const url = `${process.env.NEXT_PUBLIC_STORAGE_URL}/files${ruta}`;
+      // ruta = "/{entorno}/{ruc}/{tipo}/{filename}" — el microservicio espera entorno como query param
+      const partes = ruta.split("/").filter(Boolean); // ["production","20512134832","facturas","archivo.zip"]
+      const [entorno, ruc, tipoCarpeta, filename] = partes;
+      const url = `${process.env.NEXT_PUBLIC_STORAGE_URL}/files/${ruc}/${tipoCarpeta}/${filename}?entorno=${entorno}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Error al descargar");
       const blob = await res.blob();

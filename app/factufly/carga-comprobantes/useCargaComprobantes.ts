@@ -93,6 +93,7 @@ export function useCargaComprobantes() {
   const [resultadoEmision,      setResultadoEmision]     = useState<ResultadoEmitido[] | null>(null);
   const [modalResultadoOpen,    setModalResultadoOpen]   = useState(false);
   const [progresoEmision,       setProgresoEmision]      = useState<ProgresoEmision | null>(null);
+  const [progresoCargar,        setProgresoCargar]       = useState<ProgresoEmision | null>(null);
 
   // Ref para evitar stale closures en los debounces de PATCH
   const filasRef      = useRef<FilaCarga[]>([]);
@@ -581,14 +582,16 @@ export function useCargaComprobantes() {
 
     setModalPlantillaOpen(false);
     setCargandoPlantilla(true);
-    showToast(`Subiendo ${enriched.length} filas al servidor…`, "success");
+    setProgresoCargar({ actual: 0, total: enriched.length });
 
     try {
       // POST secuencial — una fila a la vez para evitar race conditions en el servidor
       // (mismo numdoc con varias placas fallaba cuando llegaban simultáneamente)
       const resultadosPost: PromiseSettledResult<FilaCarga>[] = [];
 
-      for (const fila of enriched) {
+      for (let idx = 0; idx < enriched.length; idx++) {
+        const fila = enriched[idx];
+        setProgresoCargar({ actual: idx + 1, total: enriched.length });
         const resultado = await axios.post(PLANTILLA_API, filaToPostBody(fila), { headers: getHeaders() })
           .then((r) => {
             try {
@@ -683,6 +686,7 @@ export function useCargaComprobantes() {
       showToast("Error inesperado al cargar el Excel", "error");
     } finally {
       setCargandoPlantilla(false);
+      setProgresoCargar(null);
     }
   };
 
@@ -1234,6 +1238,7 @@ export function useCargaComprobantes() {
     modalErroresCargaOpen,   setModalErroresCargaOpen,
     resultadoEmision,
     progresoEmision,
+    progresoCargar,
     advertenciaTemprana,
     // acceso
     accessToken,
