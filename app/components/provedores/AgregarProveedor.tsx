@@ -6,8 +6,8 @@ import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
 import { useAuth } from "@/context/AuthContext";
-import { Proveedor, NuevoProveedor } from "@/app/factufly/proveedores/gestionProveedorCompra/Proveedor";
-import { useRegistrarProveedor } from "@/app/factufly/proveedores/gestionProveedorCompra/useRegistrarProveedor";
+import { Proveedor, NuevoProveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/Proveedor";
+import { useRegistrarProveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/useRegistrarProveedor";
 import { consultaRuc } from "@/app/components/apiConsultasJsonPe/consultaRuc";
 
 interface Props {

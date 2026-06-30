@@ -45,6 +45,10 @@ const emptyForm: NuevoProducto = {
   esPaquete: false,
   productoBaseId: null,
   factorConversion: null,
+  precioMayorista: null,
+  cantidadMinimaMayorista: null,
+  enPromocion: false,
+  porcentajeDescuento: null,
 };
 
 export default function EditarProducto({
@@ -57,10 +61,15 @@ export default function EditarProducto({
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
   const { config } = useConfiguracion();
-  const { productosEmpresa } = useProductosEmpresaLista();
+  const { productosEmpresa, fetchProductosEmpresa } = useProductosEmpresaLista();
   const [form, setForm] = React.useState<NuevoProducto>(emptyForm);
   const [precioInput, setPrecioInput] = React.useState("0.00");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  // Refresca la lista de productos base cada vez que se abre el modal.
+  React.useEffect(() => {
+    if (isOpen) fetchProductosEmpresa();
+  }, [isOpen]);
 
   React.useEffect(() => {
     if (!producto) return;
@@ -80,6 +89,10 @@ export default function EditarProducto({
       esPaquete: producto.esPaquete ?? false,
       productoBaseId: producto.productoBaseId ?? null,
       factorConversion: producto.factorConversion ?? null,
+      precioMayorista: producto.sucursalProducto.precioMayorista ?? null,
+      cantidadMinimaMayorista: producto.sucursalProducto.cantidadMinimaMayorista ?? null,
+      enPromocion: producto.sucursalProducto.enPromocion ?? false,
+      porcentajeDescuento: producto.sucursalProducto.porcentajeDescuento ?? null,
     });
 
     setPrecioInput(producto.sucursalProducto.precioUnitario.toFixed(2));
@@ -135,6 +148,11 @@ export default function EditarProducto({
       return;
     }
 
+    if (form.enPromocion && (!form.porcentajeDescuento || form.porcentajeDescuento <= 0)) {
+      showToast("Ingresa el % de descuento de la promoción.", "info");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload: EditProducto = {
@@ -156,6 +174,10 @@ export default function EditarProducto({
       esPaquete: form.esPaquete ?? false,
       productoBaseId: form.esPaquete ? form.productoBaseId ?? null : null,
       factorConversion: form.esPaquete ? form.factorConversion ?? null : null,
+      precioMayorista: form.precioMayorista ?? null,
+      cantidadMinimaMayorista: form.cantidadMinimaMayorista ?? null,
+      enPromocion: form.enPromocion ?? false,
+      porcentajeDescuento: form.enPromocion ? form.porcentajeDescuento ?? null : null,
     };
 
     try {
@@ -190,6 +212,10 @@ export default function EditarProducto({
             config?.isStock && form.tipoProducto === "BIEN"
               ? form.stock ?? 0
               : null,
+          precioMayorista: payload.precioMayorista,
+          cantidadMinimaMayorista: payload.cantidadMinimaMayorista,
+          enPromocion: payload.enPromocion,
+          porcentajeDescuento: payload.porcentajeDescuento,
         },
       };
 
@@ -316,7 +342,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <InputBase
-            label="Precio Unitario"
+            label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio Unitario"}
             type="text"
             value={precioInput}
             onChange={(e) => {
@@ -368,31 +394,33 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           placeholder="EAN13 / Code128"
         />
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-500 uppercase">&nbsp;</label>
-          <div className="flex items-center gap-2 h-10 px-1">
-            <input
-              type="checkbox"
-              checked={!!form.esPaquete}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setForm((prev) => ({
-                  ...prev,
-                  esPaquete: checked,
-                  productoBaseId: checked ? prev.productoBaseId : null,
-                  factorConversion: checked ? prev.factorConversion : null,
-                }));
-              }}
-              className="w-4 h-4 accent-brand-blue"
-            />
-            <label className="text-xs font-semibold text-gray-600">
-              ¿Es un paquete/caja con unidades dentro?
-            </label>
+        {isStock && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">&nbsp;</label>
+            <div className="flex items-center gap-2 h-10 px-1">
+              <input
+                type="checkbox"
+                checked={!!form.esPaquete}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setForm((prev) => ({
+                    ...prev,
+                    esPaquete: checked,
+                    productoBaseId: checked ? prev.productoBaseId : null,
+                    factorConversion: checked ? prev.factorConversion : null,
+                  }));
+                }}
+                className="w-4 h-4 accent-brand-blue"
+              />
+              <label className="text-xs font-semibold text-gray-600">
+                ¿Es un paquete/caja con unidades dentro?
+              </label>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {form.esPaquete && (
+      {isStock && form.esPaquete && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-500 uppercase">
@@ -410,7 +438,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             >
               <option value={0}>Seleccione el producto unidad</option>
               {productosEmpresa
-                .filter((p) => p.productoId !== productoActualId)
+                .filter((p) => p.productoId !== productoActualId && !p.esPaquete)
                 .map((p) => (
                   <option key={p.productoId} value={p.productoId}>
                     {p.nomProducto} ({p.codigo})
@@ -435,7 +463,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
         </div>
       )}
 
-      {isStock && form.tipoProducto === "BIEN" && (
+      {isStock && form.tipoProducto === "BIEN" && !form.esPaquete && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InputBase
             label="Stock"
@@ -445,6 +473,79 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             placeholder="0"
           />
         </div>
+      )}
+
+      {isStock && form.tipoProducto === "BIEN" && (
+        <div className="space-y-3 border-t border-gray-100 pt-4">
+          <p className="text-xs font-bold text-gray-500 uppercase">Mayorista y Promoción</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputBase
+              label="Precio Mayorista"
+              labelOptional="(opcional)"
+              type="number"
+              step="0.01"
+              value={String(form.precioMayorista ?? "")}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  precioMayorista: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder="0.00"
+            />
+            <InputBase
+              label="Cantidad mínima para mayorista"
+              labelOptional={form.esPaquete ? "(paquetes)" : "(unidades)"}
+              type="number"
+              value={String(form.cantidadMinimaMayorista ?? "")}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  cantidadMinimaMayorista: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder="Ej: 12"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={!!form.enPromocion}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, enPromocion: e.target.checked }))
+              }
+              className="w-4 h-4 accent-brand-blue"
+            />
+            <label className="text-xs font-semibold text-gray-600">
+              ¿Producto en promoción?
+            </label>
+          </div>
+
+          {form.enPromocion && (
+            <InputBase
+              label="% Descuento"
+              type="number"
+              step="0.01"
+              value={String(form.porcentajeDescuento ?? "")}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  porcentajeDescuento: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder="Ej: 50"
+            />
+          )}
+        </div>
+      )}
+
+      {isStock && form.tipoProducto === "BIEN" && form.esPaquete && (
+        <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+          El stock de este paquete se calcula automáticamente a partir del producto base y se
+          actualiza desde el módulo de Compras. Aquí solo puedes editar sus precios.
+        </p>
       )}
     </>
   );

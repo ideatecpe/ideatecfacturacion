@@ -69,6 +69,35 @@ interface DetalleLocal extends Partial<BoletaDetalle> {
   _tipoProducto?: string | null;
   _stockDisponible?: number | null;
   _esIcbper?: boolean;
+  _precioListaEnMoneda?: number;
+  _enPromocion?: boolean | null;
+  _porcentajeDescuento?: number | null;
+  _precioMayoristaEnMoneda?: number | null;
+  _cantidadMinimaMayorista?: number | null;
+  _precioManual?: boolean;
+}
+
+// Promoción y precio mayorista son excluyentes: gana el que dé el precio más bajo al cliente.
+function calcularPrecioConDescuentos(
+  precioLista: number,
+  cantidad: number,
+  enPromocion?: boolean | null,
+  porcentajeDescuento?: number | null,
+  precioMayorista?: number | null,
+  cantidadMinimaMayorista?: number | null,
+): number {
+  const candidatos = [precioLista];
+  if (enPromocion && porcentajeDescuento) {
+    candidatos.push(precioLista * (1 - porcentajeDescuento / 100));
+  }
+  if (
+    precioMayorista &&
+    cantidadMinimaMayorista &&
+    cantidad >= cantidadMinimaMayorista
+  ) {
+    candidatos.push(precioMayorista);
+  }
+  return Math.min(...candidatos);
 }
 
 interface PagoLocal {
@@ -1379,6 +1408,17 @@ function BoletaContent() {
     ];
   };
 
+  // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
+  const getStockEfectivo = (p: ProductoSucursal): number | null => {
+    if (p.esPaquete && p.productoBaseId) {
+      const base = productosSucursal.find(
+        (x) => x.productoId === p.productoBaseId,
+      );
+      return base?.sucursalProducto.stock ?? null;
+    }
+    return p.sucursalProducto.stock ?? null;
+  };
+
   // ── Seleccionar producto ─────────────────────────────────────
   const seleccionarProducto = (producto: ProductoSucursal, index: number) => {
     if (
@@ -1416,21 +1456,40 @@ function BoletaContent() {
       boleta.tipoMoneda === "USD"
         ? parseFloat((precioSistema / tipoCambio).toFixed(6))
         : precioSistema;
+    const precioMayoristaEnMoneda = producto.sucursalProducto.precioMayorista
+      ? boleta.tipoMoneda === "USD"
+        ? parseFloat(
+            (producto.sucursalProducto.precioMayorista / tipoCambio).toFixed(6),
+          )
+        : producto.sucursalProducto.precioMayorista
+      : null;
     const porcentajeIGV =
       producto.tipoAfectacionIGV === "10"
         ? (detalles[index]?.porcentajeIGV ?? IGV_DEFAULT)
         : 0;
     const cantidad = 1;
+    const precioVentaUnitario = config?.isStock
+      ? calcularPrecioConDescuentos(
+          precioEnMoneda,
+          cantidad,
+          producto.sucursalProducto.enPromocion,
+          producto.sucursalProducto.porcentajeDescuento,
+          precioMayoristaEnMoneda,
+          producto.sucursalProducto.cantidadMinimaMayorista,
+        )
+      : precioEnMoneda;
     const precioBase =
       producto.tipoAfectacionIGV === "10" && producto.incluirIGV
-        ? parseFloat((precioEnMoneda / (1 + porcentajeIGV / 100)).toFixed(6))
-        : precioEnMoneda;
+        ? parseFloat((precioVentaUnitario / (1 + porcentajeIGV / 100)).toFixed(6))
+        : precioVentaUnitario;
     const precioVentaConIGV =
       producto.tipoAfectacionIGV === "10"
         ? producto.incluirIGV
-          ? precioEnMoneda
-          : parseFloat((precioEnMoneda * (1 + porcentajeIGV / 100)).toFixed(2))
-        : precioEnMoneda;
+          ? precioVentaUnitario
+          : parseFloat(
+              (precioVentaUnitario * (1 + porcentajeIGV / 100)).toFixed(2),
+            )
+        : precioVentaUnitario;
     const calc = calcularDetalle(
       precioBase,
       precioVentaConIGV,
@@ -1441,6 +1500,12 @@ function BoletaContent() {
       0,
     );
 
+    const stockEfectivo = getStockEfectivo(producto);
+    const stockDisponible =
+      producto.esPaquete && producto.factorConversion && stockEfectivo != null
+        ? Math.floor(stockEfectivo / producto.factorConversion)
+        : stockEfectivo;
+
     const nuevos = [...detalles];
     nuevos[index] = {
       ...nuevos[index],
@@ -1448,7 +1513,7 @@ function BoletaContent() {
       codigo: producto.codigo,
       _sucursalProductoId: producto.sucursalProducto.sucursalProductoId,
       _tipoProducto: producto.tipoProducto,
-      _stockDisponible: producto.sucursalProducto.stock,
+      _stockDisponible: stockDisponible,
       descripcion: producto.nomProducto,
       unidadMedida: producto.unidadMedida,
       tipoAfectacionIGV: producto.tipoAfectacionIGV,
@@ -1458,6 +1523,12 @@ function BoletaContent() {
       _precioBase: precioBase,
       _precioBaseOriginal: precioBase,
       _precioVentaConIGV: precioVentaConIGV,
+      _precioListaEnMoneda: precioEnMoneda,
+      _enPromocion: producto.sucursalProducto.enPromocion,
+      _porcentajeDescuento: producto.sucursalProducto.porcentajeDescuento,
+      _precioMayoristaEnMoneda: precioMayoristaEnMoneda,
+      _cantidadMinimaMayorista: producto.sucursalProducto.cantidadMinimaMayorista,
+      _precioManual: false,
       ...calc,
     };
     setDetalles(nuevos);
@@ -1501,6 +1572,7 @@ function BoletaContent() {
       ...d,
       _precioBase: nuevoPrecioBase,
       _precioVentaConIGV: nuevoPrecioVenta,
+      _precioManual: true,
       ...calc,
     };
     setDetalles(nuevos);
@@ -1524,9 +1596,37 @@ function BoletaContent() {
       );
     }
 
+    let precioBase = d._precioBase ?? d.precioUnitario ?? 0;
+    let precioVentaConIGV = d._precioVentaConIGV ?? d.precioVenta ?? 0;
+
+    // Si el precio no fue editado a mano, reevalúa promoción/mayorista con la nueva cantidad
+    // (solo si la sucursal maneja stock; sin stock no se aplican estas reglas).
+    if (config?.isStock && !d._precioManual && d._precioListaEnMoneda != null) {
+      const ta = d.tipoAfectacionIGV ?? "10",
+        pct = d.porcentajeIGV ?? 18;
+      const precioVentaUnitario = calcularPrecioConDescuentos(
+        d._precioListaEnMoneda,
+        cantidadFinal,
+        d._enPromocion,
+        d._porcentajeDescuento,
+        d._precioMayoristaEnMoneda,
+        d._cantidadMinimaMayorista,
+      );
+      precioBase =
+        ta === "10" && d._incluirIGV
+          ? parseFloat((precioVentaUnitario / (1 + pct / 100)).toFixed(6))
+          : precioVentaUnitario;
+      precioVentaConIGV =
+        ta === "10"
+          ? d._incluirIGV
+            ? precioVentaUnitario
+            : parseFloat((precioVentaUnitario * (1 + pct / 100)).toFixed(2))
+          : precioVentaUnitario;
+    }
+
     const calc = calcularDetalle(
-      d._precioBase ?? d.precioUnitario ?? 0,
-      d._precioVentaConIGV ?? d.precioVenta ?? 0,
+      precioBase,
+      precioVentaConIGV,
       cantidadFinal,
       d.porcentajeIGV ?? 18,
       d.tipoAfectacionIGV ?? "10",
@@ -1534,7 +1634,13 @@ function BoletaContent() {
       d.descuentoUnitario ?? 0,
     );
     const nuevos = [...detalles];
-    nuevos[index] = { ...d, cantidad: cantidadFinal, ...calc };
+    nuevos[index] = {
+      ...d,
+      cantidad: cantidadFinal,
+      _precioBase: precioBase,
+      _precioVentaConIGV: precioVentaConIGV,
+      ...calc,
+    };
     setDetalles(nuevos);
   };
 
@@ -3451,10 +3557,21 @@ function BoletaContent() {
                                         className="bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto"
                                       >
                                         {filtrados.map((p: ProductoSucursal) => {
+                                          const stockEfectivo = getStockEfectivo(p);
+                                          const unidadesVendibles =
+                                            p.esPaquete && p.factorConversion
+                                              ? Math.floor(
+                                                  (stockEfectivo ?? 0) / p.factorConversion,
+                                                )
+                                              : stockEfectivo ?? 0;
                                           const sinStock =
                                             !!config?.isStock &&
                                             p.tipoProducto === "BIEN" &&
-                                            (p.sucursalProducto.stock ?? 0) === 0;
+                                            unidadesVendibles <= 0;
+                                          const stockMostrado =
+                                            p.esPaquete && p.factorConversion && stockEfectivo != null
+                                              ? `${(stockEfectivo / p.factorConversion).toFixed(2)} paq.`
+                                              : `${stockEfectivo ?? 0}`;
                                           return (
                                             <button
                                               key={p.productoId}
@@ -3471,26 +3588,46 @@ function BoletaContent() {
                                                   : " hover:bg-gray-50")
                                               }
                                             >
-                                              <p className="text-xs font-medium text-gray-800">
+                                              <p className="text-xs font-medium text-gray-800 flex items-center gap-1">
                                                 {p.nomProducto}
+                                                {!!config?.isStock &&
+                                                  !!p.sucursalProducto.enPromocion &&
+                                                  !!p.sucursalProducto.porcentajeDescuento && (
+                                                    <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1 rounded">
+                                                      -{p.sucursalProducto.porcentajeDescuento}%
+                                                    </span>
+                                                  )}
                                               </p>
                                               <p className="text-[10px] text-gray-400">
                                                 {p.codigo} · S/{" "}
-                                                {p.sucursalProducto.precioUnitario.toFixed(
-                                                  2,
+                                                {!!config?.isStock &&
+                                                !!p.sucursalProducto.enPromocion &&
+                                                !!p.sucursalProducto.porcentajeDescuento ? (
+                                                  <>
+                                                    <span className="line-through">
+                                                      {p.sucursalProducto.precioUnitario.toFixed(2)}
+                                                    </span>{" "}
+                                                    <span className="text-rose-500 font-semibold">
+                                                      {(
+                                                        p.sucursalProducto.precioUnitario *
+                                                        (1 - p.sucursalProducto.porcentajeDescuento / 100)
+                                                      ).toFixed(2)}
+                                                    </span>
+                                                  </>
+                                                ) : (
+                                                  p.sucursalProducto.precioUnitario.toFixed(2)
                                                 )}
                                                 {!!config?.isStock &&
                                                   p.tipoProducto === "BIEN" && (
                                                     <span
                                                       className={
-                                                        (p.sucursalProducto.stock ?? 0) === 0
+                                                        unidadesVendibles <= 0
                                                           ? " text-red-500"
                                                           : " text-green-600"
                                                       }
                                                     >
                                                       {" "}
-                                                      · Stock:{" "}
-                                                      {p.sucursalProducto.stock ?? 0}
+                                                      · Stock: {stockMostrado}
                                                     </span>
                                                   )}
                                               </p>

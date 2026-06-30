@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import axios from "axios";
+import { ChevronDown } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
@@ -48,6 +49,10 @@ const emptyForm: NuevoProducto = {
   esPaquete: false,
   productoBaseId: null,
   factorConversion: null,
+  precioMayorista: null,
+  cantidadMinimaMayorista: null,
+  enPromocion: false,
+  porcentajeDescuento: null,
 };
 
 export default function AgregarProducto({
@@ -75,6 +80,7 @@ export default function AgregarProducto({
   const [nombreNuevaCategoria, setNombreNuevaCategoria] = useState("");
 
   const [isModalCategoriaOpen, setIsModalCategoriaOpen] = useState(false);
+  const [showMayorista, setShowMayorista] = useState(false);
 
   //seleccionar sucursal para agregar si es superadmin
   const { sucursales } = useSucursalRuc(isSuperAdmin);
@@ -110,6 +116,7 @@ export default function AgregarProducto({
       setShowNuevaCategoria(false);
       setNombreNuevaCategoria("");
       setIsModalCategoriaOpen(false);
+      setShowMayorista(false);
     }
   }, [isOpen]);
 
@@ -123,7 +130,13 @@ export default function AgregarProducto({
     setShowSugerencias(productosBase.length > 0);
   }, [productosBase, palabraBusqueda]);
 
-  const { productosEmpresa } = useProductosEmpresaLista();
+  const { productosEmpresa, fetchProductosEmpresa } = useProductosEmpresaLista();
+
+  // Refresca la lista de productos base cada vez que se abre el modal,
+  // para que un producto base recién creado aparezca de inmediato al registrar su paquete.
+  React.useEffect(() => {
+    if (isOpen) fetchProductosEmpresa();
+  }, [isOpen]);
 
   // REEMPLAZA ESTA FUNCIÓN COMPLETA:
   const handleNomProductoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,6 +227,10 @@ export default function AgregarProducto({
 
     if (!soloSucursal) {
       if (form.categoriaId === 0) newErrors.categoriaId = true;
+    }
+
+    if (form.enPromocion && (!form.porcentajeDescuento || form.porcentajeDescuento <= 0)) {
+      newErrors.porcentajeDescuento = true;
     }
 
     setErrors(newErrors);
@@ -467,7 +484,7 @@ export default function AgregarProducto({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <InputBase
-              label="Precio Unitario"
+              label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio Unitario"}
               type="number"
               value={String(form.precioUnitario)}
               onChange={(e) => {
@@ -509,19 +526,19 @@ export default function AgregarProducto({
 
         </div>
 
-        {/* ── Código de barras / paquete ── */}
+        {/* ── Código de barras (siempre disponible) ── */}
         {!soloSucursal && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputBase
-                label="Código de Barras"
-                labelOptional="(opcional)"
-                value={form.codigoBarras ?? ""}
-                onChange={handleFormChange("codigoBarras")}
-                placeholder="EAN13 / Code128"
-                showError={false}
-              />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputBase
+              label="Código de Barras"
+              labelOptional="(opcional)"
+              value={form.codigoBarras ?? ""}
+              onChange={handleFormChange("codigoBarras")}
+              placeholder="EAN13 / Code128"
+              showError={false}
+            />
 
+            {config?.isStock && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">
                   &nbsp;
@@ -546,8 +563,13 @@ export default function AgregarProducto({
                   </label>
                 </div>
               </div>
-            </div>
+            )}
+          </div>
+        )}
 
+        {/* ── Paquete: producto base + factor de conversión (solo si maneja stock) ── */}
+        {!soloSucursal && config?.isStock && (
+          <>
             {form.esPaquete && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -565,11 +587,13 @@ export default function AgregarProducto({
                     className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
                   >
                     <option value={0}>Seleccione el producto unidad</option>
-                    {productosEmpresa.map((p) => (
-                      <option key={p.productoId} value={p.productoId}>
-                        {p.nomProducto} ({p.codigo})
-                      </option>
-                    ))}
+                    {productosEmpresa
+                      .filter((p) => !p.esPaquete)
+                      .map((p) => (
+                        <option key={p.productoId} value={p.productoId}>
+                          {p.nomProducto} ({p.codigo})
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -590,6 +614,94 @@ export default function AgregarProducto({
               </div>
             )}
           </>
+        )}
+
+        {/* ── Mayorista y Promoción (comprimido, no es prioritario al registrar) ── */}
+        {!soloSucursal && config?.isStock && form.tipoProducto === "BIEN" && (
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowMayorista((prev) => !prev)}
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+            >
+              <span className="text-xs font-bold text-gray-500 uppercase">
+                Mayorista y Promoción <span className="text-gray-400 font-normal">(opcional)</span>
+              </span>
+              <ChevronDown
+                className={`w-4 h-4 text-gray-400 transition-transform ${showMayorista ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {showMayorista && (
+              <div className="p-4 space-y-4 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InputBase
+                    label="Precio Mayorista"
+                    labelOptional="(opcional)"
+                    type="number"
+                    step="0.01"
+                    value={String(form.precioMayorista ?? "")}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        precioMayorista: e.target.value === "" ? null : Number(e.target.value),
+                      }))
+                    }
+                    placeholder="0.00"
+                    showError={false}
+                  />
+                  <InputBase
+                    label="Cantidad mínima para mayorista"
+                    labelOptional={form.esPaquete ? "(paquetes)" : "(unidades)"}
+                    type="number"
+                    value={String(form.cantidadMinimaMayorista ?? "")}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        cantidadMinimaMayorista: e.target.value === "" ? null : Number(e.target.value),
+                      }))
+                    }
+                    placeholder="Ej: 12"
+                    showError={false}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!form.enPromocion}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, enPromocion: e.target.checked }))
+                    }
+                    className="w-4 h-4 accent-brand-blue"
+                  />
+                  <label className="text-xs font-semibold text-gray-600">
+                    ¿Producto en promoción?
+                  </label>
+                </div>
+
+                {form.enPromocion && (
+                  <InputBase
+                    label="% Descuento"
+                    type="number"
+                    step="0.01"
+                    value={String(form.porcentajeDescuento ?? "")}
+                    showError={!!errors.porcentajeDescuento}
+                    errorMessage="Ingresa el % de descuento de la promoción"
+                    onChange={(e) => {
+                      if (errors.porcentajeDescuento)
+                        setErrors((prev) => ({ ...prev, porcentajeDescuento: false }));
+                      setForm((prev) => ({
+                        ...prev,
+                        porcentajeDescuento: e.target.value === "" ? null : Number(e.target.value),
+                      }));
+                    }}
+                    placeholder="Ej: 50"
+                  />
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         <div className="pt-4 flex justify-end gap-3">
