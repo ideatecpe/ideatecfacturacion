@@ -543,8 +543,19 @@ export default function VerComprobantesPage() {
       );
       if (res.data.exitoso) {
         showToast(res.data.mensaje ?? `${tipoDoc} enviada correctamente a SUNAT`, "success");
+      } else if (res.data.estadoSunat === "PENDIENTE") {
+        // No es un rechazo real: SUNAT no respondió o hubo una falla de comunicación
+        showToast(
+          `SUNAT no disponible. ${tipoDoc} ${c.numeroCompleto} sigue PENDIENTE, puedes reintentar más tarde.`,
+          "error",
+        );
       } else {
-        showToast(`${tipoDoc} ${c.numeroCompleto} rechazada por SUNAT`, "error");
+        showToast(
+          res.data.mensajeRespuesta
+            ? `${tipoDoc} ${c.numeroCompleto} rechazada por SUNAT: ${res.data.mensajeRespuesta}`
+            : `${tipoDoc} ${c.numeroCompleto} rechazada por SUNAT`,
+          "error",
+        );
       }
       // Recargar lista para traer xmlGenerado y xmlRespuestaSunat del servidor
       if (refetch) cargarComprobantes(offset);
