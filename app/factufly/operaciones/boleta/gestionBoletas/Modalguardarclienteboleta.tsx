@@ -86,7 +86,7 @@ export function ModalGuardarClienteBoleta({ cliente, onGuardar, onCerrar }: Prop
                 value={direccionLineal}
                 onChange={(e) => setDireccionLineal(e.target.value)}
                 placeholder="Ej: Av. Los Álamos 123"
-                className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/20 transition-all"
               />
             </div>
           )}
@@ -101,7 +101,7 @@ export function ModalGuardarClienteBoleta({ cliente, onGuardar, onCerrar }: Prop
                   value={nombreComercial}
                   onChange={(e) => setNombreComercial(e.target.value)}
                   placeholder="Nombre comercial"
-                  className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/20 transition-all"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -112,7 +112,7 @@ export function ModalGuardarClienteBoleta({ cliente, onGuardar, onCerrar }: Prop
                     value={telefono}
                     onChange={(e) => setTelefono(e.target.value)}
                     placeholder="999 999 999"
-                    className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                    className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/20 transition-all"
                   />
                 </div>
                 <div className="space-y-1">
@@ -122,7 +122,7 @@ export function ModalGuardarClienteBoleta({ cliente, onGuardar, onCerrar }: Prop
                     value={correo}
                     onChange={(e) => setCorreo(e.target.value)}
                     placeholder="correo@email.com"
-                    className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                    className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/20 transition-all"
                   />
                 </div>
               </div>
@@ -139,7 +139,7 @@ export function ModalGuardarClienteBoleta({ cliente, onGuardar, onCerrar }: Prop
                   value={telefono}
                   onChange={(e) => setTelefono(e.target.value)}
                   placeholder="999 999 999"
-                  className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/20 transition-all"
                 />
               </div>
               <div className="space-y-1">
@@ -149,7 +149,7 @@ export function ModalGuardarClienteBoleta({ cliente, onGuardar, onCerrar }: Prop
                   value={correo}
                   onChange={(e) => setCorreo(e.target.value)}
                   placeholder="correo@email.com"
-                  className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  className="w-full py-2.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/20 transition-all"
                 />
               </div>
             </div>

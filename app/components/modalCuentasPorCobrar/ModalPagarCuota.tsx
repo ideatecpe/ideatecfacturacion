@@ -160,7 +160,7 @@ export const ModalPagarCuota = ({
               value={fechaPago}
               max={hoy}
               onChange={e => setFechaPago(e.target.value)}
-              className={cn("w-full px-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-blue-400 text-sm",
+              className={cn("w-full px-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 text-sm",
                 errors.fechaPago ? "border-rose-400" : "border-gray-200")}
             />
             {errors.fechaPago && <p className="text-xs text-rose-500">{errors.fechaPago}</p>}
@@ -178,7 +178,7 @@ export const ModalPagarCuota = ({
               max={montoRestante}
               step="0.01"
               onChange={e => setMontoPagado(e.target.value)}
-              className={cn("w-full px-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-blue-400 text-sm",
+              className={cn("w-full px-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 text-sm",
                 errors.montoPagado ? "border-rose-400" : "border-gray-200")}
             />
             {errors.montoPagado && <p className="text-xs text-rose-500">{errors.montoPagado}</p>}
@@ -218,7 +218,7 @@ export const ModalPagarCuota = ({
             <select
               value={medioPago}
               onChange={e => setMedioPago(e.target.value)}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
             >
               {MEDIO_PAGO_OPTS.map(m => (
                 <option key={m} value={m}>{m}</option>
@@ -233,13 +233,13 @@ export const ModalPagarCuota = ({
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Entidad</label>
                 <input type="text" value={entidadFinanciera} onChange={e => setEntidadFinanciera(e.target.value)}
                   placeholder="Ej: BCP"
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm" />
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">N° Operación</label>
                 <input type="text" value={numeroOperacion} onChange={e => setNumeroOperacion(e.target.value)}
                   placeholder="Ej: 123456"
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm" />
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm" />
               </div>
             </div>
           )}
@@ -254,7 +254,7 @@ export const ModalPagarCuota = ({
               onChange={e => setObservaciones(e.target.value)}
               placeholder="Notas adicionales del pago..."
               rows={2}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm resize-none"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm resize-none"
             />
           </div>
 

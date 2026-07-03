@@ -41,7 +41,7 @@ interface Props {
 }
 
 const inputCls =
-  "w-full px-2 py-1.5 text-xs bg-gray-50 border rounded-md outline-none focus:border-brand-blue focus:bg-white disabled:opacity-50";
+  "w-full px-2 py-1.5 text-xs bg-gray-50 border rounded-md outline-none focus:border-brand-blue/50 focus:bg-white disabled:opacity-50";
 
 export default function LineaCompraRow({
   index,

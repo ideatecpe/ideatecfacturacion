@@ -490,7 +490,7 @@ export function CertificadoDigitalCard({
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Ingresa la clave del certificado"
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm pr-20"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm pr-20"
                 value={certPasswordInput}
                 onChange={(e) => setCertPasswordInput(e.target.value)}
                 required

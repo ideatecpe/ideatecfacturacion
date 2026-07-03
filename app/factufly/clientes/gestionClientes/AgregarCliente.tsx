@@ -158,7 +158,7 @@ export const AgregarCliente: React.FC<AgregarClienteProps> = ({
           setSucursalSeleccionada(Number(e.target.value));
             if (errors.sucursalId) setErrors((prev) => ({ ...prev, sucursalId: false }));
           }}
-            className={`w-full px-4 py-2 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue ${
+            className={`w-full px-4 py-2 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 ${
               errorSucursal ? "border-rose-400" : "border-gray-200"
             }`}
           >
@@ -192,7 +192,7 @@ export const AgregarCliente: React.FC<AgregarClienteProps> = ({
               }));
               setMostrarDireccion(false);
             }}
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
           >
             <option value="01">DNI</option>
             <option value="06">RUC</option>

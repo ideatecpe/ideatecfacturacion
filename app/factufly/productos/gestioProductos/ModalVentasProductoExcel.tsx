@@ -185,7 +185,7 @@ export function ModalVentasProductoExcel({ sucursalId, onClose }: Props) {
                 type="date"
                 value={fecha}
                 onChange={(e) => setFecha(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all"
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all"
               />
               {agrupacion === "semanal" && fecha && (
                 <p className="text-[10px] text-gray-400">
@@ -204,7 +204,7 @@ export function ModalVentasProductoExcel({ sucursalId, onClose }: Props) {
                   <select
                     value={mes}
                     onChange={(e) => setMes(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all bg-white"
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all bg-white"
                   >
                     {MONTHS.map((m) => (
                       <option key={m.value} value={m.value}>{m.label}</option>
@@ -216,7 +216,7 @@ export function ModalVentasProductoExcel({ sucursalId, onClose }: Props) {
                   <select
                     value={anio}
                     onChange={(e) => setAnio(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all bg-white"
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all bg-white"
                   >
                     {YEARS.map((y) => (
                       <option key={y} value={y}>{y}</option>

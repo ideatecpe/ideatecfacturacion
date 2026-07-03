@@ -6,6 +6,7 @@ export interface MenuItem {
   id: View;
   label: string;
   icon: LucideIcon;
+  children?: { id: string; label: string }[];
 }
 
 export interface SalesData {

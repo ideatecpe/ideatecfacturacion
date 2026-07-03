@@ -150,7 +150,7 @@ export const ModalReporteCuentasPorCobrar = ({
               <select
                 value={sucursalFiltro}
                 onChange={e => setSucursalFiltro(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400 text-xs text-gray-700"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs text-gray-700"
               >
                 <option value="">Todas las sucursales</option>
                 {sucursales.map(s => (
@@ -172,13 +172,13 @@ export const ModalReporteCuentasPorCobrar = ({
                 <p className="text-[10px] text-gray-400 mb-1">Desde</p>
                 <input type="date" value={fechaDesde} max={hoy}
                     onChange={e => handleFechaDesde(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400 text-xs" />
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
               </div>
               <div>
                 <p className="text-[10px] text-gray-400 mb-1">Hasta</p>
                 <input type="date" value={fechaHasta} min={fechaDesde || undefined} max={hoy}
                     onChange={e => handleFechaHasta(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400 text-xs" />
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
               </div>
             </div>
             <div className="flex gap-1.5 flex-wrap pt-0.5">
@@ -203,7 +203,7 @@ export const ModalReporteCuentasPorCobrar = ({
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Nº Doc. Cliente</label>
               <input type="text" value={clienteNumDoc} onChange={e => setClienteNumDoc(e.target.value)}
                 placeholder="RUC o DNI"
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400 text-xs" />
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Estado</label>
@@ -231,7 +231,7 @@ export const ModalReporteCuentasPorCobrar = ({
             </label>
             <input type="text" value={tituloReporte} onChange={e => setTituloReporte(e.target.value)}
               placeholder={tituloAuto()}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-emerald-400 text-xs text-gray-600" />
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs text-gray-600" />
           </div>
 
           {/* Filtros activos */}

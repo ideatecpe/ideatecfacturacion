@@ -157,7 +157,7 @@ export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
                   value={asunto}
                   onChange={(e) => setAsunto(e.target.value)}
                   placeholder="Ej: Tu servicio vence pronto"
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                   required
                 />
               </div>
@@ -170,7 +170,7 @@ export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
                   onChange={(e) => setMensaje(e.target.value)}
                   rows={5}
                   placeholder="Escribe tu mensaje aquí..."
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm resize-none"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm resize-none"
                   required
                 />
               </div>
@@ -203,7 +203,7 @@ export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
                   value={placas}
                   onChange={(e) => setPlacas(e.target.value)}
                   placeholder="Ej: M2L-777, AUX-898"
-                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                   required
                 />
                 <p className="text-xs text-slate-400">
@@ -220,7 +220,7 @@ export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
                   <select
                     value={periodo}
                     onChange={(e) => setPeriodo(Number(e.target.value))}
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                     required
                   >
                     {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -243,7 +243,7 @@ export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
                     value={fechaVencimiento}
                     onChange={(e) => setFechaVencimiento(e.target.value)}
                     placeholder="Ej: 15 de junio"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                     required
                   />
                 </div>
@@ -260,7 +260,7 @@ export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
                     value={monto}
                     onChange={(e) => setMonto(e.target.value)}
                     placeholder="0.00"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                     required
                   />
                 </div>
@@ -279,7 +279,7 @@ export const EnviarCorreoCliente: React.FC<Props> = ({ cliente, onClose }) => {
                     value={mensajeVencimiento}
                     onChange={(e) => setMensajeVencimiento(e.target.value)}
                     rows={5}
-                    className="w-full px-3 py-2.5 bg-white border border-blue-200 rounded-xl outline-none focus:border-brand-blue text-xs text-gray-700 resize-none leading-relaxed"
+                    className="w-full px-3 py-2.5 bg-white border border-blue-200 rounded-xl outline-none focus:border-brand-blue/50 text-xs text-gray-700 resize-none leading-relaxed"
                     required
                   />
                 </div>

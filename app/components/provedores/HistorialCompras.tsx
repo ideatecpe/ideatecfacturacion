@@ -143,7 +143,7 @@ export default function HistorialCompras({ isOpen, proveedor, onClose }: Props) 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar producto o doc. referencia..."
-              className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm text-xs"
+              className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
             />
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
@@ -154,7 +154,7 @@ export default function HistorialCompras({ isOpen, proveedor, onClose }: Props) 
               <select
                 value={filtroSucursal}
                 onChange={(e) => setFiltroSucursal(e.target.value)}
-                className="pl-7 pr-3 py-2 text-xs bg-white border border-gray-200 rounded-md outline-none focus:border-brand-blue shadow-sm"
+                className="pl-7 pr-3 py-2 text-xs bg-white border border-gray-200 rounded-md outline-none focus:border-brand-blue/50 shadow-sm"
               >
                 <option value="Todas">Todas las sucursales</option>
                 {sucursales.map((s) => (

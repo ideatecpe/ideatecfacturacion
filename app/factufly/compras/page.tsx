@@ -1,4 +1,5 @@
 "use client";
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Truck, ClipboardList } from 'lucide-react';
 
@@ -9,6 +10,10 @@ const opciones = [
 
 export default function ComprasPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/factufly/compras/proveedores');
+  }, [router]);
 
   return (
     <div className="mx-auto space-y-4 animate-in slide-in-from-bottom-4 duration-500">

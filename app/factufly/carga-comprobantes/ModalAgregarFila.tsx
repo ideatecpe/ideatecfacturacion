@@ -208,7 +208,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                 className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${
                   errores.numdoc
                     ? "border-red-400 bg-red-50 focus:ring-red-100"
-                    : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
+                    : "border-gray-200 focus:border-brand-blue/50 focus:ring-blue-100"
                 }`}
               />
               {errores.numdoc && (
@@ -233,7 +233,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                   className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${
                     errores.razonSocial
                       ? "border-red-400 bg-red-50 focus:ring-red-100"
-                      : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
+                      : "border-gray-200 focus:border-brand-blue/50 focus:ring-blue-100"
                   }`}
                 />
               )}
@@ -313,7 +313,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                   onChange={(e) => set("periodo", e.target.value)}
                   placeholder="Ej: 4 → cuatrimestral   |   17d → 17 días"
                   autoFocus
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-gray-700 focus:ring-2 focus:ring-gray-100 transition-all"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-gray-100 transition-all"
                 />
                 {periodoPreview && (
                   <span className={`text-[10px] px-2.5 py-1.5 rounded-lg font-bold whitespace-nowrap ${
@@ -350,7 +350,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                 className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${
                   errores.fechaini
                     ? "border-red-400 bg-red-50 focus:ring-red-100"
-                    : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
+                    : "border-gray-200 focus:border-brand-blue/50 focus:ring-blue-100"
                 }`}
               />
               {errores.fechaini && <p className="text-[10px] text-red-500">{errores.fechaini}</p>}
@@ -370,7 +370,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                 className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all bg-gray-50/80 ${
                   errores.fechafin
                     ? "border-red-400 focus:ring-red-100"
-                    : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
+                    : "border-gray-200 focus:border-brand-blue/50 focus:ring-blue-100"
                 }`}
               />
               {errores.fechafin && <p className="text-[10px] text-red-500">{errores.fechafin}</p>}
@@ -417,7 +417,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                 className={`w-full px-3 py-2 border rounded-lg text-sm font-mono uppercase outline-none focus:ring-2 transition-all tracking-wider ${
                   errores.placa
                     ? "border-red-400 bg-red-50 focus:ring-red-100"
-                    : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
+                    : "border-gray-200 focus:border-brand-blue/50 focus:ring-blue-100"
                 }`}
               />
               {errores.placa && <p className="text-[10px] text-red-500">{errores.placa}</p>}
@@ -440,7 +440,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                 className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${
                   errores.importe
                     ? "border-red-400 bg-red-50 focus:ring-red-100"
-                    : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"
+                    : "border-gray-200 focus:border-brand-blue/50 focus:ring-blue-100"
                 }`}
               />
               {errores.importe && <p className="text-[10px] text-red-500">{errores.importe}</p>}
@@ -499,7 +499,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                 value={form.correo}
                 onChange={(e) => set("correo", e.target.value)}
                 placeholder="cliente@correo.com"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-100 transition-all"
               />
             </div>
             <div className="space-y-1">
@@ -512,7 +512,7 @@ export function ModalAgregarFila({ isOpen, onClose, onGuardar }: Props) {
                 onChange={(e) => set("whatsapp", e.target.value)}
                 placeholder="9XXXXXXXX"
                 maxLength={9}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-100 transition-all"
               />
             </div>
           </div>

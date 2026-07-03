@@ -791,7 +791,7 @@ export default function ProductosPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar productos por código o nombre..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm text-xs"
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
             />
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
@@ -1493,7 +1493,7 @@ export default function ProductosPage() {
                       value={valeForm.nombre}
                       onChange={(e) => setValeForm((p) => ({ ...p, nombre: e.target.value }))}
                       placeholder="Nombre del vale"
-                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1503,7 +1503,7 @@ export default function ProductosPage() {
                       value={valeForm.duracion}
                       onChange={(e) => setValeForm((p) => ({ ...p, duracion: e.target.value }))}
                       placeholder="Ej: 30"
-                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1513,7 +1513,7 @@ export default function ProductosPage() {
                       onChange={(e) => setValeForm((p) => ({ ...p, descripcion: e.target.value }))}
                       placeholder="Descripción del vale..."
                       rows={4}
-                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue resize-none"
+                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 resize-none"
                     />
                   </div>
                 </div>
@@ -1643,7 +1643,7 @@ export default function ProductosPage() {
                   value={importSucursalId}
                   onChange={(e) => setImportSucursalId(Number(e.target.value))}
                   disabled={importando || !!importResultados}
-                  className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue disabled:opacity-50"
+                  className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 disabled:opacity-50"
                 >
                   <option value={0}>Seleccione sucursal</option>
                   {sucursales.map((s) => (

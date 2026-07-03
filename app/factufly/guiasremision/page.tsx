@@ -370,7 +370,7 @@ export default function GuiasRemisionPage() {
                       ? "Buscar por destinatario, RUC/DNI o N° guía..."
                       : "Buscar por remitente, RUC/DNI o N° guía..."
                   }
-                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
+                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
                 />
                 {search && (
                   <button
@@ -482,7 +482,7 @@ export default function GuiasRemisionPage() {
                             if (avFechaHasta && e.target.value > avFechaHasta)
                               setAvFechaHasta("");
                           }}
-                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -495,7 +495,7 @@ export default function GuiasRemisionPage() {
                           min={avFechaDesde || undefined}
                           max={hoy}
                           onChange={(e) => setAvFechaHasta(e.target.value)}
-                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
                       </div>
                     </>
@@ -513,7 +513,7 @@ export default function GuiasRemisionPage() {
                             setAvSerie(e.target.value.toUpperCase())
                           }
                           placeholder="T001"
-                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-28"
+                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-28"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -525,7 +525,7 @@ export default function GuiasRemisionPage() {
                           value={avNumero}
                           onChange={(e) => setAvNumero(e.target.value)}
                           placeholder="1"
-                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-28"
+                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-28"
                         />
                       </div>
                     </>

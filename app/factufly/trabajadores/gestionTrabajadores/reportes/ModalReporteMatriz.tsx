@@ -74,7 +74,7 @@ export function ModalReporteMatriz({ sucursalId, onClose }: Props) {
               type="date"
               value={fechaDesde}
               onChange={(e) => setFechaDesde(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none"
+              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none"
             />
           </div>
           <div>
@@ -85,7 +85,7 @@ export function ModalReporteMatriz({ sucursalId, onClose }: Props) {
               type="date"
               value={fechaHasta}
               onChange={(e) => setFechaHasta(e.target.value)}
-              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none"
+              className="w-full px-3 py-2 text-xs border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none"
             />
           </div>
         </div>

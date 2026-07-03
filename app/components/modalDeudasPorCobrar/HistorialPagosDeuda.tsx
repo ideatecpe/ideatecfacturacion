@@ -233,7 +233,7 @@ export const HistorialPagosDeuda = ({
                       onChange={(e) =>
                         setFilaEditando((f) => f && ({ ...f, fechaPago: e.target.value }))
                       }
-                      className="w-28 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-blue-500 text-xs"
+                      className="w-28 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-brand-blue/50 text-xs"
                     />
                   </td>
                   {/* Monto */}
@@ -246,7 +246,7 @@ export const HistorialPagosDeuda = ({
                       onChange={(e) =>
                         setFilaEditando((f) => f && ({ ...f, montoPagado: e.target.value }))
                       }
-                      className="w-24 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-blue-500 text-xs text-right"
+                      className="w-24 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-brand-blue/50 text-xs text-right"
                     />
                   </td>
                   {/* Medio */}
@@ -256,7 +256,7 @@ export const HistorialPagosDeuda = ({
                       onChange={(e) =>
                         setFilaEditando((f) => f && ({ ...f, medioPago: e.target.value }))
                       }
-                      className="w-28 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-blue-500 text-xs"
+                      className="w-28 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-brand-blue/50 text-xs"
                     >
                       {MEDIO_PAGO_OPTS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -273,7 +273,7 @@ export const HistorialPagosDeuda = ({
                           setFilaEditando((f) => f && ({ ...f, entidadFinanciera: e.target.value }))
                         }
                         placeholder="Entidad"
-                        className="w-24 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-blue-500 text-xs"
+                        className="w-24 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-brand-blue/50 text-xs"
                       />
                     ) : (
                       <span className="text-gray-300 text-xs">—</span>
@@ -289,7 +289,7 @@ export const HistorialPagosDeuda = ({
                           setFilaEditando((f) => f && ({ ...f, numeroOperacion: e.target.value }))
                         }
                         placeholder="N° Op."
-                        className="w-24 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-blue-500 text-xs"
+                        className="w-24 px-2 py-1 bg-white border border-blue-300 rounded-md outline-none focus:border-brand-blue/50 text-xs"
                       />
                     ) : (
                       <span className="text-gray-300 text-xs">—</span>

@@ -279,7 +279,7 @@ export function ModalCargaMasivaComprobantes({
                       const found = sucursales.find((s: any) => s.sucursalId === Number(e.target.value));
                       setSucursalActual(found ?? null);
                     }}
-                    className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400"
+                    className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50"
                   >
                     <option value="">Seleccionar sucursal...</option>
                     {sucursales.map((s: any) => (
@@ -309,7 +309,7 @@ export function ModalCargaMasivaComprobantes({
                     min={dosAntesISO}
                     max={hoy}
                     onChange={(e) => setFechaEmision(e.target.value)}
-                    className="py-1.5 px-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all"
+                    className="py-1.5 px-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 transition-all"
                     />
                 </div>
                 <p className="text-[10px] text-gray-400 mt-1">

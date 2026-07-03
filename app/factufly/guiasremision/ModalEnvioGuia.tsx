@@ -282,7 +282,7 @@ export const ModalEnvioGuia = ({
               value={destino}
               onChange={(e) => setDestino(e.target.value)}
               placeholder={esEmail ? "correo@ejemplo.com" : "987654321"}
-              className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
+              className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all"
             />
             {!esEmail && (
               <p className="text-xs text-gray-400 mt-1">

@@ -187,7 +187,7 @@ export function ModalResumen({
   };
 
   const inputCls =
-    "w-full pl-2.5 pr-7 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-50 transition-all appearance-none disabled:opacity-50";
+    "w-full pl-2.5 pr-7 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-indigo-50 transition-all appearance-none disabled:opacity-50";
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

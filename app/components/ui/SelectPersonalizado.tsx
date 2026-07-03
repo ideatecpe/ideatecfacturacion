@@ -37,7 +37,7 @@ export function SelectPersonalizado({ opciones, value, onChange, disabled, class
         type="button"
         disabled={disabled}
         onClick={() => setAbierto(!abierto)}
-        className="w-full py-2.5 px-3 bg-white border border-gray-200 rounded-xl text-sm text-left outline-none focus:border-brand-blue flex items-center justify-between"
+        className="w-full py-2.5 px-3 bg-white border border-gray-200 rounded-xl text-sm text-left outline-none focus:border-brand-blue/50 flex items-center justify-between"
       >
         <span className="text-gray-700">{seleccionada?.labelCorto ?? 'Seleccionar'}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${abierto ? 'rotate-180' : ''}`} />
