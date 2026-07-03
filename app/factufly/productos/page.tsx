@@ -983,7 +983,7 @@ export default function ProductosPage() {
                     className={cn(
                       "px-2.5 py-1 text-xs font-semibold border rounded-lg transition-all whitespace-nowrap",
                       filtroStock
-                        ? "bg-rose-100 text-rose-700 border-rose-300"
+                        ? "bg-slate-100 text-slate-600 border-slate-300"
                         : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
                     )}
                   >
@@ -1016,7 +1016,7 @@ export default function ProductosPage() {
                     className={cn(
                       "flex items-center gap-1 px-2.5 py-1 text-xs font-semibold border rounded-lg transition-all whitespace-nowrap",
                       filtroPromocion
-                        ? "bg-rose-100 text-rose-700 border-rose-300"
+                        ? "bg-blue-100 text-blue-700 border-blue-300"
                         : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
                     )}
                   >
@@ -1125,8 +1125,8 @@ export default function ProductosPage() {
 
       {/* Barra de selección para promoción masiva */}
       {modoSeleccionPromo && (
-        <div className="flex items-center justify-between gap-3 bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 animate-in fade-in duration-200">
-          <p className="text-xs font-semibold text-rose-700">
+        <div className="flex items-center justify-between gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 animate-in fade-in duration-200">
+          <p className="text-xs font-semibold text-blue-700">
             {seleccionadosPromo.size} producto(s) seleccionado(s) — marca los productos "Bien" que quieras poner en promoción.
           </p>
           <div className="flex items-center gap-2 shrink-0">
@@ -1220,7 +1220,7 @@ export default function ProductosPage() {
               >
                 {/* ── Imagen ── */}
                 {prod.urlImagenProducto && (
-                  <div className="-mx-2 -mt-2 mb-2 h-28 bg-gray-100 overflow-hidden rounded-t-xl">
+                  <div className="-mx-2 -mt-2 mb-2 h-44 bg-gray-100 overflow-hidden rounded-t-xl">
                     <img
                       src={prod.urlImagenProducto}
                       alt={prod.nomProducto}
@@ -1313,7 +1313,7 @@ export default function ProductosPage() {
                                   className={cn(
                                     "text-[15px] font-bold leading-tight",
                                     estado === "agotado"
-                                      ? "text-rose-500"
+                                      ? "text-slate-400"
                                       : estado === "bajo"
                                         ? "text-amber-600"
                                         : "text-gray-900",
@@ -1334,7 +1334,7 @@ export default function ProductosPage() {
                             className={cn(
                               "text-[15px] font-bold",
                               getEstadoStock(prod) === "agotado"
-                                ? "text-rose-500"
+                                ? "text-slate-400"
                                 : getEstadoStock(prod) === "bajo"
                                   ? "text-amber-600"
                                   : "text-gray-900",

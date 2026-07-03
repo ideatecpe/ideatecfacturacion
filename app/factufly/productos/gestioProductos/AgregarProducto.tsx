@@ -35,7 +35,6 @@ interface Props {
   loadingCategoria: boolean; // ← nuevo
 }
 
-const URL_IMAGEN_DEMO = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&h=300&fit=crop&auto=format";
 
 const emptyForm: NuevoProducto = {
   codigo: "",
@@ -86,20 +85,37 @@ export default function AgregarProducto({
   const [showMayorista, setShowMayorista] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [imgPreview, setImgPreview] = useState<string | null>(null);
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleSeleccionarImagen = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImgError(false);
-    const localUrl = URL.createObjectURL(file);
-    setImgPreview(localUrl);
-    // URL que se guarda en DB — se reemplazará con Cloudinary
-    setForm((prev) => ({ ...prev, urlImagenProducto: URL_IMAGEN_DEMO }));
+    setImgPreview(URL.createObjectURL(file));
+    setSubiendoImagen(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-imagen", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.ok) {
+        setForm((prev) => ({ ...prev, urlImagenProducto: data.url }));
+      } else {
+        showToast("Error al subir imagen: " + data.error, "error");
+        setImgPreview(null);
+      }
+    } catch {
+      showToast("Error de conexión al subir imagen.", "error");
+      setImgPreview(null);
+    } finally {
+      setSubiendoImagen(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const handleQuitarImagen = () => {
@@ -396,9 +412,13 @@ export default function AgregarProducto({
                 Imagen del producto
                 <span className="ml-1 font-normal text-gray-400 normal-case">(opcional)</span>
               </p>
-              {form.urlImagenProducto && !imgError ? (
+              {subiendoImagen ? (
+                <p className="text-[11px] text-blue-500 font-semibold animate-pulse">
+                  Subiendo imagen…
+                </p>
+              ) : form.urlImagenProducto && !imgError ? (
                 <p className="text-[11px] text-emerald-600 font-semibold">
-                  ✓ Imagen seleccionada
+                  ✓ Imagen subida
                 </p>
               ) : (
                 <p className="text-[11px] text-gray-400">
@@ -408,10 +428,11 @@ export default function AgregarProducto({
               <button
                 type="button"
                 onClick={handleSeleccionarImagen}
-                className="w-fit flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                disabled={subiendoImagen}
+                className="w-fit flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
               >
                 <Camera className="w-3.5 h-3.5" />
-                {form.urlImagenProducto ? "Cambiar imagen" : "Subir imagen"}
+                {subiendoImagen ? "Subiendo…" : form.urlImagenProducto ? "Cambiar imagen" : "Subir imagen"}
               </button>
             </div>
           </div>
