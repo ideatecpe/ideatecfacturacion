@@ -137,7 +137,7 @@ function Input({
           "w-full px-4 py-2 border rounded-xl outline-none text-sm transition-colors",
           disabled
             ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed select-none"
-            : "bg-white border-gray-200 focus:border-brand-blue",
+            : "bg-white border-gray-200 focus:border-brand-blue/50",
           className,
         )}
         {...props}
@@ -381,7 +381,7 @@ function SucursalSerieRow({
             "w-full px-4 py-2 border border-gray-200 rounded-xl outline-none text-sm transition-colors",
             readOnly
               ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-              : "focus:border-brand-blue bg-white",
+              : "focus:border-brand-blue/50 bg-white",
           )}
           value={serie}
           onChange={(e) => !readOnly && onSerieChange(e.target.value)}
@@ -402,7 +402,7 @@ function SucursalSerieRow({
             "w-full px-4 py-2.5 border border-gray-200 rounded-xl outline-none text-sm transition-colors",
             readOnly
               ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-              : "focus:border-brand-blue bg-white",
+              : "focus:border-brand-blue/50 bg-white",
           )}
           value={correlativo}
           onChange={(e) =>
@@ -1114,7 +1114,7 @@ export default function ConfiguracionPage() {
 
               {/* Botón guardar datos de empresa */}
               {canEdit && (
-                <div className="flex justify-end pt-2">
+                <div className="flex justify-end pt-2 pb-2">
                   <Button
                     type="submit"
                     className="h-9 text-xs"

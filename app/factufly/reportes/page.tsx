@@ -414,7 +414,7 @@ export default function ReportesPage() {
                   setCustomStart(e.target.value);
                   if (customEnd && e.target.value > customEnd) setCustomEnd('');
                 }}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-brand-blue"
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-brand-blue/50"
               />
               <span className="text-gray-400 text-xs">→</span>
               <input
@@ -423,7 +423,7 @@ export default function ReportesPage() {
                 min={customStart || undefined}
                 max={getHoyString()}
                 onChange={e => setCustomEnd(e.target.value)}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-brand-blue"
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-brand-blue/50"
               />
               <button
                 onClick={handlePersonalizar}

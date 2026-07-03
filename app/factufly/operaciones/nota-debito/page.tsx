@@ -792,7 +792,7 @@ function NotaDebitoContent() {
                         setCorrelativoNDFactura(res.data.correlativoNotaDebitoFactura ?? null);
                         setCorrelativoNDBoleta(res.data.correlativoNotaDebitoBoleta ?? null);
                       }}
-                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                     >
                       <option value="">Seleccionar sucursal</option>
                       {sucursales.map((s: Sucursal) => (
@@ -881,7 +881,7 @@ function NotaDebitoContent() {
                       value={serieInput}
                       onChange={(e) => { setSerieInput(e.target.value); if (comprobante) limpiarBuscador(); }}
                       disabled={isSuperAdmin && sinSucursal || vieneDesdeLista}
-                      className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm disabled:opacity-50"
+                      className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm disabled:opacity-50"
                     >
                       <option value="">Seleccionar serie</option>
                       {seriesDisponibles.map((s) => (
@@ -898,7 +898,7 @@ function NotaDebitoContent() {
                         onChange={(e) => setCorrelativoInput(e.target.value.replace(/\D/g, ""))}
                         placeholder="127" maxLength={10} disabled={vieneDesdeLista}
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscarComprobante(serieInput, correlativoInput); } }}
-                        className="w-full py-1.5 pl-3 pr-9 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm font-mono"
+                        className="w-full py-1.5 pl-3 pr-9 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm font-mono"
                       />
                       {(correlativoInput || comprobante) && (
                         <button type="button" 
@@ -1039,7 +1039,7 @@ function NotaDebitoContent() {
                       setDesMotivo(motivo?.label ?? "");
                       setIncluyePenalidad(false);
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                   >
                     <option value="">Seleccionar motivo</option>
                     {MOTIVOS_ND.map((m) => (
@@ -1052,7 +1052,7 @@ function NotaDebitoContent() {
                       <label className="text-[10px] font-bold text-gray-400 uppercase">Descripción del motivo</label>
                       <input type="text" value={desMotivo} onChange={(e) => setDesMotivo(e.target.value)}
                         placeholder="Descripción del motivo..." maxLength={250}
-                        className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm" />
+                        className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm" />
                     </div>
                   )}
 
@@ -1072,7 +1072,7 @@ function NotaDebitoContent() {
                     max={obtenerFechaLocal()}
                     min={obtenerFechaLocal(-2)}
                     onChange={(e) => setFechaEmision(e.target.value)}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm" />
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm" />
                 </div>
               </div>
 
@@ -1137,7 +1137,7 @@ function NotaDebitoContent() {
                                 <input type="text" value={d.descripcion}
                                   onChange={(e) => actualizarDescripcion(i, e.target.value)}
                                   disabled={codMotivo === "01" && comprobante?.tipoPago === "Contado"}
-                                  className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed" />
+                                  className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 disabled:opacity-50 disabled:cursor-not-allowed" />
                               </td>
 
                               {/* U.M. */}
@@ -1154,7 +1154,7 @@ function NotaDebitoContent() {
                                         onChange={(e) => actualizarCantidad(i, e.target.value === "" ? "" : Number(e.target.value))}
                                         onWheel={(e) => e.currentTarget.blur()}
                                         onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                                        className="w-12 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                        className="w-12 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                       <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad) || 0) + 1)}
                                         className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">+</button>
                                     </div>
@@ -1177,7 +1177,7 @@ function NotaDebitoContent() {
                                     onWheel={(e) => e.currentTarget.blur()}
                                     onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                     disabled={codMotivo === "01" && comprobante?.tipoPago === "Contado"}
-                                    className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono disabled:opacity-50 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                    className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono disabled:opacity-50 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                   {/* Precio venta original — solo motivo 02 */}
                                   {codMotivo === "02" && d._precioVentaOriginal !== undefined && (
                                     <p className="text-[9px] text-right text-gray-400">
@@ -1320,7 +1320,7 @@ function NotaDebitoContent() {
           <Card title="Vista Previa" subtitle="Representación gráfica del comprobante">
             <div className="mb-3">
               <select value={tamanoPdf} onChange={(e) => setTamanoPdf(e.target.value)}
-                className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue">
+                className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50">
                 <option value="A4">A4</option>
                 <option value="Carta">Carta</option>
                 <option value="Ticket80mm">Ticket 80mm</option>

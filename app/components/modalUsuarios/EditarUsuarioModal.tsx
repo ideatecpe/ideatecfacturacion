@@ -111,7 +111,7 @@ export function EditarUsuarioModal({
                   onChange={(e) =>
                     setForm({ ...form, username: e.target.value })
                   }
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50"
                 />
               </div>
             </div>
@@ -128,7 +128,7 @@ export function EditarUsuarioModal({
                   required
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50"
                 />
               </div>
             </div>
@@ -144,7 +144,7 @@ export function EditarUsuarioModal({
                   value={form.rol}
                   disabled={usuario.rol === "superadmin"}
                   onChange={(e) => setForm({ ...form, rol: e.target.value })}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500 bg-white disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50 bg-white disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                 >
                   {usuario.rol === "superadmin" ? (
                     <option value="superadmin">Superadmin</option>
@@ -187,7 +187,7 @@ export function EditarUsuarioModal({
                         setForm({ ...form, nuevaContrasena: e.target.value })
                       }
                       placeholder="Dejar vacío para no cambiar"
-                      className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500 placeholder:text-gray-300"
+                      className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50 placeholder:text-gray-300"
                     />
                     <button
                       type="button"
@@ -215,7 +215,7 @@ export function EditarUsuarioModal({
                       value={confirmarContrasena}
                       onChange={(e) => setConfirmarContrasena(e.target.value)}
                       placeholder="Repetir nueva contraseña"
-                      className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500 placeholder:text-gray-300"
+                      className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50 placeholder:text-gray-300"
                     />
                     <button
                       type="button"

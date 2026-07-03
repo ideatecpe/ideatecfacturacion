@@ -177,7 +177,7 @@ export function NuevaSucursalModal({
                         value={form.password}
                         onChange={upd("password")}
                         placeholder="Mín. 6 caracteres"
-                        className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500 bg-white transition-colors"
+                        className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50 bg-white transition-colors"
                       />
                       <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -198,7 +198,7 @@ export function NuevaSucursalModal({
                         value={form.confirmPassword}
                         onChange={upd("confirmPassword")}
                         placeholder="Repite la contraseña"
-                        className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500 bg-white transition-colors"
+                        className="w-full pl-9 pr-10 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50 bg-white transition-colors"
                       />
                       <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

@@ -388,7 +388,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           <select
             value={form.tipoProducto}
             onChange={onChange("tipoProducto")}
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
           >
             <option value="BIEN">Bien</option>
             <option value="SERVICIO">Servicio</option>
@@ -400,7 +400,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           <select
             value={form.categoriaId}
             onChange={onChange("categoriaId")}
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
           >
             <option value={0}>Seleccione categoría</option>
             {categorias.map((cat) => (
@@ -418,7 +418,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           <select
             value={form.tipoAfectacionIGV}
             onChange={onChange("tipoAfectacionIGV")}
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
           >
             <option value="10">10 - Gravado</option>
             <option value="20">20 - Exonerado</option>
@@ -431,7 +431,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           <select
             value={form.unidadMedida}
             onChange={onChange("unidadMedida")}
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
           >
             <option value="NIU">NIU - Unidad</option>
             <option value="KGM">KGM - Kilogramo</option>
@@ -545,7 +545,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
                   productoBaseId: Number(e.target.value) || null,
                 }))
               }
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
             >
               <option value={0}>Seleccione el producto unidad</option>
               {productosEmpresa

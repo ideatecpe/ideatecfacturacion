@@ -745,7 +745,7 @@ export default function VerComprobantesPage() {
                   )
                 }
                 placeholder="Información adicional"
-                className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
               />
             </div>
 
@@ -910,7 +910,7 @@ export default function VerComprobantesPage() {
                 : <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               }
               <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente, RUC/DNI o N° comprobante"
-                className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
+                className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
               />
               {search && !serverSearchLoading && (
                 <button onClick={() => { setSearch(""); setServerSearch(null); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -1031,7 +1031,7 @@ export default function VerComprobantesPage() {
                             value={avClienteDoc}
                             onChange={(e) => setAvClienteDoc(e.target.value)}
                             placeholder="20601234567"
-                            className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-full sm:w-40"
+                            className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-full sm:w-40"
                           />
                         </div>
                       )}
@@ -1045,7 +1045,7 @@ export default function VerComprobantesPage() {
                             value={avUsuarioId}
                             onChange={(e) => setAvUsuarioId(e.target.value)}
                             placeholder="1"
-                            className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-full sm:w-20"
+                            className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all w-full sm:w-20"
                           />
                         </div>
                       )}
@@ -1066,7 +1066,7 @@ export default function VerComprobantesPage() {
                                 setAvFechaHasta(e.target.value);
                               }
                             }}
-                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -1079,7 +1079,7 @@ export default function VerComprobantesPage() {
                             min={avFechaDesde || undefined}
                             max={hoy}
                             onChange={(e) => setAvFechaHasta(e.target.value)}
-                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                           />
                         </div>
                       </div>
@@ -1095,7 +1095,7 @@ export default function VerComprobantesPage() {
                           value={avSerie}
                           onChange={(e) => setAvSerie(e.target.value)}
                           placeholder="F001"
-                          className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                          className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -1107,7 +1107,7 @@ export default function VerComprobantesPage() {
                           value={avNumero}
                           onChange={(e) => setAvNumero(e.target.value)}
                           placeholder="135"
-                          className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                          className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
                       </div>
                     </div>
@@ -1304,7 +1304,7 @@ export default function VerComprobantesPage() {
                             [doc.comprobanteId]: e.target.value,
                           }))
                         }
-                        className="w-full py-1 px-0.5 text-[11px] bg-gray-50 border border-gray-200 rounded-md outline-none focus:border-blue-400 cursor-pointer"
+                        className="w-full py-1 px-0.5 text-[11px] bg-gray-50 border border-gray-200 rounded-md outline-none focus:border-brand-blue/50 cursor-pointer"
                       >
                         <option value="A4">A4</option>
                         <option value="Ticket58mm">58 mm</option>

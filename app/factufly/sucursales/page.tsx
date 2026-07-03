@@ -568,14 +568,15 @@ export default function SucursalesPage() {
 
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <div className="relative min-w-48 flex-1 max-w-md">
           <input
-            className="w-full pl-8 pr-4 py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-50 bg-white transition-all placeholder:text-gray-400"
-            placeholder="Buscar por nombre o código..."
+            type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre o código..."
+            className="w-full pl-10 pr-9 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
           />
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           {search && (
             <button
               onClick={() => setSearch("")}
@@ -590,7 +591,7 @@ export default function SucursalesPage() {
             <button
               type="button"
               onClick={() => setModalNueva(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 active:scale-95 rounded-lg shadow-sm transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0f2e64] hover:bg-[#0a2050] active:scale-95 rounded-lg shadow-sm transition-all"
             >
               <Plus className="w-4 h-4" />
               Nueva sucursal

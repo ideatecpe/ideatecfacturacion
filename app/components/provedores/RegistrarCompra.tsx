@@ -341,7 +341,7 @@ export default function RegistrarCompra({
                 if (errors.proveedorIdHeader) setErrors((prev) => ({ ...prev, proveedorIdHeader: false }));
               }}
               disabled={guardando || forzadoUnProveedor}
-              className={`w-full h-8 px-2.5 text-sm bg-gray-50 border rounded-md outline-none focus:border-brand-blue disabled:opacity-60 ${
+              className={`w-full h-8 px-2.5 text-sm bg-gray-50 border rounded-md outline-none focus:border-brand-blue/50 disabled:opacity-60 ${
                 errors.proveedorIdHeader ? "border-rose-400" : "border-gray-200"
               }`}
             >
@@ -372,7 +372,7 @@ export default function RegistrarCompra({
                   onChange={(e) => setDocReferenciaHeader(e.target.value)}
                   placeholder="N° de factura/guía o informe interno"
                   disabled={guardando}
-                  className="w-full h-8 px-2.5 text-sm bg-gray-50 border border-gray-200 rounded-md outline-none focus:border-brand-blue disabled:opacity-60"
+                  className="w-full h-8 px-2.5 text-sm bg-gray-50 border border-gray-200 rounded-md outline-none focus:border-brand-blue/50 disabled:opacity-60"
                 />
               </div>
             )}

@@ -207,7 +207,7 @@ export default function DeudasPorCobrarPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por cliente, RUC/DNI o N° comprobante..."
-              className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
+              className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
             />
             {search && (
               <button
@@ -304,7 +304,7 @@ export default function DeudasPorCobrarPage() {
                       value={avClienteDoc}
                       onChange={(e) => setAvClienteDoc(e.target.value)}
                       placeholder="RUC o DNI"
-                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-44"
+                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-44"
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -320,7 +320,7 @@ export default function DeudasPorCobrarPage() {
                         if (avFechaHasta && e.target.value > avFechaHasta)
                           setAvFechaHasta("");
                       }}
-                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all"
+                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all"
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -333,7 +333,7 @@ export default function DeudasPorCobrarPage() {
                       min={avFechaDesde || undefined}
                       max={hoy}
                       onChange={(e) => setAvFechaHasta(e.target.value)}
-                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all"
+                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all"
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -347,7 +347,7 @@ export default function DeudasPorCobrarPage() {
                           e.target.value as "PENDIENTE" | "PAGADO" | "TODOS",
                         )
                       }
-                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all"
+                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all"
                     >
                       <option value="PENDIENTE">Pendiente</option>
                       <option value="PAGADO">Pagado</option>
@@ -368,7 +368,7 @@ export default function DeudasPorCobrarPage() {
                       value={avSerie}
                       onChange={(e) => setAvSerie(e.target.value.toUpperCase())}
                       placeholder="F001"
-                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-28"
+                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-28"
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -380,7 +380,7 @@ export default function DeudasPorCobrarPage() {
                       value={avCorrelativo}
                       onChange={(e) => setAvCorrelativo(e.target.value)}
                       placeholder="14730"
-                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-32"
+                      className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-32"
                     />
                   </div>
                 </>

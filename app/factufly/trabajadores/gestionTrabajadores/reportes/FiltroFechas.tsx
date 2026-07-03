@@ -31,7 +31,7 @@ export const FiltroFechas: React.FC<Props> = ({
           type="date"
           value={fechaDesde}
           onChange={(e) => onFechaDesde(e.target.value)}
-          className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 shadow-sm"
+          className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/20 shadow-sm"
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -40,7 +40,7 @@ export const FiltroFechas: React.FC<Props> = ({
           type="date"
           value={fechaHasta}
           onChange={(e) => onFechaHasta(e.target.value)}
-          className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 shadow-sm"
+          className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/20 shadow-sm"
         />
       </div>
       <Button

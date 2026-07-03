@@ -333,7 +333,7 @@ export default function AgregarProducto({
                 if (errors.sucursalId)
                   setErrors((prev) => ({ ...prev, sucursalId: false }));
               }}
-              className={`w-full px-4 py-2 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue ${
+              className={`w-full px-4 py-2 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 ${
                 errors.sucursalId ? "border-rose-400" : "border-gray-200"
               }`}
             >
@@ -425,7 +425,7 @@ export default function AgregarProducto({
             <select
               value={form.tipoProducto}
               onChange={handleFormChange("tipoProducto")}
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
             >
               <option value="BIEN">Bien</option>
               <option value="SERVICIO">Servicio</option>
@@ -501,7 +501,7 @@ export default function AgregarProducto({
                       value={nombreNuevaCategoria}
                       onChange={(e) => setNombreNuevaCategoria(e.target.value)}
                       placeholder="Nombre de la categoría"
-                      className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+                      className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                     />
                     <Button
                       type="button"
@@ -543,7 +543,7 @@ export default function AgregarProducto({
                 <select
                   value={form.tipoAfectacionIGV}
                   onChange={handleFormChange("tipoAfectacionIGV")}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                 >
                   <option value="10">10 - Gravado</option>
                   <option value="20">20 - Exonerado</option>
@@ -558,7 +558,7 @@ export default function AgregarProducto({
                 <select
                   value={form.unidadMedida}
                   onChange={handleFormChange("unidadMedida")}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                 >
                   <option value="NIU">NIU - Unidad</option>
                   <option value="ZZ">ZZ - Servicio</option>
@@ -692,7 +692,7 @@ export default function AgregarProducto({
                         productoBaseId: Number(e.target.value) || null,
                       }))
                     }
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                   >
                     <option value={0}>Seleccione el producto unidad</option>
                     {productosEmpresa

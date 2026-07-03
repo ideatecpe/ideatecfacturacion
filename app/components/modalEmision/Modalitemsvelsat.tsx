@@ -263,7 +263,7 @@ export function ModalItemsVelsat({
                         <select
                           value={fila.tipo}
                           onChange={(e) => actualizar(fila.id, "tipo", e.target.value as TipoItem)}
-                          className="w-37.5 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all font-medium text-gray-700"
+                          className="w-37.5 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-blue-100 transition-all font-medium text-gray-700"
                         >
                           <option value="servicio">Servicio (Monitoreo)</option>
                           <option value="bien">Bien (GPS)</option>
@@ -277,7 +277,7 @@ export function ModalItemsVelsat({
                             <select
                               value={fila.periodo}
                               onChange={(e) => actualizar(fila.id, "periodo", e.target.value as Periodo)}
-                              className="w-24 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all shrink-0"
+                              className="w-24 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-blue-100 transition-all shrink-0"
                             >
                               <option value="mensual">Mensual</option>
                               <option value="trimestral">Trimestral</option>
@@ -288,14 +288,14 @@ export function ModalItemsVelsat({
                               type="date"
                               value={fila.desde}
                               onChange={(e) => actualizar(fila.id, "desde", e.target.value)}
-                              className="w-28 py-1.5 px-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all shrink-0"
+                              className="w-28 py-1.5 px-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-blue-100 transition-all shrink-0"
                             />
                             <span className="text-gray-400 text-[10px] shrink-0">al</span>
                             <input
                               type="date"
                               value={fila.hasta}
                               onChange={(e) => actualizar(fila.id, "hasta", e.target.value)}
-                              className="w-28 py-1.5 px-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 transition-all shrink-0"
+                              className="w-28 py-1.5 px-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-blue-100 transition-all shrink-0"
                             />
                           </div>
                         ) : (
@@ -305,14 +305,14 @@ export function ModalItemsVelsat({
                               placeholder="Marca (Ej. Concox)"
                               value={fila.marca || ""}
                               onChange={(e) => actualizar(fila.id, "marca", e.target.value)}
-                              className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
+                              className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-emerald-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
                             />
                             <input
                               type="text"
                               placeholder="Modelo (Ej. FMB150)"
                               value={fila.modelo || ""}
                               onChange={(e) => actualizar(fila.id, "modelo", e.target.value)}
-                              className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
+                              className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-emerald-100 transition-all uppercase placeholder:normal-case placeholder:text-gray-400"
                             />
                           </div>
                         )}
@@ -327,7 +327,7 @@ export function ModalItemsVelsat({
                             onChange={(e) => actualizar(fila.id, "placa", e.target.value)}
                             placeholder={fila.tipo === "servicio" ? "Ej. ABC-123" : "Ej. ABC-123 o IMEI"}
                             className={`w-full py-1.5 px-2 bg-gray-50 border rounded-lg text-xs outline-none focus:ring-1 transition-all uppercase placeholder:normal-case
-                              ${errores[`${fila.id}-placa`] ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100" : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"}`}
+                              ${errores[`${fila.id}-placa`] ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100" : "border-gray-200 focus:border-brand-blue/50 focus:ring-blue-100"}`}
                           />
                           {errores[`${fila.id}-placa`] && (
                             <div className="absolute -bottom-3.5 left-0 flex items-center gap-1">
@@ -352,7 +352,7 @@ export function ModalItemsVelsat({
                             onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                             placeholder="0.00"
                             className={`w-full py-1.5 pl-7 pr-3 bg-gray-50 border rounded-lg text-xs text-right outline-none focus:ring-1 transition-all font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
-                              ${errores[`${fila.id}-precio`] ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100" : "border-gray-200 focus:border-blue-400 focus:ring-blue-100"}`}
+                              ${errores[`${fila.id}-precio`] ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100" : "border-gray-200 focus:border-brand-blue/50 focus:ring-blue-100"}`}
                           />
                           {errores[`${fila.id}-precio`] && (
                             <div className="absolute -bottom-3.5 right-0 flex items-center gap-1">

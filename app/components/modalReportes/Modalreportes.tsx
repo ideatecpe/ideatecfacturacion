@@ -254,7 +254,7 @@ export function ModalReportes({
                       <input type="text" placeholder="RUC o DNI"
                         value={filtros.clienteNumDoc ?? ""}
                         onChange={(e) => onSetFiltro("clienteNumDoc", e.target.value || null)}
-                        className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 bg-gray-50 placeholder:text-gray-300"
+                        className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 bg-gray-50 placeholder:text-gray-300"
                       />
                     </div>
                   </div>
@@ -285,7 +285,7 @@ export function ModalReportes({
                         <input type="text" placeholder="RUC o DNI"
                           value={filtros.clienteNumDoc ?? ""}
                           onChange={(e) => onSetFiltro("clienteNumDoc", e.target.value || null)}
-                          className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 bg-gray-50 placeholder:text-gray-300"
+                          className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 bg-gray-50 placeholder:text-gray-300"
                         />
                       </div>
                     </div>
@@ -305,7 +305,7 @@ export function ModalReportes({
                         if (filtros.fechaHasta && e.target.value > filtros.fechaHasta)
                           onSetFiltro("fechaHasta", null);
                       }}
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2.5 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 bg-gray-50"
+                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2.5 outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 bg-gray-50"
                     />
                   </div>
                   {/* Hasta */}
@@ -316,7 +316,7 @@ export function ModalReportes({
                     <input type="date" value={filtros.fechaHasta ?? ""}
                       min={filtros.fechaDesde ?? undefined} max={hoy}
                       onChange={(e) => onSetFiltro("fechaHasta", e.target.value || null)}
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2.5 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 bg-gray-50"
+                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-2.5 outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 bg-gray-50"
                     />
                   </div>
                   {/* Límite */}
@@ -327,7 +327,7 @@ export function ModalReportes({
                     <input type="number" placeholder="Sin límite" min={1}
                       value={filtros.limit ?? ""}
                       onChange={(e) => onSetFiltro("limit", e.target.value ? Number(e.target.value) : null)}
-                      className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 bg-gray-50 placeholder:text-gray-300"
+                      className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 bg-gray-50 placeholder:text-gray-300"
                     />
                   </div>
                   {/* Ordenar por */}
@@ -337,7 +337,7 @@ export function ModalReportes({
                     </label>
                     <select value={filtros.orderBy ?? "monto"}
                       onChange={(e) => onSetFiltro("orderBy", e.target.value as "monto" | "cantidad" | "veces")}
-                      className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 bg-gray-50"
+                      className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 bg-gray-50"
                     >
                       <option value="monto">Mayor monto</option>
                       <option value="cantidad">Mayor cantidad</option>
@@ -372,7 +372,7 @@ export function ModalReportes({
                   <input type="text" placeholder="Ej: ventas-mayo-2025"
                     value={filtros.tituloPersonalizado ?? ""}
                     onChange={(e) => onSetFiltro("tituloPersonalizado", e.target.value || null)}
-                    className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 bg-gray-50 placeholder:text-gray-300"
+                    className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 bg-gray-50 placeholder:text-gray-300"
                   />
                 </div>
 

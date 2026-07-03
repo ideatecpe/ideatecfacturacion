@@ -40,7 +40,7 @@ export function DatePickerLimitado({ value, onChange, modo, fechaMinima, label, 
         min={min}
         max={max}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm"
+        className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm"
       />
     </div>
   )

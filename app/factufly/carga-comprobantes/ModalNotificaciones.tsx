@@ -190,7 +190,7 @@ export function ModalNotificaciones({
                   value={diasInput}
                   onChange={(e) => setDiasInput(e.target.value)}
                   onBlur={() => { const n = Number(diasInput); if (n > 0) setDiasAviso(n); else setDiasInput(String(diasAviso)); }}
-                  className="w-12 px-1.5 py-0.5 text-[11px] font-bold text-center text-gray-800 border border-gray-300 rounded-md outline-none focus:border-blue-400"
+                  className="w-12 px-1.5 py-0.5 text-[11px] font-bold text-center text-gray-800 border border-gray-300 rounded-md outline-none focus:border-brand-blue/50"
                 />
               )}
               <span className="text-[11px] font-medium text-gray-700">días</span>
@@ -257,7 +257,7 @@ export function ModalNotificaciones({
                 <label className="text-[9px] font-bold text-blue-400 uppercase tracking-wide">Asunto</label>
                 <input
                   type="text" value={subjectEdit} onChange={(e) => setSubjectEdit(e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs border border-blue-200 rounded-lg bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                  className="w-full px-2 py-1.5 text-xs border border-blue-200 rounded-lg bg-white outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-blue-100"
                 />
               </div>
               <div className="space-y-0.5">
@@ -267,7 +267,7 @@ export function ModalNotificaciones({
                 <textarea
                   value={mensajeEdit} onChange={(e) => setMensajeEdit(e.target.value)}
                   rows={7}
-                  className="w-full px-2 py-1.5 text-xs border border-blue-200 rounded-lg bg-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 resize-y leading-relaxed text-gray-700"
+                  className="w-full px-2 py-1.5 text-xs border border-blue-200 rounded-lg bg-white outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-blue-100 resize-y leading-relaxed text-gray-700"
                 />
               </div>
             </div>
@@ -305,7 +305,7 @@ export function ModalNotificaciones({
               <textarea
                 value={mensajeEditWsp} onChange={(e) => setMensajeEditWsp(e.target.value)}
                 rows={9}
-                className="w-full px-2 py-1.5 text-xs border border-emerald-200 rounded-lg bg-white outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 resize-y leading-relaxed text-gray-700"
+                className="w-full px-2 py-1.5 text-xs border border-emerald-200 rounded-lg bg-white outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-emerald-100 resize-y leading-relaxed text-gray-700"
               />
             </div>
             <div className="flex justify-end gap-2">
@@ -354,7 +354,7 @@ export function ModalNotificaciones({
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   placeholder="Buscar por nombre, RUC/DNI o placa…"
-                  className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white placeholder:text-gray-400"
+                  className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:ring-1 focus:ring-blue-100 bg-white placeholder:text-gray-400"
                 />
                 {busqueda && (
                   <button

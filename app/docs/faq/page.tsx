@@ -338,7 +338,7 @@ const FAQPage: React.FC = () => {
               setSearch(e.target.value);
               setActiveCategory("all");
             }}
-            className="w-full pl-12 pr-5 py-3.5 bg-white border border-slate-200 focus:border-blue-700 focus:ring-4 focus:ring-blue-50 rounded-xl outline-none text-slate-900 text-sm font-medium transition-all shadow-sm"
+            className="w-full pl-12 pr-5 py-3.5 bg-white border border-slate-200 focus:border-brand-blue/50 focus:ring-4 focus:ring-blue-50 rounded-xl outline-none text-slate-900 text-sm font-medium transition-all shadow-sm"
           />
           {search && (
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">

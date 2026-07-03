@@ -59,9 +59,9 @@ const provincias: Provincia[] = (provinciasData as any).ubigeo_provincias;
 const distritos: Distrito[] = (distritosData as any).ubigeo_distritos;
 
 const inputClass =
-  "w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm";
+  "w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm";
 const selectClass =
-  "w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-sm";
+  "w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-sm";
 const labelClass = "text-xs font-bold text-gray-500 uppercase";
 
 // ─── Componente ───────────────────────────────────────────────────────────────

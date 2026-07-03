@@ -2786,7 +2786,7 @@ function FacturaContent() {
                             cliente: undefined,
                           }));
                         }}
-                        className="w-1/3 py-1.5 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                        className="w-1/3 py-1.5 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                       >
                         <option value="06">RUC</option>
                         <option value="04">CE</option>
@@ -2817,7 +2817,7 @@ function FacturaContent() {
                           maxLength={tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : 12}
                           placeholder="Buscar por RUC o nombre..."
                           className={`w-full pl-4 pr-10 py-1.5 bg-white border rounded-xl focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all text-sm
-                            ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue"}`}
+                            ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue/50"}`}
                         />
                         {loadingCliente && (
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
@@ -3054,7 +3054,7 @@ function FacturaContent() {
                         horaEmision: e.target.value + ":00",
                       }));
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm"
                   />
                   {fechaEmisionEditada && (
                     <button
@@ -3140,7 +3140,7 @@ function FacturaContent() {
                         );
                       }
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                   >
                     <option value="PEN">PEN - Soles</option>
                     <option value="USD">
@@ -3168,7 +3168,7 @@ function FacturaContent() {
                       setPagos([{ medioPago: "Efectivo", monto: "", numeroOperacion: "", entidadFinanciera: "", observaciones: "" }]);
                       setPagosEditados([false]);
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                   >
                     <option value="Contado">Contado</option>
                     <option value="Credito">Crédito</option>
@@ -3205,15 +3205,15 @@ function FacturaContent() {
                           <select
                             value={pagos[0].medioPago}
                             onChange={(e) => actualizarPago(0, "medioPago", e.target.value)}
-                            className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-sm"
+                            className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-sm"
                           >
                             {todosMedios.map((m) => (
                               <option key={m} value={m}>{m}</option>
                             ))}
                           </select>
                           {pagos[0].medioPago === "Transferencia" && (<>
-                            <input type="text" value={pagos[0].numeroOperacion} onChange={(e) => actualizarPago(0, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-20 shrink-0 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
-                            <input type="text" value={pagos[0].entidadFinanciera} onChange={(e) => actualizarPago(0, "entidadFinanciera", e.target.value)} placeholder="Banco/entidad" className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
+                            <input type="text" value={pagos[0].numeroOperacion} onChange={(e) => actualizarPago(0, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-20 shrink-0 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
+                            <input type="text" value={pagos[0].entidadFinanciera} onChange={(e) => actualizarPago(0, "entidadFinanciera", e.target.value)} placeholder="Banco/entidad" className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
                           </>)}
                         </div>
                       </div>
@@ -3241,7 +3241,7 @@ function FacturaContent() {
                                 <select
                                   value={pago.medioPago}
                                   onChange={(e) => actualizarPago(i, "medioPago", e.target.value)}
-                                  className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs"
+                                  className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs"
                                 >
                                   {todosMedios.map((m) => (
                                     <option key={m} value={m} disabled={mediosUsados.includes(m) && pago.medioPago !== m}>{m}</option>
@@ -3252,11 +3252,11 @@ function FacturaContent() {
                                   onBlur={(e) => { if (!e.target.value || e.target.value === "0") { setPagosEditados((prev) => { const n = [...prev]; n[i] = false; return n; }); actualizarPago(i, "monto", ""); } }}
                                   onWheel={(e) => e.currentTarget.blur()}
                                   onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                                  className="w-20 shrink-0 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  className="w-20 shrink-0 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                                 {pago.medioPago === "Transferencia" && (<>
-                                  <input type="text" value={pago.numeroOperacion} onChange={(e) => actualizarPago(i, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-16 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
-                                  <input type="text" value={pago.entidadFinanciera} onChange={(e) => actualizarPago(i, "entidadFinanciera", e.target.value)} placeholder="Banco" className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
+                                  <input type="text" value={pago.numeroOperacion} onChange={(e) => actualizarPago(i, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-16 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
+                                  <input type="text" value={pago.entidadFinanciera} onChange={(e) => actualizarPago(i, "entidadFinanciera", e.target.value)} placeholder="Banco" className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
                                 </>)}
                                 <button type="button" onClick={() => eliminarPago(i)} className="text-red-400 hover:text-red-600 shrink-0">
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -3299,7 +3299,7 @@ function FacturaContent() {
                           detalles.filter((d) => !d._esIcbper).forEach((d, i) => { nuevo[d._id ?? String(i)] = id; });
                           setTrabajadoresPorItem(nuevo);
                         }}
-                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                       >
                         <option value={0}>Seleccionar trabajador...</option>
                         {trabajadores.map((t) => (
@@ -3388,7 +3388,7 @@ function FacturaContent() {
                           }
                           onWheel={(e) => e.currentTarget.blur()}
                           onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                          className="w-16 py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-16 py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     </div>
@@ -3421,7 +3421,7 @@ function FacturaContent() {
                               placeholder="0.00"
                               onWheel={(e) => e.currentTarget.blur()}
                               onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                              className="w-full py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-full py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                           <div className="space-y-1">
@@ -3513,7 +3513,7 @@ function FacturaContent() {
                             onChange={(e) =>
                               actualizarGuia(i, "tipoDoc", e.target.value)
                             }
-                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                           >
                             <option value="09">Guía Remisión Remitente</option>
                             <option value="31">
@@ -3532,7 +3532,7 @@ function FacturaContent() {
                               actualizarGuia(i, "serie", e.target.value)
                             }
                             placeholder="T001"
-                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                           />
                         </div>
                         <div className="space-y-1">
@@ -3547,7 +3547,7 @@ function FacturaContent() {
                                 actualizarGuia(i, "numero", e.target.value)
                               }
                               placeholder="00000001"
-                              className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                              className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                             />
                             <button
                               type="button"
@@ -3637,7 +3637,7 @@ function FacturaContent() {
                                 codigoBienDetraccion: e.target.value,
                               }))
                             }
-                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
                           >
                             {BIENES_DETRACCION.map((b) => (
                               <option key={b.code} value={b.code}>
@@ -3658,7 +3658,7 @@ function FacturaContent() {
                                 codigoMedioPago: e.target.value,
                               }))
                             }
-                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
                           >
                             {MEDIOS_PAGO_DETRACCION.map((m) => (
                               <option key={m.code} value={m.code}>
@@ -3681,7 +3681,7 @@ function FacturaContent() {
                               }))
                             }
                             placeholder="Ej: 0004-3342343243"
-                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -3707,7 +3707,7 @@ function FacturaContent() {
                             }}
                             onWheel={(e) => e.currentTarget.blur()}
                             onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                            className="w-full py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-full py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -3727,7 +3727,7 @@ function FacturaContent() {
                             }
                             onWheel={(e) => e.currentTarget.blur()}
                             onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                            className="w-full py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-full py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
                         <div className="space-y-1.5 md:col-span-2">
@@ -3744,7 +3744,7 @@ function FacturaContent() {
                               }))
                             }
                             placeholder="Observación de la detracción"
-                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                           />
                         </div>
                       </div>
@@ -3994,7 +3994,7 @@ function FacturaContent() {
                                   }}
                                   placeholder="Buscar o agregar producto..."
                                   rows={1}
-                                  className={`w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-[border-color,box-shadow] duration-200 ${
+                                  className={`w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-[border-color,box-shadow] duration-200 ${
                                     focusedItemIndex === i
                                       ? "overflow-y-hidden whitespace-pre-wrap"
                                       : "h-7 overflow-hidden whitespace-nowrap text-ellipsis"
@@ -4222,7 +4222,7 @@ function FacturaContent() {
                                             Number(e.target.value),
                                           )
                                         }
-                                        className="w-10 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        className="w-10 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       />
                                       <button
                                         type="button"
@@ -4250,7 +4250,7 @@ function FacturaContent() {
                                   onChange={(e) =>
                                     actualizarTipoAfectacion(i, e.target.value)
                                   }
-                                  className={`w-full py-1 px-1 border rounded-lg text-xs outline-none focus:border-brand-blue
+                                  className={`w-full py-1 px-1 border rounded-lg text-xs outline-none focus:border-brand-blue/50
                                     ${esGratuito ? "bg-green-50 border-green-200 text-green-700" : "bg-gray-50 border-gray-200"}`}
                                 >
                                   <option value="10">Grav.</option>
@@ -4297,7 +4297,7 @@ function FacturaContent() {
                                     setPrecioInputValues(prev => { const n = { ...prev }; delete n[i]; return n; });
                                   }}
                                   disabled={esGratuito}
-                                  className={`w-full py-1 px-1 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono
+                                  className={`w-full py-1 px-1 border rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono
                                     ${esGratuito ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
                                 />
                               </td>
@@ -4315,7 +4315,7 @@ function FacturaContent() {
                                         Number(e.target.value),
                                       )
                                     }
-                                    className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                                    className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                                   >
                                     <option value={18}>18</option>
                                     <option value={10.5}>10.5</option>
@@ -4348,7 +4348,7 @@ function FacturaContent() {
                                   disabled={
                                     esGratuito || !!d._esIcbper || esPorConsumo
                                   }
-                                  className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
+                                  className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
                                     ${esGratuito || d._esIcbper || esPorConsumo ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
                                 />
                               </td>
@@ -4588,7 +4588,7 @@ function FacturaContent() {
                             setDescuentoGlobal(0);
                             setPorcentajeDescInput(0);
                           }}
-                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 outline-none focus:border-brand-blue cursor-pointer"
+                          className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 outline-none focus:border-brand-blue/50 cursor-pointer"
                         >
                           <option value="monto">{simbolo} Monto</option>
                           <option value="porcentaje">% Porcentaje</option>
@@ -4604,7 +4604,7 @@ function FacturaContent() {
                               onWheel={(e) => e.currentTarget.blur()}
                               onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                               onChange={(e) => setDescuentoGlobal(Number(e.target.value))}
-                              className="w-20 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-20 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                         ) : (
@@ -4621,7 +4621,7 @@ function FacturaContent() {
                                 const v = Math.min(100, Math.max(0, Number(e.target.value)));
                                 setPorcentajeDescInput(v);
                               }}
-                              className="w-20 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-20 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             <span className="text-sm text-gray-400">%</span>
                           </div>
@@ -4697,7 +4697,7 @@ function FacturaContent() {
                           ).padStart(8, "0"),
                         }));
                       }}
-                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                     >
                       <option value="">Seleccionar sucursal</option>
                       {sucursales.map((s: Sucursal) => (
@@ -4804,7 +4804,7 @@ function FacturaContent() {
                     setCargandoPreview(false);
                   }
                 }}
-                className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue"
+                className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
               >
                 <option value="A4">A4</option>
                 <option value="Ticket80mm">Ticket 80mm</option>
@@ -4827,7 +4827,7 @@ function FacturaContent() {
                       setFechaEmisionEditada(true);
                       setFactura((prev) => ({ ...prev, fechaEmision: e.target.value + ":00", horaEmision: e.target.value + ":00" }));
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-xs"
                   />
                   {fechaEmisionEditada && (
                     <button type="button" onClick={() => setFechaEmisionEditada(false)} className="text-[10px] text-brand-blue hover:underline">↺ Usar hora actual</button>
