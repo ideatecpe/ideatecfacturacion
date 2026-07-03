@@ -727,7 +727,7 @@ function BoletaContent() {
     setCargandoTipoCambio(true);
     try {
       const venta = await obtenerTipoCambioVenta(fechaConsulta);
-      setTipoCambio(parseFloat(venta.toFixed(2)));
+      setTipoCambio(parseFloat(venta.toFixed(3)));
       tipoCambioFechaCargada.current = fechaConsulta;
     } catch (error) {
       console.warn("No se pudo obtener el tipo de cambio JSON.PE", error);
@@ -2948,7 +2948,7 @@ function BoletaContent() {
                   >
                     <option value="PEN">PEN - Soles</option>
                     <option value="USD">
-                      USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(2)})
+                      USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})
                     </option>
                   </select>
                 </div>
@@ -4361,10 +4361,11 @@ function BoletaContent() {
                         }));
                       }
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs"
+                    disabled={cargandoTipoCambio}
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs disabled:opacity-50 disabled:cursor-wait"
                   >
                     <option value="PEN">PEN - Soles</option>
-                    <option value="USD">USD - Dólares{tipoCambioFechaCargada.current ? ` (${cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(2)})` : ""}</option>
+                    <option value="USD">USD - Dólares{tipoCambioFechaCargada.current ? ` (${cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})` : ""}</option>
                   </select>
                 </div>
               </div>
