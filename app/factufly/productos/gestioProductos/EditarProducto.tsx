@@ -488,13 +488,22 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <InputBase
-          label="Código de Barras"
-          labelOptional="(opcional)"
-          value={form.codigoBarras ?? ""}
-          onChange={onChange("codigoBarras")}
-          placeholder="EAN13 / Code128"
-        />
+        <div className="space-y-1.5">
+          <InputBase
+            label="Código de Barras"
+            labelOptional="(opcional)"
+            value={form.codigoBarras ?? ""}
+            onChange={onChange("codigoBarras")}
+            placeholder="EAN13 / Code128"
+          />
+          <button
+            type="button"
+            disabled
+            className="text-[10px] font-semibold text-gray-300 cursor-not-allowed"
+          >
+            Generar código automático
+          </button>
+        </div>
 
         {isStock && (
           <div className="space-y-1.5">

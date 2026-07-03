@@ -625,14 +625,26 @@ export default function AgregarProducto({
         {/* ── Código de barras (siempre disponible) ── */}
         {!soloSucursal && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InputBase
-              label="Código de Barras"
-              labelOptional="(opcional)"
-              value={form.codigoBarras ?? ""}
-              onChange={handleFormChange("codigoBarras")}
-              placeholder="EAN13 / Code128"
-              showError={false}
-            />
+            <div className="space-y-1.5">
+              <InputBase
+                label="Código de Barras"
+                labelOptional="(opcional)"
+                value={form.codigoBarras ?? ""}
+                onChange={handleFormChange("codigoBarras")}
+                placeholder="EAN13 / Code128"
+                showError={false}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const ts = Date.now().toString().slice(-10);
+                  setForm((prev) => ({ ...prev, codigoBarras: `200${ts}` }));
+                }}
+                className="text-[10px] font-semibold text-brand-blue hover:underline"
+              >
+                Generar código automático
+              </button>
+            </div>
 
             {config?.isStock && (
               <div className="space-y-1.5">

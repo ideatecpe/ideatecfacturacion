@@ -1,5 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+const Barcode = dynamic(() => import("react-barcode"), { ssr: false });
 import {
   Search,
   Upload,
@@ -21,6 +23,7 @@ import {
   Tag,
   Boxes,
   AlertTriangle,
+  Printer,
 } from "lucide-react";
 import axios from "axios";
 
@@ -246,6 +249,20 @@ export default function ProductosPage() {
   const [isPromoMasivaOpen, setIsPromoMasivaOpen] = useState(false);
   const [porcentajePromoMasiva, setPorcentajePromoMasiva] = useState("");
   const [aplicandoPromoMasiva, setAplicandoPromoMasiva] = useState(false);
+
+  // Impresión de códigos de barras
+  const [productosPrint, setProductosPrint] = useState<ProductoSucursal[]>([]);
+  const printAreaRef = useRef<HTMLDivElement>(null);
+
+  const imprimirCodigos = (lista: ProductoSucursal[]) => {
+    const conCodigo = lista.filter((p) => !!p.codigoBarras);
+    if (conCodigo.length === 0) {
+      showToast("Los productos seleccionados no tienen código de barras.", "info");
+      return;
+    }
+    setProductosPrint(conCodigo);
+    setTimeout(() => window.print(), 500);
+  };
 
   //Categorias
   const { categorias, setCategorias, loadingCategorias, fetchCategorias } =
@@ -878,7 +895,7 @@ export default function ProductosPage() {
                 className="py-2.5 px-3 text-xs rounded-md h-auto"
               >
                 <Tag className="w-3.5 h-3.5" />
-                {modoSeleccionPromo ? "Cancelar selección" : "Aplicar promoción"}
+                {modoSeleccionPromo ? "Cancelar selección" : "Seleccionar"}
               </Button>
             )}
             {!soloLectura && (
@@ -1135,6 +1152,14 @@ export default function ProductosPage() {
             >
               <Tag className="w-3.5 h-3.5" /> Aplicar % a seleccionados
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => imprimirCodigos(productos.filter((p) => seleccionadosPromo.has(p.productoId)))}
+              disabled={seleccionadosPromo.size === 0}
+              className="py-1.5 px-3 text-xs rounded-md h-auto"
+            >
+              <Printer className="w-3.5 h-3.5" /> Imprimir códigos
+            </Button>
           </div>
         </div>
       )}
@@ -1216,11 +1241,6 @@ export default function ProductosPage() {
                     <p className="text-[10px] font-medium text-gray-400 bg-gray-100 w-fit px-1.5 py-0.5 rounded uppercase">
                       {prod.categoria?.categoriaNombre}
                     </p>
-                    {prod.codigoBarras && (
-                      <p className="text-[10px] text-gray-400">
-                        Cód. barras: {prod.codigoBarras}
-                      </p>
-                    )}
                     {isSuperAdmin && (
                       <p className="text-[10px] text-gray-400 flex mt-1 bg-blue-50 w-fit px-1.5 py-0.5 rounded">
                         <span className="font-bold">Sucursal: &nbsp; </span>{" "}
@@ -1270,32 +1290,43 @@ export default function ProductosPage() {
                               ? productosPorId.get(prod.productoBaseId)
                               : undefined;
                             const stockBase = base?.sucursalProducto.stock ?? null;
-                            const equivalente =
-                              stockBase != null ? stockBase / prod.factorConversion! : null;
+                            const factor = prod.factorConversion!;
+                            const cajas = stockBase != null ? Math.floor(stockBase / factor) : null;
+                            const sueltas = stockBase != null ? stockBase % factor : null;
                             const estado = getEstadoStock(prod);
+                            const labelPrincipal = (() => {
+                              if (cajas == null) return "STOCK: —";
+                              if (cajas! > 0) return `STOCK: ${cajas} caja${cajas! > 1 ? "s" : ""}`;
+                              if (sueltas! > 0) return `STOCK: 0 cajas`;
+                              return "STOCK: 0";
+                            })();
+                            const labelDetalle = (() => {
+                              if (cajas == null || !base) return null;
+                              const partes = [];
+                              if (cajas > 0) partes.push(`${cajas} caj. (${factor} und. c/u)`);
+                              if (sueltas! > 0) partes.push(`${sueltas} und. sueltas`);
+                              return partes.length ? partes.join(" + ") : null;
+                            })();
                             return (
-                              <p
-                                className={cn(
-                                  "text-[15px] font-bold",
-                                  estado === "agotado"
-                                    ? "text-rose-500"
-                                    : estado === "bajo"
-                                      ? "text-amber-600"
-                                      : "text-gray-900",
+                              <div className="mb-1">
+                                <p
+                                  className={cn(
+                                    "text-[15px] font-bold leading-tight",
+                                    estado === "agotado"
+                                      ? "text-rose-500"
+                                      : estado === "bajo"
+                                        ? "text-amber-600"
+                                        : "text-gray-900",
+                                  )}
+                                >
+                                  {labelPrincipal}
+                                </p>
+                                {labelDetalle && (
+                                  <p className="text-[10px] font-normal text-gray-400 leading-tight mt-0.5">
+                                    {labelDetalle}
+                                  </p>
                                 )}
-                              >
-                                {equivalente != null
-                                  ? `STOCK: ${equivalente.toFixed(2)} paquetes`
-                                  : "STOCK: —"}
-                                {estado === "bajo" && (
-                                  <AlertTriangle className="inline w-3 h-3 ml-1 -mt-0.5" />
-                                )}
-                                {base && (
-                                  <span className="block text-[10px] font-normal text-gray-400">
-                                    ({stockBase} {base.unidadMedida} de {base.nomProducto})
-                                  </span>
-                                )}
-                              </p>
+                              </div>
                             );
                           })()
                         ) : (
@@ -1309,10 +1340,7 @@ export default function ProductosPage() {
                                   : "text-gray-900",
                             )}
                           >
-                            STOCK: {prod.sucursalProducto.stock}
-                            {getEstadoStock(prod) === "bajo" && (
-                              <AlertTriangle className="inline w-3 h-3 ml-1 -mt-0.5" />
-                            )}
+                            STOCK: {prod.sucursalProducto.stock} und.
                           </p>
                         )}
                         {!!prod.sucursalProducto.ultimoPrecioCompra && (
@@ -1374,6 +1402,29 @@ export default function ProductosPage() {
                     )}
                   </div>
                 </div>
+
+                {/* ── Código de barras — pie de tarjeta ── */}
+                {prod.codigoBarras && (
+                  <div className="mt-3 -mx-2 -mb-2 border-t border-dashed border-gray-200 bg-gray-50 rounded-b-xl flex flex-col items-center py-2 px-2 relative">
+                    <Barcode
+                      value={prod.codigoBarras}
+                      width={1.6}
+                      height={44}
+                      fontSize={10}
+                      margin={0}
+                      displayValue={true}
+                      background="transparent"
+                      lineColor="#334155"
+                    />
+                    <button
+                      onClick={() => imprimirCodigos([prod])}
+                      title="Imprimir etiqueta"
+                      className="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </Card>
             ))}
         </div>
@@ -1746,6 +1797,69 @@ export default function ProductosPage() {
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleConfirmDelete}
       />
+
+      {/* ── Área de impresión — fuera de pantalla pero siempre renderizada ── */}
+      <div
+        ref={printAreaRef}
+        id="productos-print-area"
+        style={{ position: "fixed", top: "-9999px", left: "-9999px", visibility: "hidden" }}
+      >
+        <style>{`
+          @media print {
+            body * { visibility: hidden !important; }
+            #productos-print-area {
+              visibility: visible !important;
+              position: fixed !important;
+              top: 0 !important;
+              left: 0 !important;
+              width: 100% !important;
+              background: white !important;
+              display: flex !important;
+              flex-wrap: wrap !important;
+              gap: 16px !important;
+              padding: 20px !important;
+            }
+            #productos-print-area * { visibility: visible !important; }
+            .etiqueta-print {
+              border: 1px solid #cbd5e1;
+              border-radius: 8px;
+              padding: 8px 10px;
+              width: 200px;
+              box-sizing: border-box;
+              text-align: center;
+              page-break-inside: avoid;
+              background: white;
+              overflow: hidden;
+            }
+            .etiqueta-print svg {
+              max-width: 100% !important;
+              height: auto !important;
+              display: block !important;
+              margin: 0 auto !important;
+            }
+          }
+        `}</style>
+        {productosPrint.map((p) => (
+          <div key={p.productoId} className="etiqueta-print">
+            <p style={{ fontSize: 10, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", color: "#1e293b", lineHeight: 1.3 }}>
+              {p.nomProducto}
+            </p>
+            <Barcode
+              value={p.codigoBarras!}
+              width={1.2}
+              height={48}
+              fontSize={9}
+              margin={0}
+              displayValue={true}
+              background="#ffffff"
+              lineColor="#1e293b"
+            />
+            <p style={{ fontSize: 13, fontWeight: 900, color: "#1d4ed8", marginTop: 4 }}>
+              S/ {p.sucursalProducto.precioUnitario.toFixed(2)}
+            </p>
+          </div>
+        ))}
+      </div>
 
       {/* Modal: aplicar % de descuento a los productos seleccionados */}
       <Modal

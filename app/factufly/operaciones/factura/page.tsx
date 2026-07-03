@@ -1591,6 +1591,22 @@ function FacturaContent() {
     return p.sucursalProducto.stock ?? null;
   };
 
+  // Unidades del producto base ya comprometidas por otros ítems del carrito (excluye excludeIndex).
+  // Solo aplica cuando config.isStock está activo.
+  const getUnidadesComprometidas = (productoBaseId: number, excludeIndex: number): number => {
+    if (!config?.isStock) return 0;
+    return detalles.reduce((total, d, i) => {
+      if (i === excludeIndex || !d.productoId) return total;
+      const prod = productosSucursal.find((x) => x.productoId === d.productoId);
+      if (!prod) return total;
+      if (prod.productoId === productoBaseId)
+        return total + (d.cantidad ?? 0);
+      if (prod.esPaquete && prod.productoBaseId === productoBaseId && prod.factorConversion)
+        return total + (d.cantidad ?? 0) * prod.factorConversion;
+      return total;
+    }, 0);
+  };
+
   // ── Seleccionar producto ─────────────────────────────────────
   const seleccionarProducto = (producto: ProductoSucursal, index: number) => {
     // bloquear bolsa plástica — redirige al contador
@@ -1770,17 +1786,34 @@ function FacturaContent() {
     if (!d) return;
 
     let cantidadFinal = cantidad;
-    if (
-      config?.isStock &&
-      d._tipoProducto === "BIEN" &&
-      d._stockDisponible != null &&
-      cantidadFinal > d._stockDisponible
-    ) {
-      cantidadFinal = d._stockDisponible;
-      showToast(
-        `Stock disponible: ${d._stockDisponible}. No puedes vender más de lo que hay.`,
-        "info",
-      );
+    if (config?.isStock && d._tipoProducto === "BIEN") {
+      const limiteIndividual = d._stockDisponible ?? Infinity;
+
+      let limiteCompartido = Infinity;
+      const prod = productosSucursal.find((x) => x.productoId === d.productoId);
+      if (prod) {
+        const baseId = prod.esPaquete ? prod.productoBaseId : prod.productoId;
+        const baseProd = prod.esPaquete
+          ? productosSucursal.find((x) => x.productoId === prod.productoBaseId)
+          : prod;
+        if (baseId && baseProd) {
+          const stockBase = baseProd.sucursalProducto.stock ?? 0;
+          const comprometido = getUnidadesComprometidas(baseId, index);
+          const disponibleBase = Math.max(0, stockBase - comprometido);
+          limiteCompartido = prod.esPaquete && prod.factorConversion
+            ? Math.floor(disponibleBase / prod.factorConversion)
+            : disponibleBase;
+        }
+      }
+
+      const limite = Math.min(limiteIndividual, limiteCompartido);
+      if (cantidadFinal > limite) {
+        cantidadFinal = limite;
+        showToast(
+          `Stock disponible: ${limite}. Otros ítems del carrito usan el mismo stock.`,
+          "info",
+        );
+      }
     }
 
     let precioBase = d._precioBase ?? d.precioUnitario ?? 0;
@@ -3888,6 +3921,19 @@ function FacturaContent() {
                                     // Auto-grow height dynamically
                                     e.target.style.height = "auto";
                                     e.target.style.height = `${e.target.scrollHeight}px`;
+
+                                    // Escáner: si el valor coincide exactamente con un codigoBarras, seleccionar automáticamente
+                                    const valorExacto = e.target.value.trim();
+                                    if (valorExacto.length >= 6) {
+                                      const coincidencia = productosSucursal.find(
+                                        (p: ProductoSucursal) =>
+                                          !!p.codigoBarras && p.codigoBarras === valorExacto,
+                                      );
+                                      if (coincidencia) {
+                                        seleccionarProducto(coincidencia, i);
+                                        showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
+                                      }
+                                    }
                                   }}
                                   onFocus={(e) => {
                                     const nd = [...showDropdownProducto];
@@ -3975,7 +4021,9 @@ function FacturaContent() {
                                               ) ||
                                             p.codigo.includes(
                                               busquedaProducto[i] ?? "",
-                                            ),
+                                            ) ||
+                                            (!!p.codigoBarras &&
+                                              p.codigoBarras === (busquedaProducto[i] ?? "")),
                                     );
                                     if (!filtrados.length) return null;
                                     return (
@@ -4004,10 +4052,16 @@ function FacturaContent() {
                                             !!config?.isStock &&
                                             p.tipoProducto === "BIEN" &&
                                             unidadesVendibles <= 0;
-                                          const stockMostrado =
-                                            p.esPaquete && p.factorConversion && stockEfectivo != null
-                                              ? `${(stockEfectivo / p.factorConversion).toFixed(2)} paq.`
-                                              : `${stockEfectivo ?? 0}`;
+                                          const stockMostrado = (() => {
+                                            if (p.esPaquete && p.factorConversion && stockEfectivo != null) {
+                                              const cajas = Math.floor(stockEfectivo / p.factorConversion);
+                                              const sueltas = stockEfectivo % p.factorConversion;
+                                              if (cajas > 0 && sueltas > 0) return `${cajas} caja${cajas > 1 ? "s" : ""} + ${sueltas} und.`;
+                                              if (cajas > 0) return `${cajas} caja${cajas > 1 ? "s" : ""}`;
+                                              return `${sueltas} und. (sin caja)`;
+                                            }
+                                            return `${stockEfectivo ?? 0} und.`;
+                                          })();
                                           return (
                                             <button
                                               key={p.productoId}
