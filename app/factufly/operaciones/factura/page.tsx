@@ -2762,7 +2762,7 @@ function FacturaContent() {
                   <div className="w-5 h-5 rounded-md flex items-center justify-center">
                     <UserRound className="w-4 h-4 text-brand-blue" />
                   </div>
-                  <h3 className="text-xs font-semibold text-[#0f2e64]">
+                  <h3 className="text-xs font-semibold text-brand-blue">
                     Datos del Cliente
                   </h3>
                 </div>
@@ -3188,13 +3188,13 @@ function FacturaContent() {
                       <div className="space-y-1.5 ">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-  <div className="w-5 h-5 rounded-md flex items-center justify-center">
-    <CreditCard className="w-4 h-4 text-brand-blue" />
-  </div>
-  <h3 className="text-xs font-semibold text-[#0f2e64]">
-    Medio de Pago
-  </h3>
-</div>
+                          <div className="w-5 h-5 rounded-md flex items-center justify-center">
+                            <CreditCard className="w-4 h-4 text-brand-blue" />
+                          </div>
+                          <h3 className="text-xs font-semibold text-brand-blue">
+                            Medio de Pago
+                          </h3>
+                        </div>
                           {mediosUsados.length < todosMedios.length && (
                             <button type="button" onClick={agregarPago} className="text-xs text-brand-blue hover:underline flex items-center gap-1">
                               <Plus className="w-3 h-3" /> Agregar otro medio de pago
@@ -3225,7 +3225,7 @@ function FacturaContent() {
                             <div className="w-5 h-5 rounded-md flex items-center justify-center">
                               <CreditCard className="w-4 h-4 text-brand-blue" />
                             </div>
-                            <h3 className="text-xs font-semibold text-[#0f2e64]">Datos de Pago</h3>
+                            <h3 className="text-xs font-semibold text-brand-blue">Datos de Pago</h3>
                           </div>
                           {mediosUsados.length < todosMedios.length && (
                             <button type="button" onClick={agregarPago} className="text-xs text-brand-blue hover:underline flex items-center gap-1">
@@ -3760,7 +3760,7 @@ function FacturaContent() {
                     <div className="w-5 h-5 rounded-md flex items-center justify-center">
                       <ClipboardList className="w-4 h-4 text-brand-blue" />
                     </div>
-                    <label className="text-xs font-semibold text-[#0f2e64]">
+                    <label className="text-xs font-semibold text-brand-blue">
                       Detalle de Venta
                     </label>
                   </div>
