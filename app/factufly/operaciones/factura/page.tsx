@@ -3947,10 +3947,12 @@ function FacturaContent() {
                                     e.target.style.height = "auto";
                                     e.target.style.height = `${e.target.scrollHeight}px`;
 
-                                    // Escáner: detectar código en la última línea (el scanner puede escribir sobre texto existente)
+                                    // Escáner: detectar código solo cuando el escáner terminó de escanear
+                                    // (envía un salto de línea al presionar Enter). Si no hay salto de línea,
+                                    // es tecleo manual del usuario y no debe validarse como código de barras.
+                                    const tieneSaltoDeLinea = e.target.value.includes("\n");
                                     const ultimaLinea = e.target.value.split("\n").pop()?.trim() ?? "";
-                                    const valorExacto = e.target.value.trim();
-                                    const candidato = ultimaLinea.length >= 6 ? ultimaLinea : valorExacto.length >= 6 ? valorExacto : "";
+                                    const candidato = tieneSaltoDeLinea && ultimaLinea.length >= 6 ? ultimaLinea : "";
                                     if (candidato) {
                                       const coincidencia = productosSucursal.find(
                                         (p: ProductoSucursal) =>
