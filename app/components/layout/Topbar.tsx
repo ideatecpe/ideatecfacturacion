@@ -167,9 +167,8 @@ export const Topbar = ({
 
   const isSuperAdmin = user?.rol === "superadmin";
   const {
-    pendingDocs,
-    lastAccepted,
     lastRejected,
+    recentDocs,
     totalPending,
     connected,
     certInfo,
@@ -379,75 +378,59 @@ export const Topbar = ({
                   </div>
 
                   <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-                    {/* Pendientes */}
-                    {totalPending > 0 && (
-                      <li className="flex items-start gap-3 px-4 py-3 bg-amber-50/40">
-                        <div className="mt-0.5 p-1.5 bg-white rounded-lg border border-gray-100 shadow-sm shrink-0">
-                          <AlertCircle className="w-4 h-4 text-amber-500" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800">
-                            {totalPending} documento
-                            {totalPending > 1 ? "s" : ""} pendiente
-                            {totalPending > 1 ? "s" : ""}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {totalPending === 1
-                              ? pendingDocs[0]?.numeroCompleto
-                              : `Más reciente: ${pendingDocs[0]?.numeroCompleto}`}
-                          </p>
-                        </div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 shrink-0" />
-                      </li>
-                    )}
-
-                    {/* Último aceptado */}
-                    {lastAccepted && (
-                      <li className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer">
-                        <div className="mt-0.5 p-1.5 bg-white rounded-lg border border-gray-100 shadow-sm shrink-0">
-                          <Check className="w-4 h-4 text-emerald-500" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800">
-                            Último aceptado
-                          </p>
-                          <p className="text-xs text-gray-500 mt-0.5 truncate">
-                            {lastAccepted.numeroCompleto} —{" "}
-                            {lastAccepted.destinatario}
-                          </p>
-                          {lastAccepted.importeTotal && (
-                            <p className="text-[10px] text-emerald-600 font-semibold mt-1">
-                              {lastAccepted.tipoMoneda}{" "}
-                              {parseFloat(lastAccepted.importeTotal).toFixed(2)}
+                    {/* Últimos documentos, sin importar el día */}
+                    {recentDocs.map((doc) => {
+                      const isPendiente = doc.estadoSunat === "PENDIENTE";
+                      const isAceptado = doc.estadoSunat === "ACEPTADO";
+                      const isRechazado = doc.estadoSunat === "RECHAZADO";
+                      return (
+                        <li
+                          key={`${doc.tipo}-${doc.id}`}
+                          className={`flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer ${
+                            isPendiente
+                              ? "bg-amber-50/40"
+                              : isRechazado
+                                ? "bg-red-50/30"
+                                : ""
+                          }`}
+                        >
+                          <div className="mt-0.5 p-1.5 bg-white rounded-lg border border-gray-100 shadow-sm shrink-0">
+                            {isAceptado && (
+                              <Check className="w-4 h-4 text-emerald-500" />
+                            )}
+                            {isPendiente && (
+                              <AlertCircle className="w-4 h-4 text-amber-500" />
+                            )}
+                            {isRechazado && (
+                              <AlertCircle className="w-4 h-4 text-red-500" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800">
+                              {isAceptado
+                                ? "Aceptado"
+                                : isPendiente
+                                  ? "Pendiente"
+                                  : "Rechazado"}
                             </p>
-                          )}
-                        </div>
-                      </li>
-                    )}
-
-                    {/* Último rechazado */}
-                    {lastRejected && (
-                      <li className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer bg-red-50/30">
-                        <div className="mt-0.5 p-1.5 bg-white rounded-lg border border-gray-100 shadow-sm shrink-0">
-                          <AlertCircle className="w-4 h-4 text-red-500" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800">
-                            Último rechazado
-                          </p>
-                          <p className="text-xs text-gray-500 mt-0.5 truncate">
-                            {lastRejected.numeroCompleto} —{" "}
-                            {lastRejected.destinatario}
-                          </p>
-                          {lastRejected.mensajeRespuestaSunat && (
-                            <p className="text-[10px] text-red-500 font-medium mt-1 truncate">
-                              {lastRejected.mensajeRespuestaSunat}
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">
+                              {doc.numeroCompleto} — {doc.destinatario}
                             </p>
-                          )}
-                        </div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 shrink-0" />
-                      </li>
-                    )}
+                            {isAceptado && doc.importeTotal && (
+                              <p className="text-[10px] text-emerald-600 font-semibold mt-1">
+                                {doc.tipoMoneda}{" "}
+                                {parseFloat(doc.importeTotal).toFixed(2)}
+                              </p>
+                            )}
+                            {isRechazado && doc.mensajeRespuestaSunat && (
+                              <p className="text-[10px] text-red-500 font-medium mt-1 truncate">
+                                {doc.mensajeRespuestaSunat}
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
 
                     {/* Certificado por vencer */}
                     {certInfo &&
@@ -481,12 +464,11 @@ export const Topbar = ({
                       )}
 
                     {/* Sin notificaciones */}
-                    {totalPending === 0 &&
-                      !lastAccepted &&
-                      !lastRejected &&
-                      !certInfo?.isExpiringSoon && (
+                    {recentDocs.length === 0 &&
+                      !certInfo?.isExpiringSoon &&
+                      !certInfo?.isExpired && (
                         <li className="px-4 py-6 text-center text-sm text-gray-400">
-                          Sin actividad hoy
+                          Sin actividad reciente
                         </li>
                       )}
                   </ul>
