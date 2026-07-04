@@ -318,7 +318,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
   const filtered = productos.filter((p) => {
     const matchSearch =
       p.nomProducto.toLowerCase().includes(search.toLowerCase()) ||
-      p.codigo.toLowerCase().includes(search.toLowerCase());
+      p.codigo.toLowerCase().includes(search.toLowerCase()) ||
+      (!!p.codigoBarras && p.codigoBarras.includes(search.trim()));
 
     const matchCategoria =
       filterCategoria === "Todos" ||

@@ -722,8 +722,12 @@ export default function AgregarProducto({
                   checked={!!form.codigoBarras && form.codigoBarras.startsWith("200")}
                   onChange={(e) => {
                     if (e.target.checked) {
-                      const ts = Date.now().toString().slice(-10);
-                      setForm((prev) => ({ ...prev, codigoBarras: `200${ts}` }));
+                      // EAN-13 interno válido: prefijo 200 + 9 dígitos + dígito verificador
+                      const base12 = ("200" + Date.now().toString().slice(-9));
+                      let sum = 0;
+                      for (let i = 0; i < 12; i++) sum += parseInt(base12[i]) * (i % 2 === 0 ? 1 : 3);
+                      const check = (10 - (sum % 10)) % 10;
+                      setForm((prev) => ({ ...prev, codigoBarras: base12 + check }));
                     } else {
                       setForm((prev) => ({ ...prev, codigoBarras: "" }));
                     }
