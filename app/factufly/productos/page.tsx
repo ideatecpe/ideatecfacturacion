@@ -1407,15 +1407,15 @@ const [importFile, setImportFile] = useState<File | null>(null);
                     {config?.isStock && prod.sucursalProducto.enPromocion && prod.sucursalProducto.porcentajeDescuento ? (
                       <>
                         <div className="flex items-center justify-end gap-1">
-                          <Tag className="w-3 h-3 text-rose-500" />
-                          <span className="text-[10px] font-bold text-rose-500 uppercase">
+                          <Tag className="w-3 h-3 text-orange-500" />
+                          <span className="text-[10px] font-bold text-orange-500 uppercase">
                             -{prod.sucursalProducto.porcentajeDescuento}%
                           </span>
                         </div>
                         <p className="text-[11px] text-gray-400 line-through">
                           S/ {prod.sucursalProducto.precioUnitario.toFixed(2)}
                         </p>
-                        <p className="text-[14px] font-black text-rose-600">
+                        <p className="text-[14px] font-black text-orange-500">
                           S/{" "}
                           {(
                             prod.sucursalProducto.precioUnitario *
