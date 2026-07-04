@@ -49,8 +49,9 @@ export async function imprimirEtiquetas(
 
   const generarSvg = (codigo: string): string => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const format = /^\d{13}$/.test(codigo) ? "EAN13" : /^\d{12}$/.test(codigo) ? "UPC" : "CODE128";
     JsBarcode(svg, codigo, {
-      format: "CODE128",
+      format,
       width: tamaño === "58mm" ? 2.2 : 1.6,
       height: tamaño === "58mm" ? 55 : 48,
       displayValue: true,

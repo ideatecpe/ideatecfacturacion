@@ -1437,6 +1437,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                   <div className="mt-3 -mx-2 -mb-2 border-t border-dashed border-gray-200 bg-gray-50 rounded-b-xl flex flex-col items-center py-2 px-2 relative">
                     <Barcode
                       value={prod.codigoBarras}
+                      format={/^\d{13}$/.test(prod.codigoBarras) ? "EAN13" : /^\d{12}$/.test(prod.codigoBarras) ? "UPC" : "CODE128"}
                       width={1.6}
                       height={44}
                       fontSize={10}
