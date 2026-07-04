@@ -56,7 +56,7 @@ import { UserCircle, Car } from "lucide-react";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
-import { actualizarStock } from "../../productos/gestioProductos/actualizarStock";
+import React from "react";
 
 // ── Interfaces locales ───────────────────────────────────────
 interface DetalleLocal extends Partial<BoletaDetalle> {
@@ -552,6 +552,7 @@ function BoletaContent() {
   const [showDropdownProducto, setShowDropdownProducto] = useState<boolean[]>(
     [],
   );
+  const [pendingScanProducto, setPendingScanProducto] = useState<ProductoSucursal | null>(null);
   const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | null)[]>(
     [],
   );
@@ -1424,6 +1425,19 @@ function BoletaContent() {
     ];
   };
 
+  // Cuando se agrega una fila por scan de producto diferente, selecciona el producto pendiente en esa fila.
+  React.useEffect(() => {
+    if (!pendingScanProducto) return;
+    const idx = detalles.filter((d) => !d._esIcbper).length - 1;
+    if (idx >= 0) {
+      seleccionarProducto(pendingScanProducto, idx);
+      showToast(`✓ ${pendingScanProducto.nomProducto} agregado por código de barras`, "success");
+      setPendingScanProducto(null);
+      // Devolver foco al campo de la nueva fila para que el escáner pueda seguir
+      setTimeout(() => inputRefs.current[idx]?.focus(), 50);
+    }
+  }, [detalles.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
   const getStockEfectivo = (p: ProductoSucursal): number | null => {
     if (p.esPaquete && p.productoBaseId) {
@@ -1894,7 +1908,7 @@ function BoletaContent() {
 
   // ── Descontar stock (solo si config.isStock) ───────────────────
   const stockDescontadoRef = useRef(false);
-  const descontarStockSiAplica = async () => {
+  const descontarStockSiAplica = async (comprobanteId: number) => {
     if (!config?.isStock) return;
     if (stockDescontadoRef.current) return;
     stockDescontadoRef.current = true;
@@ -1914,7 +1928,11 @@ function BoletaContent() {
     if (!items.length) return;
 
     try {
-      await actualizarStock(items, accessToken);
+      await axios.put(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/descontar-stock`,
+        items,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
       fetchProductosSucursal();
     } catch {
       showToast("No se pudo actualizar el stock de los productos.", "error");
@@ -2044,7 +2062,7 @@ function BoletaContent() {
       } else {
         showToast("Boleta guardada como pendiente en resumen", "success");
         setEmitido(true);
-        descontarStockSiAplica();
+        descontarStockSiAplica(comprobanteId);
         procesarSegundoPlano(comprobanteId);
       }
     } catch (err: any) {
@@ -2075,7 +2093,7 @@ function BoletaContent() {
           "success",
         );
         setEmitido(true);
-        descontarStockSiAplica();
+        descontarStockSiAplica(comprobanteId);
         procesarSegundoPlano(comprobanteId);
       } else {
         // exitoso=false: puede ser RECHAZADO (validación real de SUNAT)
@@ -2093,7 +2111,7 @@ function BoletaContent() {
             "error",
           );
           reintentarEnSegundoPlano(comprobanteId); // ← sin await
-          descontarStockSiAplica();
+          descontarStockSiAplica(comprobanteId);
         } else {
           showToast(`La boleta ${serieCorrelativo} fue rechazada.`, "error");
         }
@@ -2117,7 +2135,7 @@ function BoletaContent() {
             "error",
           );
           reintentarEnSegundoPlano(comprobanteId); // ← sin await
-          descontarStockSiAplica();
+          descontarStockSiAplica(comprobanteId);
         } else {
           showToast(`La boleta ${serieCorrelativo} fue rechazada.`, "error");
         }
@@ -2132,7 +2150,7 @@ function BoletaContent() {
           "error",
         );
         setEmitido(true);
-        descontarStockSiAplica();
+        descontarStockSiAplica(comprobanteId);
         procesarSegundoPlano(comprobanteId);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
       }
@@ -3489,6 +3507,13 @@ function BoletaContent() {
                                   value={busquedaProducto[i] ?? ""}
                                   disabled={!!d._esIcbper || esPorConsumo}
                                   onChange={(e) => {
+                                    // Si el producto ya está seleccionado y el Enter del escáner agrega un salto de línea, ignorarlo
+                                    if (detalles[i]?.productoId && e.target.value.trim() === (detalles[i]?.descripcion ?? "").trim()) {
+                                      const nb = [...busquedaProducto];
+                                      nb[i] = detalles[i]?.descripcion ?? "";
+                                      setBusquedaProducto(nb);
+                                      return;
+                                    }
                                     const nb = [...busquedaProducto];
                                     nb[i] = e.target.value;
                                     setBusquedaProducto(nb);
@@ -3509,17 +3534,43 @@ function BoletaContent() {
                                     e.target.style.height = "auto";
                                     e.target.style.height = `${e.target.scrollHeight}px`;
 
-                                    // Escáner: si el valor coincide exactamente con un codigoBarras, seleccionar automáticamente
+                                    // Escáner: detectar código en la última línea (el scanner puede escribir sobre texto existente)
+                                    const ultimaLinea = e.target.value.split("\n").pop()?.trim() ?? "";
                                     const valorExacto = e.target.value.trim();
-                                    if (valorExacto.length >= 6) {
+                                    const candidato = ultimaLinea.length >= 6 ? ultimaLinea : valorExacto.length >= 6 ? valorExacto : "";
+                                    if (candidato) {
                                       const coincidencia = productosSucursal.find(
                                         (p: ProductoSucursal) =>
-                                          !!p.codigoBarras && p.codigoBarras === valorExacto,
+                                          !!p.codigoBarras && p.codigoBarras === candidato,
                                       );
                                       if (coincidencia) {
-                                        seleccionarProducto(coincidencia, i);
-                                        showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
+                                        const detalleActual = detalles[i];
+                                        if (detalleActual?.productoId === coincidencia.productoId) {
+                                          // Mismo producto ya seleccionado: sumar cantidad y resetear campo
+                                          actualizarCantidad(i, (detalleActual.cantidad ?? 1) + 1);
+                                          const nb = [...busquedaProducto];
+                                          nb[i] = coincidencia.nomProducto;
+                                          setBusquedaProducto(nb);
+                                          const nd = [...showDropdownProducto];
+                                          nd[i] = false;
+                                          setShowDropdownProducto(nd);
+                                          showToast(`✓ ${coincidencia.nomProducto} ×${(detalleActual.cantidad ?? 1) + 1}`, "success");
+                                        } else if (detalleActual?.productoId) {
+                                          // Producto diferente en fila ocupada: agregar nueva fila y seleccionar ahí
+                                          setPendingScanProducto(coincidencia);
+                                          agregarFila();
+                                        } else {
+                                          // Fila vacía: seleccionar normalmente
+                                          seleccionarProducto(coincidencia, i);
+                                          showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
+                                        }
+                                        return;
                                       }
+                                      // Código escaneado no encontrado en el catálogo
+                                      showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
+                                      const nb = [...busquedaProducto];
+                                      nb[i] = "";
+                                      setBusquedaProducto(nb);
                                     }
                                   }}
                                   onFocus={(e) => {

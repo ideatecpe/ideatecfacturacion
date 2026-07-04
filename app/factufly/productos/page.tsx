@@ -224,8 +224,7 @@ export default function ProductosPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProductoSucursal | null>(
     null,
   );
-
-  const [importFile, setImportFile] = useState<File | null>(null);
+const [importFile, setImportFile] = useState<File | null>(null);
   const [importSucursalId, setImportSucursalId] = useState<number>(0);
   const [importando, setImportando] = useState(false);
   const [importProgreso, setImportProgreso] = useState<{
@@ -1216,10 +1215,11 @@ export default function ProductosPage() {
             filtered.map((prod) => (
               <Card
                 key={prod.sucursalProducto.sucursalProductoId}
-                className="group hover:border-brand-blue transition-all"
+                className={`group hover:border-brand-blue transition-all ${modoSeleccionPromo && prod.tipoProducto === "BIEN" ? "cursor-pointer" : ""}`}
+                onClick={modoSeleccionPromo && prod.tipoProducto === "BIEN" ? () => toggleSeleccionPromo(prod.productoId) : undefined}
               >
                 {/* ── Imagen ── */}
-                {prod.urlImagenProducto && (
+                {prod.urlImagenProducto ? (
                   <div className="-mx-2 -mt-2 mb-2 h-44 bg-gray-100 overflow-hidden rounded-t-xl">
                     <img
                       src={prod.urlImagenProducto}
@@ -1227,6 +1227,10 @@ export default function ProductosPage() {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
                     />
+                  </div>
+                ) : (
+                  <div className="-mx-2 -mt-2 mb-2 h-44 bg-gray-100 rounded-t-xl flex items-center justify-center">
+                    <span className="text-gray-300 font-bold text-2xl sm:text-3xl tracking-wide select-none">Sin imagen</span>
                   </div>
                 )}
 
@@ -1256,6 +1260,7 @@ export default function ProductosPage() {
                           type="checkbox"
                           checked={seleccionadosPromo.has(prod.productoId)}
                           onChange={() => toggleSeleccionPromo(prod.productoId)}
+                          onClick={(e) => e.stopPropagation()}
                           className="w-4 h-4 accent-rose-600"
                         />
                       )
@@ -1296,7 +1301,7 @@ export default function ProductosPage() {
                             const estado = getEstadoStock(prod);
                             const labelPrincipal = (() => {
                               if (cajas == null) return "STOCK: —";
-                              if (cajas! > 0) return `STOCK: ${cajas} caja${cajas! > 1 ? "s" : ""}`;
+                              if (cajas > 0) return `STOCK: ${cajas} caja${cajas > 1 ? "s" : ""}`;
                               if (sueltas! > 0) return `STOCK: 0 cajas`;
                               return "STOCK: 0";
                             })();

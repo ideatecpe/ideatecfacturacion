@@ -1,8 +1,8 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
 
-export const Card = ({ children, className, title, subtitle, action }: { children: React.ReactNode, className?: string, title?: string, subtitle?: string, action?: React.ReactNode, key?: React.Key }) => (
-  <div className={cn("bg-white rounded-xl shadow-sm border border-[#E2EAF6] overflow-hidden", className)}>
+export const Card = ({ children, className, title, subtitle, action, onClick }: { children: React.ReactNode, className?: string, title?: string, subtitle?: string, action?: React.ReactNode, key?: React.Key, onClick?: () => void }) => (
+  <div className={cn("bg-white rounded-xl shadow-sm border border-[#E2EAF6] overflow-hidden", className)} onClick={onClick}>
     {(title || action) && (
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
         <div>

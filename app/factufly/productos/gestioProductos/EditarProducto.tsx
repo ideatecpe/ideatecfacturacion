@@ -35,6 +35,10 @@ interface FormFieldsProps {
   setImgError: React.Dispatch<React.SetStateAction<boolean>>;
   imgPreview: string | null;
   setImgPreview: React.Dispatch<React.SetStateAction<string | null>>;
+  subiendoImagen: boolean;
+  setSubiendoImagen: React.Dispatch<React.SetStateAction<boolean>>;
+  confirmandoEliminarImagen: boolean;
+  setConfirmandoEliminarImagen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const emptyForm: NuevoProducto = {
@@ -74,6 +78,8 @@ export default function EditarProducto({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [imgError, setImgError] = useState(false);
   const [imgPreview, setImgPreview] = useState<string | null>(null);
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const [confirmandoEliminarImagen, setConfirmandoEliminarImagen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Refresca la lista de productos base cada vez que se abre el modal.
@@ -86,6 +92,7 @@ export default function EditarProducto({
 
     setImgError(false);
     setImgPreview(null);
+    setConfirmandoEliminarImagen(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setForm({
       codigo: producto.codigo,
@@ -274,14 +281,18 @@ export default function EditarProducto({
           setImgError={setImgError}
           imgPreview={imgPreview}
           setImgPreview={setImgPreview}
+          subiendoImagen={subiendoImagen}
+          setSubiendoImagen={setSubiendoImagen}
+          confirmandoEliminarImagen={confirmandoEliminarImagen}
+          setConfirmandoEliminarImagen={setConfirmandoEliminarImagen}
         />
 
         <div className="pt-4 flex justify-end gap-3">
           <Button variant="outline" type="button" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+          <Button type="submit" disabled={isSubmitting || subiendoImagen}>
+            {subiendoImagen ? "Subiendo imagen..." : isSubmitting ? "Guardando..." : "Guardar Cambios"}
           </Button>
         </div>
       </form>
@@ -289,13 +300,33 @@ export default function EditarProducto({
   );
 }
 
-function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias, isStock, productosEmpresa, productoActualId, imgError, setImgError, imgPreview, setImgPreview }: FormFieldsProps) {
+function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias, isStock, productosEmpresa, productoActualId, imgError, setImgError, imgPreview, setImgPreview, subiendoImagen, setSubiendoImagen, confirmandoEliminarImagen, setConfirmandoEliminarImagen }: FormFieldsProps) {
   const { showToast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [subiendoImagen, setSubiendoImagen] = useState(false);
 
   const handleSeleccionarImagen = () => {
     fileInputRef.current?.click();
+  };
+
+  // Extrae el imageId de una URL de Cloudflare Images.
+  // Formato: https://imagedelivery.net/{hash}/{imageId}/{variant}
+  const extractCloudflareImageId = (url: string): string | null => {
+    try {
+      const parts = new URL(url).pathname.split("/").filter(Boolean);
+      return parts.length >= 2 ? parts[parts.length - 2] : null;
+    } catch { return null; }
+  };
+
+  const eliminarImagenCloudflare = async (url: string) => {
+    const imageId = extractCloudflareImageId(url);
+    if (!imageId) return;
+    try {
+      await fetch("/api/upload-imagen", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId }),
+      });
+    } catch { /* fallo silencioso */ }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -304,6 +335,10 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
     setImgError(false);
     setImgPreview(URL.createObjectURL(file));
     setSubiendoImagen(true);
+    // Eliminar imagen anterior de Cloudflare antes de subir la nueva
+    if (form.urlImagenProducto) {
+      await eliminarImagenCloudflare(form.urlImagenProducto);
+    }
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -325,10 +360,13 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
   };
 
   const handleQuitarImagen = () => {
+    const urlAnterior = form.urlImagenProducto;
     setForm((prev) => ({ ...prev, urlImagenProducto: null }));
     setImgPreview(null);
     setImgError(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    // Eliminar de Cloudflare en segundo plano sin bloquear la UI
+    if (urlAnterior) eliminarImagenCloudflare(urlAnterior);
   };
 
   return (
@@ -358,14 +396,32 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
               <Camera className="w-8 h-8 text-gray-300" />
             )}
           </div>
-          {form.urlImagenProducto && (
+          {form.urlImagenProducto && !confirmandoEliminarImagen && (
             <button
               type="button"
-              onClick={handleQuitarImagen}
+              onClick={() => setConfirmandoEliminarImagen(true)}
               className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-sm transition-colors"
             >
               <XIcon className="w-3 h-3" />
             </button>
+          )}
+          {form.urlImagenProducto && confirmandoEliminarImagen && (
+            <div className="absolute -top-2 -right-2 flex gap-1">
+              <button
+                type="button"
+                onClick={() => { handleQuitarImagen(); setConfirmandoEliminarImagen(false); }}
+                className="text-[10px] font-bold bg-rose-500 hover:bg-rose-600 text-white px-1.5 py-0.5 rounded shadow-sm"
+              >
+                Quitar
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmandoEliminarImagen(false)}
+                className="text-[10px] font-bold bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded shadow-sm"
+              >
+                No
+              </button>
+            </div>
           )}
         </div>
 

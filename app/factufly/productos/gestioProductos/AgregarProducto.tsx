@@ -86,7 +86,19 @@ export default function AgregarProducto({
   const [imgError, setImgError] = useState(false);
   const [imgPreview, setImgPreview] = useState<string | null>(null);
   const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const [currentImageId, setCurrentImageId] = useState<string | null>(null);
+  const [confirmandoEliminarImagen, setConfirmandoEliminarImagen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const eliminarImagenCloudflare = async (imageId: string) => {
+    try {
+      await fetch("/api/upload-imagen", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId }),
+      });
+    } catch { /* si falla el delete en CF, no bloqueamos al usuario */ }
+  };
 
   const handleSeleccionarImagen = () => {
     fileInputRef.current?.click();
@@ -98,6 +110,11 @@ export default function AgregarProducto({
     setImgError(false);
     setImgPreview(URL.createObjectURL(file));
     setSubiendoImagen(true);
+    // Si ya había una imagen subida antes de guardar, eliminarla de Cloudflare
+    if (currentImageId) {
+      await eliminarImagenCloudflare(currentImageId);
+      setCurrentImageId(null);
+    }
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -105,6 +122,7 @@ export default function AgregarProducto({
       const data = await res.json();
       if (data.ok) {
         setForm((prev) => ({ ...prev, urlImagenProducto: data.url }));
+        setCurrentImageId(data.imageId ?? null);
       } else {
         showToast("Error al subir imagen: " + data.error, "error");
         setImgPreview(null);
@@ -119,10 +137,14 @@ export default function AgregarProducto({
   };
 
   const handleQuitarImagen = () => {
+    const idAnterior = currentImageId;
     setForm((prev) => ({ ...prev, urlImagenProducto: null }));
     setImgPreview(null);
     setImgError(false);
+    setCurrentImageId(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    // Eliminar de Cloudflare en segundo plano
+    if (idAnterior) eliminarImagenCloudflare(idAnterior);
   };
 
   //seleccionar sucursal para agregar si es superadmin
@@ -164,6 +186,10 @@ export default function AgregarProducto({
       setImgError(false);
       setImgPreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      // Si el modal se cerró sin guardar y había una imagen subida, eliminarla de Cloudflare
+      if (currentImageId) eliminarImagenCloudflare(currentImageId);
+      setCurrentImageId(null);
+      setConfirmandoEliminarImagen(false);
     }
   }, [isOpen]);
 
@@ -288,6 +314,22 @@ export default function AgregarProducto({
     e.preventDefault();
     if (!validar()) return;
     if (isSubmitting) return;
+
+    // Validar código de barras duplicado antes de enviar
+    const barcode = form.codigoBarras?.trim();
+    if (barcode) {
+      const duplicado = productosEmpresa.find(
+        (p) => p.codigoBarras && p.codigoBarras === barcode,
+      );
+      if (duplicado) {
+        showToast(
+          `El código de barras ya está asignado a "${duplicado.nomProducto}".`,
+          "error",
+        );
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     const formConSucursal = {
       ...form,
@@ -307,6 +349,7 @@ export default function AgregarProducto({
       showToast("Producto guardado exitosamente.", "success");
       onProductoAgregado(response.data);
       setForm({ ...emptyForm, sucursalId: sucursalIdEfectivo });
+      setCurrentImageId(null); // imagen ya guardada en BD, no es huérfana
       onClose();
     } catch (error) {
       console.error("Error guardando producto:", error);
@@ -395,14 +438,32 @@ export default function AgregarProducto({
                   <Camera className="w-8 h-8 text-gray-300" />
                 )}
               </div>
-              {form.urlImagenProducto && (
+              {form.urlImagenProducto && !confirmandoEliminarImagen && (
                 <button
                   type="button"
-                  onClick={handleQuitarImagen}
+                  onClick={() => setConfirmandoEliminarImagen(true)}
                   className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-sm transition-colors"
                 >
                   <XIcon className="w-3 h-3" />
                 </button>
+              )}
+              {form.urlImagenProducto && confirmandoEliminarImagen && (
+                <div className="absolute -top-2 -right-2 flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { handleQuitarImagen(); setConfirmandoEliminarImagen(false); }}
+                    className="text-[10px] font-bold bg-rose-500 hover:bg-rose-600 text-white px-1.5 py-0.5 rounded shadow-sm"
+                  >
+                    Quitar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmandoEliminarImagen(false)}
+                    className="text-[10px] font-bold bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded shadow-sm"
+                  >
+                    No
+                  </button>
+                </div>
               )}
             </div>
 
@@ -655,16 +716,22 @@ export default function AgregarProducto({
                 placeholder="EAN13 / Code128"
                 showError={false}
               />
-              <button
-                type="button"
-                onClick={() => {
-                  const ts = Date.now().toString().slice(-10);
-                  setForm((prev) => ({ ...prev, codigoBarras: `200${ts}` }));
-                }}
-                className="text-[10px] font-semibold text-brand-blue hover:underline"
-              >
-                Generar código automático
-              </button>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none w-fit mt-0.5">
+                <input
+                  type="checkbox"
+                  checked={!!form.codigoBarras && form.codigoBarras.startsWith("200")}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const ts = Date.now().toString().slice(-10);
+                      setForm((prev) => ({ ...prev, codigoBarras: `200${ts}` }));
+                    } else {
+                      setForm((prev) => ({ ...prev, codigoBarras: "" }));
+                    }
+                  }}
+                  className="w-3 h-3 accent-brand-blue"
+                />
+                <span className="text-[10px] font-semibold text-gray-500">Generar código automático</span>
+              </label>
             </div>
 
             {config?.isStock && (
@@ -837,8 +904,8 @@ export default function AgregarProducto({
           <Button variant="outline" type="button" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Guardando..." : "Guardar Producto"}
+          <Button type="submit" disabled={isSubmitting || subiendoImagen}>
+            {subiendoImagen ? "Subiendo imagen..." : isSubmitting ? "Guardando..." : "Guardar Producto"}
           </Button>
         </div>
       </form>

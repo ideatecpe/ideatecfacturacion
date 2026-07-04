@@ -26,7 +26,33 @@ export async function POST(req: NextRequest) {
   const data = await cfRes.json();
 
   if (data.success) {
-    return NextResponse.json({ ok: true, url: data.result.variants[0] });
+    return NextResponse.json({ ok: true, url: data.result.variants[0], imageId: data.result.id });
+  }
+
+  return NextResponse.json({ ok: false, error: JSON.stringify(data.errors) }, { status: 400 });
+}
+
+export async function DELETE(req: NextRequest) {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+
+  if (!accountId || !apiToken) {
+    return NextResponse.json({ ok: false, error: "Credenciales de Cloudflare no configuradas." }, { status: 500 });
+  }
+
+  const { imageId } = await req.json();
+  if (!imageId) {
+    return NextResponse.json({ ok: false, error: "imageId requerido." }, { status: 400 });
+  }
+
+  const cfRes = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v1/${imageId}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${apiToken}` } }
+  );
+
+  const data = await cfRes.json();
+  if (data.success) {
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ ok: false, error: JSON.stringify(data.errors) }, { status: 400 });
