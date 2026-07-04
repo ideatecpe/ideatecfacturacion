@@ -50,6 +50,7 @@ import { useRegistrarCategoria } from "./gestioProductos/useRegistrarCategoria";
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import ModalReporteProductos from "@/app/components/modalProductos/Modalreporteproductos";
 import { ModalVentasProductoExcel } from "./gestioProductos/ModalVentasProductoExcel";
+import ModalImprimirEtiquetas from "./gestioProductos/ModalImprimirEtiquetas";
 import { generarCodigoProducto } from "./gestioProductos/generarCodigoProducto";
 
 // Umbral de stock bajo (alerta visual) para productos normales, en unidades.
@@ -250,17 +251,17 @@ const [importFile, setImportFile] = useState<File | null>(null);
   const [aplicandoPromoMasiva, setAplicandoPromoMasiva] = useState(false);
 
   // Impresión de códigos de barras
-  const [productosPrint, setProductosPrint] = useState<ProductoSucursal[]>([]);
-  const printAreaRef = useRef<HTMLDivElement>(null);
+  const [modalImprimirOpen, setModalImprimirOpen] = useState(false);
+  const [pendingPrintList, setPendingPrintList] = useState<ProductoSucursal[]>([]);
 
-  const imprimirCodigos = (lista: ProductoSucursal[]) => {
+  const abrirModalImprimir = (lista: ProductoSucursal[]) => {
     const conCodigo = lista.filter((p) => !!p.codigoBarras);
     if (conCodigo.length === 0) {
       showToast("Los productos seleccionados no tienen código de barras.", "info");
       return;
     }
-    setProductosPrint(conCodigo);
-    setTimeout(() => window.print(), 500);
+    setPendingPrintList(conCodigo);
+    setModalImprimirOpen(true);
   };
 
   //Categorias
@@ -1125,9 +1126,31 @@ const [importFile, setImportFile] = useState<File | null>(null);
       {/* Barra de selección para promoción masiva */}
       {modoSeleccionPromo && (
         <div className="flex items-center justify-between gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 animate-in fade-in duration-200">
-          <p className="text-xs font-semibold text-blue-700">
-            {seleccionadosPromo.size} producto(s) seleccionado(s) — marca los productos "Bien" que quieras poner en promoción.
-          </p>
+          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+            {(() => {
+              const elegibles = filtered.filter((p) => p.tipoProducto === "BIEN");
+              const todosSeleccionados = elegibles.length > 0 && elegibles.every((p) => seleccionadosPromo.has(p.productoId));
+              const algunoSeleccionado = !todosSeleccionados && elegibles.some((p) => seleccionadosPromo.has(p.productoId));
+              return (
+                <input
+                  type="checkbox"
+                  checked={todosSeleccionados}
+                  ref={(el) => { if (el) el.indeterminate = algunoSeleccionado; }}
+                  onChange={() => {
+                    if (todosSeleccionados) {
+                      setSeleccionadosPromo(new Set());
+                    } else {
+                      setSeleccionadosPromo(new Set(elegibles.map((p) => p.productoId)));
+                    }
+                  }}
+                  className="w-4 h-4 accent-brand-blue"
+                />
+              );
+            })()}
+            <span className="text-xs font-semibold text-blue-700">
+              {seleccionadosPromo.size > 0 ? `${seleccionadosPromo.size} seleccionado(s)` : "Seleccionar todos"}
+            </span>
+          </label>
           <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
@@ -1153,7 +1176,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
             </Button>
             <Button
               variant="outline"
-              onClick={() => imprimirCodigos(productos.filter((p) => seleccionadosPromo.has(p.productoId)))}
+              onClick={() => abrirModalImprimir(productos.filter((p) => seleccionadosPromo.has(p.productoId)))}
               disabled={seleccionadosPromo.size === 0}
               className="py-1.5 px-3 text-xs rounded-md h-auto"
             >
@@ -1422,7 +1445,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                       lineColor="#334155"
                     />
                     <button
-                      onClick={() => imprimirCodigos([prod])}
+                      onClick={() => abrirModalImprimir([prod])}
                       title="Imprimir etiqueta"
                       className="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
                     >
@@ -1803,68 +1826,13 @@ const [importFile, setImportFile] = useState<File | null>(null);
         onConfirm={handleConfirmDelete}
       />
 
-      {/* ── Área de impresión — fuera de pantalla pero siempre renderizada ── */}
-      <div
-        ref={printAreaRef}
-        id="productos-print-area"
-        style={{ position: "fixed", top: "-9999px", left: "-9999px", visibility: "hidden" }}
-      >
-        <style>{`
-          @media print {
-            body * { visibility: hidden !important; }
-            #productos-print-area {
-              visibility: visible !important;
-              position: fixed !important;
-              top: 0 !important;
-              left: 0 !important;
-              width: 100% !important;
-              background: white !important;
-              display: flex !important;
-              flex-wrap: wrap !important;
-              gap: 16px !important;
-              padding: 20px !important;
-            }
-            #productos-print-area * { visibility: visible !important; }
-            .etiqueta-print {
-              border: 1px solid #cbd5e1;
-              border-radius: 8px;
-              padding: 8px 10px;
-              width: 200px;
-              box-sizing: border-box;
-              text-align: center;
-              page-break-inside: avoid;
-              background: white;
-              overflow: hidden;
-            }
-            .etiqueta-print svg {
-              max-width: 100% !important;
-              height: auto !important;
-              display: block !important;
-              margin: 0 auto !important;
-            }
-          }
-        `}</style>
-        {productosPrint.map((p) => (
-          <div key={p.productoId} className="etiqueta-print">
-            <p style={{ fontSize: 10, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", color: "#1e293b", lineHeight: 1.3 }}>
-              {p.nomProducto}
-            </p>
-            <Barcode
-              value={p.codigoBarras!}
-              width={1.2}
-              height={48}
-              fontSize={9}
-              margin={0}
-              displayValue={true}
-              background="#ffffff"
-              lineColor="#1e293b"
-            />
-            <p style={{ fontSize: 13, fontWeight: 900, color: "#1d4ed8", marginTop: 4 }}>
-              S/ {p.sucursalProducto.precioUnitario.toFixed(2)}
-            </p>
-          </div>
-        ))}
-      </div>
+
+      <ModalImprimirEtiquetas
+        isOpen={modalImprimirOpen}
+        onClose={() => setModalImprimirOpen(false)}
+        productos={pendingPrintList}
+        onError={(msg) => showToast(msg, "error")}
+      />
 
       {/* Modal: aplicar % de descuento a los productos seleccionados */}
       <Modal
