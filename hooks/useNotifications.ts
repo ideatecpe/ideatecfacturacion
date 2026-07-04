@@ -11,6 +11,7 @@ interface NotificationDoc {
   estadoSunat: string;
   fechaActualizacion?: string;
   mensajeRespuestaSunat?: string;
+  codigoRespuestaSunat?: string;
 }
 
 interface CertInfo {
@@ -24,6 +25,7 @@ interface DashboardData {
   pendingDocs: NotificationDoc[];
   lastAccepted: NotificationDoc | null;
   lastRejected: NotificationDoc | null;
+  recentDocs: NotificationDoc[];
   totalPending: number;
   certInfo: CertInfo | null;
   generatedAt: string;
@@ -49,6 +51,7 @@ export function useNotifications({
     pendingDocs: [],
     lastAccepted: null,
     lastRejected: null,
+    recentDocs: [],
     totalPending: 0,
     certInfo: null,
     generatedAt: "",
@@ -96,6 +99,7 @@ export function useNotifications({
               ...prev,
               pendingDocs: newData.pendingDocs,
               totalPending: newData.totalPending,
+              recentDocs: newData.recentDocs ?? prev.recentDocs,
             }));
           } else if (evento === "status") {
             setData((prev) => ({
@@ -104,6 +108,7 @@ export function useNotifications({
               totalPending: newData.totalPending,
               lastAccepted: newData.lastAccepted,
               lastRejected: newData.lastRejected,
+              recentDocs: newData.recentDocs ?? prev.recentDocs,
             }));
           } else {
             // Reemplaza todo
