@@ -834,9 +834,14 @@ function NotaCreditoContent() {
     }
   };
 
-  // ── Reintento silencioso ──────────────────────────────────────
+  // Reintento en segundo plano, 100% silencioso (sin toasts en éxito ni en fallo).
+  // El backend ya garantiza que solo llega a RECHAZADO si SUNAT devolvió un CDR
+  // real; este delay solo reduce la chance de chocar con un documento que SUNAT
+  // aún tiene "en proceso" y reparte los reintentos si hay varias notas
+  // pendientes a la vez (evita una ráfaga si SUNAT tuvo una caída sostenida).
   const reintentarEnSegundoPlano = async (comprobanteId: number) => {
-    await new Promise(res => setTimeout(res, 3000));
+    const delayConJitter = 30000 + Math.random() * 20000; // 30-50s
+    await new Promise(res => setTimeout(res, delayConJitter));
     try {
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/notes/${comprobanteId}/send`,
@@ -929,7 +934,7 @@ function NotaCreditoContent() {
                         setCorrelativoNCFactura(res.data.correlativoNotaCreditoFactura ?? null);
                         setCorrelativoNCBoleta(res.data.correlativoNotaCreditoBoleta ?? null);
                       }}
-                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                     >
                       <option value="">Seleccionar sucursal</option>
                       {sucursales.map((s: Sucursal) => (
@@ -1021,7 +1026,7 @@ function NotaCreditoContent() {
                       value={serieInput}
                       onChange={(e) => { setSerieInput(e.target.value); if (comprobante) limpiarBuscador(); }}
                       disabled={isSuperAdmin && sinSucursal || vieneDesdeLista}
-                      className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm disabled:cursor-not-allowed"
+                      className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm disabled:cursor-not-allowed"
                     >
                       <option value="">Seleccionar serie</option>
                       {seriesDisponibles.map((s) => (
@@ -1039,7 +1044,7 @@ function NotaCreditoContent() {
                         onChange={(e) => setCorrelativoInput(e.target.value.replace(/\D/g, ""))}
                         placeholder="127" maxLength={10} disabled={vieneDesdeLista}
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); buscarComprobante(serieInput, correlativoInput); } }}
-                        className="w-full py-1.5 pl-3 pr-9 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm font-mono disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-1.5 pl-3 pr-9 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       {(correlativoInput || comprobante) && (
                         <button type="button" 
@@ -1162,7 +1167,7 @@ function NotaCreditoContent() {
                       const motivo = MOTIVOS_NC.find((m) => m.code === cod);
                       setDesMotivo(motivo?.label ?? "");
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                   >
                     <option value="">Seleccionar motivo</option>
                     {MOTIVOS_NC.map((m) => (
@@ -1175,7 +1180,7 @@ function NotaCreditoContent() {
                       <label className="text-[10px] font-bold text-gray-400 uppercase">Descripción del motivo</label>
                       <input type="text" value={desMotivo} onChange={(e) => setDesMotivo(e.target.value)}
                         maxLength={250} placeholder="Descripción del motivo..."
-                        className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm" />
+                        className="w-full py-1.5 px-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm" />
                     </div>
                   )}
                 </div>
@@ -1186,7 +1191,7 @@ function NotaCreditoContent() {
                     max={obtenerFechaLocal(0)}
                     min={obtenerFechaLocal(-2)}
                     onChange={(e) => setFechaEmision(e.target.value)}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm" />
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm" />
                 </div>
               </div>
 
@@ -1253,7 +1258,7 @@ function NotaCreditoContent() {
                                 <td className="px-2 py-1.5">
                                   {puedeEditarDescripcion ? (
                                     <input type="text" value={d.descripcion} onChange={(e) => actualizarDescripcion(i, e.target.value)}
-                                      className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue" />
+                                      className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50" />
                                   ) : (
                                     <span className="text-xs text-gray-700">{d.descripcion}</span>
                                   )}
@@ -1271,7 +1276,7 @@ function NotaCreditoContent() {
                                           className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">−</button>
                                         <input type="number" min={0} max={detallesOriginales[i]?.cantidad ? Number(detallesOriginales[i].cantidad) : undefined} step="0.10" value={d.cantidad} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                           onChange={(e) => actualizarCantidad(i, e.target.value)}
-                                          className="w-14 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                          className="w-14 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                         <button type="button" onClick={() => actualizarCantidad(i, (Number(d.cantidad)||0) + 1)}
                                           className="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-md text-gray-600 font-bold">+</button>
                                       </div>
@@ -1290,13 +1295,13 @@ function NotaCreditoContent() {
                                     // Motivo 08: precio referencial con IGV
                                     <input type="number" min={0} step="0.10" value={d.mtoPrecioUnitario} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                       onChange={(e) => actualizarPrecioReferencial(i, Number(e.target.value))}
-                                      className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                      className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                   ) : puedeIngresarMontoConIgv ? (
                                     // Motivos 04/05/09: monto CON igv
                                     <div className="space-y-0.5">
                                       <input type="number" min={0} step="0.10" value={d._montoConIgv ?? ""} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                         onChange={(e) => actualizarMontoConIgv(i, e.target.value)}
-                                        className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${excede ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`} />
+                                        className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${excede ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}`} />
                                       {/* Máximo permitido debajo del input */}
                                       {maxDesc !== undefined && (
                                         <p className={`text-[9px] text-right ${excede ? "text-red-500" : "text-gray-400"}`}>
@@ -1308,7 +1313,7 @@ function NotaCreditoContent() {
                                     // Motivo 10: edición libre sin IGV
                                     <input type="number" min={0} step="0.10" value={d.mtoValorUnitario} onWheel={(e) => e.currentTarget.blur()} onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
                                       onChange={(e) => actualizarPrecioLibre(i, Number(e.target.value))}
-                                      className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                      className="w-full py-1 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                                   ) : (
                                     <span className="text-xs text-gray-700 text-right block font-mono">
                                       {d.tipAfeIgv === 15 ? d.mtoPrecioUnitario.toFixed(2) : d.mtoValorUnitario.toFixed(2)}
@@ -1473,7 +1478,7 @@ function NotaCreditoContent() {
           <Card title="Vista Previa" subtitle="Representación gráfica del comprobante">
             <div className="mb-3">
               <select value={tamanoPdf} onChange={(e) => setTamanoPdf(e.target.value)}
-                className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue">
+                className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50">
                 <option value="A4">A4</option>
                 <option value="Carta">Carta</option>
                 <option value="Ticket80mm">Ticket 80mm</option>

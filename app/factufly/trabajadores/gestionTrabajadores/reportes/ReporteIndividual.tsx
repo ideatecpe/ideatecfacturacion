@@ -91,7 +91,7 @@ export const ReporteIndividual: React.FC<Props> = ({
           <select
             value={trabajadorId}
             onChange={(e) => setTrabajadorId(Number(e.target.value))}
-            className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 shadow-sm min-w-50"
+            className="px-3 py-2 bg-white border border-gray-200 rounded-md text-sm outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/20 shadow-sm min-w-50"
           >
             <option value={0}>Seleccionar trabajador</option>
             {trabajadores.map((t) => (

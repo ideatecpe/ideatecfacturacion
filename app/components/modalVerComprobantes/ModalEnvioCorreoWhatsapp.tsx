@@ -418,8 +418,8 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                                         errorInput
                                             ? "border-red-400 ring-2 ring-red-100"
                                             : esEmail
-                                                ? "border-gray-200 focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                                                : "border-gray-200 focus:ring-2 focus:ring-green-100 focus:border-green-400"
+                                                ? "border-gray-200 focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50"
+                                                : "border-gray-200 focus:ring-2 focus:ring-green-100 focus:border-brand-blue/50"
                                     )}
                                 />
                                 <button

@@ -182,7 +182,7 @@ function ResetPasswordContent() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Mínimo 8 caracteres"
-                  className="block w-full pl-11 pr-11 py-3 bg-slate-50 border border-slate-200 focus:border-blue-700 focus:ring-4 focus:ring-blue-50 rounded-xl outline-none text-slate-900 font-medium text-sm transition-all"
+                  className="block w-full pl-11 pr-11 py-3 bg-slate-50 border border-slate-200 focus:border-brand-blue/50 focus:ring-4 focus:ring-blue-50 rounded-xl outline-none text-slate-900 font-medium text-sm transition-all"
                   required
                 />
                 <button
@@ -224,7 +224,7 @@ function ResetPasswordContent() {
                   className={`block w-full pl-11 pr-11 py-3 bg-slate-50 border rounded-xl outline-none text-slate-900 font-medium text-sm transition-all
                     ${confirmPassword && confirmPassword !== password
                       ? "border-red-300 focus:ring-4 focus:ring-red-50"
-                      : "border-slate-200 focus:border-blue-700 focus:ring-4 focus:ring-blue-50"
+                      : "border-slate-200 focus:border-brand-blue/50 focus:ring-4 focus:ring-blue-50"
                     }`}
                   required
                 />

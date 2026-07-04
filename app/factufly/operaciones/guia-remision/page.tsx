@@ -91,9 +91,9 @@ const MOTIVOS_TRASLADO = [
 ];
 
 const inputClass =
-  "w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm";
+  "w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm";
 const selectClass =
-  "w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm";
+  "w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm";
 const labelClass = "text-[10px] font-bold text-gray-500 uppercase";
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -1905,7 +1905,7 @@ function GuiaRemisionContent() {
                           setDestinatarioSunatResultado(null);
                           setDestinatarioSunatHint(null);
                         }}
-                        className="w-full pl-10 pr-4 py-1 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all"
+                        className="w-full pl-10 pr-4 py-1 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all"
                       />
                       <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
 
@@ -2210,7 +2210,7 @@ function GuiaRemisionContent() {
                                   nuevos[i].pesoKg = Number(e.target.value);
                                   setBienes(nuevos);
                                 }}
-                                className="w-20 py-1 px-2 text-right text-sm bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue"
+                                className="w-20 py-1 px-2 text-right text-sm bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50"
                               />
                             </td>
                             <td className="px-4 py-3 text-right">
@@ -2264,7 +2264,7 @@ function GuiaRemisionContent() {
                   rows={3}
                   value={observaciones}
                   onChange={(e) => setObservaciones(e.target.value)}
-                  className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm resize-none"
+                  className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm resize-none"
                 />
               </div>
             </form>

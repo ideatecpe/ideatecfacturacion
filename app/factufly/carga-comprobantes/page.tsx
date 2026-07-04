@@ -599,7 +599,7 @@ export default function CargaComprobantesPage() {
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar por numdoc, razón social o placa…"
-                className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 placeholder:text-gray-400 text-gray-800"
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-100 placeholder:text-gray-400 text-gray-800"
               />
               {busqueda && (
                 <button
@@ -861,7 +861,7 @@ export default function CargaComprobantesPage() {
                                   className={`w-full px-2 py-1 rounded-md border outline-none transition-all text-gray-800 text-[11px] focus:ring-2 ${
                                     campoError
                                       ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100"
-                                      : "border-gray-200 bg-white hover:border-gray-300 focus:border-blue-400 focus:ring-blue-100 focus:bg-white"
+                                      : "border-gray-200 bg-white hover:border-gray-300 focus:border-brand-blue/50 focus:ring-blue-100 focus:bg-white"
                                   }`}
                                 />
                               )}

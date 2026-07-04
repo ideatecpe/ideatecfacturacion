@@ -186,7 +186,7 @@ const ForgotPasswordModal: React.FC<{ onClose: () => void }> = ({
                 value={emailOrUsername}
                 onChange={(e) => setEmailOrUsername(e.target.value)}
                 placeholder="correo@empresa.com o tu usuario"
-                className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 focus:border-blue-700 focus:ring-4 focus:ring-blue-50 rounded-xl outline-none text-slate-900 font-medium text-sm transition-all"
+                className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 focus:border-brand-blue/50 focus:ring-4 focus:ring-blue-50 rounded-xl outline-none text-slate-900 font-medium text-sm transition-all"
                 required
               />
             </div>
@@ -355,7 +355,7 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose, onFillDemo }) => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Tu nombre completo"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-blue-700 focus:ring-4 focus:ring-blue-50 transition-all"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-blue/50 focus:ring-4 focus:ring-blue-50 transition-all"
               required
             />
           </div>
@@ -365,7 +365,7 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose, onFillDemo }) => {
               value={company}
               onChange={(e) => setCompany(e.target.value)}
               placeholder="Empresa o RUC"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-blue-700 focus:ring-4 focus:ring-blue-50 transition-all"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-blue/50 focus:ring-4 focus:ring-blue-50 transition-all"
               required
             />
           </div>
@@ -375,7 +375,7 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose, onFillDemo }) => {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="Número de contacto"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-blue-700 focus:ring-4 focus:ring-blue-50 transition-all"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-blue/50 focus:ring-4 focus:ring-blue-50 transition-all"
               required
             />
           </div>
@@ -900,7 +900,7 @@ const LoginClient: React.FC = () => {
                       name="identifier"
                       type="text"
                       placeholder="Usuario o RUC"
-                      className={`block w-full pl-11 pr-4 py-3 bg-slate-50 border ${errors.identifier ? "border-red-300 ring-4 ring-red-50" : "border-slate-200 focus:ring-4 focus:ring-blue-50 focus:border-blue-700"} rounded-xl transition-all outline-none text-slate-900 font-medium`}
+                      className={`block w-full pl-11 pr-4 py-3 bg-slate-50 border ${errors.identifier ? "border-red-300 ring-4 ring-red-50" : "border-slate-200 focus:ring-4 focus:ring-blue-50 focus:border-brand-blue/50"} rounded-xl transition-all outline-none text-slate-900 font-medium`}
                       value={formData.identifier}
                       onChange={handleChange}
                       autoComplete="username"
@@ -942,7 +942,7 @@ const LoginClient: React.FC = () => {
                       name="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className={`block w-full pl-11 pr-11 py-3.5 bg-slate-50 border ${errors.password ? "border-red-300 ring-4 ring-red-50" : "border-slate-200 focus:ring-4 focus:ring-blue-50 focus:border-blue-700"} rounded-xl transition-all outline-none text-slate-900 font-medium`}
+                      className={`block w-full pl-11 pr-11 py-3.5 bg-slate-50 border ${errors.password ? "border-red-300 ring-4 ring-red-50" : "border-slate-200 focus:ring-4 focus:ring-blue-50 focus:border-brand-blue/50"} rounded-xl transition-all outline-none text-slate-900 font-medium`}
                       value={formData.password}
                       onChange={handleChange}
                       autoComplete="current-password"

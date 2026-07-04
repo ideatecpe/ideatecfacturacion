@@ -1616,7 +1616,7 @@ export default function EmisionRapidaPage({
                         setErrorVisible(false);
                       }}
                       disabled={clienteVarios}
-                      className="w-1/3 py-2 px-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue disabled:opacity-50"
+                      className="w-1/3 py-2 px-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 disabled:opacity-50"
                     >
                       <option value="00" disabled hidden>
                         —
@@ -1632,7 +1632,7 @@ export default function EmisionRapidaPage({
                         setBusqueda("");
                         setClienteSeleccionado(null);
                       }}
-                      className="w-1/3 py-2 px-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                      className="w-1/3 py-2 px-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                     >
                       <option value="06">RUC</option>
                       <option value="04">CE</option>
@@ -1676,7 +1676,7 @@ export default function EmisionRapidaPage({
                             : "Nº documento"
                       }
                       className={`w-full pl-4 pr-10 py-2 bg-gray-50 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-blue/10 transition-all disabled:opacity-50
-                        ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue"}`}
+                        ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue/50"}`}
                     />
                     {loadingCli && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
@@ -1883,7 +1883,7 @@ export default function EmisionRapidaPage({
                     });
                     setTrabajadoresPorItem(nuevo);
                   }}
-                  className="flex-1 py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-purple-400"
+                  className="flex-1 py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                 >
                   <option value={0}>Seleccionar trabajador...</option>
                   {trabajadores.map((t) => (
@@ -1917,7 +1917,7 @@ export default function EmisionRapidaPage({
                               [item.id]: Number(e.target.value),
                             }))
                           }
-                          className="w-44 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-purple-400"
+                          className="w-44 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                         >
                           <option value={0}>Sin asignar</option>
                           {trabajadores.map((t) => (
@@ -2111,7 +2111,7 @@ export default function EmisionRapidaPage({
                               }}
                               placeholder="Buscar o escribir producto..."
                               rows={1}
-                              className={`w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-[border-color,box-shadow] duration-200 ${
+                              className={`w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-[border-color,box-shadow] duration-200 ${
                                 focusedItemIndex === i
                                   ? "overflow-y-hidden whitespace-pre-wrap"
                                   : "h-8 overflow-hidden whitespace-nowrap text-ellipsis"
@@ -2196,7 +2196,7 @@ export default function EmisionRapidaPage({
                                     if (v < 1) return;
                                     actualizarCantidad(i, v - item.cantidad);
                                   }}
-                                  className="w-10 py-1 border border-gray-200 rounded-lg text-xs text-center bg-gray-50 outline-none focus:border-brand-blue"
+                                  className="w-10 py-1 border border-gray-200 rounded-lg text-xs text-center bg-gray-50 outline-none focus:border-brand-blue/50"
                                 />
                                 <button
                                   type="button"
@@ -2230,7 +2230,7 @@ export default function EmisionRapidaPage({
                                     Number(e.target.value),
                                   )
                                 }
-                                className="w-full py-1.5 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                                className="w-full py-1.5 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                               >
                                 <option value={18}>18</option>
                                 <option value={10.5}>10.5</option>
@@ -2254,7 +2254,7 @@ export default function EmisionRapidaPage({
                                   Number(e.target.value),
                                 )
                               }
-                              className="w-full py-1.5 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-full py-1.5 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </td>
 
@@ -2404,7 +2404,7 @@ export default function EmisionRapidaPage({
                       : res.data.correlativoFactura,
                   );
                 }}
-                className="w-full py-2.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                className="w-full py-2.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
               >
                 <option value="">Seleccionar sucursal</option>
                 {sucursales.map((s: any) => (
@@ -2466,7 +2466,7 @@ export default function EmisionRapidaPage({
                 <select
                   value={medioPago}
                   onChange={(e) => setMedioPago(e.target.value)}
-                  className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                  className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                 >
                   {MEDIOS_PAGO.map((m) => (
                     <option key={m} value={m}>
@@ -2484,7 +2484,7 @@ export default function EmisionRapidaPage({
                 <select
                   value={tipoMoneda}
                   onChange={(e) => setTipoMoneda(e.target.value)}
-                  className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                  className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                 >
                   <option value="PEN">PEN — Soles</option>
                   <option value="USD">

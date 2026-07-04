@@ -229,7 +229,7 @@ export const ModalDeudasPorCobrar = ({
                   max={hoy}
                   onChange={(e) => setFechaPago(e.target.value)}
                   className={cn(
-                    "w-full px-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-blue-400 text-sm",
+                    "w-full px-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 text-sm",
                     errors.fechaPago ? "border-rose-400" : "border-gray-200",
                   )}
                 />
@@ -251,7 +251,7 @@ export const ModalDeudasPorCobrar = ({
                   step="0.01"
                   onChange={(e) => setMontoPagado(e.target.value)}
                   className={cn(
-                    "w-full px-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-blue-400 text-sm",
+                    "w-full px-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 text-sm",
                     errors.montoPagado ? "border-rose-400" : "border-gray-200",
                   )}
                 />
@@ -289,7 +289,7 @@ export const ModalDeudasPorCobrar = ({
                 <select
                   value={medioPago}
                   onChange={(e) => setMedioPago(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                 >
                   {MEDIO_PAGO_OPTS.map((m) => (
                     <option key={m} value={m}>{m}</option>
@@ -307,7 +307,7 @@ export const ModalDeudasPorCobrar = ({
                         <select
                           value={entidadFinanciera}
                           onChange={(e) => setEntidadFinanciera(e.target.value)}
-                          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm"
+                          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                         >
                           <option value="">Seleccionar...</option>
                           {["BCP SOLES","BCP DÓLARES","BCP RECAUDO","BBVA SOLES","BN DETRACCIONES"].map((op) => (
@@ -320,7 +320,7 @@ export const ModalDeudasPorCobrar = ({
                           value={entidadFinanciera}
                           onChange={(e) => setEntidadFinanciera(e.target.value)}
                           placeholder="Ej: BCP"
-                          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm"
+                          className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                         />
                       )}
                     </div>
@@ -332,7 +332,7 @@ export const ModalDeudasPorCobrar = ({
                       value={numeroOperacion}
                       onChange={(e) => setNumeroOperacion(e.target.value)}
                       placeholder="Ej: 123456"
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm"
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                     />
                   </div>
                 </div>
@@ -348,7 +348,7 @@ export const ModalDeudasPorCobrar = ({
                   onChange={(e) => setObservaciones(e.target.value)}
                   placeholder="Notas adicionales del pago..."
                   rows={2}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm resize-none"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm resize-none"
                 />
               </div>
             </>

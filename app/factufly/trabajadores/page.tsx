@@ -251,7 +251,7 @@ export default function TrabajadoresPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar por nombre, DNI o correo..."
-                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all shadow-sm text-xs"
+                  className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
                 />
                   {search && (
                   <button

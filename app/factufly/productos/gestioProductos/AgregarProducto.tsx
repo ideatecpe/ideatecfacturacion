@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import axios from "axios";
+import { ChevronDown, Camera, X as XIcon, ImageOff } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
@@ -34,6 +35,7 @@ interface Props {
   loadingCategoria: boolean; // ← nuevo
 }
 
+
 const emptyForm: NuevoProducto = {
   codigo: "",
   tipoProducto: "BIEN",
@@ -44,10 +46,15 @@ const emptyForm: NuevoProducto = {
   categoriaId: 0,
   sucursalId: 0,
   precioUnitario: 0,
+  urlImagenProducto: null,
   codigoBarras: "",
   esPaquete: false,
   productoBaseId: null,
   factorConversion: null,
+  precioMayorista: null,
+  cantidadMinimaMayorista: null,
+  enPromocion: false,
+  porcentajeDescuento: null,
 };
 
 export default function AgregarProducto({
@@ -75,6 +82,70 @@ export default function AgregarProducto({
   const [nombreNuevaCategoria, setNombreNuevaCategoria] = useState("");
 
   const [isModalCategoriaOpen, setIsModalCategoriaOpen] = useState(false);
+  const [showMayorista, setShowMayorista] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [imgPreview, setImgPreview] = useState<string | null>(null);
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
+  const [currentImageId, setCurrentImageId] = useState<string | null>(null);
+  const [confirmandoEliminarImagen, setConfirmandoEliminarImagen] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const eliminarImagenCloudflare = async (imageId: string) => {
+    try {
+      await fetch("/api/upload-imagen", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId }),
+      });
+    } catch { /* si falla el delete en CF, no bloqueamos al usuario */ }
+  };
+
+  const handleSeleccionarImagen = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImgError(false);
+    setImgPreview(URL.createObjectURL(file));
+    setSubiendoImagen(true);
+    // Si ya había una imagen subida antes de guardar, eliminarla de Cloudflare
+    if (currentImageId) {
+      await eliminarImagenCloudflare(currentImageId);
+      setCurrentImageId(null);
+    }
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload-imagen", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.ok) {
+        setForm((prev) => ({ ...prev, urlImagenProducto: data.url }));
+        setCurrentImageId(data.imageId ?? null);
+      } else {
+        showToast("Error al subir imagen: " + data.error, "error");
+        setImgPreview(null);
+      }
+    } catch {
+      showToast("Error de conexión al subir imagen.", "error");
+      setImgPreview(null);
+    } finally {
+      setSubiendoImagen(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleQuitarImagen = () => {
+    const idAnterior = currentImageId;
+    setForm((prev) => ({ ...prev, urlImagenProducto: null }));
+    setImgPreview(null);
+    setImgError(false);
+    setCurrentImageId(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    // Eliminar de Cloudflare en segundo plano
+    if (idAnterior) eliminarImagenCloudflare(idAnterior);
+  };
 
   //seleccionar sucursal para agregar si es superadmin
   const { sucursales } = useSucursalRuc(isSuperAdmin);
@@ -100,6 +171,7 @@ export default function AgregarProducto({
     if (isOpen) {
       setForm({ ...emptyForm, sucursalId: sucursalIdEfectivo });
       setErrors({});
+      setImgError(false);
     } else {
       setForm({ ...emptyForm, sucursalId: 0 });
       setProductoExistente(null);
@@ -110,6 +182,14 @@ export default function AgregarProducto({
       setShowNuevaCategoria(false);
       setNombreNuevaCategoria("");
       setIsModalCategoriaOpen(false);
+      setShowMayorista(false);
+      setImgError(false);
+      setImgPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      // Si el modal se cerró sin guardar y había una imagen subida, eliminarla de Cloudflare
+      if (currentImageId) eliminarImagenCloudflare(currentImageId);
+      setCurrentImageId(null);
+      setConfirmandoEliminarImagen(false);
     }
   }, [isOpen]);
 
@@ -123,7 +203,13 @@ export default function AgregarProducto({
     setShowSugerencias(productosBase.length > 0);
   }, [productosBase, palabraBusqueda]);
 
-  const { productosEmpresa } = useProductosEmpresaLista();
+  const { productosEmpresa, fetchProductosEmpresa } = useProductosEmpresaLista();
+
+  // Refresca la lista de productos base cada vez que se abre el modal,
+  // para que un producto base recién creado aparezca de inmediato al registrar su paquete.
+  React.useEffect(() => {
+    if (isOpen) fetchProductosEmpresa();
+  }, [isOpen]);
 
   // REEMPLAZA ESTA FUNCIÓN COMPLETA:
   const handleNomProductoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,6 +302,10 @@ export default function AgregarProducto({
       if (form.categoriaId === 0) newErrors.categoriaId = true;
     }
 
+    if (form.enPromocion && (!form.porcentajeDescuento || form.porcentajeDescuento <= 0)) {
+      newErrors.porcentajeDescuento = true;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -224,6 +314,22 @@ export default function AgregarProducto({
     e.preventDefault();
     if (!validar()) return;
     if (isSubmitting) return;
+
+    // Validar código de barras duplicado antes de enviar
+    const barcode = form.codigoBarras?.trim();
+    if (barcode) {
+      const duplicado = productosEmpresa.find(
+        (p) => p.codigoBarras && p.codigoBarras === barcode,
+      );
+      if (duplicado) {
+        showToast(
+          `El código de barras ya está asignado a "${duplicado.nomProducto}".`,
+          "error",
+        );
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     const formConSucursal = {
       ...form,
@@ -243,6 +349,7 @@ export default function AgregarProducto({
       showToast("Producto guardado exitosamente.", "success");
       onProductoAgregado(response.data);
       setForm({ ...emptyForm, sucursalId: sucursalIdEfectivo });
+      setCurrentImageId(null); // imagen ya guardada en BD, no es huérfana
       onClose();
     } catch (error) {
       console.error("Error guardando producto:", error);
@@ -285,7 +392,7 @@ export default function AgregarProducto({
                 if (errors.sucursalId)
                   setErrors((prev) => ({ ...prev, sucursalId: false }));
               }}
-              className={`w-full px-4 py-2 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue ${
+              className={`w-full px-4 py-2 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 ${
                 errors.sucursalId ? "border-rose-400" : "border-gray-200"
               }`}
             >
@@ -304,6 +411,94 @@ export default function AgregarProducto({
           </div>
         )}
 
+        {/* ── Imagen del producto ── */}
+        {!soloSucursal && (
+          <div className="flex items-start gap-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {/* Thumbnail */}
+            <div className="relative shrink-0">
+              <div className="w-28 h-28 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+                {(imgPreview || form.urlImagenProducto) && !imgError ? (
+                  <img
+                    src={imgPreview ?? form.urlImagenProducto!}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                    onError={() => setImgError(true)}
+                  />
+                ) : imgError ? (
+                  <ImageOff className="w-8 h-8 text-gray-300" />
+                ) : (
+                  <Camera className="w-8 h-8 text-gray-300" />
+                )}
+              </div>
+              {form.urlImagenProducto && !confirmandoEliminarImagen && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmandoEliminarImagen(true)}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-sm transition-colors"
+                >
+                  <XIcon className="w-3 h-3" />
+                </button>
+              )}
+              {form.urlImagenProducto && confirmandoEliminarImagen && (
+                <div className="absolute -top-2 -right-2 flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { handleQuitarImagen(); setConfirmandoEliminarImagen(false); }}
+                    className="text-[10px] font-bold bg-rose-500 hover:bg-rose-600 text-white px-1.5 py-0.5 rounded shadow-sm"
+                  >
+                    Quitar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmandoEliminarImagen(false)}
+                    className="text-[10px] font-bold bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded shadow-sm"
+                  >
+                    No
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Texto + botón */}
+            <div className="flex flex-col justify-center gap-1.5 min-w-0 pt-1">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                Imagen del producto
+                <span className="ml-1 font-normal text-gray-400 normal-case">(opcional)</span>
+              </p>
+              {subiendoImagen ? (
+                <p className="text-[11px] text-blue-500 font-semibold animate-pulse">
+                  Subiendo imagen…
+                </p>
+              ) : form.urlImagenProducto && !imgError ? (
+                <p className="text-[11px] text-emerald-600 font-semibold">
+                  ✓ Imagen subida
+                </p>
+              ) : (
+                <p className="text-[11px] text-gray-400">
+                  JPG, PNG o WebP — máx. 2 MB
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleSeleccionarImagen}
+                disabled={subiendoImagen}
+                className="w-fit flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                {subiendoImagen ? "Subiendo…" : form.urlImagenProducto ? "Cambiar imagen" : "Subir imagen"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {!soloSucursal && (
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-500 uppercase">
@@ -312,7 +507,7 @@ export default function AgregarProducto({
             <select
               value={form.tipoProducto}
               onChange={handleFormChange("tipoProducto")}
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
             >
               <option value="BIEN">Bien</option>
               <option value="SERVICIO">Servicio</option>
@@ -388,7 +583,7 @@ export default function AgregarProducto({
                       value={nombreNuevaCategoria}
                       onChange={(e) => setNombreNuevaCategoria(e.target.value)}
                       placeholder="Nombre de la categoría"
-                      className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+                      className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                     />
                     <Button
                       type="button"
@@ -430,7 +625,7 @@ export default function AgregarProducto({
                 <select
                   value={form.tipoAfectacionIGV}
                   onChange={handleFormChange("tipoAfectacionIGV")}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                 >
                   <option value="10">10 - Gravado</option>
                   <option value="20">20 - Exonerado</option>
@@ -445,7 +640,7 @@ export default function AgregarProducto({
                 <select
                   value={form.unidadMedida}
                   onChange={handleFormChange("unidadMedida")}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                 >
                   <option value="NIU">NIU - Unidad</option>
                   <option value="ZZ">ZZ - Servicio</option>
@@ -467,7 +662,7 @@ export default function AgregarProducto({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <InputBase
-              label="Precio Unitario"
+              label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio Unitario"}
               type="number"
               value={String(form.precioUnitario)}
               onChange={(e) => {
@@ -509,10 +704,10 @@ export default function AgregarProducto({
 
         </div>
 
-        {/* ── Código de barras / paquete ── */}
+        {/* ── Código de barras (siempre disponible) ── */}
         {!soloSucursal && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
               <InputBase
                 label="Código de Barras"
                 labelOptional="(opcional)"
@@ -521,7 +716,25 @@ export default function AgregarProducto({
                 placeholder="EAN13 / Code128"
                 showError={false}
               />
+              <label className="flex items-center gap-1.5 cursor-pointer select-none w-fit mt-0.5">
+                <input
+                  type="checkbox"
+                  checked={!!form.codigoBarras && form.codigoBarras.startsWith("200")}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const ts = Date.now().toString().slice(-10);
+                      setForm((prev) => ({ ...prev, codigoBarras: `200${ts}` }));
+                    } else {
+                      setForm((prev) => ({ ...prev, codigoBarras: "" }));
+                    }
+                  }}
+                  className="w-3 h-3 accent-brand-blue"
+                />
+                <span className="text-[10px] font-semibold text-gray-500">Generar código automático</span>
+              </label>
+            </div>
 
+            {config?.isStock && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">
                   &nbsp;
@@ -546,8 +759,13 @@ export default function AgregarProducto({
                   </label>
                 </div>
               </div>
-            </div>
+            )}
+          </div>
+        )}
 
+        {/* ── Paquete: producto base + factor de conversión (solo si maneja stock) ── */}
+        {!soloSucursal && config?.isStock && (
+          <>
             {form.esPaquete && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -562,14 +780,16 @@ export default function AgregarProducto({
                         productoBaseId: Number(e.target.value) || null,
                       }))
                     }
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue"
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                   >
                     <option value={0}>Seleccione el producto unidad</option>
-                    {productosEmpresa.map((p) => (
-                      <option key={p.productoId} value={p.productoId}>
-                        {p.nomProducto} ({p.codigo})
-                      </option>
-                    ))}
+                    {productosEmpresa
+                      .filter((p) => !p.esPaquete)
+                      .map((p) => (
+                        <option key={p.productoId} value={p.productoId}>
+                          {p.nomProducto} ({p.codigo})
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -592,12 +812,100 @@ export default function AgregarProducto({
           </>
         )}
 
+        {/* ── Mayorista y Promoción (comprimido, no es prioritario al registrar) ── */}
+        {!soloSucursal && config?.isStock && form.tipoProducto === "BIEN" && (
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowMayorista((prev) => !prev)}
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+            >
+              <span className="text-xs font-bold text-gray-500 uppercase">
+                Mayorista y Promoción <span className="text-gray-400 font-normal">(opcional)</span>
+              </span>
+              <ChevronDown
+                className={`w-4 h-4 text-gray-400 transition-transform ${showMayorista ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {showMayorista && (
+              <div className="p-4 space-y-4 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InputBase
+                    label="Precio Mayorista"
+                    labelOptional="(opcional)"
+                    type="number"
+                    step="0.01"
+                    value={String(form.precioMayorista ?? "")}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        precioMayorista: e.target.value === "" ? null : Number(e.target.value),
+                      }))
+                    }
+                    placeholder="0.00"
+                    showError={false}
+                  />
+                  <InputBase
+                    label="Cantidad mínima para mayorista"
+                    labelOptional={form.esPaquete ? "(paquetes)" : "(unidades)"}
+                    type="number"
+                    value={String(form.cantidadMinimaMayorista ?? "")}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        cantidadMinimaMayorista: e.target.value === "" ? null : Number(e.target.value),
+                      }))
+                    }
+                    placeholder="Ej: 12"
+                    showError={false}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!form.enPromocion}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, enPromocion: e.target.checked }))
+                    }
+                    className="w-4 h-4 accent-brand-blue"
+                  />
+                  <label className="text-xs font-semibold text-gray-600">
+                    ¿Producto en promoción?
+                  </label>
+                </div>
+
+                {form.enPromocion && (
+                  <InputBase
+                    label="% Descuento"
+                    type="number"
+                    step="0.01"
+                    value={String(form.porcentajeDescuento ?? "")}
+                    showError={!!errors.porcentajeDescuento}
+                    errorMessage="Ingresa el % de descuento de la promoción"
+                    onChange={(e) => {
+                      if (errors.porcentajeDescuento)
+                        setErrors((prev) => ({ ...prev, porcentajeDescuento: false }));
+                      setForm((prev) => ({
+                        ...prev,
+                        porcentajeDescuento: e.target.value === "" ? null : Number(e.target.value),
+                      }));
+                    }}
+                    placeholder="Ej: 50"
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="pt-4 flex justify-end gap-3">
           <Button variant="outline" type="button" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Guardando..." : "Guardar Producto"}
+          <Button type="submit" disabled={isSubmitting || subiendoImagen}>
+            {subiendoImagen ? "Subiendo imagen..." : isSubmitting ? "Guardando..." : "Guardar Producto"}
           </Button>
         </div>
       </form>

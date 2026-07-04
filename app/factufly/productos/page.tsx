@@ -1,5 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+const Barcode = dynamic(() => import("react-barcode"), { ssr: false });
 import {
   Search,
   Upload,
@@ -18,6 +20,10 @@ import {
   Ticket,
   X,
   Pencil,
+  Tag,
+  Boxes,
+  AlertTriangle,
+  Printer,
 } from "lucide-react";
 import axios from "axios";
 
@@ -25,6 +31,7 @@ import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { Modal } from "@/app/components/ui/Modal";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
+import { InputBase } from "@/app/components/ui/InputBase";
 import { cn } from "@/app/utils/cn";
 
 import { ProductoSucursal } from "./gestioProductos/Producto";
@@ -43,7 +50,13 @@ import { useRegistrarCategoria } from "./gestioProductos/useRegistrarCategoria";
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import ModalReporteProductos from "@/app/components/modalProductos/Modalreporteproductos";
 import { ModalVentasProductoExcel } from "./gestioProductos/ModalVentasProductoExcel";
+import ModalImprimirEtiquetas from "./gestioProductos/ModalImprimirEtiquetas";
 import { generarCodigoProducto } from "./gestioProductos/generarCodigoProducto";
+
+// Umbral de stock bajo (alerta visual) para productos normales, en unidades.
+const STOCK_MINIMO_UNIDAD = 5;
+// Umbral de stock bajo (alerta visual) para productos paquete/caja, en paquetes equivalentes.
+const STOCK_MINIMO_PAQUETE = 2;
 
 export default function ProductosPage() {
   const { showToast } = useToast();
@@ -194,6 +207,9 @@ export default function ProductosPage() {
   // AFiltros avanzados
   const [showFiltrosAvanzados, setShowFiltrosAvanzados] = useState(false);
   const [filtroStock, setFiltroStock] = useState(false);
+  const [filtroStockBajo, setFiltroStockBajo] = useState(false);
+  const [filtroPromocion, setFiltroPromocion] = useState(false);
+  const [filtroPaquete, setFiltroPaquete] = useState(false);
   const [filtroAfectacion, setFiltroAfectacion] = useState<string[]>([]);
   const [filtroTipoProducto, setFiltroTipoProducto] = useState<string[]>([]);
 
@@ -209,8 +225,7 @@ export default function ProductosPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProductoSucursal | null>(
     null,
   );
-
-  const [importFile, setImportFile] = useState<File | null>(null);
+const [importFile, setImportFile] = useState<File | null>(null);
   const [importSucursalId, setImportSucursalId] = useState<number>(0);
   const [importando, setImportando] = useState(false);
   const [importProgreso, setImportProgreso] = useState<{
@@ -228,6 +243,27 @@ export default function ProductosPage() {
   const [isVentasProductoOpen, setIsVentasProductoOpen] = useState(false);
   const sucursalId = parseInt(user?.sucursalID ?? "0");
 
+  // Promoción masiva: selección múltiple de productos para aplicar el mismo % de descuento
+  const [modoSeleccionPromo, setModoSeleccionPromo] = useState(false);
+  const [seleccionadosPromo, setSeleccionadosPromo] = useState<Set<number>>(new Set());
+  const [isPromoMasivaOpen, setIsPromoMasivaOpen] = useState(false);
+  const [porcentajePromoMasiva, setPorcentajePromoMasiva] = useState("");
+  const [aplicandoPromoMasiva, setAplicandoPromoMasiva] = useState(false);
+
+  // Impresión de códigos de barras
+  const [modalImprimirOpen, setModalImprimirOpen] = useState(false);
+  const [pendingPrintList, setPendingPrintList] = useState<ProductoSucursal[]>([]);
+
+  const abrirModalImprimir = (lista: ProductoSucursal[]) => {
+    const conCodigo = lista.filter((p) => !!p.codigoBarras);
+    if (conCodigo.length === 0) {
+      showToast("Los productos seleccionados no tienen código de barras.", "info");
+      return;
+    }
+    setPendingPrintList(conCodigo);
+    setModalImprimirOpen(true);
+  };
+
   //Categorias
   const { categorias, setCategorias, loadingCategorias, fetchCategorias } =
     useCategoriasLista();
@@ -240,11 +276,44 @@ export default function ProductosPage() {
     if (accessToken && user?.ruc) fetchCategorias(user.ruc);
   }, [accessToken, user?.ruc]);
 
+  // Mapa rápido productoId -> producto, para resolver el producto base de un paquete
+  const productosPorId = React.useMemo(
+    () => new Map(productos.map((p) => [p.productoId, p])),
+    [productos],
+  );
+
   // REEMPLAZA el bloque filtered:
   const filtrosAvanzadosActivos =
     (config?.isStock && filtroStock) ||
+    (config?.isStock && filtroStockBajo) ||
+    (config?.isStock && filtroPromocion) ||
+    (config?.isStock && filtroPaquete) ||
     filtroAfectacion.length > 0 ||
     filtroTipoProducto.length > 0;
+
+  // Stock real de un producto: si es paquete, el del producto base (no el propio, que ya no se usa).
+  const getStockEfectivo = (p: ProductoSucursal): number | null => {
+    if (p.esPaquete && p.productoBaseId) {
+      const base = productosPorId.get(p.productoBaseId);
+      return base?.sucursalProducto.stock ?? null;
+    }
+    return p.sucursalProducto.stock ?? null;
+  };
+
+  // Estado de alerta de stock: "agotado" (0), "bajo" (por debajo del umbral estático), "normal".
+  // Paquetes se comparan en paquetes equivalentes; productos normales, en unidades.
+  const getEstadoStock = (p: ProductoSucursal): "agotado" | "bajo" | "normal" => {
+    const stockEfectivo = getStockEfectivo(p);
+    if (stockEfectivo == null) return "normal";
+    if (stockEfectivo === 0) return "agotado";
+
+    if (p.esPaquete && p.factorConversion) {
+      const equivalente = stockEfectivo / p.factorConversion;
+      return equivalente < STOCK_MINIMO_PAQUETE ? "bajo" : "normal";
+    }
+
+    return stockEfectivo < STOCK_MINIMO_UNIDAD ? "bajo" : "normal";
+  };
 
   const filtered = productos.filter((p) => {
     const matchSearch =
@@ -256,7 +325,16 @@ export default function ProductosPage() {
       p.categoria?.categoriaNombre === filterCategoria;
 
     const matchStock =
-      !config?.isStock || !filtroStock || p.sucursalProducto.stock === 0;
+      !config?.isStock || !filtroStock || getStockEfectivo(p) === 0;
+
+    const matchStockBajo =
+      !config?.isStock || !filtroStockBajo || getEstadoStock(p) === "bajo";
+
+    const matchPromocion =
+      !config?.isStock || !filtroPromocion || !!p.sucursalProducto.enPromocion;
+
+    const matchPaquete =
+      !config?.isStock || !filtroPaquete || !!p.esPaquete;
 
     const matchAfectacion =
       filtroAfectacion.length === 0 ||
@@ -273,6 +351,9 @@ export default function ProductosPage() {
       matchSearch &&
       matchCategoria &&
       matchStock &&
+      matchStockBajo &&
+      matchPromocion &&
+      matchPaquete &&
       matchAfectacion &&
       matchTipo &&
       matchSucursal
@@ -293,8 +374,175 @@ export default function ProductosPage() {
   };
 
   const handleOpenDelete = (prod: ProductoSucursal) => {
+    // No permitir eliminar un producto que es base de algún paquete/caja activo,
+    // para no dejar paquetes huérfanos apuntando a un producto inexistente.
+    const paquetesQueLoUsan = productos.filter(
+      (p) => p.esPaquete && p.productoBaseId === prod.productoId,
+    );
+    if (paquetesQueLoUsan.length > 0) {
+      const nombres = paquetesQueLoUsan.map((p) => p.nomProducto).join(", ");
+      showToast(
+        `No puedes eliminar "${prod.nomProducto}": es el producto base de ${nombres}.`,
+        "error",
+      );
+      return;
+    }
     setDeleteTarget(prod);
     setIsDeleteOpen(true);
+  };
+
+  const toggleSeleccionPromo = (productoId: number) => {
+    setSeleccionadosPromo((prev) => {
+      const next = new Set(prev);
+      if (next.has(productoId)) next.delete(productoId);
+      else next.add(productoId);
+      return next;
+    });
+  };
+
+  const cancelarSeleccionPromo = () => {
+    setModoSeleccionPromo(false);
+    setSeleccionadosPromo(new Set());
+  };
+
+  const aplicarPromocionMasiva = async () => {
+    const porcentaje = Number(porcentajePromoMasiva);
+    if (!porcentaje || porcentaje <= 0) {
+      showToast("Ingresa un % de descuento válido.", "info");
+      return;
+    }
+
+    const productosObjetivo = productos.filter((p) => seleccionadosPromo.has(p.productoId));
+    setAplicandoPromoMasiva(true);
+
+    let ok = 0;
+    let errores = 0;
+
+    for (const p of productosObjetivo) {
+      const payload = {
+        productoId: p.productoId,
+        codigo: p.codigo,
+        tipoProducto: p.tipoProducto ?? "BIEN",
+        nomProducto: p.nomProducto,
+        unidadMedida: p.unidadMedida,
+        tipoAfectacionIGV: p.tipoAfectacionIGV,
+        incluirIGV: p.incluirIGV,
+        categoriaId: p.categoria?.categoriaId ?? 0,
+        sucursalProductoId: p.sucursalProducto.sucursalProductoId,
+        precioUnitario: p.sucursalProducto.precioUnitario,
+        stock:
+          config?.isStock && p.tipoProducto === "BIEN"
+            ? p.sucursalProducto.stock ?? 0
+            : null,
+        codigoBarras: p.codigoBarras || null,
+        esPaquete: p.esPaquete ?? false,
+        productoBaseId: p.esPaquete ? p.productoBaseId ?? null : null,
+        factorConversion: p.esPaquete ? p.factorConversion ?? null : null,
+        precioMayorista: p.sucursalProducto.precioMayorista ?? null,
+        cantidadMinimaMayorista: p.sucursalProducto.cantidadMinimaMayorista ?? null,
+        enPromocion: true,
+        porcentajeDescuento: porcentaje,
+      };
+
+      try {
+        await axios.put(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${p.productoId}`,
+          payload,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        setProductos((prev) =>
+          prev.map((x) =>
+            x.productoId === p.productoId
+              ? {
+                  ...x,
+                  sucursalProducto: {
+                    ...x.sucursalProducto,
+                    enPromocion: true,
+                    porcentajeDescuento: porcentaje,
+                  },
+                }
+              : x,
+          ),
+        );
+        ok++;
+      } catch {
+        errores++;
+      }
+    }
+
+    setAplicandoPromoMasiva(false);
+    setIsPromoMasivaOpen(false);
+    setPorcentajePromoMasiva("");
+    cancelarSeleccionPromo();
+
+    if (ok > 0) showToast(`${ok} producto(s) puestos en promoción.`, "success");
+    if (errores > 0) showToast(`${errores} producto(s) con error.`, "error");
+  };
+
+  const quitarPromocionMasiva = async () => {
+    const productosObjetivo = productos.filter((p) => seleccionadosPromo.has(p.productoId));
+    setAplicandoPromoMasiva(true);
+
+    let ok = 0;
+    let errores = 0;
+
+    for (const p of productosObjetivo) {
+      const payload = {
+        productoId: p.productoId,
+        codigo: p.codigo,
+        tipoProducto: p.tipoProducto ?? "BIEN",
+        nomProducto: p.nomProducto,
+        unidadMedida: p.unidadMedida,
+        tipoAfectacionIGV: p.tipoAfectacionIGV,
+        incluirIGV: p.incluirIGV,
+        categoriaId: p.categoria?.categoriaId ?? 0,
+        sucursalProductoId: p.sucursalProducto.sucursalProductoId,
+        precioUnitario: p.sucursalProducto.precioUnitario,
+        stock:
+          config?.isStock && p.tipoProducto === "BIEN"
+            ? p.sucursalProducto.stock ?? 0
+            : null,
+        codigoBarras: p.codigoBarras || null,
+        esPaquete: p.esPaquete ?? false,
+        productoBaseId: p.esPaquete ? p.productoBaseId ?? null : null,
+        factorConversion: p.esPaquete ? p.factorConversion ?? null : null,
+        precioMayorista: p.sucursalProducto.precioMayorista ?? null,
+        cantidadMinimaMayorista: p.sucursalProducto.cantidadMinimaMayorista ?? null,
+        enPromocion: false,
+        porcentajeDescuento: null,
+      };
+
+      try {
+        await axios.put(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${p.productoId}`,
+          payload,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        setProductos((prev) =>
+          prev.map((x) =>
+            x.productoId === p.productoId
+              ? {
+                  ...x,
+                  sucursalProducto: {
+                    ...x.sucursalProducto,
+                    enPromocion: false,
+                    porcentajeDescuento: null,
+                  },
+                }
+              : x,
+          ),
+        );
+        ok++;
+      } catch {
+        errores++;
+      }
+    }
+
+    setAplicandoPromoMasiva(false);
+    cancelarSeleccionPromo();
+
+    if (ok > 0) showToast(`${ok} producto(s) sin promoción.`, "success");
+    if (errores > 0) showToast(`${errores} producto(s) con error.`, "error");
   };
 
   const handleConfirmDelete = async () => {
@@ -543,7 +791,7 @@ export default function ProductosPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar productos por código o nombre..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all shadow-sm text-xs"
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
             />
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
@@ -596,6 +844,9 @@ export default function ProductosPage() {
                   {
                     [
                       config?.isStock && filtroStock,
+                      config?.isStock && filtroStockBajo,
+                      config?.isStock && filtroPromocion,
+                      config?.isStock && filtroPaquete,
                       ...filtroAfectacion,
                       ...filtroTipoProducto,
                     ].filter(Boolean).length
@@ -633,6 +884,18 @@ export default function ProductosPage() {
                 className="py-2.5 px-3 text-xs rounded-md h-auto"
               >
                 <Ticket className="w-3.5 h-3.5" /> Administrar Vales
+              </Button>
+            )}
+            {!soloLectura && config?.isStock && (
+              <Button
+                variant={modoSeleccionPromo ? "primary" : "outline"}
+                onClick={() =>
+                  modoSeleccionPromo ? cancelarSeleccionPromo() : setModoSeleccionPromo(true)
+                }
+                className="py-2.5 px-3 text-xs rounded-md h-auto"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                {modoSeleccionPromo ? "Cancelar selección" : "Seleccionar"}
               </Button>
             )}
             {!soloLectura && (
@@ -720,11 +983,65 @@ export default function ProductosPage() {
                     className={cn(
                       "px-2.5 py-1 text-xs font-semibold border rounded-lg transition-all whitespace-nowrap",
                       filtroStock
-                        ? "bg-rose-100 text-rose-700 border-rose-300"
+                        ? "bg-slate-100 text-slate-600 border-slate-300"
                         : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
                     )}
                   >
                     Sin stock
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroStockBajo((prev) => !prev)}
+                    className={cn(
+                      "px-2.5 py-1 text-xs font-semibold border rounded-lg transition-all whitespace-nowrap",
+                      filtroStockBajo
+                        ? "bg-amber-100 text-amber-700 border-amber-300"
+                        : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
+                    )}
+                  >
+                    Stock bajo
+                  </button>
+                </div>
+
+                <div className="w-px h-4 bg-gray-200 shrink-0" />
+
+                {/* Promoción */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
+                    Promoción
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroPromocion((prev) => !prev)}
+                    className={cn(
+                      "flex items-center gap-1 px-2.5 py-1 text-xs font-semibold border rounded-lg transition-all whitespace-nowrap",
+                      filtroPromocion
+                        ? "bg-blue-100 text-blue-700 border-blue-300"
+                        : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
+                    )}
+                  >
+                    <Tag size={12} /> En promoción
+                  </button>
+                </div>
+
+                <div className="w-px h-4 bg-gray-200 shrink-0" />
+
+                {/* Paquetes */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
+                    Paquetes
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroPaquete((prev) => !prev)}
+                    className={cn(
+                      "flex items-center gap-1 px-2.5 py-1 text-xs font-semibold border rounded-lg transition-all whitespace-nowrap",
+                      filtroPaquete
+                        ? "bg-blue-50 border-blue-300 text-blue-700"
+                        : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
+                    )}
+                  >
+                    <Boxes size={12} /> Solo paquetes/cajas
                   </button>
                 </div>
               </>
@@ -779,6 +1096,9 @@ export default function ProductosPage() {
                 <button
                   onClick={() => {
                     setFiltroStock(false);
+                    setFiltroStockBajo(false);
+                    setFiltroPromocion(false);
+                    setFiltroPaquete(false);
                     setFiltroAfectacion([]);
                     setFiltroTipoProducto([]);
                     setFiltroSucursal("");
@@ -802,6 +1122,69 @@ export default function ProductosPage() {
           productos
         </p>
       </div>
+
+      {/* Barra de selección para promoción masiva */}
+      {modoSeleccionPromo && (
+        <div className="flex items-center justify-between gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 animate-in fade-in duration-200">
+          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+            {(() => {
+              const elegibles = filtered.filter((p) => p.tipoProducto === "BIEN");
+              const todosSeleccionados = elegibles.length > 0 && elegibles.every((p) => seleccionadosPromo.has(p.productoId));
+              const algunoSeleccionado = !todosSeleccionados && elegibles.some((p) => seleccionadosPromo.has(p.productoId));
+              return (
+                <input
+                  type="checkbox"
+                  checked={todosSeleccionados}
+                  ref={(el) => { if (el) el.indeterminate = algunoSeleccionado; }}
+                  onChange={() => {
+                    if (todosSeleccionados) {
+                      setSeleccionadosPromo(new Set());
+                    } else {
+                      setSeleccionadosPromo(new Set(elegibles.map((p) => p.productoId)));
+                    }
+                  }}
+                  className="w-4 h-4 accent-brand-blue"
+                />
+              );
+            })()}
+            <span className="text-xs font-semibold text-blue-700">
+              {seleccionadosPromo.size > 0 ? `${seleccionadosPromo.size} seleccionado(s)` : "Seleccionar todos"}
+            </span>
+          </label>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              onClick={cancelarSeleccionPromo}
+              className="py-1.5 px-3 text-xs rounded-md h-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={quitarPromocionMasiva}
+              disabled={seleccionadosPromo.size === 0 || aplicandoPromoMasiva}
+              className="py-1.5 px-3 text-xs rounded-md h-auto"
+            >
+              Quitar promoción
+            </Button>
+            <Button
+              onClick={() => setIsPromoMasivaOpen(true)}
+              disabled={seleccionadosPromo.size === 0}
+              className="py-1.5 px-3 text-xs rounded-md h-auto"
+            >
+              <Tag className="w-3.5 h-3.5" /> Aplicar % a seleccionados
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => abrirModalImprimir(productos.filter((p) => seleccionadosPromo.has(p.productoId)))}
+              disabled={seleccionadosPromo.size === 0}
+              className="py-1.5 px-3 text-xs rounded-md h-auto"
+            >
+              <Printer className="w-3.5 h-3.5" /> Imprimir códigos
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Grid */}
 
@@ -855,8 +1238,25 @@ export default function ProductosPage() {
             filtered.map((prod) => (
               <Card
                 key={prod.sucursalProducto.sucursalProductoId}
-                className="group hover:border-brand-blue transition-all"
+                className={`group hover:border-brand-blue transition-all ${modoSeleccionPromo && prod.tipoProducto === "BIEN" ? "cursor-pointer" : ""}`}
+                onClick={modoSeleccionPromo && prod.tipoProducto === "BIEN" ? () => toggleSeleccionPromo(prod.productoId) : undefined}
               >
+                {/* ── Imagen ── */}
+                {prod.urlImagenProducto ? (
+                  <div className="-mx-2 -mt-2 mb-2 h-44 bg-gray-100 overflow-hidden rounded-t-xl">
+                    <img
+                      src={prod.urlImagenProducto}
+                      alt={prod.nomProducto}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
+                    />
+                  </div>
+                ) : (
+                  <div className="-mx-2 -mt-2 mb-2 h-44 bg-gray-100 rounded-t-xl flex items-center justify-center">
+                    <span className="text-gray-300 font-bold text-2xl sm:text-3xl tracking-wide select-none">Sin imagen</span>
+                  </div>
+                )}
+
                 <div className="flex justify-between items-start">
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
@@ -868,11 +1268,6 @@ export default function ProductosPage() {
                     <p className="text-[10px] font-medium text-gray-400 bg-gray-100 w-fit px-1.5 py-0.5 rounded uppercase">
                       {prod.categoria?.categoriaNombre}
                     </p>
-                    {prod.codigoBarras && (
-                      <p className="text-[10px] text-gray-400">
-                        Cód. barras: {prod.codigoBarras}
-                      </p>
-                    )}
                     {isSuperAdmin && (
                       <p className="text-[10px] text-gray-400 flex mt-1 bg-blue-50 w-fit px-1.5 py-0.5 rounded">
                         <span className="font-bold">Sucursal: &nbsp; </span>{" "}
@@ -882,21 +1277,33 @@ export default function ProductosPage() {
                   </div>
 
                   <div className="flex gap-1">
-                    {!soloLectura && (
-                      <>
-                        <button
-                          onClick={() => handleOpenEdit(prod)}
-                          className="p-1.5 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenDelete(prod)}
-                          className="p-1.5 text-gray-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </>
+                    {modoSeleccionPromo ? (
+                      prod.tipoProducto === "BIEN" && (
+                        <input
+                          type="checkbox"
+                          checked={seleccionadosPromo.has(prod.productoId)}
+                          onChange={() => toggleSeleccionPromo(prod.productoId)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 accent-rose-600"
+                        />
+                      )
+                    ) : (
+                      !soloLectura && (
+                        <>
+                          <button
+                            onClick={() => handleOpenEdit(prod)}
+                            className="p-1.5 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDelete(prod)}
+                            className="p-1.5 text-gray-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )
                     )}
                   </div>
                 </div>
@@ -905,20 +1312,69 @@ export default function ProductosPage() {
                   <div>
                     {config?.isStock && prod.tipoProducto === "BIEN" && (
                       <>
-                        <p
-                          className={cn(
-                            "text-[15px] font-bold",
-                            prod.sucursalProducto.stock === 0
-                              ? "text-rose-500"
-                              : "text-gray-900",
-                          )}
-                        >
-                          STOCK: {prod.sucursalProducto.stock}
-                        </p>
+                        {prod.esPaquete && prod.factorConversion ? (
+                          (() => {
+                            const base = prod.productoBaseId
+                              ? productosPorId.get(prod.productoBaseId)
+                              : undefined;
+                            const stockBase = base?.sucursalProducto.stock ?? null;
+                            const factor = prod.factorConversion!;
+                            const cajas = stockBase != null ? Math.floor(stockBase / factor) : null;
+                            const sueltas = stockBase != null ? stockBase % factor : null;
+                            const estado = getEstadoStock(prod);
+                            const labelPrincipal = (() => {
+                              if (cajas == null) return "STOCK: —";
+                              if (cajas > 0) return `STOCK: ${cajas} caja${cajas > 1 ? "s" : ""}`;
+                              if (sueltas! > 0) return `STOCK: 0 cajas`;
+                              return "STOCK: 0";
+                            })();
+                            const labelDetalle = (() => {
+                              if (cajas == null || !base) return null;
+                              const partes = [];
+                              if (cajas > 0) partes.push(`${cajas} caj. (${factor} und. c/u)`);
+                              if (sueltas! > 0) partes.push(`${sueltas} und. sueltas`);
+                              return partes.length ? partes.join(" + ") : null;
+                            })();
+                            return (
+                              <div className="mb-1">
+                                <p
+                                  className={cn(
+                                    "text-[15px] font-bold leading-tight",
+                                    estado === "agotado"
+                                      ? "text-slate-400"
+                                      : estado === "bajo"
+                                        ? "text-amber-600"
+                                        : "text-gray-900",
+                                  )}
+                                >
+                                  {labelPrincipal}
+                                </p>
+                                {labelDetalle && (
+                                  <p className="text-[10px] font-normal text-gray-400 leading-tight mt-0.5">
+                                    {labelDetalle}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <p
+                            className={cn(
+                              "text-[15px] font-bold",
+                              getEstadoStock(prod) === "agotado"
+                                ? "text-slate-400"
+                                : getEstadoStock(prod) === "bajo"
+                                  ? "text-amber-600"
+                                  : "text-gray-900",
+                            )}
+                          >
+                            STOCK: {prod.sucursalProducto.stock} und.
+                          </p>
+                        )}
                         {!!prod.sucursalProducto.ultimoPrecioCompra && (
                           <>
                             <p className="text-[10px] text-gray-400">
-                              Costo: S/ {prod.sucursalProducto.ultimoPrecioCompra.toFixed(2)}
+                              Costo unitario: S/ {prod.sucursalProducto.ultimoPrecioCompra.toFixed(2)}
                             </p>
                             <p className="text-[10px] font-semibold text-emerald-600">
                               Ganancia: S/{" "}
@@ -948,11 +1404,55 @@ export default function ProductosPage() {
                         : "Precio (NA. IGV)"}
                     </p>
                     {/*prod.sucursalProducto.precioUnitario */}
-                    <p className="text-[14px] font-black text-brand-blue">
-                      S/ {prod.sucursalProducto.precioUnitario.toFixed(2)}
-                    </p>
+                    {config?.isStock && prod.sucursalProducto.enPromocion && prod.sucursalProducto.porcentajeDescuento ? (
+                      <>
+                        <div className="flex items-center justify-end gap-1">
+                          <Tag className="w-3 h-3 text-orange-500" />
+                          <span className="text-[10px] font-bold text-orange-500 uppercase">
+                            -{prod.sucursalProducto.porcentajeDescuento}%
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-400 line-through">
+                          S/ {prod.sucursalProducto.precioUnitario.toFixed(2)}
+                        </p>
+                        <p className="text-[14px] font-black text-orange-500">
+                          S/{" "}
+                          {(
+                            prod.sucursalProducto.precioUnitario *
+                            (1 - prod.sucursalProducto.porcentajeDescuento / 100)
+                          ).toFixed(2)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-[14px] font-black text-brand-blue">
+                        S/ {prod.sucursalProducto.precioUnitario.toFixed(2)}
+                      </p>
+                    )}
                   </div>
                 </div>
+
+                {/* ── Código de barras — pie de tarjeta ── */}
+                {prod.codigoBarras && (
+                  <div className="mt-3 -mx-2 -mb-2 border-t border-dashed border-gray-200 bg-gray-50 rounded-b-xl flex flex-col items-center py-2 px-2 relative">
+                    <Barcode
+                      value={prod.codigoBarras}
+                      width={1.6}
+                      height={44}
+                      fontSize={10}
+                      margin={0}
+                      displayValue={true}
+                      background="transparent"
+                      lineColor="#334155"
+                    />
+                    <button
+                      onClick={() => abrirModalImprimir([prod])}
+                      title="Imprimir etiqueta"
+                      className="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </Card>
             ))}
         </div>
@@ -1021,7 +1521,7 @@ export default function ProductosPage() {
                       value={valeForm.nombre}
                       onChange={(e) => setValeForm((p) => ({ ...p, nombre: e.target.value }))}
                       placeholder="Nombre del vale"
-                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1031,7 +1531,7 @@ export default function ProductosPage() {
                       value={valeForm.duracion}
                       onChange={(e) => setValeForm((p) => ({ ...p, duracion: e.target.value }))}
                       placeholder="Ej: 30"
-                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1041,7 +1541,7 @@ export default function ProductosPage() {
                       onChange={(e) => setValeForm((p) => ({ ...p, descripcion: e.target.value }))}
                       placeholder="Descripción del vale..."
                       rows={4}
-                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue resize-none"
+                      className="w-full py-2 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 resize-none"
                     />
                   </div>
                 </div>
@@ -1171,7 +1671,7 @@ export default function ProductosPage() {
                   value={importSucursalId}
                   onChange={(e) => setImportSucursalId(Number(e.target.value))}
                   disabled={importando || !!importResultados}
-                  className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue disabled:opacity-50"
+                  className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 disabled:opacity-50"
                 >
                   <option value={0}>Seleccione sucursal</option>
                   {sucursales.map((s) => (
@@ -1325,6 +1825,52 @@ export default function ProductosPage() {
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleConfirmDelete}
       />
+
+
+      <ModalImprimirEtiquetas
+        isOpen={modalImprimirOpen}
+        onClose={() => setModalImprimirOpen(false)}
+        productos={pendingPrintList}
+        onError={(msg) => showToast(msg, "error")}
+      />
+
+      {/* Modal: aplicar % de descuento a los productos seleccionados */}
+      <Modal
+        isOpen={isPromoMasivaOpen}
+        onClose={() => {
+          if (!aplicandoPromoMasiva) setIsPromoMasivaOpen(false);
+        }}
+        title="Aplicar promoción a varios productos"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Se marcarán <strong>{seleccionadosPromo.size}</strong> producto(s) como "en
+            promoción" con el mismo porcentaje de descuento.
+          </p>
+          <InputBase
+            label="% Descuento"
+            type="number"
+            step="0.01"
+            value={porcentajePromoMasiva}
+            onChange={(e) => setPorcentajePromoMasiva(e.target.value)}
+            placeholder="Ej: 20"
+            showError={false}
+          />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setIsPromoMasivaOpen(false)}
+              disabled={aplicandoPromoMasiva}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={aplicarPromocionMasiva} disabled={aplicandoPromoMasiva}>
+              {aplicandoPromoMasiva ? "Aplicando..." : "Aplicar"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -141,7 +141,7 @@ export default function ModalReporteProductos({
                 <select
                   value={sucursalId ?? ""}
                   onChange={e => setSucursalId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full px-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+                  className="w-full px-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-emerald-100 transition-all"
                 >
                   <option value="">Todas las sucursales</option>
                   {sucursales.map(s => (
@@ -158,7 +158,7 @@ export default function ModalReporteProductos({
               <select
                 value={categoriaId ?? ""}
                 onChange={e => setCategoriaId(e.target.value ? Number(e.target.value) : undefined)}
-                className="w-full px-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+                className="w-full px-3 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-emerald-100 transition-all"
               >
                 <option value="">Todas las categorías</option>
                 {categorias.map(c => (
@@ -252,7 +252,7 @@ export default function ModalReporteProductos({
                       value={stockValor ?? ""}
                       onChange={e => setStockValor(e.target.value ? Number(e.target.value) : undefined)}
                       placeholder="0"
-                      className="w-24 px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all bg-gray-50"
+                      className="w-24 px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-emerald-100 transition-all bg-gray-50"
                     />
                     <span className="text-xs text-gray-400">unidades</span>
                   </div>
@@ -273,7 +273,7 @@ export default function ModalReporteProductos({
               value={tituloReporte}
               onChange={e => setTituloReporte(e.target.value)}
               placeholder={nombreAutoGenerado}
-              className="w-full px-3.5 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all placeholder:text-gray-300"
+              className="w-full px-3.5 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-emerald-100 transition-all placeholder:text-gray-300"
             />
           </div>
 

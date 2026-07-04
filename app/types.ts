@@ -1,11 +1,12 @@
 import { LucideIcon } from 'lucide-react';
 
-export type View = 'dashboard' | 'emision' | 'operaciones' | 'clientes' | 'trabajadores' | 'productos' | 'proveedores' | 'reportes' | 'sunat' | 'empresa' | 'sucursales' | 'usuarios' | 'comprobantes' | 'guiasremision' | 'cuentasporcobrar' | 'deudasporcobrar' | 'carga-comprobantes';
+export type View = 'dashboard' | 'emision' | 'operaciones' | 'clientes' | 'trabajadores' | 'productos' | 'compras' | 'reportes' | 'sunat' | 'empresa' | 'sucursales' | 'usuarios' | 'comprobantes' | 'guiasremision' | 'cuentasporcobrar' | 'deudasporcobrar' | 'carga-comprobantes';
 
 export interface MenuItem {
   id: View;
   label: string;
   icon: LucideIcon;
+  children?: { id: string; label: string }[];
 }
 
 export interface SalesData {

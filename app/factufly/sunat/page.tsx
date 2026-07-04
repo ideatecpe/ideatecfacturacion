@@ -167,7 +167,7 @@ function SecretInput({
             "w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm pr-10 transition-colors",
             disabled
               ? "opacity-50 cursor-not-allowed"
-              : "focus:border-brand-blue",
+              : "focus:border-brand-blue/50",
           )}
         />
         {!disabled && (
@@ -230,7 +230,7 @@ function TextInput({
             "w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm transition-colors",
             disabled
               ? "opacity-50 cursor-not-allowed pr-10"
-              : "focus:border-brand-blue",
+              : "focus:border-brand-blue/50",
           )}
         />
         {disabled && (

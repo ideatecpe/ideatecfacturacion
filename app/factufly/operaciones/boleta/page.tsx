@@ -56,7 +56,7 @@ import { UserCircle, Car } from "lucide-react";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
-import { actualizarStock } from "../../productos/gestioProductos/actualizarStock";
+import React from "react";
 
 // ── Interfaces locales ───────────────────────────────────────
 interface DetalleLocal extends Partial<BoletaDetalle> {
@@ -69,6 +69,35 @@ interface DetalleLocal extends Partial<BoletaDetalle> {
   _tipoProducto?: string | null;
   _stockDisponible?: number | null;
   _esIcbper?: boolean;
+  _precioListaEnMoneda?: number;
+  _enPromocion?: boolean | null;
+  _porcentajeDescuento?: number | null;
+  _precioMayoristaEnMoneda?: number | null;
+  _cantidadMinimaMayorista?: number | null;
+  _precioManual?: boolean;
+}
+
+// Promoción y precio mayorista son excluyentes: gana el que dé el precio más bajo al cliente.
+function calcularPrecioConDescuentos(
+  precioLista: number,
+  cantidad: number,
+  enPromocion?: boolean | null,
+  porcentajeDescuento?: number | null,
+  precioMayorista?: number | null,
+  cantidadMinimaMayorista?: number | null,
+): number {
+  const candidatos = [precioLista];
+  if (enPromocion && porcentajeDescuento) {
+    candidatos.push(precioLista * (1 - porcentajeDescuento / 100));
+  }
+  if (
+    precioMayorista &&
+    cantidadMinimaMayorista &&
+    cantidad >= cantidadMinimaMayorista
+  ) {
+    candidatos.push(precioMayorista);
+  }
+  return Math.min(...candidatos);
 }
 
 interface PagoLocal {
@@ -523,6 +552,7 @@ function BoletaContent() {
   const [showDropdownProducto, setShowDropdownProducto] = useState<boolean[]>(
     [],
   );
+  const [pendingScanProducto, setPendingScanProducto] = useState<ProductoSucursal | null>(null);
   const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | null)[]>(
     [],
   );
@@ -659,8 +689,16 @@ function BoletaContent() {
 
   // ── Descuento global ─────────────────────────────────────────
   const [descuentoGlobal, setDescuentoGlobal] = useState(0);
+  const [modoDescGlobal, setModoDescGlobal] = useState<"monto" | "porcentaje">("monto");
+  const [porcentajeDescInput, setPorcentajeDescInput] = useState(0);
   const [precioInputValues, setPrecioInputValues] = useState<Record<number, string>>({});
   const [codigoTipoDescGlobal, setCodigoTipoDescGlobal] = useState("02");
+
+  useEffect(() => {
+    if (modoDescGlobal !== "porcentaje") return;
+    const base = detalles.reduce((acc, d) => acc + (d.totalVentaItem ?? 0), 0);
+    setDescuentoGlobal(parseFloat((base * porcentajeDescInput / 100).toFixed(2)));
+  }, [porcentajeDescInput, modoDescGlobal, detalles]);
 
   // ── Tipo de cambio USD ───────────────────────────────────────
   const [tipoCambio, setTipoCambio] = useState(3.75);
@@ -690,7 +728,7 @@ function BoletaContent() {
     setCargandoTipoCambio(true);
     try {
       const venta = await obtenerTipoCambioVenta(fechaConsulta);
-      setTipoCambio(parseFloat(venta.toFixed(2)));
+      setTipoCambio(parseFloat(venta.toFixed(3)));
       tipoCambioFechaCargada.current = fechaConsulta;
     } catch (error) {
       console.warn("No se pudo obtener el tipo de cambio JSON.PE", error);
@@ -732,6 +770,10 @@ function BoletaContent() {
         setDescuentoGlobal(data.extra.descuentoGlobal);
       if (data.extra.codigoTipoDescGlobal !== undefined)
         setCodigoTipoDescGlobal(data.extra.codigoTipoDescGlobal);
+      if (data.extra.modoDescGlobal !== undefined)
+        setModoDescGlobal(data.extra.modoDescGlobal);
+      if (data.extra.porcentajeDescInput !== undefined)
+        setPorcentajeDescInput(data.extra.porcentajeDescInput);
       if (data.extra.trabajadorIdGlobal !== undefined)
         setTrabajadorIdGlobal(data.extra.trabajadorIdGlobal);
       if (data.extra.trabajadoresPorItem !== undefined)
@@ -842,6 +884,8 @@ function BoletaContent() {
       aplicarIcbper,
       descuentoGlobal,
       codigoTipoDescGlobal,
+      modoDescGlobal,
+      porcentajeDescInput,
       trabajadorIdGlobal,
       trabajadoresPorItem,
     });
@@ -854,6 +898,8 @@ function BoletaContent() {
     aplicarIcbper,
     descuentoGlobal,
     codigoTipoDescGlobal,
+    modoDescGlobal,
+    porcentajeDescInput,
   ]);
 
   useEffect(() => {
@@ -1379,6 +1425,46 @@ function BoletaContent() {
     ];
   };
 
+  // Cuando se agrega una fila por scan de producto diferente, selecciona el producto pendiente en esa fila.
+  React.useEffect(() => {
+    if (!pendingScanProducto) return;
+    const idx = detalles.filter((d) => !d._esIcbper).length - 1;
+    if (idx >= 0) {
+      seleccionarProducto(pendingScanProducto, idx);
+      showToast(`✓ ${pendingScanProducto.nomProducto} agregado por código de barras`, "success");
+      setPendingScanProducto(null);
+      // Devolver foco al campo de la nueva fila para que el escáner pueda seguir
+      setTimeout(() => inputRefs.current[idx]?.focus(), 50);
+    }
+  }, [detalles.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
+  const getStockEfectivo = (p: ProductoSucursal): number | null => {
+    if (p.esPaquete && p.productoBaseId) {
+      const base = productosSucursal.find(
+        (x) => x.productoId === p.productoBaseId,
+      );
+      return base?.sucursalProducto.stock ?? null;
+    }
+    return p.sucursalProducto.stock ?? null;
+  };
+
+  // Unidades del producto base ya comprometidas por otros ítems del carrito (excluye excludeIndex).
+  // Solo aplica cuando config.isStock está activo.
+  const getUnidadesComprometidas = (productoBaseId: number, excludeIndex: number): number => {
+    if (!config?.isStock) return 0;
+    return detalles.reduce((total, d, i) => {
+      if (i === excludeIndex || !d.productoId) return total;
+      const prod = productosSucursal.find((x) => x.productoId === d.productoId);
+      if (!prod) return total;
+      if (prod.productoId === productoBaseId)
+        return total + (d.cantidad ?? 0);
+      if (prod.esPaquete && prod.productoBaseId === productoBaseId && prod.factorConversion)
+        return total + (d.cantidad ?? 0) * prod.factorConversion;
+      return total;
+    }, 0);
+  };
+
   // ── Seleccionar producto ─────────────────────────────────────
   const seleccionarProducto = (producto: ProductoSucursal, index: number) => {
     if (
@@ -1416,21 +1502,40 @@ function BoletaContent() {
       boleta.tipoMoneda === "USD"
         ? parseFloat((precioSistema / tipoCambio).toFixed(6))
         : precioSistema;
+    const precioMayoristaEnMoneda = producto.sucursalProducto.precioMayorista
+      ? boleta.tipoMoneda === "USD"
+        ? parseFloat(
+            (producto.sucursalProducto.precioMayorista / tipoCambio).toFixed(6),
+          )
+        : producto.sucursalProducto.precioMayorista
+      : null;
     const porcentajeIGV =
       producto.tipoAfectacionIGV === "10"
         ? (detalles[index]?.porcentajeIGV ?? IGV_DEFAULT)
         : 0;
     const cantidad = 1;
+    const precioVentaUnitario = config?.isStock
+      ? calcularPrecioConDescuentos(
+          precioEnMoneda,
+          cantidad,
+          producto.sucursalProducto.enPromocion,
+          producto.sucursalProducto.porcentajeDescuento,
+          precioMayoristaEnMoneda,
+          producto.sucursalProducto.cantidadMinimaMayorista,
+        )
+      : precioEnMoneda;
     const precioBase =
       producto.tipoAfectacionIGV === "10" && producto.incluirIGV
-        ? parseFloat((precioEnMoneda / (1 + porcentajeIGV / 100)).toFixed(6))
-        : precioEnMoneda;
+        ? parseFloat((precioVentaUnitario / (1 + porcentajeIGV / 100)).toFixed(6))
+        : precioVentaUnitario;
     const precioVentaConIGV =
       producto.tipoAfectacionIGV === "10"
         ? producto.incluirIGV
-          ? precioEnMoneda
-          : parseFloat((precioEnMoneda * (1 + porcentajeIGV / 100)).toFixed(2))
-        : precioEnMoneda;
+          ? precioVentaUnitario
+          : parseFloat(
+              (precioVentaUnitario * (1 + porcentajeIGV / 100)).toFixed(2),
+            )
+        : precioVentaUnitario;
     const calc = calcularDetalle(
       precioBase,
       precioVentaConIGV,
@@ -1441,6 +1546,12 @@ function BoletaContent() {
       0,
     );
 
+    const stockEfectivo = getStockEfectivo(producto);
+    const stockDisponible =
+      producto.esPaquete && producto.factorConversion && stockEfectivo != null
+        ? Math.floor(stockEfectivo / producto.factorConversion)
+        : stockEfectivo;
+
     const nuevos = [...detalles];
     nuevos[index] = {
       ...nuevos[index],
@@ -1448,7 +1559,7 @@ function BoletaContent() {
       codigo: producto.codigo,
       _sucursalProductoId: producto.sucursalProducto.sucursalProductoId,
       _tipoProducto: producto.tipoProducto,
-      _stockDisponible: producto.sucursalProducto.stock,
+      _stockDisponible: stockDisponible,
       descripcion: producto.nomProducto,
       unidadMedida: producto.unidadMedida,
       tipoAfectacionIGV: producto.tipoAfectacionIGV,
@@ -1458,6 +1569,12 @@ function BoletaContent() {
       _precioBase: precioBase,
       _precioBaseOriginal: precioBase,
       _precioVentaConIGV: precioVentaConIGV,
+      _precioListaEnMoneda: precioEnMoneda,
+      _enPromocion: producto.sucursalProducto.enPromocion,
+      _porcentajeDescuento: producto.sucursalProducto.porcentajeDescuento,
+      _precioMayoristaEnMoneda: precioMayoristaEnMoneda,
+      _cantidadMinimaMayorista: producto.sucursalProducto.cantidadMinimaMayorista,
+      _precioManual: false,
       ...calc,
     };
     setDetalles(nuevos);
@@ -1501,6 +1618,7 @@ function BoletaContent() {
       ...d,
       _precioBase: nuevoPrecioBase,
       _precioVentaConIGV: nuevoPrecioVenta,
+      _precioManual: true,
       ...calc,
     };
     setDetalles(nuevos);
@@ -1511,22 +1629,69 @@ function BoletaContent() {
     if (!d) return;
 
     let cantidadFinal = cantidad;
-    if (
-      config?.isStock &&
-      d._tipoProducto === "BIEN" &&
-      d._stockDisponible != null &&
-      cantidadFinal > d._stockDisponible
-    ) {
-      cantidadFinal = d._stockDisponible;
-      showToast(
-        `Stock disponible: ${d._stockDisponible}. No puedes vender más de lo que hay.`,
-        "info",
+    if (config?.isStock && d._tipoProducto === "BIEN") {
+      // Límite individual (stock total del producto o cajas disponibles)
+      const limiteIndividual = d._stockDisponible ?? Infinity;
+
+      // Límite compartido: descuenta lo que otros ítems del carrito ya consumen del mismo base
+      let limiteCompartido = Infinity;
+      const prod = productosSucursal.find((x) => x.productoId === d.productoId);
+      if (prod) {
+        const baseId = prod.esPaquete ? prod.productoBaseId : prod.productoId;
+        const baseProd = prod.esPaquete
+          ? productosSucursal.find((x) => x.productoId === prod.productoBaseId)
+          : prod;
+        if (baseId && baseProd) {
+          const stockBase = baseProd.sucursalProducto.stock ?? 0;
+          const comprometido = getUnidadesComprometidas(baseId, index);
+          const disponibleBase = Math.max(0, stockBase - comprometido);
+          limiteCompartido = prod.esPaquete && prod.factorConversion
+            ? Math.floor(disponibleBase / prod.factorConversion)
+            : disponibleBase;
+        }
+      }
+
+      const limite = Math.min(limiteIndividual, limiteCompartido);
+      if (cantidadFinal > limite) {
+        cantidadFinal = limite;
+        showToast(
+          `Stock disponible: ${limite}. Otros ítems del carrito usan el mismo stock.`,
+          "info",
+        );
+      }
+    }
+
+    let precioBase = d._precioBase ?? d.precioUnitario ?? 0;
+    let precioVentaConIGV = d._precioVentaConIGV ?? d.precioVenta ?? 0;
+
+    // Si el precio no fue editado a mano, reevalúa promoción/mayorista con la nueva cantidad
+    // (solo si la sucursal maneja stock; sin stock no se aplican estas reglas).
+    if (config?.isStock && !d._precioManual && d._precioListaEnMoneda != null) {
+      const ta = d.tipoAfectacionIGV ?? "10",
+        pct = d.porcentajeIGV ?? 18;
+      const precioVentaUnitario = calcularPrecioConDescuentos(
+        d._precioListaEnMoneda,
+        cantidadFinal,
+        d._enPromocion,
+        d._porcentajeDescuento,
+        d._precioMayoristaEnMoneda,
+        d._cantidadMinimaMayorista,
       );
+      precioBase =
+        ta === "10" && d._incluirIGV
+          ? parseFloat((precioVentaUnitario / (1 + pct / 100)).toFixed(6))
+          : precioVentaUnitario;
+      precioVentaConIGV =
+        ta === "10"
+          ? d._incluirIGV
+            ? precioVentaUnitario
+            : parseFloat((precioVentaUnitario * (1 + pct / 100)).toFixed(2))
+          : precioVentaUnitario;
     }
 
     const calc = calcularDetalle(
-      d._precioBase ?? d.precioUnitario ?? 0,
-      d._precioVentaConIGV ?? d.precioVenta ?? 0,
+      precioBase,
+      precioVentaConIGV,
       cantidadFinal,
       d.porcentajeIGV ?? 18,
       d.tipoAfectacionIGV ?? "10",
@@ -1534,7 +1699,13 @@ function BoletaContent() {
       d.descuentoUnitario ?? 0,
     );
     const nuevos = [...detalles];
-    nuevos[index] = { ...d, cantidad: cantidadFinal, ...calc };
+    nuevos[index] = {
+      ...d,
+      cantidad: cantidadFinal,
+      _precioBase: precioBase,
+      _precioVentaConIGV: precioVentaConIGV,
+      ...calc,
+    };
     setDetalles(nuevos);
   };
 
@@ -1737,7 +1908,7 @@ function BoletaContent() {
 
   // ── Descontar stock (solo si config.isStock) ───────────────────
   const stockDescontadoRef = useRef(false);
-  const descontarStockSiAplica = async () => {
+  const descontarStockSiAplica = async (comprobanteId: number) => {
     if (!config?.isStock) return;
     if (stockDescontadoRef.current) return;
     stockDescontadoRef.current = true;
@@ -1757,7 +1928,11 @@ function BoletaContent() {
     if (!items.length) return;
 
     try {
-      await actualizarStock(items, accessToken);
+      await axios.put(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/descontar-stock`,
+        items,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
       fetchProductosSucursal();
     } catch {
       showToast("No se pudo actualizar el stock de los productos.", "error");
@@ -1887,7 +2062,7 @@ function BoletaContent() {
       } else {
         showToast("Boleta guardada como pendiente en resumen", "success");
         setEmitido(true);
-        descontarStockSiAplica();
+        descontarStockSiAplica(comprobanteId);
         procesarSegundoPlano(comprobanteId);
       }
     } catch (err: any) {
@@ -1918,7 +2093,7 @@ function BoletaContent() {
           "success",
         );
         setEmitido(true);
-        descontarStockSiAplica();
+        descontarStockSiAplica(comprobanteId);
         procesarSegundoPlano(comprobanteId);
       } else {
         // exitoso=false: puede ser RECHAZADO (validación real de SUNAT)
@@ -1936,7 +2111,7 @@ function BoletaContent() {
             "error",
           );
           reintentarEnSegundoPlano(comprobanteId); // ← sin await
-          descontarStockSiAplica();
+          descontarStockSiAplica(comprobanteId);
         } else {
           showToast(`La boleta ${serieCorrelativo} fue rechazada.`, "error");
         }
@@ -1960,7 +2135,7 @@ function BoletaContent() {
             "error",
           );
           reintentarEnSegundoPlano(comprobanteId); // ← sin await
-          descontarStockSiAplica();
+          descontarStockSiAplica(comprobanteId);
         } else {
           showToast(`La boleta ${serieCorrelativo} fue rechazada.`, "error");
         }
@@ -1975,16 +2150,21 @@ function BoletaContent() {
           "error",
         );
         setEmitido(true);
-        descontarStockSiAplica();
+        descontarStockSiAplica(comprobanteId);
         procesarSegundoPlano(comprobanteId);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
       }
     }
   };
 
-  // ── Reintento silencioso — solo si SUNAT no responde ────────
+  // Reintento en segundo plano, 100% silencioso (sin toasts en éxito ni en fallo).
+  // El backend ya garantiza que solo llega a RECHAZADO si SUNAT devolvió un CDR
+  // real; este delay solo reduce la chance de chocar con un documento que SUNAT
+  // aún tiene "en proceso" y reparte los reintentos si hay varios comprobantes
+  // pendientes a la vez (evita una ráfaga si SUNAT tuvo una caída sostenida).
   const reintentarEnSegundoPlano = async (comprobanteId: number) => {
-    await new Promise((res) => setTimeout(res, 3000));
+    const delayConJitter = 30000 + Math.random() * 20000; // 30-50s
+    await new Promise((res) => setTimeout(res, delayConJitter));
     try {
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/enviar-sunat`,
@@ -2397,7 +2577,7 @@ function BoletaContent() {
                   <div className="w-5 h-5 rounded-md flex items-center justify-center">
                     <UserRound className="w-4 h-4 text-brand-blue" />
                   </div>
-                  <h3 className="text-xs font-semibold text-[#0f2e64]">
+                  <h3 className="text-xs font-semibold text-brand-blue">
                     Datos del Cliente
                   </h3>
                   {/* Clientes varios */}
@@ -2433,7 +2613,7 @@ function BoletaContent() {
                             cliente: undefined,
                           }));
                         }}
-                        className="w-1/3 py-1.5 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm disabled:opacity-50"
+                        className="w-1/3 py-1.5 px-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm disabled:opacity-50"
                       >
                         <option value="01">DNI</option>
                         <option value="04">CE</option>
@@ -2467,7 +2647,7 @@ function BoletaContent() {
                           }
                           placeholder="Buscar por nº doc o nombre..."
                           className={`w-full pl-4 pr-10 py-1.5 bg-white border rounded-xl focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all text-sm disabled:opacity-50
-                            ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue"}`}
+                            ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue/50"}`}
                         />
                         {loadingCliente && (
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
@@ -2711,7 +2891,7 @@ function BoletaContent() {
                         horaEmision: e.target.value + ":00",
                       }));
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue outline-none transition-all text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-sm"
                   />
                   {fechaEmisionEditada && (
                     <button
@@ -2782,11 +2962,11 @@ function BoletaContent() {
                         );
                       }
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                   >
                     <option value="PEN">PEN - Soles</option>
                     <option value="USD">
-                      USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(2)})
+                      USD - Dólares ({cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})
                     </option>
                   </select>
                 </div>
@@ -2810,7 +2990,7 @@ function BoletaContent() {
                       setPagos([{ medioPago: "Efectivo", monto: "", numeroOperacion: "", entidadFinanciera: "", observaciones: "" }]);
                       setPagosEditados([false]);
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                   >
                     <option value="Contado">Contado</option>
                     <option value="Credito">Crédito</option>
@@ -2830,13 +3010,13 @@ function BoletaContent() {
                       <div className="flex items-center justify-between">
                         
                  <div className="flex items-center gap-2">
-  <div className="w-5 h-5 rounded-md flex items-center justify-center">
-    <CreditCard className="w-4 h-4 text-brand-blue" />
-  </div>
-  <h3 className="text-xs font-semibold text-[#0f2e64]">
-    Medio de Pago
-  </h3>
-</div>
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center">
+                        <CreditCard className="w-4 h-4 text-brand-blue" />
+                      </div>
+                        <h3 className="text-xs font-semibold text-brand-blue">
+                          Medio de Pago
+                        </h3>
+                      </div>
                         {mediosUsados.length < todosMedios.length && (
                           <button type="button" onClick={agregarPago} className="text-xs text-brand-blue hover:underline flex items-center gap-1">
                             <Plus className="w-3 h-3" /> Agregar otro medio de pago
@@ -2847,15 +3027,15 @@ function BoletaContent() {
                         <select
                           value={pagos[0].medioPago}
                           onChange={(e) => actualizarPago(0, "medioPago", e.target.value)}
-                          className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-sm"
+                          className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-sm"
                         >
                           {todosMedios.map((m) => (
                             <option key={m} value={m}>{m}</option>
                           ))}
                         </select>
                         {pagos[0].medioPago === "Transferencia" && (<>
-                          <input type="text" value={pagos[0].numeroOperacion} onChange={(e) => actualizarPago(0, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-20 shrink-0 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
-                          <input type="text" value={pagos[0].entidadFinanciera} onChange={(e) => actualizarPago(0, "entidadFinanciera", e.target.value)} placeholder="Banco/entidad" className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
+                          <input type="text" value={pagos[0].numeroOperacion} onChange={(e) => actualizarPago(0, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-20 shrink-0 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
+                          <input type="text" value={pagos[0].entidadFinanciera} onChange={(e) => actualizarPago(0, "entidadFinanciera", e.target.value)} placeholder="Banco/entidad" className="flex-1 py-1.5 px-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
                         </>)}
                       </div>
                     </div>
@@ -2867,7 +3047,7 @@ function BoletaContent() {
                           <div className="w-5 h-5 rounded-md flex items-center justify-center">
                             <CreditCard className="w-4 h-4 text-brand-blue" />
                           </div>
-                          <h3 className="text-xs font-semibold text-[#0f2e64]">Datos de Pago</h3>
+                          <h3 className="text-xs font-semibold text-brand-blue">Datos de Pago</h3>
                         </div>
                         {mediosUsados.length < todosMedios.length && (
                           <button type="button" onClick={agregarPago} className="text-xs text-brand-blue hover:underline flex items-center gap-1">
@@ -2883,7 +3063,7 @@ function BoletaContent() {
                               <select
                                 value={pago.medioPago}
                                 onChange={(e) => actualizarPago(i, "medioPago", e.target.value)}
-                                className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs"
+                                className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs"
                               >
                                 {todosMedios.map((m) => (
                                   <option key={m} value={m} disabled={mediosUsados.includes(m) && pago.medioPago !== m}>{m}</option>
@@ -2894,11 +3074,11 @@ function BoletaContent() {
                                 onBlur={(e) => { if (!e.target.value || e.target.value === "0") { setPagosEditados((prev) => { const n = [...prev]; n[i] = false; return n; }); actualizarPago(i, "monto", ""); } }}
                                 onWheel={(e) => e.currentTarget.blur()}
                                 onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                                className="w-20 shrink-0 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="w-20 shrink-0 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                               {pago.medioPago === "Transferencia" && (<>
-                                <input type="text" value={pago.numeroOperacion} onChange={(e) => actualizarPago(i, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-16 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
-                                <input type="text" value={pago.entidadFinanciera} onChange={(e) => actualizarPago(i, "entidadFinanciera", e.target.value)} placeholder="Banco" className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-xs" />
+                                <input type="text" value={pago.numeroOperacion} onChange={(e) => actualizarPago(i, "numeroOperacion", e.target.value)} placeholder="Nº op." className="w-16 shrink-0 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
+                                <input type="text" value={pago.entidadFinanciera} onChange={(e) => actualizarPago(i, "entidadFinanciera", e.target.value)} placeholder="Banco" className="flex-1 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-xs" />
                               </>)}
                               <button type="button" onClick={() => eliminarPago(i)} className="text-red-400 hover:text-red-600 shrink-0">
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -2941,7 +3121,7 @@ function BoletaContent() {
                           detalles.filter((d) => !d._esIcbper).forEach((d, i) => { nuevo[d._id ?? String(i)] = id; });
                           setTrabajadoresPorItem(nuevo);
                         }}
-                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue"
+                        className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50"
                       >
                         <option value={0}>Seleccionar trabajador...</option>
                         {trabajadores.map((t) => (
@@ -3029,7 +3209,7 @@ function BoletaContent() {
                         }
                         onWheel={(e) => e.currentTarget.blur()}
                         onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                        className="w-16 py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-16 py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   </div>
@@ -3062,7 +3242,7 @@ function BoletaContent() {
                             }}
                             onWheel={(e) => e.currentTarget.blur()}
                             onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                            className="w-full py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-full py-1.5 pl-2 pr-3 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
                         <div className="space-y-1">
@@ -3126,7 +3306,7 @@ function BoletaContent() {
                             onChange={(e) =>
                               actualizarGuia(i, "tipoDoc", e.target.value)
                             }
-                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                           >
                             <option value="09">Guía Remisión Remitente</option>
                             <option value="31">
@@ -3145,7 +3325,7 @@ function BoletaContent() {
                               actualizarGuia(i, "serie", e.target.value)
                             }
                             placeholder="T001"
-                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                            className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                           />
                         </div>
                         <div className="space-y-1">
@@ -3160,7 +3340,7 @@ function BoletaContent() {
                                 actualizarGuia(i, "numero", e.target.value)
                               }
                               placeholder="00000001"
-                              className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                              className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                             />
                             <button
                               type="button"
@@ -3192,7 +3372,7 @@ function BoletaContent() {
                     <div className="w-5 h-5 rounded-md flex items-center justify-center">
                       <ClipboardList className="w-4 h-4 text-brand-blue" />
                     </div>
-                    <label className="text-xs font-semibold text-[#0f2e64]">
+                    <label className="text-xs font-semibold text-brand-blue">
                       Detalle de Venta
                     </label>
                   </div>
@@ -3327,6 +3507,13 @@ function BoletaContent() {
                                   value={busquedaProducto[i] ?? ""}
                                   disabled={!!d._esIcbper || esPorConsumo}
                                   onChange={(e) => {
+                                    // Si el producto ya está seleccionado y el Enter del escáner agrega un salto de línea, ignorarlo
+                                    if (detalles[i]?.productoId && e.target.value.trim() === (detalles[i]?.descripcion ?? "").trim()) {
+                                      const nb = [...busquedaProducto];
+                                      nb[i] = detalles[i]?.descripcion ?? "";
+                                      setBusquedaProducto(nb);
+                                      return;
+                                    }
                                     const nb = [...busquedaProducto];
                                     nb[i] = e.target.value;
                                     setBusquedaProducto(nb);
@@ -3346,6 +3533,47 @@ function BoletaContent() {
                                     // Auto-grow height dynamically
                                     e.target.style.height = "auto";
                                     e.target.style.height = `${e.target.scrollHeight}px`;
+
+                                    // Escáner: detectar código solo cuando el escáner terminó de escanear
+                                    // (envía un salto de línea al presionar Enter). Si no hay salto de línea,
+                                    // es tecleo manual del usuario y no debe validarse como código de barras.
+                                    const tieneSaltoDeLinea = e.target.value.includes("\n");
+                                    const ultimaLinea = e.target.value.split("\n").pop()?.trim() ?? "";
+                                    const candidato = tieneSaltoDeLinea && ultimaLinea.length >= 6 ? ultimaLinea : "";
+                                    if (candidato) {
+                                      const coincidencia = productosSucursal.find(
+                                        (p: ProductoSucursal) =>
+                                          !!p.codigoBarras && p.codigoBarras === candidato,
+                                      );
+                                      if (coincidencia) {
+                                        const detalleActual = detalles[i];
+                                        if (detalleActual?.productoId === coincidencia.productoId) {
+                                          // Mismo producto ya seleccionado: sumar cantidad y resetear campo
+                                          actualizarCantidad(i, (detalleActual.cantidad ?? 1) + 1);
+                                          const nb = [...busquedaProducto];
+                                          nb[i] = coincidencia.nomProducto;
+                                          setBusquedaProducto(nb);
+                                          const nd = [...showDropdownProducto];
+                                          nd[i] = false;
+                                          setShowDropdownProducto(nd);
+                                          showToast(`✓ ${coincidencia.nomProducto} ×${(detalleActual.cantidad ?? 1) + 1}`, "success");
+                                        } else if (detalleActual?.productoId) {
+                                          // Producto diferente en fila ocupada: agregar nueva fila y seleccionar ahí
+                                          setPendingScanProducto(coincidencia);
+                                          agregarFila();
+                                        } else {
+                                          // Fila vacía: seleccionar normalmente
+                                          seleccionarProducto(coincidencia, i);
+                                          showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
+                                        }
+                                        return;
+                                      }
+                                      // Código escaneado no encontrado en el catálogo
+                                      showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
+                                      const nb = [...busquedaProducto];
+                                      nb[i] = "";
+                                      setBusquedaProducto(nb);
+                                    }
                                   }}
                                   onFocus={(e) => {
                                     const nd = [...showDropdownProducto];
@@ -3406,7 +3634,7 @@ function BoletaContent() {
                                   }}
                                   placeholder="Buscar o agregar producto..."
                                   rows={1}
-                                  className={`w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-[border-color,box-shadow] duration-200 ${
+                                  className={`w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 disabled:opacity-50 disabled:cursor-not-allowed resize-none transition-[border-color,box-shadow] duration-200 ${
                                     focusedItemIndex === i
                                       ? "overflow-y-hidden whitespace-pre-wrap"
                                       : "h-7 overflow-hidden whitespace-nowrap text-ellipsis"
@@ -3433,7 +3661,9 @@ function BoletaContent() {
                                               ) ||
                                             p.codigo.includes(
                                               busquedaProducto[i] ?? "",
-                                            ),
+                                            ) ||
+                                            (!!p.codigoBarras &&
+                                              p.codigoBarras === (busquedaProducto[i] ?? "")),
                                     );
                                     if (!filtrados.length) return null;
                                     return (
@@ -3451,10 +3681,27 @@ function BoletaContent() {
                                         className="bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto"
                                       >
                                         {filtrados.map((p: ProductoSucursal) => {
+                                          const stockEfectivo = getStockEfectivo(p);
+                                          const unidadesVendibles =
+                                            p.esPaquete && p.factorConversion
+                                              ? Math.floor(
+                                                  (stockEfectivo ?? 0) / p.factorConversion,
+                                                )
+                                              : stockEfectivo ?? 0;
                                           const sinStock =
                                             !!config?.isStock &&
                                             p.tipoProducto === "BIEN" &&
-                                            (p.sucursalProducto.stock ?? 0) === 0;
+                                            unidadesVendibles <= 0;
+                                          const stockMostrado = (() => {
+                                            if (p.esPaquete && p.factorConversion && stockEfectivo != null) {
+                                              const cajas = Math.floor(stockEfectivo / p.factorConversion);
+                                              const sueltas = stockEfectivo % p.factorConversion;
+                                              if (cajas > 0 && sueltas > 0) return `${cajas} caja${cajas > 1 ? "s" : ""} + ${sueltas} und.`;
+                                              if (cajas > 0) return `${cajas} caja${cajas > 1 ? "s" : ""}`;
+                                              return `${sueltas} und. (sin caja)`;
+                                            }
+                                            return `${stockEfectivo ?? 0} und.`;
+                                          })();
                                           return (
                                             <button
                                               key={p.productoId}
@@ -3471,26 +3718,46 @@ function BoletaContent() {
                                                   : " hover:bg-gray-50")
                                               }
                                             >
-                                              <p className="text-xs font-medium text-gray-800">
+                                              <p className="text-xs font-medium text-gray-800 flex items-center gap-1">
                                                 {p.nomProducto}
+                                                {!!config?.isStock &&
+                                                  !!p.sucursalProducto.enPromocion &&
+                                                  !!p.sucursalProducto.porcentajeDescuento && (
+                                                    <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1 rounded">
+                                                      -{p.sucursalProducto.porcentajeDescuento}%
+                                                    </span>
+                                                  )}
                                               </p>
                                               <p className="text-[10px] text-gray-400">
                                                 {p.codigo} · S/{" "}
-                                                {p.sucursalProducto.precioUnitario.toFixed(
-                                                  2,
+                                                {!!config?.isStock &&
+                                                !!p.sucursalProducto.enPromocion &&
+                                                !!p.sucursalProducto.porcentajeDescuento ? (
+                                                  <>
+                                                    <span className="line-through">
+                                                      {p.sucursalProducto.precioUnitario.toFixed(2)}
+                                                    </span>{" "}
+                                                    <span className="text-rose-500 font-semibold">
+                                                      {(
+                                                        p.sucursalProducto.precioUnitario *
+                                                        (1 - p.sucursalProducto.porcentajeDescuento / 100)
+                                                      ).toFixed(2)}
+                                                    </span>
+                                                  </>
+                                                ) : (
+                                                  p.sucursalProducto.precioUnitario.toFixed(2)
                                                 )}
                                                 {!!config?.isStock &&
                                                   p.tipoProducto === "BIEN" && (
                                                     <span
                                                       className={
-                                                        (p.sucursalProducto.stock ?? 0) === 0
+                                                        unidadesVendibles <= 0
                                                           ? " text-red-500"
                                                           : " text-green-600"
                                                       }
                                                     >
                                                       {" "}
-                                                      · Stock:{" "}
-                                                      {p.sucursalProducto.stock ?? 0}
+                                                      · Stock: {stockMostrado}
                                                     </span>
                                                   )}
                                               </p>
@@ -3595,7 +3862,7 @@ function BoletaContent() {
                                             Number(e.target.value),
                                           )
                                         }
-                                        className="w-10 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        className="w-10 py-1 pl-2 pr-3 border border-gray-200 bg-gray-50 rounded-lg text-xs text-center outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       />
                                       <button
                                         type="button"
@@ -3623,7 +3890,7 @@ function BoletaContent() {
                                   onChange={(e) =>
                                     actualizarTipoAfectacion(i, e.target.value)
                                   }
-                                  className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                                  className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                                 >
                                   <option value="10">Grav.</option>
                                   <option value="20">Exon.</option>
@@ -3660,7 +3927,7 @@ function BoletaContent() {
                                     setPrecioInputValues(prev => { const n = { ...prev }; delete n[i]; return n; });
                                   }}
                                   disabled={!!d._esIcbper}
-                                  className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono ${d._esIcbper ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
+                                  className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono ${d._esIcbper ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
                                 />
                               </td>
 
@@ -3676,7 +3943,7 @@ function BoletaContent() {
                                         Number(e.target.value),
                                       )
                                     }
-                                    className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue"
+                                    className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
                                   >
                                     <option value={18}>18</option>
                                     <option value={10.5}>10.5</option>
@@ -3705,7 +3972,7 @@ function BoletaContent() {
                                     )
                                   }
                                   disabled={!!d._esIcbper || esPorConsumo}
-                                  className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${d._esIcbper || esPorConsumo ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
+                                  className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${d._esIcbper || esPorConsumo ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"}`}
                                 />
                               </td>
                               )}
@@ -3865,32 +4132,67 @@ function BoletaContent() {
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-end gap-2 items-center">
-                    <span className="text-sm text-gray-900">Desc. Global:</span>
-                    {/* Select oculto según requerimiento de usar solo "02" */}
-                    <select
-                      value={codigoTipoDescGlobal}
-                      onChange={(e) => setCodigoTipoDescGlobal(e.target.value)}
-                      className="hidden"
-                    >
-                      <option value="03">03 - No afecta base</option>
-                      <option value="02">02 - Afecta base gravada</option>
-                    </select>
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm text-gray-400">{simbolo}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={descuentoGlobal}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
-                        onChange={(e) =>
-                          setDescuentoGlobal(Number(e.target.value))
-                        }
-                        className="w-24 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex justify-end gap-2 items-center">
+                      <span className="text-sm text-gray-900">Desc. Global:</span>
+                      {/* Select oculto según requerimiento de usar solo "02" */}
+                      <select
+                        value={codigoTipoDescGlobal}
+                        onChange={(e) => setCodigoTipoDescGlobal(e.target.value)}
+                        className="hidden"
+                      >
+                        <option value="03">03 - No afecta base</option>
+                        <option value="02">02 - Afecta base gravada</option>
+                      </select>
+                      <select
+                        value={modoDescGlobal}
+                        onChange={(e) => {
+                          setModoDescGlobal(e.target.value as "monto" | "porcentaje");
+                          setDescuentoGlobal(0);
+                          setPorcentajeDescInput(0);
+                        }}
+                        className="py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 outline-none focus:border-brand-blue/50 cursor-pointer"
+                      >
+                        <option value="monto">{simbolo} Monto</option>
+                        <option value="porcentaje">% Porcentaje</option>
+                      </select>
+                      {modoDescGlobal === "monto" ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-gray-400">{simbolo}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={descuentoGlobal}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                            onChange={(e) => setDescuentoGlobal(Number(e.target.value))}
+                            className="w-20 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.1"
+                            value={porcentajeDescInput}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            onFocus={(e) => { if (Number(e.currentTarget.value) === 0) e.currentTarget.select(); }}
+                            onChange={(e) => {
+                              const v = Math.min(100, Math.max(0, Number(e.target.value)));
+                              setPorcentajeDescInput(v);
+                            }}
+                            className="w-20 py-1.5 pl-2 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-sm text-gray-400">%</span>
+                        </div>
+                      )}
                     </div>
+                    {modoDescGlobal === "porcentaje" && descuentoGlobal > 0 && (
+                      <span className="text-xs text-red-400 font-mono">-{simbolo} {fmtMonto(descuentoGlobal)}</span>
+                    )}
                   </div>
                   <div className="flex justify-end gap-4 text-sm font-bold text-brand-blue pt-1 border-t border-gray-100">
                     <span>Total:</span>
@@ -3956,7 +4258,7 @@ function BoletaContent() {
                           ).padStart(8, "0"),
                         }));
                       }}
-                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-sm"
+                      className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
                     >
                       <option value="">Seleccionar sucursal</option>
                       {sucursales.map((s: Sucursal) => (
@@ -4064,7 +4366,7 @@ function BoletaContent() {
                     setCargandoPreview(false);
                   }
                 }}
-                className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue"
+                className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
               >
                 <option value="A4">A4</option>
                 <option value="Ticket80mm">Ticket 80mm</option>
@@ -4087,7 +4389,7 @@ function BoletaContent() {
                       setFechaEmisionEditada(true);
                       setBoleta((prev) => ({ ...prev, fechaEmision: e.target.value + ":00", horaEmision: e.target.value + ":00" }));
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs"
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-xs"
                   />
                   {fechaEmisionEditada && (
                     <button type="button" onClick={() => setFechaEmisionEditada(false)} className="text-[10px] text-brand-blue hover:underline">↺ Usar hora actual</button>
@@ -4112,10 +4414,11 @@ function BoletaContent() {
                         }));
                       }
                     }}
-                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs"
+                    disabled={cargandoTipoCambio}
+                    className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue text-xs disabled:opacity-50 disabled:cursor-wait"
                   >
                     <option value="PEN">PEN - Soles</option>
-                    <option value="USD">USD - Dólares{tipoCambioFechaCargada.current ? ` (${cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(2)})` : ""}</option>
+                    <option value="USD">USD - Dólares{tipoCambioFechaCargada.current ? ` (${cargandoTipoCambio ? "cargando" : tipoCambio.toFixed(3)})` : ""}</option>
                   </select>
                 </div>
               </div>

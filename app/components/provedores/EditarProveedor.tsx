@@ -4,8 +4,8 @@ import React from "react";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
-import { Proveedor, EditProveedor } from "@/app/factufly/proveedores/gestionProveedorCompra/Proveedor";
-import { useEditarProveedor } from "@/app/factufly/proveedores/gestionProveedorCompra/useEditarProveedor";
+import { Proveedor, EditProveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/Proveedor";
+import { useEditarProveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/useEditarProveedor";
 
 interface Props {
   isOpen: boolean;

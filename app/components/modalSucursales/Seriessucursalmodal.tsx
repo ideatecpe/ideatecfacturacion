@@ -97,7 +97,7 @@ export function SeriesSucursalModal({
                         <input
                           type="number"
                           min={1}
-                          className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-xs text-center font-mono text-gray-600 outline-none focus:border-blue-400"
+                          className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-xs text-center font-mono text-gray-600 outline-none focus:border-brand-blue/50"
                           value={(form as any)[row.corrKey]}
                           onChange={(e) =>
                             setForm((f) => ({

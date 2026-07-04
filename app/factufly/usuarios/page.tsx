@@ -100,9 +100,9 @@ function FilterPill({
       type="button"
       onClick={onClick}
       className={cn(
-        "px-3 py-1.5 rounded-xl text-xs font-medium border transition-all",
+        "px-3 py-2.5 rounded-xl text-xs font-medium border transition-all",
         active
-          ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+          ? "bg-brand-blue/95 text-white border-brand-blue/95 shadow-sm"
           : "bg-white text-gray-500 border-gray-200 hover:border-gray-300",
       )}
     >
@@ -431,15 +431,15 @@ export default function UsuariosPage() {
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-center gap-3">
         <div className="flex flex-col sm:flex-row items-center gap-2 flex-1">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="relative min-w-48 w-full sm:max-w-xs">
             <input
               type="text"
-              placeholder="Buscar por nombre o correo..."
-              className="w-full pl-8 pr-4 py-2 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-400 bg-white transition-colors placeholder:text-gray-400"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nombre o correo..."
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
             />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
           <div className="flex gap-2 flex-wrap">
             <FilterPill
@@ -582,7 +582,7 @@ export default function UsuariosPage() {
                     Sucursal
                   </label>
                   <select
-                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm transition-colors"
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm transition-colors"
                     required
                     value={formData.sucursalID}
                     onChange={(e) =>
@@ -609,7 +609,7 @@ export default function UsuariosPage() {
             <input
               type="text"
               placeholder="Ej: juan.perez"
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm transition-colors"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm transition-colors"
               required
               minLength={4}
               value={formData.username}
@@ -629,7 +629,7 @@ export default function UsuariosPage() {
               Rol / Perfil
             </label>
             <select
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm transition-colors"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm transition-colors"
               value={formData.rol}
               onChange={(e) => {
                 const nuevoRol = e.target.value;
@@ -667,7 +667,7 @@ export default function UsuariosPage() {
               <input
                 type="email"
                 placeholder="juan.p@empresa.com"
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm transition-colors"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm transition-colors"
                 required
                 value={formData.email}
                 onChange={(e) =>
@@ -695,7 +695,7 @@ export default function UsuariosPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, password: e.target.value })
                 }
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 text-sm pr-10 transition-colors"
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm pr-10 transition-colors"
               />
               <button
                 type="button"

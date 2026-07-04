@@ -42,7 +42,7 @@ export function FormInput({
         <input
           type={type}
           required={required}
-          className={`w-full py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500 bg-white transition-colors ${Icon ? "pl-9 pr-4" : "px-4"}`}
+          className={`w-full py-2.5 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50 bg-white transition-colors ${Icon ? "pl-9 pr-4" : "px-4"}`}
           {...props}
         />
       </div>
@@ -74,7 +74,7 @@ export function SerieRowModal({
       <div className="flex-1 space-y-1.5">
         <FieldLabel>{label} — Serie</FieldLabel>
         <input
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500 bg-white transition-colors"
+          className="w-full px-3 py-2 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50 bg-white transition-colors"
           value={form[serieKey] as string}
           onChange={(e) =>
             setForm((f) => ({ ...f, [serieKey]: e.target.value }))
@@ -91,7 +91,7 @@ export function SerieRowModal({
         <input
           type="number"
           min={1}
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl outline-none text-sm focus:border-blue-500 bg-white transition-colors"
+          className="w-full px-3 py-2 border border-gray-200 rounded-xl outline-none text-sm focus:border-brand-blue/50 bg-white transition-colors"
           value={form[correlativoKey] as number}
           onChange={(e) =>
             setForm((f) => ({
