@@ -25,6 +25,7 @@ interface State {
   pendingDocs: NotifDoc[];
   allAccepted: NotifDoc[];
   allRejected: NotifDoc[];
+  recentDocs: NotifDoc[];
   certInfo: CertInfo | null;
   totalPending: number;
   generatedAt: string;
@@ -34,6 +35,7 @@ const EMPTY: State = {
   pendingDocs: [],
   allAccepted: [],
   allRejected: [],
+  recentDocs: [],
   certInfo: null,
   totalPending: 0,
   generatedAt: "",
@@ -81,6 +83,7 @@ export function useNotificationsDashboard({ sucursalId, empresaRuc }: Params) {
         pendingDocs: json.pendingDocs ?? [],
         allAccepted: json.allAccepted ?? [],
         allRejected: json.allRejected ?? [],
+        recentDocs: json.recentDocs ?? [],
         certInfo: json.certInfo ?? null,
         totalPending: json.totalPending ?? 0,
         generatedAt: json.generatedAt ?? "",

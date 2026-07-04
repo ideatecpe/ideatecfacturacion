@@ -195,9 +195,7 @@ export const NotificacionesSunatModal: React.FC<Props> = ({
   empresaRuc,
 }) => {
   const {
-    allAccepted,
-    allRejected,
-    pendingDocs,
+    recentDocs,
     certInfo,
     loading,
     error,
@@ -209,16 +207,15 @@ export const NotificacionesSunatModal: React.FC<Props> = ({
     refetch();
   }, [refetch]);
 
-  // Lista ordenada: rechazados → pendientes → certificado → aceptados
-  const notifs: ModalNotif[] = useMemo(
-    () => [
-      ...allRejected.map(docRechazadoToNotif),
-      ...pendingDocs.map(docPendienteToNotif),
-      ...allAccepted.map(docAceptadoToNotif),
-      ...(certInfo ? [certToNotif(certInfo)] : []),
-    ],
-    [allRejected, pendingDocs, certInfo, allAccepted],
-  );
+  // Últimos N documentos (sin importar el día), convertidos según su estado
+  const notifs: ModalNotif[] = useMemo(() => {
+    const docNotifs = recentDocs.map((doc) => {
+      if (doc.estadoSunat === "RECHAZADO") return docRechazadoToNotif(doc);
+      if (doc.estadoSunat === "ACEPTADO") return docAceptadoToNotif(doc);
+      return docPendienteToNotif(doc);
+    });
+    return [...docNotifs, ...(certInfo ? [certToNotif(certInfo)] : [])];
+  }, [recentDocs, certInfo]);
 
   const [selected, setSelected] = useState<ModalNotif | null>(null);
 
@@ -250,8 +247,8 @@ export const NotificacionesSunatModal: React.FC<Props> = ({
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               {loading
-                ? "Cargando eventos del día..."
-                : `${notifs.length} evento(s) hoy`}
+                ? "Cargando eventos recientes..."
+                : `${notifs.length} evento(s) reciente(s)`}
             </p>
           </div>
           <button
@@ -297,7 +294,7 @@ export const NotificacionesSunatModal: React.FC<Props> = ({
             {/* Sin notificaciones */}
             {!loading && !error && notifs.length === 0 && (
               <div className="p-8 text-center text-sm text-slate-400">
-                Sin notificaciones hoy
+                Sin notificaciones recientes
               </div>
             )}
 
