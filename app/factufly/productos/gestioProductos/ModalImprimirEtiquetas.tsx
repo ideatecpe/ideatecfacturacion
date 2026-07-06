@@ -16,9 +16,9 @@ const CSS_A4 = `
   @page { size: A4; margin: 12mm; }
   body { margin: 0; background: white; font-family: Arial, sans-serif; }
   .contenedor { display: flex; flex-wrap: wrap; gap: 10px; }
-  .etiqueta { width: 170px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 7px 8px; text-align: center; page-break-inside: avoid; box-sizing: border-box; }
+  .etiqueta { width: 240px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 7px 8px; text-align: center; page-break-inside: avoid; box-sizing: border-box; }
   .nombre { font-size: 8.5px; font-weight: 700; text-transform: uppercase; color: #1e293b; margin-bottom: 4px; line-height: 1.3; }
-  .etiqueta svg { width: 100%; height: auto; display: block; }
+  .etiqueta svg { display: block; margin: 0 auto; height: auto; }
   .precios { margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; }
   .normal { font-size: 13px; font-weight: 900; color: #1d4ed8; }
   .tachado { font-size: 10px; color: #94a3b8; text-decoration: line-through; }
@@ -32,7 +32,7 @@ const CSS_58MM = `
   .contenedor { display: flex; flex-direction: column; gap: 3mm; }
   .etiqueta { width: 100%; text-align: center; page-break-inside: avoid; border-bottom: 1px dashed #ccc; padding-bottom: 3mm; box-sizing: border-box; }
   .nombre { font-size: 8pt; font-weight: 700; text-transform: uppercase; color: #000; margin-bottom: 2mm; line-height: 1.3; }
-  .etiqueta svg { width: 100%; height: auto; display: block; }
+  .etiqueta svg { display: block; margin: 0 auto; height: auto; }
   .precios { margin-top: 2mm; display: flex; align-items: center; justify-content: center; gap: 3mm; flex-wrap: wrap; }
   .normal { font-size: 12pt; font-weight: 900; color: #000; }
   .tachado { font-size: 8pt; color: #888; text-decoration: line-through; }
@@ -52,11 +52,14 @@ export async function imprimirEtiquetas(
     const format = /^\d{13}$/.test(codigo) ? "EAN13" : /^\d{12}$/.test(codigo) ? "UPC" : "CODE128";
     JsBarcode(svg, codigo, {
       format,
-      width: tamaño === "58mm" ? 2.2 : 1.6,
-      height: tamaño === "58mm" ? 55 : 48,
+      // Ancho de módulo generoso para que las barras sean nítidas al imprimir.
+      // El SVG NO se reescala en el CSS, así los anchos de barra se respetan exactamente.
+      width: tamaño === "58mm" ? 1.8 : 2,
+      height: tamaño === "58mm" ? 60 : 55,
       displayValue: true,
-      fontSize: tamaño === "58mm" ? 13 : 11,
-      margin: 4,
+      fontSize: tamaño === "58mm" ? 13 : 12,
+      // Zona de silencio (quiet zone) amplia a cada lado; imprescindible para el lector.
+      margin: 12,
       background: "#ffffff",
       lineColor: "#000000",
     });

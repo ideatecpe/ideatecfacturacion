@@ -546,15 +546,44 @@ const [importFile, setImportFile] = useState<File | null>(null);
     if (errores > 0) showToast(`${errores} producto(s) con error.`, "error");
   };
 
+  // Extrae el imageId de una URL de Cloudflare Images.
+  // Formato: https://imagedelivery.net/{hash}/{imageId}/{variant}
+  const extractCloudflareImageId = (url: string): string | null => {
+    try {
+      const parts = new URL(url).pathname.split("/").filter(Boolean);
+      return parts.length >= 2 ? parts[parts.length - 2] : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const eliminarImagenCloudflare = async (url: string) => {
+    const imageId = extractCloudflareImageId(url);
+    if (!imageId) return;
+    try {
+      await fetch("/api/upload-imagen", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId }),
+      });
+    } catch {
+      /* fallo silencioso: no bloquear el borrado del producto */
+    }
+  };
+
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {
       await axios.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${deleteTarget.productoId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${deleteTarget.sucursalProducto.sucursalProductoId}`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         },
       );
+      // El producto se eliminó en el backend: eliminar también su imagen de Cloudflare.
+      if (deleteTarget.urlImagenProducto) {
+        await eliminarImagenCloudflare(deleteTarget.urlImagenProducto);
+      }
       showToast("Producto eliminado correctamente.", "success");
       setProductos((prev) =>
         prev.filter((p) => p.productoId !== deleteTarget.productoId),
