@@ -52,11 +52,17 @@ import ModalReporteProductos from "@/app/components/modalProductos/Modalreportep
 import { ModalVentasProductoExcel } from "./gestioProductos/ModalVentasProductoExcel";
 import ModalImprimirEtiquetas from "./gestioProductos/ModalImprimirEtiquetas";
 import { generarCodigoProducto } from "./gestioProductos/generarCodigoProducto";
+import { useVales } from "./gestioProductos/useVales";
+import { formatoBarcodeSeguro } from "./gestioProductos/barcodeFormato";
 
 // Umbral de stock bajo (alerta visual) para productos normales, en unidades.
 const STOCK_MINIMO_UNIDAD = 5;
 // Umbral de stock bajo (alerta visual) para productos paquete/caja, en paquetes equivalentes.
 const STOCK_MINIMO_PAQUETE = 2;
+
+// Empresas cuyos facturadores solo pueden ver el catálogo (sin editar/eliminar).
+// TODO: idealmente esto debería venir de la config/permisos del backend, no quemado aquí.
+const RUCS_CATALOGO_SOLO_LECTURA = ["10073587382"];
 
 export default function ProductosPage() {
   const { showToast } = useToast();
@@ -64,127 +70,31 @@ export default function ProductosPage() {
   const { config } = useConfiguracion();
   const router = useRouter();
   const isSuperAdmin = user?.rol === "superadmin";
-  const soloLectura = user?.ruc === "10073587382" && user?.rol === "facturador";
+  const soloLectura =
+    !!user?.ruc &&
+    RUCS_CATALOGO_SOLO_LECTURA.includes(user.ruc) &&
+    user?.rol === "facturador";
 
   // ── Vales ──────────────────────────────────────────────────────
-  interface Vale {
-    idVale: number;
-    nombre: string;
-    descripcion: string;
-    fechaEmision: string;
-    duracion: string;
-    estado: boolean;
-  }
-  type ValeForm = { nombre: string; descripcion: string; duracion: string; estado: boolean };
-  const VALE_EMPTY: ValeForm = { nombre: "", descripcion: "", duracion: "", estado: true };
-
-  const [showModalVales, setShowModalVales] = useState(false);
-  const [vales, setVales] = useState<Vale[]>([]);
-  const [loadingVales, setLoadingVales] = useState(false);
-  const [valeForm, setValeForm] = useState<ValeForm>(VALE_EMPTY);
-  const [editingVale, setEditingVale] = useState<Vale | null>(null);
-  const [showFormVale, setShowFormVale] = useState(false);
-  const [savingVale, setSavingVale] = useState(false);
-  const [deletingValeId, setDeletingValeId] = useState<number | null>(null);
-
-  const fetchVales = async () => {
-    setLoadingVales(true);
-    try {
-      const res = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Vales`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      setVales(res.data);
-    } catch {
-      showToast("Error al cargar los vales", "error");
-    } finally {
-      setLoadingVales(false);
-    }
-  };
-
-  const abrirModalVales = () => {
-    setShowModalVales(true);
-    setShowFormVale(false);
-    setEditingVale(null);
-    setValeForm(VALE_EMPTY);
-    fetchVales();
-  };
-
-  const abrirFormNuevoVale = () => {
-    setEditingVale(null);
-    setValeForm(VALE_EMPTY);
-    setShowFormVale(true);
-  };
-
-  const abrirFormEditarVale = (vale: Vale) => {
-    setEditingVale(vale);
-    setValeForm({
-      nombre: vale.nombre,
-      descripcion: vale.descripcion,
-      duracion: vale.duracion,
-      estado: vale.estado,
-    });
-    setShowFormVale(true);
-  };
-
-  const guardarVale = async () => {
-    if (!valeForm.nombre.trim() || !valeForm.duracion.trim()) {
-      showToast("Nombre y duración son obligatorios", "error");
-      return;
-    }
-    setSavingVale(true);
-    try {
-      if (editingVale) {
-        await axios.put(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Vales/${editingVale.idVale}`,
-          {
-            nombre: valeForm.nombre,
-            descripcion: valeForm.descripcion,
-            fechaEmision: editingVale.fechaEmision,
-            duracion: valeForm.duracion,
-            estado: valeForm.estado,
-          },
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        showToast("Vale actualizado correctamente", "success");
-      } else {
-        await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Vales`,
-          {
-            nombre: valeForm.nombre,
-            descripcion: valeForm.descripcion,
-            duracion: valeForm.duracion,
-          },
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        showToast("Vale creado correctamente", "success");
-      }
-      setShowFormVale(false);
-      setEditingVale(null);
-      setValeForm(VALE_EMPTY);
-      fetchVales();
-    } catch {
-      showToast("Error al guardar el vale", "error");
-    } finally {
-      setSavingVale(false);
-    }
-  };
-
-  const eliminarVale = async (id: number) => {
-    setDeletingValeId(id);
-    try {
-      await axios.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Vales/${id}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      showToast("Vale eliminado", "success");
-      setVales((prev) => prev.filter((v) => v.idVale !== id));
-    } catch {
-      showToast("Error al eliminar el vale", "error");
-    } finally {
-      setDeletingValeId(null);
-    }
-  };
+  const {
+    showModalVales,
+    setShowModalVales,
+    vales,
+    loadingVales,
+    valeForm,
+    setValeForm,
+    editingVale,
+    setEditingVale,
+    showFormVale,
+    setShowFormVale,
+    savingVale,
+    deletingValeId,
+    abrirModalVales,
+    abrirFormNuevoVale,
+    abrirFormEditarVale,
+    guardarVale,
+    eliminarVale,
+  } = useVales();
 
   //Productos de la sucursal actual
   const { productosSucursal, loadingSucursal, setProductosSucursal } =
@@ -249,10 +159,15 @@ const [importFile, setImportFile] = useState<File | null>(null);
   const [isPromoMasivaOpen, setIsPromoMasivaOpen] = useState(false);
   const [porcentajePromoMasiva, setPorcentajePromoMasiva] = useState("");
   const [aplicandoPromoMasiva, setAplicandoPromoMasiva] = useState(false);
+  // Progreso de la operación masiva (X de Y procesados).
+  const [promoProgreso, setPromoProgreso] = useState<{ total: number; actual: number } | null>(null);
 
   // Impresión de códigos de barras
   const [modalImprimirOpen, setModalImprimirOpen] = useState(false);
   const [pendingPrintList, setPendingPrintList] = useState<ProductoSucursal[]>([]);
+
+  // Ids de productos cuya imagen falló al cargar: se muestra el placeholder "Sin imagen".
+  const [imgErrorIds, setImgErrorIds] = useState<Set<number>>(new Set());
 
   const abrirModalImprimir = (lista: ProductoSucursal[]) => {
     const conCodigo = lista.filter((p) => !!p.codigoBarras);
@@ -274,7 +189,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (accessToken && user?.ruc) fetchCategorias(user.ruc);
-  }, [accessToken, user?.ruc]);
+  }, [accessToken, user?.ruc, fetchCategorias]);
 
   // Mapa rápido productoId -> producto, para resolver el producto base de un paquete
   const productosPorId = React.useMemo(
@@ -316,10 +231,11 @@ const [importFile, setImportFile] = useState<File | null>(null);
   };
 
   const filtered = productos.filter((p) => {
+    const termino = search.trim().toLowerCase();
     const matchSearch =
-      p.nomProducto.toLowerCase().includes(search.toLowerCase()) ||
-      p.codigo.toLowerCase().includes(search.toLowerCase()) ||
-      (!!p.codigoBarras && p.codigoBarras.includes(search.trim()));
+      p.nomProducto.toLowerCase().includes(termino) ||
+      p.codigo.toLowerCase().includes(termino) ||
+      (!!p.codigoBarras && p.codigoBarras.toLowerCase().includes(termino));
 
     const matchCategoria =
       filterCategoria === "Todos" ||
@@ -406,49 +322,53 @@ const [importFile, setImportFile] = useState<File | null>(null);
     setSeleccionadosPromo(new Set());
   };
 
-  const aplicarPromocionMasiva = async () => {
-    const porcentaje = Number(porcentajePromoMasiva);
-    if (!porcentaje || porcentaje <= 0) {
-      showToast("Ingresa un % de descuento válido.", "info");
-      return;
-    }
+  // Aplica o quita promoción a los productos seleccionados.
+  // Procesa en lotes paralelos y reporta progreso (X de Y).
+  const actualizarPromocionMasiva = async (
+    enPromocion: boolean,
+    porcentaje: number | null,
+  ) => {
+    const productosObjetivo = productos.filter((p) =>
+      seleccionadosPromo.has(p.productoId),
+    );
+    if (productosObjetivo.length === 0) return;
 
-    const productosObjetivo = productos.filter((p) => seleccionadosPromo.has(p.productoId));
     setAplicandoPromoMasiva(true);
+    setPromoProgreso({ total: productosObjetivo.length, actual: 0 });
 
     let ok = 0;
     let errores = 0;
 
-    for (const p of productosObjetivo) {
-      const payload = {
-        productoId: p.productoId,
-        codigo: p.codigo,
-        tipoProducto: p.tipoProducto ?? "BIEN",
-        nomProducto: p.nomProducto,
-        unidadMedida: p.unidadMedida,
-        tipoAfectacionIGV: p.tipoAfectacionIGV,
-        incluirIGV: p.incluirIGV,
-        categoriaId: p.categoria?.categoriaId ?? 0,
-        sucursalProductoId: p.sucursalProducto.sucursalProductoId,
-        precioUnitario: p.sucursalProducto.precioUnitario,
-        stock:
-          config?.isStock && p.tipoProducto === "BIEN"
-            ? p.sucursalProducto.stock ?? 0
-            : null,
-        codigoBarras: p.codigoBarras || null,
-        esPaquete: p.esPaquete ?? false,
-        productoBaseId: p.esPaquete ? p.productoBaseId ?? null : null,
-        factorConversion: p.esPaquete ? p.factorConversion ?? null : null,
-        precioMayorista: p.sucursalProducto.precioMayorista ?? null,
-        cantidadMinimaMayorista: p.sucursalProducto.cantidadMinimaMayorista ?? null,
-        enPromocion: true,
-        porcentajeDescuento: porcentaje,
-      };
+    const construirPayload = (p: ProductoSucursal) => ({
+      productoId: p.productoId,
+      codigo: p.codigo,
+      tipoProducto: p.tipoProducto ?? "BIEN",
+      nomProducto: p.nomProducto,
+      unidadMedida: p.unidadMedida,
+      tipoAfectacionIGV: p.tipoAfectacionIGV,
+      incluirIGV: p.incluirIGV,
+      categoriaId: p.categoria?.categoriaId ?? 0,
+      sucursalProductoId: p.sucursalProducto.sucursalProductoId,
+      precioUnitario: p.sucursalProducto.precioUnitario,
+      stock:
+        config?.isStock && p.tipoProducto === "BIEN"
+          ? p.sucursalProducto.stock ?? 0
+          : null,
+      codigoBarras: p.codigoBarras || null,
+      esPaquete: p.esPaquete ?? false,
+      productoBaseId: p.esPaquete ? p.productoBaseId ?? null : null,
+      factorConversion: p.esPaquete ? p.factorConversion ?? null : null,
+      precioMayorista: p.sucursalProducto.precioMayorista ?? null,
+      cantidadMinimaMayorista: p.sucursalProducto.cantidadMinimaMayorista ?? null,
+      enPromocion,
+      porcentajeDescuento: porcentaje,
+    });
 
+    const procesarUno = async (p: ProductoSucursal) => {
       try {
         await axios.put(
           `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${p.productoId}`,
-          payload,
+          construirPayload(p),
           { headers: { Authorization: `Bearer ${accessToken}` } },
         );
         setProductos((prev) =>
@@ -458,7 +378,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                   ...x,
                   sucursalProducto: {
                     ...x.sucursalProducto,
-                    enPromocion: true,
+                    enPromocion,
                     porcentajeDescuento: porcentaje,
                   },
                 }
@@ -468,83 +388,44 @@ const [importFile, setImportFile] = useState<File | null>(null);
         ok++;
       } catch {
         errores++;
+      } finally {
+        setPromoProgreso((prev) =>
+          prev ? { ...prev, actual: prev.actual + 1 } : prev,
+        );
       }
+    };
+
+    // Lotes paralelos para no saturar el backend con todas las peticiones a la vez.
+    const TAMANO_LOTE = 5;
+    for (let i = 0; i < productosObjetivo.length; i += TAMANO_LOTE) {
+      const lote = productosObjetivo.slice(i, i + TAMANO_LOTE);
+      await Promise.allSettled(lote.map(procesarUno));
     }
 
     setAplicandoPromoMasiva(false);
+    setPromoProgreso(null);
+    cancelarSeleccionPromo();
+
+    if (ok > 0)
+      showToast(
+        `${ok} producto(s) ${enPromocion ? "puestos en promoción" : "sin promoción"}.`,
+        "success",
+      );
+    if (errores > 0) showToast(`${errores} producto(s) con error.`, "error");
+  };
+
+  const aplicarPromocionMasiva = async () => {
+    const porcentaje = Number(porcentajePromoMasiva);
+    if (!porcentaje || porcentaje <= 0 || porcentaje > 100) {
+      showToast("Ingresa un % de descuento entre 1 y 100.", "info");
+      return;
+    }
+    await actualizarPromocionMasiva(true, porcentaje);
     setIsPromoMasivaOpen(false);
     setPorcentajePromoMasiva("");
-    cancelarSeleccionPromo();
-
-    if (ok > 0) showToast(`${ok} producto(s) puestos en promoción.`, "success");
-    if (errores > 0) showToast(`${errores} producto(s) con error.`, "error");
   };
 
-  const quitarPromocionMasiva = async () => {
-    const productosObjetivo = productos.filter((p) => seleccionadosPromo.has(p.productoId));
-    setAplicandoPromoMasiva(true);
-
-    let ok = 0;
-    let errores = 0;
-
-    for (const p of productosObjetivo) {
-      const payload = {
-        productoId: p.productoId,
-        codigo: p.codigo,
-        tipoProducto: p.tipoProducto ?? "BIEN",
-        nomProducto: p.nomProducto,
-        unidadMedida: p.unidadMedida,
-        tipoAfectacionIGV: p.tipoAfectacionIGV,
-        incluirIGV: p.incluirIGV,
-        categoriaId: p.categoria?.categoriaId ?? 0,
-        sucursalProductoId: p.sucursalProducto.sucursalProductoId,
-        precioUnitario: p.sucursalProducto.precioUnitario,
-        stock:
-          config?.isStock && p.tipoProducto === "BIEN"
-            ? p.sucursalProducto.stock ?? 0
-            : null,
-        codigoBarras: p.codigoBarras || null,
-        esPaquete: p.esPaquete ?? false,
-        productoBaseId: p.esPaquete ? p.productoBaseId ?? null : null,
-        factorConversion: p.esPaquete ? p.factorConversion ?? null : null,
-        precioMayorista: p.sucursalProducto.precioMayorista ?? null,
-        cantidadMinimaMayorista: p.sucursalProducto.cantidadMinimaMayorista ?? null,
-        enPromocion: false,
-        porcentajeDescuento: null,
-      };
-
-      try {
-        await axios.put(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${p.productoId}`,
-          payload,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        setProductos((prev) =>
-          prev.map((x) =>
-            x.productoId === p.productoId
-              ? {
-                  ...x,
-                  sucursalProducto: {
-                    ...x.sucursalProducto,
-                    enPromocion: false,
-                    porcentajeDescuento: null,
-                  },
-                }
-              : x,
-          ),
-        );
-        ok++;
-      } catch {
-        errores++;
-      }
-    }
-
-    setAplicandoPromoMasiva(false);
-    cancelarSeleccionPromo();
-
-    if (ok > 0) showToast(`${ok} producto(s) sin promoción.`, "success");
-    if (errores > 0) showToast(`${errores} producto(s) con error.`, "error");
-  };
+  const quitarPromocionMasiva = () => actualizarPromocionMasiva(false, null);
 
   // Extrae el imageId de una URL de Cloudflare Images.
   // Formato: https://imagedelivery.net/{hash}/{imageId}/{variant}
@@ -782,9 +663,13 @@ const [importFile, setImportFile] = useState<File | null>(null);
           let msg = "Error desconocido";
           if (axios.isAxiosError(err)) {
             const data = err.response?.data;
-            msg = data?.mensaje ?? data?.message ?? data?.title ?? data?.errors
-              ? JSON.stringify(data?.errors ?? data)
-              : `Error ${err.response?.status}`;
+            msg =
+              data?.mensaje ??
+              data?.message ??
+              data?.title ??
+              (data?.errors
+                ? JSON.stringify(data.errors)
+                : `Error ${err.response?.status}`);
             console.error("Import error fila", f.fila, JSON.stringify(data));
           }
           errores.push({ fila: f.fila, nombre: f.nomProducto, error: msg });
@@ -1195,7 +1080,9 @@ const [importFile, setImportFile] = useState<File | null>(null);
               disabled={seleccionadosPromo.size === 0 || aplicandoPromoMasiva}
               className="py-1.5 px-3 text-xs rounded-md h-auto"
             >
-              Quitar promoción
+              {aplicandoPromoMasiva && promoProgreso
+                ? `Quitando ${promoProgreso.actual} de ${promoProgreso.total}...`
+                : "Quitar promoción"}
             </Button>
             <Button
               onClick={() => setIsPromoMasivaOpen(true)}
@@ -1228,7 +1115,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
           scrollbarColor: "#CBD5E1 transparent",
         }}
       >
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 pb-2">
           {loadingProductos &&
             Array.from({ length: 12 }).map((_, i) => (
               <div
@@ -1252,7 +1139,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
             ))}
 
           {!loadingProductos && filtered.length === 0 && (
-            <div className="col-span-4 flex flex-col items-center justify-center py-16 text-center">
+            <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
               <div className="bg-gray-100 rounded-full p-4 mb-3">
                 <PackageSearch className="w-10 h-10 text-gray-300" />
               </div>
@@ -1272,41 +1159,50 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 onClick={modoSeleccionPromo && prod.tipoProducto === "BIEN" ? () => toggleSeleccionPromo(prod.productoId) : undefined}
               >
                 {/* ── Imagen ── */}
-                {prod.urlImagenProducto ? (
-                  <div className="-mx-2 -mt-2 mb-2 h-44 bg-gray-100 overflow-hidden rounded-t-xl">
+                {prod.urlImagenProducto &&
+                !imgErrorIds.has(prod.sucursalProducto.sucursalProductoId) ? (
+                  <div className="-mx-2 -mt-2 mb-1.5 h-24 bg-gray-100 overflow-hidden rounded-t-xl">
                     <img
                       src={prod.urlImagenProducto}
                       alt={prod.nomProducto}
+                      loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
+                      onError={() =>
+                        setImgErrorIds((prev) => {
+                          const next = new Set(prev);
+                          next.add(prod.sucursalProducto.sucursalProductoId);
+                          return next;
+                        })
+                      }
                     />
                   </div>
                 ) : (
-                  <div className="-mx-2 -mt-2 mb-2 h-44 bg-gray-100 rounded-t-xl flex items-center justify-center">
-                    <span className="text-gray-300 font-bold text-2xl sm:text-3xl tracking-wide select-none">Sin imagen</span>
+                  <div className="-mx-2 -mt-2 mb-1.5 h-24 bg-gray-100 rounded-t-xl flex items-center justify-center">
+                    <span className="text-gray-300 font-bold text-xs tracking-wide select-none">Sin imagen</span>
                   </div>
                 )}
 
                 <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  <div className="space-y-0.5 min-w-0">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
                       {prod.codigo}
                     </p>
-                    <h4 className="font-bold text-gray-900 group-hover:text-brand-blue transition-colors line-clamp-2">
+                    <h4 className="text-[13px] font-bold text-gray-900 group-hover:text-brand-blue transition-colors line-clamp-1">
                       {prod.nomProducto}
                     </h4>
-                    <p className="text-[10px] font-medium text-gray-400 bg-gray-100 w-fit px-1.5 py-0.5 rounded uppercase">
-                      {prod.categoria?.categoriaNombre}
-                    </p>
-                    {isSuperAdmin && (
-                      <p className="text-[10px] text-gray-400 flex mt-1 bg-blue-50 w-fit px-1.5 py-0.5 rounded">
-                        <span className="font-bold">Sucursal: &nbsp; </span>{" "}
-                        {prod.sucursalProducto.nomSucursal}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <p className="text-[9px] font-medium text-gray-400 bg-gray-100 w-fit px-1.5 py-0.5 rounded uppercase">
+                        {prod.categoria?.categoriaNombre}
                       </p>
-                    )}
+                      {isSuperAdmin && (
+                        <p className="text-[9px] text-gray-400 bg-blue-50 w-fit px-1.5 py-0.5 rounded">
+                          {prod.sucursalProducto.nomSucursal}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex gap-1">
+                  <div className="flex gap-0.5 shrink-0">
                     {modoSeleccionPromo ? (
                       prod.tipoProducto === "BIEN" && (
                         <input
@@ -1322,15 +1218,19 @@ const [importFile, setImportFile] = useState<File | null>(null);
                         <>
                           <button
                             onClick={() => handleOpenEdit(prod)}
-                            className="p-1.5 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Editar producto"
+                            aria-label={`Editar ${prod.nomProducto}`}
+                            className="p-1 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleOpenDelete(prod)}
-                            className="p-1.5 text-gray-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Eliminar producto"
+                            aria-label={`Eliminar ${prod.nomProducto}`}
+                            className="p-1 text-gray-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </>
                       )
@@ -1338,7 +1238,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                   </div>
                 </div>
 
-                <div className="mt-3 flex justify-between items-end">
+                <div className="mt-1.5 flex justify-between items-end">
                   <div>
                     {config?.isStock && prod.tipoProducto === "BIEN" && (
                       <>
@@ -1366,10 +1266,10 @@ const [importFile, setImportFile] = useState<File | null>(null);
                               return partes.length ? partes.join(" + ") : null;
                             })();
                             return (
-                              <div className="mb-1">
+                              <div className="mb-0.5">
                                 <p
                                   className={cn(
-                                    "text-[15px] font-bold leading-tight",
+                                    "text-[13px] font-bold leading-tight",
                                     estado === "agotado"
                                       ? "text-slate-400"
                                       : estado === "bajo"
@@ -1380,7 +1280,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                                   {labelPrincipal}
                                 </p>
                                 {labelDetalle && (
-                                  <p className="text-[10px] font-normal text-gray-400 leading-tight mt-0.5">
+                                  <p className="text-[9px] font-normal text-gray-400 leading-tight">
                                     {labelDetalle}
                                   </p>
                                 )}
@@ -1390,7 +1290,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                         ) : (
                           <p
                             className={cn(
-                              "text-[15px] font-bold",
+                              "text-[13px] font-bold",
                               getEstadoStock(prod) === "agotado"
                                 ? "text-slate-400"
                                 : getEstadoStock(prod) === "bajo"
@@ -1403,10 +1303,10 @@ const [importFile, setImportFile] = useState<File | null>(null);
                         )}
                         {!!prod.sucursalProducto.ultimoPrecioCompra && (
                           <>
-                            <p className="text-[10px] text-gray-400">
-                              Costo unitario: S/ {prod.sucursalProducto.ultimoPrecioCompra.toFixed(2)}
+                            <p className="text-[9px] text-gray-400">
+                              Costo: S/ {prod.sucursalProducto.ultimoPrecioCompra.toFixed(2)}
                             </p>
-                            <p className="text-[10px] font-semibold text-emerald-600">
+                            <p className="text-[9px] font-semibold text-emerald-600">
                               Ganancia: S/{" "}
                               {(
                                 prod.sucursalProducto.precioUnitario -
@@ -1419,33 +1319,27 @@ const [importFile, setImportFile] = useState<File | null>(null);
                     )}
                   </div>
                   <div className="text-right">
-                    <p className="text-[12px] text-gray-400 uppercase font-bold">
+                    <p className="text-[9px] text-gray-400 uppercase font-bold leading-tight">
                       {prod.tipoAfectacionIGV === "10"
-                        ? "Gravado"
+                        ? prod.incluirIGV
+                          ? "Gravado (Inc. IGV)"
+                          : "Gravado (Sin. IGV)"
                         : prod.tipoAfectacionIGV === "20"
                           ? "Exonerado"
                           : "Inafecto"}
                     </p>
-                    <p className="text-[12px] text-gray-400 uppercase font-bold">
-                      {prod.tipoAfectacionIGV === "10"
-                        ? prod.incluirIGV
-                          ? "Precio (Inc. IGV)"
-                          : "Precio (Sin. IGV)"
-                        : "Precio (NA. IGV)"}
-                    </p>
-                    {/*prod.sucursalProducto.precioUnitario */}
                     {config?.isStock && prod.sucursalProducto.enPromocion && prod.sucursalProducto.porcentajeDescuento ? (
                       <>
                         <div className="flex items-center justify-end gap-1">
                           <Tag className="w-3 h-3 text-orange-500" />
-                          <span className="text-[10px] font-bold text-orange-500 uppercase">
+                          <span className="text-[9px] font-bold text-orange-500 uppercase">
                             -{prod.sucursalProducto.porcentajeDescuento}%
                           </span>
                         </div>
-                        <p className="text-[11px] text-gray-400 line-through">
+                        <p className="text-[10px] text-gray-400 line-through leading-tight">
                           S/ {prod.sucursalProducto.precioUnitario.toFixed(2)}
                         </p>
-                        <p className="text-[14px] font-black text-orange-500">
+                        <p className="text-[13px] font-black text-orange-500 leading-tight">
                           S/{" "}
                           {(
                             prod.sucursalProducto.precioUnitario *
@@ -1454,7 +1348,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                         </p>
                       </>
                     ) : (
-                      <p className="text-[14px] font-black text-brand-blue">
+                      <p className="text-[13px] font-black text-brand-blue leading-tight">
                         S/ {prod.sucursalProducto.precioUnitario.toFixed(2)}
                       </p>
                     )}
@@ -1463,13 +1357,13 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
                 {/* ── Código de barras — pie de tarjeta ── */}
                 {prod.codigoBarras && (
-                  <div className="mt-3 -mx-2 -mb-2 border-t border-dashed border-gray-200 bg-gray-50 rounded-b-xl flex flex-col items-center py-2 px-2 relative">
+                  <div className="mt-1.5 -mx-2 -mb-2 border-t border-dashed border-gray-200 bg-gray-50 rounded-b-xl flex flex-col items-center py-1 px-2 relative">
                     <Barcode
                       value={prod.codigoBarras}
-                      format={/^\d{13}$/.test(prod.codigoBarras) ? "EAN13" : /^\d{12}$/.test(prod.codigoBarras) ? "UPC" : "CODE128"}
-                      width={1.6}
-                      height={44}
-                      fontSize={10}
+                      format={formatoBarcodeSeguro(prod.codigoBarras)}
+                      width={1.2}
+                      height={26}
+                      fontSize={8}
                       margin={0}
                       displayValue={true}
                       background="transparent"
@@ -1478,9 +1372,10 @@ const [importFile, setImportFile] = useState<File | null>(null);
                     <button
                       onClick={() => abrirModalImprimir([prod])}
                       title="Imprimir etiqueta"
-                      className="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                      aria-label={`Imprimir etiqueta de ${prod.nomProducto}`}
+                      className="absolute right-1 top-1 p-1 text-gray-400 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
                     >
-                      <Printer className="w-3.5 h-3.5" />
+                      <Printer className="w-3 h-3" />
                     </button>
                   </div>
                 )}
@@ -1897,7 +1792,11 @@ const [importFile, setImportFile] = useState<File | null>(null);
               Cancelar
             </Button>
             <Button onClick={aplicarPromocionMasiva} disabled={aplicandoPromoMasiva}>
-              {aplicandoPromoMasiva ? "Aplicando..." : "Aplicar"}
+              {aplicandoPromoMasiva
+                ? promoProgreso
+                  ? `Aplicando ${promoProgreso.actual} de ${promoProgreso.total}...`
+                  : "Aplicando..."
+                : "Aplicar"}
             </Button>
           </div>
         </div>

@@ -2,6 +2,7 @@
 import { Printer } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 import { ProductoSucursal } from "./Producto";
+import { formatoBarcodeSeguro } from "./barcodeFormato";
 
 type TamañoEtiqueta = "A4" | "58mm";
 
@@ -49,7 +50,7 @@ export async function imprimirEtiquetas(
 
   const generarSvg = (codigo: string): string => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    const format = /^\d{13}$/.test(codigo) ? "EAN13" : /^\d{12}$/.test(codigo) ? "UPC" : "CODE128";
+    const format = formatoBarcodeSeguro(codigo);
     JsBarcode(svg, codigo, {
       format,
       // Ancho de módulo generoso para que las barras sean nítidas al imprimir.

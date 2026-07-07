@@ -16,6 +16,7 @@ interface Props {
   showError?: boolean
   disabled?: boolean
   className?: string
+  compact?: boolean
 }
 
 export function SelectConAgregar({
@@ -27,6 +28,7 @@ export function SelectConAgregar({
   showError,
   disabled,
   className,
+  compact = false,
 }: Props) {
   const [abierto, setAbierto] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -49,7 +51,7 @@ export function SelectConAgregar({
         type="button"
         disabled={disabled}
         onClick={() => setAbierto(!abierto)}
-        className={`w-full py-2 px-3 bg-gray-50 border rounded-xl text-sm text-left outline-none focus:border-brand-blue/50 flex items-center justify-between ${
+        className={`w-full ${compact ? "py-1.5" : "py-2"} px-3 bg-gray-50 border rounded-xl text-sm text-left outline-none focus:border-brand-blue/50 flex items-center justify-between ${
           showError ? "border-rose-400" : "border-gray-200"
         }`}
       >

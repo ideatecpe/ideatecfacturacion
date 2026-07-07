@@ -11,6 +11,7 @@ interface InputBaseProps extends React.InputHTMLAttributes<HTMLInputElement> {
   pattern?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  compact?: boolean;
 }
 
 export const InputBase: React.FC<InputBaseProps> = ({
@@ -28,10 +29,11 @@ export const InputBase: React.FC<InputBaseProps> = ({
   readOnly,
   showError = false,
   errorMessage,
+  compact = false,
   ...rest
 }) => {
   return (
-    <div className="space-y-1.5">
+    <div className={compact ? "space-y-1" : "space-y-1.5"}>
       <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
         {label}
         {labelOptional ? <span className="text-gray-400 normal-case font-normal">{labelOptional}</span> : <span className="text-rose-500">*</span>}
@@ -42,7 +44,7 @@ export const InputBase: React.FC<InputBaseProps> = ({
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className={`w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 ${className}`}
+        className={`w-full px-4 ${compact ? "py-1.5" : "py-2"} bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 ${className}`}
         maxLength={maxLength}
         pattern={pattern}
         disabled={disabled}

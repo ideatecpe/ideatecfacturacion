@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import axios from "axios";
-import { ChevronDown, Camera, X as XIcon, ImageOff } from "lucide-react";
+import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, Globe, Loader2 } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
+
+const BarcodePreview = dynamic(() => import("react-barcode"), { ssr: false });
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
 import {
@@ -22,6 +25,7 @@ import { useProductosBaseDisponiblesLista } from "./useProductosBaseDisponiblesL
 import { useSearchProductosBaseDisponiblesLista } from "./useSearchProductosBaseDisponiblesLista";
 import ModalAgregarCategoria from "./ModalAgregarCategoria";
 import { SelectConAgregar } from "@/app/components/ui/SelectConAgregar";
+import { generarEAN13Interno, formatoBarcodeSeguro } from "./barcodeFormato";
 
 interface Props {
   isOpen: boolean;
@@ -57,6 +61,17 @@ const emptyForm: NuevoProducto = {
   porcentajeDescuento: null,
 };
 
+// Incrementa el correlativo de un código tipo "COC-001" → "COC-002",
+// respetando el relleno de ceros. Se usa para reintentar cuando el
+// backend rechaza un código ya existente (p. ej. de un producto eliminado).
+function incrementarCodigo(codigo: string): string {
+  const m = codigo.match(/^(.*?)(\d+)$/);
+  if (!m) return `${codigo}-1`;
+  const [, base, num] = m;
+  const siguiente = String(Number(num) + 1).padStart(num.length, "0");
+  return base + siguiente;
+}
+
 export default function AgregarProducto({
   isOpen,
   onClose,
@@ -89,6 +104,8 @@ export default function AgregarProducto({
   const [currentImageId, setCurrentImageId] = useState<string | null>(null);
   const [confirmandoEliminarImagen, setConfirmandoEliminarImagen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const [buscandoInternet, setBuscandoInternet] = useState(false);
 
   const eliminarImagenCloudflare = async (imageId: string) => {
     try {
@@ -133,6 +150,7 @@ export default function AgregarProducto({
     } finally {
       setSubiendoImagen(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
   };
 
@@ -143,8 +161,67 @@ export default function AgregarProducto({
     setImgError(false);
     setCurrentImageId(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
     // Eliminar de Cloudflare en segundo plano
     if (idAnterior) eliminarImagenCloudflare(idAnterior);
+  };
+
+  // Busca datos del producto por su código de barras en internet (Open Food Facts)
+  // y autocompleta el nombre (si está vacío) y la imagen (si no hay una).
+  const buscarProductoPorInternet = async () => {
+    const barcode = form.codigoBarras?.trim();
+    if (!barcode) return;
+    setBuscandoInternet(true);
+    try {
+      const res = await fetch("/api/buscar-producto-barcode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ barcode }),
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        showToast(data.error ?? "No se pudo buscar el producto.", "error");
+        return;
+      }
+      if (!data.encontrado) {
+        showToast("No se encontró información para este código de barras.", "info");
+        return;
+      }
+
+      // Nombre: solo si el usuario aún no escribió uno.
+      if (data.nombre && !form.nomProducto.trim()) {
+        const nombre: string = data.nombre;
+        setPalabraBusqueda("");
+        setShowSugerencias(false);
+        setForm((prev) => ({
+          ...prev,
+          nomProducto: nombre,
+          codigo: generarCodigoProducto(
+            nombre,
+            productosEmpresa.length === 0 ? 0 : productosEmpresa.length,
+          ),
+        }));
+        if (errors.nomProducto) setErrors((prev) => ({ ...prev, nomProducto: false }));
+      }
+
+      // Imagen: solo si aún no hay una cargada.
+      if (data.url && !form.urlImagenProducto) {
+        // Si había una imagen previa subida sin guardar, liberarla.
+        if (currentImageId) eliminarImagenCloudflare(currentImageId);
+        setImgError(false);
+        setImgPreview(data.url);
+        setForm((prev) => ({ ...prev, urlImagenProducto: data.url }));
+        setCurrentImageId(data.imageId ?? null);
+      }
+
+      const partes = [data.nombre, data.marca].filter(Boolean).join(" · ");
+      showToast(`Producto encontrado: ${partes || barcode}`, "success");
+    } catch {
+      showToast("Error de conexión al buscar el producto.", "error");
+    } finally {
+      setBuscandoInternet(false);
+    }
   };
 
   //seleccionar sucursal para agregar si es superadmin
@@ -186,6 +263,7 @@ export default function AgregarProducto({
       setImgError(false);
       setImgPreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
       // Si el modal se cerró sin guardar y había una imagen subida, eliminarla de Cloudflare
       if (currentImageId) eliminarImagenCloudflare(currentImageId);
       setCurrentImageId(null);
@@ -338,19 +416,49 @@ export default function AgregarProducto({
       stock: config?.isStock && form.tipoProducto === "BIEN" ? 0 : null,
     };
 
+    // El código automático puede chocar con un registro que la lista no ve
+    // (producto eliminado que conserva su código, u otra sucursal). Si el backend
+    // responde 409 por código duplicado, reintentamos con el siguiente correlativo.
+    const codigoEsAutomatico = !soloSucursal;
+    const MAX_REINTENTOS = 25;
+    let codigoActual = formConSucursal.codigo;
+
     try {
-      const response = await axios.post<ProductoSucursal>(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/productos`,
-        formConSucursal,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
-      );
-      showToast("Producto guardado exitosamente.", "success");
-      onProductoAgregado(response.data);
-      setForm({ ...emptyForm, sucursalId: sucursalIdEfectivo });
-      setCurrentImageId(null); // imagen ya guardada en BD, no es huérfana
-      onClose();
+      for (let intento = 0; ; intento++) {
+        try {
+          const response = await axios.post<ProductoSucursal>(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/productos`,
+            { ...formConSucursal, codigo: codigoActual },
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
+          showToast("Producto guardado exitosamente.", "success");
+          onProductoAgregado(response.data);
+          setForm({ ...emptyForm, sucursalId: sucursalIdEfectivo });
+          setCurrentImageId(null); // imagen ya guardada en BD, no es huérfana
+          onClose();
+          return;
+        } catch (error) {
+          const status = axios.isAxiosError(error)
+            ? error.response?.status
+            : undefined;
+          const mensaje = axios.isAxiosError(error)
+            ? String(error.response?.data?.mensaje ?? "")
+            : "";
+          const esConflictoCodigo =
+            status === 409 && /c[oó]digo/i.test(mensaje);
+
+          // Reintentar solo si el código es automático y aún quedan intentos.
+          if (
+            esConflictoCodigo &&
+            codigoEsAutomatico &&
+            intento < MAX_REINTENTOS
+          ) {
+            codigoActual = incrementarCodigo(codigoActual);
+            continue;
+          }
+          throw error;
+        }
+      }
     } catch (error) {
       console.error("Error guardando producto:", error);
       if (axios.isAxiosError(error)) {
@@ -377,7 +485,7 @@ export default function AgregarProducto({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Registrar nuevo producto / servicio">
-      <form className="space-y-4" onSubmit={handleGuardar}>
+      <form className="space-y-3" onSubmit={handleGuardar}>
         {/* ── Selector sucursal (solo superAdmin) ── */}
         {isSuperAdmin && (
           <div className="space-y-1.5">
@@ -392,7 +500,7 @@ export default function AgregarProducto({
                 if (errors.sucursalId)
                   setErrors((prev) => ({ ...prev, sucursalId: false }));
               }}
-              className={`w-full px-4 py-2 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 ${
+              className={`w-full px-4 py-1.5 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 ${
                 errors.sucursalId ? "border-rose-400" : "border-gray-200"
               }`}
             >
@@ -413,7 +521,8 @@ export default function AgregarProducto({
 
         {/* ── Imagen del producto ── */}
         {!soloSucursal && (
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-3">
+            {/* Input oculto para subir desde galería/archivos */}
             <input
               ref={fileInputRef}
               type="file"
@@ -421,10 +530,19 @@ export default function AgregarProducto({
               className="hidden"
               onChange={handleFileChange}
             />
+            {/* Input oculto con "capture": en celulares abre la cámara directamente */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFileChange}
+            />
 
             {/* Thumbnail */}
             <div className="relative shrink-0">
-              <div className="w-28 h-28 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+              <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
                 {(imgPreview || form.urlImagenProducto) && !imgError ? (
                   <img
                     src={imgPreview ?? form.urlImagenProducto!}
@@ -433,9 +551,9 @@ export default function AgregarProducto({
                     onError={() => setImgError(true)}
                   />
                 ) : imgError ? (
-                  <ImageOff className="w-8 h-8 text-gray-300" />
+                  <ImageOff className="w-6 h-6 text-gray-300" />
                 ) : (
-                  <Camera className="w-8 h-8 text-gray-300" />
+                  <Camera className="w-6 h-6 text-gray-300" />
                 )}
               </div>
               {form.urlImagenProducto && !confirmandoEliminarImagen && (
@@ -467,8 +585,8 @@ export default function AgregarProducto({
               )}
             </div>
 
-            {/* Texto + botón */}
-            <div className="flex flex-col justify-center gap-1.5 min-w-0 pt-1">
+            {/* Texto + botones */}
+            <div className="flex flex-col justify-center gap-1 min-w-0">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                 Imagen del producto
                 <span className="ml-1 font-normal text-gray-400 normal-case">(opcional)</span>
@@ -486,38 +604,33 @@ export default function AgregarProducto({
                   JPG, PNG o WebP — máx. 2 MB
                 </p>
               )}
-              <button
-                type="button"
-                onClick={handleSeleccionarImagen}
-                disabled={subiendoImagen}
-                className="w-fit flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                {subiendoImagen ? "Subiendo…" : form.urlImagenProducto ? "Cambiar imagen" : "Subir imagen"}
-              </button>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={subiendoImagen}
+                  className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  Tomar foto
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSeleccionarImagen}
+                  disabled={subiendoImagen}
+                  className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
+                >
+                  {subiendoImagen ? "Subiendo…" : form.urlImagenProducto ? "Cambiar" : "Subir imagen"}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-
-        {!soloSucursal && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">
-              Tipo Producto
-            </label>
-            <select
-              value={form.tipoProducto}
-              onChange={handleFormChange("tipoProducto")}
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
-            >
-              <option value="BIEN">Bien</option>
-              <option value="SERVICIO">Servicio</option>
-            </select>
           </div>
         )}
 
         {/* ── Nombre con búsqueda ── */}
         <div className="relative space-y-1.5">
           <InputBase
+            compact
             label="Nombre del Producto"
             value={form.nomProducto}
             onChange={handleNomProductoChange}
@@ -548,13 +661,29 @@ export default function AgregarProducto({
         {/* ── Campos base ── */}
         {!soloSucursal && (
           <>
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* ── Tipo de producto ── */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-500 uppercase">
+                  Tipo Producto
+                </label>
+                <select
+                  value={form.tipoProducto}
+                  onChange={handleFormChange("tipoProducto")}
+                  className="w-full px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+                >
+                  <option value="BIEN">Bien</option>
+                  <option value="SERVICIO">Servicio</option>
+                </select>
+              </div>
+
               {/* ── Categoría con error ── */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
                   Categoría <span className="text-rose-500">*</span>
                 </label>
                 <SelectConAgregar
+                  compact
                   placeholder="Seleccione categoría"
                   showError={!!errors.categoriaId}
                   value={form.categoriaId === 0 ? null : form.categoriaId}
@@ -617,7 +746,7 @@ export default function AgregarProducto({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">
                   Tipo Afectación IGV
@@ -625,7 +754,7 @@ export default function AgregarProducto({
                 <select
                   value={form.tipoAfectacionIGV}
                   onChange={handleFormChange("tipoAfectacionIGV")}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+                  className="w-full px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                 >
                   <option value="10">10 - Gravado</option>
                   <option value="20">20 - Exonerado</option>
@@ -640,7 +769,7 @@ export default function AgregarProducto({
                 <select
                   value={form.unidadMedida}
                   onChange={handleFormChange("unidadMedida")}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+                  className="w-full px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                 >
                   <option value="NIU">NIU - Unidad</option>
                   <option value="ZZ">ZZ - Servicio</option>
@@ -659,9 +788,10 @@ export default function AgregarProducto({
           </>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-2">
             <InputBase
+              compact
               label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio Unitario"}
               type="number"
               value={String(form.precioUnitario)}
@@ -692,6 +822,7 @@ export default function AgregarProducto({
  
           {!soloSucursal && (
             <InputBase
+              compact
               label="Código"
               labelOptional="(auto)"
               value={form.codigo}
@@ -706,63 +837,119 @@ export default function AgregarProducto({
 
         {/* ── Código de barras (siempre disponible) ── */}
         {!soloSucursal && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <InputBase
-                label="Código de Barras"
-                labelOptional="(opcional)"
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">
+              Código de Barras{" "}
+              <span className="text-gray-400 font-normal normal-case">(opcional)</span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Entrada manual */}
+              <input
+                type="text"
                 value={form.codigoBarras ?? ""}
                 onChange={handleFormChange("codigoBarras")}
                 placeholder="EAN13 / Code128"
-                showError={false}
+                className="sm:w-52 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
               />
-              <label className="flex items-center gap-1.5 cursor-pointer select-none w-fit mt-0.5">
-                <input
-                  type="checkbox"
-                  checked={!!form.codigoBarras && form.codigoBarras.startsWith("200")}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      // EAN-13 interno válido: prefijo 200 + 9 dígitos + dígito verificador
-                      const base12 = ("200" + Date.now().toString().slice(-9));
-                      let sum = 0;
-                      for (let i = 0; i < 12; i++) sum += parseInt(base12[i]) * (i % 2 === 0 ? 1 : 3);
-                      const check = (10 - (sum % 10)) % 10;
-                      setForm((prev) => ({ ...prev, codigoBarras: base12 + check }));
-                    } else {
-                      setForm((prev) => ({ ...prev, codigoBarras: "" }));
+
+              {/* Panel: generar código automático o vista previa en vivo */}
+              <div className="flex-1 rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-[64px]">
+                {form.codigoBarras ? (
+                  <div className="flex items-center justify-center gap-4 w-full">
+                    <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
+                      <BarcodePreview
+                        value={form.codigoBarras}
+                        format={formatoBarcodeSeguro(form.codigoBarras)}
+                        width={1.5}
+                        height={38}
+                        fontSize={12}
+                        margin={0}
+                        displayValue
+                        background="transparent"
+                        lineColor="#1e293b"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
+                        }
+                        className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Regenerar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-rose-500 hover:underline"
+                      >
+                        <XIcon className="w-3 h-3" /> Quitar código
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
                     }
-                  }}
-                  className="w-3 h-3 accent-brand-blue"
-                />
-                <span className="text-[10px] font-semibold text-gray-500">Generar código automático</span>
-              </label>
+                    className="w-full flex items-center justify-center gap-3 py-1 group"
+                  >
+                    <ScanBarcode className="w-8 h-8 text-brand-blue shrink-0 group-hover:scale-110 transition-transform" />
+                    <div className="text-left">
+                      <span className="block text-xs font-bold text-brand-blue">
+                        Generar código automático
+                      </span>
+                      <span className="block text-[10px] text-gray-400">
+                        EAN-13 interno válido para imprimir y escanear
+                      </span>
+                    </div>
+                  </button>
+                )}
+              </div>
             </div>
 
+            {/* Buscar datos del producto en internet por su código de barras */}
+            {!!form.codigoBarras && form.codigoBarras.trim().length >= 8 && (
+              <button
+                type="button"
+                onClick={buscarProductoPorInternet}
+                disabled={buscandoInternet}
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-60"
+              >
+                {buscandoInternet ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Globe className="w-3.5 h-3.5" />
+                )}
+                {buscandoInternet
+                  ? "Buscando en internet…"
+                  : "Buscar nombre e imagen por este código (internet)"}
+              </button>
+            )}
+
+            {/* ¿Es un paquete/caja? — fila propia */}
             {config?.isStock && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-500 uppercase">
-                  &nbsp;
-                </label>
-                <div className="flex items-center gap-2 h-10 px-1">
-                  <input
-                    type="checkbox"
-                    checked={!!form.esPaquete}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setForm((prev) => ({
-                        ...prev,
-                        esPaquete: checked,
-                        productoBaseId: checked ? prev.productoBaseId : null,
-                        factorConversion: checked ? prev.factorConversion : null,
-                      }));
-                    }}
-                    className="w-4 h-4 accent-brand-blue"
-                  />
-                  <label className="text-xs font-semibold text-gray-600">
-                    ¿Es un paquete/caja con unidades dentro?
-                  </label>
-                </div>
-              </div>
+              <label className="flex items-center gap-2 pt-1 cursor-pointer select-none w-fit">
+                <input
+                  type="checkbox"
+                  checked={!!form.esPaquete}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setForm((prev) => ({
+                      ...prev,
+                      esPaquete: checked,
+                      productoBaseId: checked ? prev.productoBaseId : null,
+                      factorConversion: checked ? prev.factorConversion : null,
+                    }));
+                  }}
+                  className="w-4 h-4 accent-brand-blue"
+                />
+                <span className="text-xs font-semibold text-gray-600">
+                  ¿Es un paquete/caja con unidades dentro?
+                </span>
+              </label>
             )}
           </div>
         )}
@@ -771,7 +958,7 @@ export default function AgregarProducto({
         {!soloSucursal && config?.isStock && (
           <>
             {form.esPaquete && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-500 uppercase">
                     Producto Base (unidad)
@@ -784,7 +971,7 @@ export default function AgregarProducto({
                         productoBaseId: Number(e.target.value) || null,
                       }))
                     }
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+                    className="w-full px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
                   >
                     <option value={0}>Seleccione el producto unidad</option>
                     {productosEmpresa
@@ -798,6 +985,7 @@ export default function AgregarProducto({
                 </div>
 
                 <InputBase
+                  compact
                   label="Factor de Conversión"
                   labelOptional="(unidades por paquete)"
                   type="number"
@@ -833,9 +1021,10 @@ export default function AgregarProducto({
             </button>
 
             {showMayorista && (
-              <div className="p-4 space-y-4 border-t border-gray-200">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-3 space-y-3 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <InputBase
+                    compact
                     label="Precio Mayorista"
                     labelOptional="(opcional)"
                     type="number"
@@ -851,6 +1040,7 @@ export default function AgregarProducto({
                     showError={false}
                   />
                   <InputBase
+                    compact
                     label="Cantidad mínima para mayorista"
                     labelOptional={form.esPaquete ? "(paquetes)" : "(unidades)"}
                     type="number"
@@ -882,6 +1072,7 @@ export default function AgregarProducto({
 
                 {form.enPromocion && (
                   <InputBase
+                    compact
                     label="% Descuento"
                     type="number"
                     step="0.01"
