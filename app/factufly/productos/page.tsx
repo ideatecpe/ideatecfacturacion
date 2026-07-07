@@ -1161,12 +1161,12 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 {/* ── Imagen ── */}
                 {prod.urlImagenProducto &&
                 !imgErrorIds.has(prod.sucursalProducto.sucursalProductoId) ? (
-                  <div className="-mx-2 -mt-2 mb-1.5 h-24 bg-gray-100 overflow-hidden rounded-t-xl">
+                  <div className="-mx-2 -mt-2 mb-1.5 h-24 bg-white overflow-hidden rounded-t-xl">
                     <img
                       src={prod.urlImagenProducto}
                       alt={prod.nomProducto}
                       loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                       onError={() =>
                         setImgErrorIds((prev) => {
                           const next = new Set(prev);
