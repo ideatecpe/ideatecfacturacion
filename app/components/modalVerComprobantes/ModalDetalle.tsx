@@ -339,7 +339,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                                             Pagos{' '}
                                             <span className="text-gray-400 font-normal normal-case">
                                                 ({comprobante.tipoMoneda}
-                                                {comprobante.tipoMoneda === 'USD' && ` · T.C. ${comprobante.tipoCambio.toFixed(2)}`})
+                                                {comprobante.tipoMoneda === 'USD' && ` · T.C. ${comprobante.tipoCambio.toFixed(3)}`})
                                             </span>
                                         </p>
                                         <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full border",
