@@ -4,6 +4,8 @@ export interface ItemDevolverStock {
   productoId: number;
   sucursalId: number;
   cantidad: number;
+  referenciaTipo?: string;
+  referenciaId?: number;
 }
 
 // Suma al stock la cantidad devuelta de cada productoId/sucursalId.

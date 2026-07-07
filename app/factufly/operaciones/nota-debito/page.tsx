@@ -524,7 +524,7 @@ function NotaDebitoContent() {
   // a debitar (no el total): si el original trae 7 y se añaden 3, el campo
   // queda en 3 y eso es exactamente lo que se descuenta del stock.
   const stockDescontadoRef = useRef(false);
-  const descontarStockSiAplica = async () => {
+  const descontarStockSiAplica = async (comprobanteId?: number) => {
     if (!config?.isStock) return;
     if (codMotivo !== "03" || incluyePenalidad) return;
     if (stockDescontadoRef.current) return;
@@ -547,7 +547,12 @@ function NotaDebitoContent() {
     });
 
     const items = Array.from(acumulado.entries()).map(
-      ([sucursalProductoId, cantidad]) => ({ sucursalProductoId, cantidad }),
+      ([sucursalProductoId, cantidad]) => ({
+        sucursalProductoId,
+        cantidad,
+        referenciaTipo: "NOTA",
+        referenciaId: comprobanteId,
+      }),
     );
     if (!items.length) return;
 
@@ -645,7 +650,7 @@ function NotaDebitoContent() {
           } catch { showToast("Error al procesar envíos", "error"); }
         }
         setEmitido(true);
-        descontarStockSiAplica();
+        descontarStockSiAplica(comprobanteId);
 
       } else if (resSunat.data.estadoSunat === "PENDIENTE") {
         // ⏳ SUNAT caída / sin conexión — no es un rechazo real, queda PENDIENTE y se reintenta
@@ -657,7 +662,7 @@ function NotaDebitoContent() {
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
-        descontarStockSiAplica();
+        descontarStockSiAplica(comprobanteId);
       } else {
         //  SUNAT rechazó con respuesta (error de validación real)
         const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
@@ -685,7 +690,7 @@ function NotaDebitoContent() {
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
-        descontarStockSiAplica();
+        descontarStockSiAplica(comprobanteId);
       }
     }
 

@@ -618,7 +618,7 @@ function NotaCreditoContent() {
   // 08: la cantidad del ítem ES la bonificación entregada — se RESTA del stock
   //     (mercadería gratis que sale del almacén).
   const stockActualizadoRef = useRef(false);
-  const actualizarStockSiAplica = async () => {
+  const actualizarStockSiAplica = async (comprobanteId?: number) => {
     if (!config?.isStock) return;
     if (stockActualizadoRef.current) return;
     stockActualizadoRef.current = true;
@@ -650,12 +650,16 @@ function NotaCreditoContent() {
           productoId,
           sucursalId,
           cantidad,
+          referenciaTipo: "NOTA",
+          referenciaId: comprobanteId,
         }));
         await devolverStock(items, accessToken);
       } else {
         const items = Array.from(acumulado.entries()).map(([sucursalProductoId, cantidad]) => ({
           sucursalProductoId,
           cantidad,
+          referenciaTipo: "NOTA",
+          referenciaId: comprobanteId,
         }));
         await actualizarStock(items, accessToken);
       }
@@ -711,7 +715,7 @@ function NotaCreditoContent() {
         showToast(resSunat.data.mensajeRespuestaSunat ?? "Nota de crédito emitida correctamente.", "success");
         await procesarSegundoPlano(comprobanteId, payload);
         setEmitido(true);
-        actualizarStockSiAplica();
+        actualizarStockSiAplica(comprobanteId);
       } else if (resSunat.data.estadoSunat === "PENDIENTE") {
         // ⏳ SUNAT caída / sin conexión — no es un rechazo real, queda PENDIENTE y se reintenta
         const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
@@ -722,7 +726,7 @@ function NotaCreditoContent() {
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
-        actualizarStockSiAplica();
+        actualizarStockSiAplica(comprobanteId);
       } else {
         // ❌ SUNAT rechazó con respuesta (error de validación real)
         const serieCorrelativo = `${payload.serie}-${payload.correlativo}`;
@@ -750,7 +754,7 @@ function NotaCreditoContent() {
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
         reintentarEnSegundoPlano(comprobanteId); // ← sin await
-        actualizarStockSiAplica();
+        actualizarStockSiAplica(comprobanteId);
       }
     }
 

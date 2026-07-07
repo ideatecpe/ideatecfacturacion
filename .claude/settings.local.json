@@ -16,7 +16,14 @@
       "Bash(grep -rln \"interface IUnitOfWork\" \"C:/Users/HP/source/repos/IdeatecAPI/src/IdeatecAPI.Application\")",
       "Bash(find \"C:/Users/HP/source/repos/IdeatecAPI\" -iname \"*.sql\" -not -path \"*/bin/*\" -not -path \"*/obj/*\" | head -20)",
       "Bash(mkdir -p \"C:/Users/HP/source/repos/IdeatecAPI/src/IdeatecAPI.Domain/Entities/Proveedor\" \\\\ *)",
-      "Bash(dotnet build *)"
+      "Bash(dotnet build *)",
+      "Bash(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\BackFacturacion\\\\IdeatecAPI\\\\src\" && echo \"--API--\" && find IdeatecAPI.API -maxdepth 2 -type d && echo \"--Application--\" && find IdeatecAPI.Application -maxdepth 2 -type d && echo \"--Domain--\" && find IdeatecAPI.Domain -maxdepth 2 -type d && echo \"--Infrastructure--\" && find IdeatecAPI.Infrastructure -maxdepth 2 -type d)",
+      "Bash(find \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\BackFacturacion\\\\IdeatecAPI\\\\src\\\\IdeatecAPI.Infrastructure\" -iname \"*migration*\" -type d)",
+      "Bash(find \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\BackFacturacion\\\\IdeatecAPI\\\\src\\\\IdeatecAPI.Infrastructure\\\\Persistence\" -maxdepth 2)",
+      "Bash(find \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\BackFacturacion\\\\IdeatecAPI\\\\src\\\\IdeatecAPI.Infrastructure\\\\Persistence\\\\Repositories\" -iname \"*roducto*\" -o -iname \"*roveedor*\" -o -iname \"*omprobante*\")",
+      "Read(//c/Users/Usuario/Desktop/BackFacturacion/IdeatecAPI/src/IdeatecAPI.Application/Features/Proveedor/**)",
+      "Read(//c/Users/Usuario/Desktop/BackFacturacion/IdeatecAPI/src/IdeatecAPI.Application/Features/Productos/**)",
+      "Read(//c/Users/Usuario/Desktop/BackFacturacion/IdeatecAPI/src/IdeatecAPI.API/Controllers/**)"
     ]
   }
 }

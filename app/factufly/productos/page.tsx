@@ -792,6 +792,31 @@ const [importFile, setImportFile] = useState<File | null>(null);
             >
               <FileSpreadsheet className="w-3.5 h-3.5" /> Reporte Ventas
             </button>
+            {config?.isStock && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/factufly/inventario/kardex")}
+                  className="py-2.5 px-3 text-xs rounded-md h-auto"
+                >
+                  <Boxes className="w-3.5 h-3.5" /> Kardex
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/factufly/inventario/stockValorizado")}
+                  className="py-2.5 px-3 text-xs rounded-md h-auto"
+                >
+                  <Boxes className="w-3.5 h-3.5" /> Stock Valorizado
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/factufly/inventario/rentabilidad")}
+                  className="py-2.5 px-3 text-xs rounded-md h-auto"
+                >
+                  <Boxes className="w-3.5 h-3.5" /> Rentabilidad
+                </Button>
+              </>
+            )}
             {config?.isVale && (
               <Button
                 variant="outline"

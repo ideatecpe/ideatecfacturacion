@@ -3,6 +3,8 @@ import axios from "axios";
 export interface ItemActualizarStock {
   sucursalProductoId: number;
   cantidad: number;
+  referenciaTipo?: string;
+  referenciaId?: number;
 }
 
 // Descuenta del stock la cantidad vendida de cada sucursalProductoId.
