@@ -75,7 +75,7 @@ export default function RentabilidadPage() {
       <div className="flex items-center gap-3 animate-in fade-in duration-300">
         <button
           type="button"
-          onClick={() => router.push("/factufly/productos")}
+          onClick={() => router.push("/factufly/productos/lista")}
           className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
           style={{ background: "rgba(15,46,100,0.08)" }}
           onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}

@@ -34,26 +34,25 @@ import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { InputBase } from "@/app/components/ui/InputBase";
 import { cn } from "@/app/utils/cn";
 
-import { ProductoSucursal } from "./gestioProductos/Producto";
-import AgregarProducto from "./gestioProductos/AgregarProducto";
-import EditarProducto from "./gestioProductos/EditarProducto";
+import { ProductoSucursal } from "../gestioProductos/Producto";
+import AgregarProducto from "../gestioProductos/AgregarProducto";
+import EditarProducto from "../gestioProductos/EditarProducto";
 
-import { useProductosSucursal } from "./gestioProductos/useProductosSucursal";
-import { useCategoriasLista } from "./gestioProductos/useCategoriasLista";
+import { useProductosSucursal } from "../gestioProductos/useProductosSucursal";
+import { useCategoriasLista } from "../gestioProductos/useCategoriasLista";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
-import { useRouter } from "next/navigation";
-import { useProductosEmpresaLista } from "./gestioProductos/useProductosEmpresaLista";
-import { useSucursalRuc } from "../operaciones/boleta/gestionBoletas/useSucursalRuc";
-import { useRegistrarCategoria } from "./gestioProductos/useRegistrarCategoria";
+import { useProductosEmpresaLista } from "../gestioProductos/useProductosEmpresaLista";
+import { useSucursalRuc } from "../../operaciones/boleta/gestionBoletas/useSucursalRuc";
+import { useRegistrarCategoria } from "../gestioProductos/useRegistrarCategoria";
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import ModalReporteProductos from "@/app/components/modalProductos/Modalreporteproductos";
-import { ModalVentasProductoExcel } from "./gestioProductos/ModalVentasProductoExcel";
-import ModalImprimirEtiquetas from "./gestioProductos/ModalImprimirEtiquetas";
-import { generarCodigoProducto } from "./gestioProductos/generarCodigoProducto";
-import { useVales } from "./gestioProductos/useVales";
-import { formatoBarcodeSeguro } from "./gestioProductos/barcodeFormato";
+import { ModalVentasProductoExcel } from "../gestioProductos/ModalVentasProductoExcel";
+import ModalImprimirEtiquetas from "../gestioProductos/ModalImprimirEtiquetas";
+import { generarCodigoProducto } from "../gestioProductos/generarCodigoProducto";
+import { useVales } from "../gestioProductos/useVales";
+import { formatoBarcodeSeguro } from "../gestioProductos/barcodeFormato";
 
 // Umbral de stock bajo (alerta visual) para productos normales, en unidades.
 const STOCK_MINIMO_UNIDAD = 5;
@@ -68,7 +67,6 @@ export default function ProductosPage() {
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
   const { config } = useConfiguracion();
-  const router = useRouter();
   const isSuperAdmin = user?.rol === "superadmin";
   const soloLectura =
     !!user?.ruc &&
@@ -792,31 +790,6 @@ const [importFile, setImportFile] = useState<File | null>(null);
             >
               <FileSpreadsheet className="w-3.5 h-3.5" /> Reporte Ventas
             </button>
-            {config?.isStock && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push("/factufly/inventario/kardex")}
-                  className="py-2.5 px-3 text-xs rounded-md h-auto"
-                >
-                  <Boxes className="w-3.5 h-3.5" /> Kardex
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push("/factufly/inventario/stockValorizado")}
-                  className="py-2.5 px-3 text-xs rounded-md h-auto"
-                >
-                  <Boxes className="w-3.5 h-3.5" /> Stock Valorizado
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push("/factufly/inventario/rentabilidad")}
-                  className="py-2.5 px-3 text-xs rounded-md h-auto"
-                >
-                  <Boxes className="w-3.5 h-3.5" /> Rentabilidad
-                </Button>
-              </>
-            )}
             {config?.isVale && (
               <Button
                 variant="outline"
@@ -1325,20 +1298,6 @@ const [importFile, setImportFile] = useState<File | null>(null);
                           >
                             STOCK: {prod.sucursalProducto.stock} und.
                           </p>
-                        )}
-                        {!!prod.sucursalProducto.ultimoPrecioCompra && (
-                          <>
-                            <p className="text-[9px] text-gray-400">
-                              Costo: S/ {prod.sucursalProducto.ultimoPrecioCompra.toFixed(2)}
-                            </p>
-                            <p className="text-[9px] font-semibold text-emerald-600">
-                              Ganancia: S/{" "}
-                              {(
-                                prod.sucursalProducto.precioUnitario -
-                                prod.sucursalProducto.ultimoPrecioCompra
-                              ).toFixed(2)}
-                            </p>
-                          </>
                         )}
                       </>
                     )}

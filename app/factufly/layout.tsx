@@ -132,7 +132,21 @@ export default function DashboardLayout({
       { id: "cuentasporcobrar", label: "Cuentas por Cobrar", icon: DollarSign },
       { id: "clientes", label: "Clientes", icon: Users },
       { id: "trabajadores", label: "Trabajadores", icon: UserCircle },
-      { id: "productos", label: "Productos", icon: Package },
+      {
+        id: "productos",
+        label: "Productos",
+        icon: Package,
+        children: [
+          { id: "lista", label: "Listado" },
+          ...(config?.isStock
+            ? [
+                { id: "kardex", label: "Kardex" },
+                { id: "stockValorizado", label: "Stock Valorizado" },
+                { id: "rentabilidad", label: "Rentabilidad" },
+              ]
+            : []),
+        ],
+      },
       {
         id: "compras",
         label: "Compras",

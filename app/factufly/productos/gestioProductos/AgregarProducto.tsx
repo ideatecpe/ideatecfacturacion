@@ -792,7 +792,7 @@ export default function AgregarProducto({
           <div className="space-y-2">
             <InputBase
               compact
-              label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio Unitario"}
+              label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio Venta Unitario"}
               type="number"
               value={String(form.precioUnitario)}
               onChange={(e) => {

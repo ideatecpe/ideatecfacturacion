@@ -523,7 +523,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <InputBase
-            label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio Unitario"}
+            label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio Venta Unitario"}
             type="text"
             value={precioInput}
             onChange={(e) => {
@@ -649,18 +649,6 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
               }))
             }
             placeholder="Ej: 12"
-          />
-        </div>
-      )}
-
-      {isStock && form.tipoProducto === "BIEN" && !form.esPaquete && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InputBase
-            label="Stock"
-            type="number"
-            value={String(form.stock ?? 0)}
-            onChange={onChange("stock")}
-            placeholder="0"
           />
         </div>
       )}
