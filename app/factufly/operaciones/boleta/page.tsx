@@ -3588,6 +3588,7 @@ function BoletaContent() {
                                 }}
                               >
                                 <textarea
+                                  data-escaner-producto="true"
                                   ref={(el) => {
                                     inputRefs.current[i] = el;
                                   }}
@@ -3646,6 +3647,7 @@ function BoletaContent() {
                                           seleccionarProducto(coincidencia, i);
                                           showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
                                         }
+                                        (e.target as HTMLTextAreaElement).blur();
                                         return;
                                       }
                                       showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");

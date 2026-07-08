@@ -216,6 +216,7 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                       style={{ position: "relative", overflow: "visible" }}
                     >
                       <textarea
+                        data-escaner-producto="true"
                         ref={(el) => {
                           inputRefs.current[i] = el;
                         }}
@@ -276,6 +277,7 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                                 seleccionarProducto(coincidencia, i);
                                 showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
                               }
+                              (e.target as HTMLTextAreaElement).blur();
                               return;
                             }
                             showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
