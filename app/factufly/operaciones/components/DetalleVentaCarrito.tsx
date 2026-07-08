@@ -8,6 +8,8 @@ import {
   Car,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
@@ -247,7 +249,10 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                           e.target.style.height = `${e.target.scrollHeight}px`;
 
                           const tieneSaltoDeLinea = e.target.value.includes("\n");
-                          const ultimaLinea = e.target.value.split("\n").pop()?.trim() ?? "";
+                          // El escáner envía el código y termina con Enter (salto de línea),
+                          // por lo que la última posición del split queda vacía. Tomamos la
+                          // última línea NO vacía = el código escaneado (sin el salto).
+                          const ultimaLinea = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? "";
                           const candidato = tieneSaltoDeLinea && ultimaLinea.length >= 6 ? ultimaLinea : "";
                           if (candidato) {
                             const coincidencia = productosSucursal.find(
@@ -451,7 +456,7 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                   </div>
 
                   <div className="flex items-end justify-between gap-2 flex-wrap">
-                    <div className="flex items-end gap-2">
+                    <div className="flex items-end gap-2 flex-wrap">
                       {/* Tipo Bien/Servicio */}
                       <div className="space-y-0.5">
                         <label className="text-[9px] text-gray-400 block">Tipo</label>
@@ -575,6 +580,83 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                           />
                         </div>
                       </div>
+                      {/* Detalles avanzados — inline, al costado del Precio U. */}
+                      {mostrarAvanzado && (
+                        <>
+                          <div className="space-y-0.5">
+                            <label className="text-[9px] text-gray-400 block">Avan.</label>
+                            <button
+                              type="button"
+                              title={expandido[i] ? "Ocultar avanzado" : "Mostrar avanzado"}
+                              onClick={() => setExpandido((prev) => ({ ...prev, [i]: !prev[i] }))}
+                              className="h-7 w-8 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors"
+                            >
+                              {expandido[i] ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+
+                          {expandido[i] && (
+                            <>
+                              {config?.afectacionIgv === true && (
+                                <div className="space-y-0.5">
+                                  <label className="text-[9px] text-gray-400 block">Afect. IGV</label>
+                                  <select
+                                    value={d.tipoAfectacionIGV ?? "10"}
+                                    disabled={!!d._esIcbper || esPorConsumo}
+                                    onChange={(e) => actualizarTipoAfectacion(i, e.target.value)}
+                                    className="w-20 h-7 py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
+                                  >
+                                    <option value="10">Grav.</option>
+                                    <option value="20">Exon.</option>
+                                    <option value="30">Inaf.</option>
+                                    {tipoAfectacionExtra.map((opt) => (
+                                      <option key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                              <div className="space-y-0.5">
+                                <label className="text-[9px] text-gray-400 block">%IGV</label>
+                                {igvAfectacionValues.includes(d.tipoAfectacionIGV ?? "10") ? (
+                                  <select
+                                    value={d.porcentajeIGV ?? IGV_DEFAULT}
+                                    disabled={!!d._esIcbper}
+                                    onChange={(e) => actualizarPorcentajeIGV(i, Number(e.target.value))}
+                                    className="w-16 h-7 py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
+                                  >
+                                    <option value={18}>18</option>
+                                    <option value={10.5}>10.5</option>
+                                  </select>
+                                ) : (
+                                  <span className="flex items-center justify-center w-16 h-7 text-gray-400 text-xs">N/A</span>
+                                )}
+                              </div>
+                              {config?.descUnitario === true && (
+                                <div className="space-y-0.5">
+                                  <label className="text-[9px] text-gray-400 block">Desc.Unit</label>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={d.descuentoUnitario ?? 0}
+                                    onWheel={(e) => e.currentTarget.blur()}
+                                    onFocus={(e) => {
+                                      if (Number(e.currentTarget.value) === 0) e.currentTarget.select();
+                                    }}
+                                    onChange={(e) => actualizarDescuento(i, Number(e.target.value))}
+                                    disabled={!!d._esIcbper || esPorConsumo || gratuito}
+                                    className={`w-20 h-7 py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                      d._esIcbper || esPorConsumo || gratuito ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"
+                                    }`}
+                                  />
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
                     </div>
 
                     <div className="text-right shrink-0">
@@ -590,79 +672,6 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                       </p>
                     </div>
                   </div>
-
-                  {mostrarAvanzado && (
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => setExpandido((prev) => ({ ...prev, [i]: !prev[i] }))}
-                        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600"
-                      >
-                        {expandido[i] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        Detalles avanzados
-                      </button>
-                      {expandido[i] && (
-                        <div className="grid grid-cols-3 gap-2 pt-1.5">
-                          {config?.afectacionIgv === true && (
-                            <div className="space-y-0.5">
-                              <label className="text-[9px] text-gray-400">Afect. IGV</label>
-                              <select
-                                value={d.tipoAfectacionIGV ?? "10"}
-                                disabled={!!d._esIcbper || esPorConsumo}
-                                onChange={(e) => actualizarTipoAfectacion(i, e.target.value)}
-                                className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
-                              >
-                                <option value="10">Grav.</option>
-                                <option value="20">Exon.</option>
-                                <option value="30">Inaf.</option>
-                                {tipoAfectacionExtra.map((opt) => (
-                                  <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                          <div className="space-y-0.5">
-                            <label className="text-[9px] text-gray-400">%IGV</label>
-                            {igvAfectacionValues.includes(d.tipoAfectacionIGV ?? "10") ? (
-                              <select
-                                value={d.porcentajeIGV ?? IGV_DEFAULT}
-                                disabled={!!d._esIcbper}
-                                onChange={(e) => actualizarPorcentajeIGV(i, Number(e.target.value))}
-                                className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
-                              >
-                                <option value={18}>18</option>
-                                <option value={10.5}>10.5</option>
-                              </select>
-                            ) : (
-                              <span className="block text-center text-gray-400 text-xs py-1">N/A</span>
-                            )}
-                          </div>
-                          {config?.descUnitario === true && (
-                            <div className="space-y-0.5">
-                              <label className="text-[9px] text-gray-400">Desc.Unit</label>
-                              <input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={d.descuentoUnitario ?? 0}
-                                onWheel={(e) => e.currentTarget.blur()}
-                                onFocus={(e) => {
-                                  if (Number(e.currentTarget.value) === 0) e.currentTarget.select();
-                                }}
-                                onChange={(e) => actualizarDescuento(i, Number(e.target.value))}
-                                disabled={!!d._esIcbper || esPorConsumo || gratuito}
-                                className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                  d._esIcbper || esPorConsumo || gratuito ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"
-                                }`}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             );

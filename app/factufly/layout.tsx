@@ -136,16 +136,18 @@ export default function DashboardLayout({
         id: "productos",
         label: "Productos",
         icon: Package,
-        children: [
-          { id: "lista", label: "Listado" },
-          ...(config?.isStock
-            ? [
+        // Con isStock activo se muestran las subopciones; sin él, "Productos"
+        // es un ítem directo que navega al listado (sin submenú de un solo item).
+        ...(config?.isStock
+          ? {
+              children: [
+                { id: "lista", label: "Listado" },
                 { id: "kardex", label: "Kardex" },
                 { id: "stockValorizado", label: "Stock Valorizado" },
                 { id: "rentabilidad", label: "Rentabilidad" },
-              ]
-            : []),
-        ],
+              ],
+            }
+          : {}),
       },
       {
         id: "compras",

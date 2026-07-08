@@ -55,6 +55,7 @@ import { useTrabajadoresSucursal } from "../../trabajadores/gestionTrabajadores/
 import { UserCircle, Car } from "lucide-react";
 import MedioDePagoSelector from "../components/MedioDePagoSelector";
 import DetalleVentaCarrito from "../components/DetalleVentaCarrito";
+import { useEscanerGlobal } from "../useEscanerGlobal";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
@@ -1429,6 +1430,8 @@ function BoletaContent() {
   };
 
   // Cuando se agrega una fila por scan de producto diferente, selecciona el producto pendiente en esa fila.
+  // No se devuelve el foco: el escaneo lo maneja el listener global, que se desactiva
+  // si hay un campo enfocado. Dejar el foco fuera de los inputs lo mantiene operativo.
   React.useEffect(() => {
     if (!pendingScanProducto) return;
     const idx = detalles.filter((d) => !d._esIcbper).length - 1;
@@ -1436,10 +1439,42 @@ function BoletaContent() {
       seleccionarProducto(pendingScanProducto, idx);
       showToast(`✓ ${pendingScanProducto.nomProducto} agregado por código de barras`, "success");
       setPendingScanProducto(null);
-      // Devolver foco al campo de la nueva fila para que el escáner pueda seguir
-      setTimeout(() => inputRefs.current[idx]?.focus(), 50);
     }
   }, [detalles.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Escaneo de código de barras (listener global, sin depender del foco) ──
+  // Regla: si el producto ya está en el carrito, suma 1 a esa fila; si no, lo
+  // agrega como ítem nuevo (reutilizando una fila vacía si existe).
+  const onScanCodigo = (codigo: string) => {
+    if (emitido) return; // ya emitido: no tocar el carrito
+    const producto = productosSucursal.find(
+      (p: ProductoSucursal) => !!p.codigoBarras && p.codigoBarras === codigo,
+    );
+    if (!producto) {
+      showToast(`Código "${codigo}" no encontrado en el catálogo`, "error");
+      return;
+    }
+    const idxExistente = detalles.findIndex(
+      (d) => !d._esIcbper && d.productoId === producto.productoId,
+    );
+    if (idxExistente !== -1) {
+      const nuevaCantidad = (detalles[idxExistente].cantidad ?? 1) + 1;
+      actualizarCantidad(idxExistente, nuevaCantidad);
+      showToast(`✓ ${producto.nomProducto} ×${nuevaCantidad}`, "success");
+      return;
+    }
+    const idxVacia = detalles.findIndex(
+      (d) => !d._esIcbper && !d.productoId && !(d.descripcion?.trim()),
+    );
+    if (idxVacia !== -1) {
+      seleccionarProducto(producto, idxVacia);
+      showToast(`✓ ${producto.nomProducto} agregado por código de barras`, "success");
+    } else {
+      setPendingScanProducto(producto);
+      agregarFila();
+    }
+  };
+  useEscanerGlobal(onScanCodigo);
 
   // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
   const getStockEfectivo = (p: ProductoSucursal): number | null => {
@@ -3583,7 +3618,10 @@ function BoletaContent() {
                                     e.target.style.height = `${e.target.scrollHeight}px`;
 
                                     const tieneSaltoDeLinea = e.target.value.includes("\n");
-                                    const ultimaLinea = e.target.value.split("\n").pop()?.trim() ?? "";
+                                    // El escáner envía el código y termina con Enter (salto de línea),
+                                    // por lo que la última posición del split queda vacía. Tomamos la
+                                    // última línea NO vacía = el código escaneado (sin el salto).
+                                    const ultimaLinea = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? "";
                                     const candidato = tieneSaltoDeLinea && ultimaLinea.length >= 6 ? ultimaLinea : "";
                                     if (candidato) {
                                       const coincidencia = productosSucursal.find(
