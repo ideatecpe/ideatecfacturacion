@@ -10,8 +10,8 @@ import {
   Download,
   ExternalLink,
   UserRound,
-  ClipboardList,
   AlertTriangle,
+  ClipboardList,
   CheckCircle,
   CreditCard,
 } from "lucide-react";
@@ -53,6 +53,8 @@ import { sharedVentaStore } from "../sharedVentaStore";
 import { useComprobanteUnicoId } from "../../comprobantes/gestionComprobantes/UseComprobanteUnicoId";
 import { useTrabajadoresSucursal } from "../../trabajadores/gestionTrabajadores/useTrabajadoresSucursal";
 import { UserCircle, Car } from "lucide-react";
+import MedioDePagoSelector from "../components/MedioDePagoSelector";
+import DetalleVentaCarrito from "../components/DetalleVentaCarrito";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
@@ -75,6 +77,7 @@ interface DetalleLocal extends Partial<BoletaDetalle> {
   _precioMayoristaEnMoneda?: number | null;
   _cantidadMinimaMayorista?: number | null;
   _precioManual?: boolean;
+  _urlImagen?: string | null;
 }
 
 // Promoción y precio mayorista son excluyentes: gana el que dé el precio más bajo al cliente.
@@ -1575,6 +1578,7 @@ function BoletaContent() {
       _precioMayoristaEnMoneda: precioMayoristaEnMoneda,
       _cantidadMinimaMayorista: producto.sucursalProducto.cantidadMinimaMayorista,
       _precioManual: false,
+      _urlImagen: producto.urlImagenProducto ?? null,
       ...calc,
     };
     setDetalles(nuevos);
@@ -3002,13 +3006,29 @@ function BoletaContent() {
               {/* ── Pagos ── */}
               {(boleta.tipoPago === "Contado" ||
                 boleta.tipoPago === "CreditoInicial") && (
+                config?.isStock ? (
+                  <MedioDePagoSelector
+                    pagos={pagos}
+                    setPagosEditados={setPagosEditados}
+                    mediosUsados={mediosUsados}
+                    todosMedios={todosMedios}
+                    agregarPago={agregarPago}
+                    eliminarPago={eliminarPago}
+                    actualizarPago={actualizarPago}
+                    totales={totales}
+                    totalPagado={totalPagado}
+                    simbolo={simbolo}
+                    fmtMonto={fmtMonto}
+                    tipoPago={boleta.tipoPago}
+                  />
+                ) : (
                 <div>
 
                   {pagos.length === 1 ? (
                     /* ── 1 solo medio: simple, sin card ── */
                     <div className="space-y-1.5 ">
                       <div className="flex items-center justify-between">
-                        
+
                  <div className="flex items-center gap-2">
                       <div className="w-5 h-5 rounded-md flex items-center justify-center">
                         <CreditCard className="w-4 h-4 text-brand-blue" />
@@ -3104,6 +3124,7 @@ function BoletaContent() {
                     </div>
                   )}
                 </div>
+                )
               )}
 
               {/* ── Atendido por + Vales (misma fila) ── */}
@@ -3365,7 +3386,43 @@ function BoletaContent() {
               </div>
               )}
 
-              {/* ── Tabla Ítems ── */}
+              {/* ── Detalle de Venta ── */}
+              {config?.isStock ? (
+              <DetalleVentaCarrito
+                detalles={detalles}
+                setDetalles={setDetalles}
+                busquedaProducto={busquedaProducto}
+                setBusquedaProducto={setBusquedaProducto}
+                showDropdownProducto={showDropdownProducto}
+                setShowDropdownProducto={setShowDropdownProducto}
+                inputRefs={inputRefs}
+                focusedItemIndex={focusedItemIndex}
+                setFocusedItemIndex={setFocusedItemIndex}
+                focusedItemIndexRef={focusedItemIndexRef}
+                precioInputValues={precioInputValues}
+                setPrecioInputValues={setPrecioInputValues}
+                productosSucursal={productosSucursal}
+                seleccionarProducto={seleccionarProducto}
+                actualizarCantidad={actualizarCantidad}
+                actualizarTipoAfectacion={actualizarTipoAfectacion}
+                actualizarPrecioVenta={actualizarPrecioVenta}
+                actualizarPorcentajeIGV={actualizarPorcentajeIGV}
+                actualizarDescuento={actualizarDescuento}
+                eliminarFila={eliminarFila}
+                agregarFila={agregarFila}
+                getStockEfectivo={getStockEfectivo}
+                fmtMonto={fmtMonto}
+                simbolo={simbolo}
+                IGV_DEFAULT={IGV_DEFAULT}
+                config={config}
+                porConsumo={porConsumo}
+                setPorConsumo={setPorConsumo}
+                sinSucursal={sinSucursal}
+                setShowModalMonitoreo={setShowModalMonitoreo}
+                setPendingScanProducto={setPendingScanProducto}
+                showToast={showToast}
+              />
+              ) : (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -3436,11 +3493,6 @@ function BoletaContent() {
                         >
                           Producto
                         </th>
-                        {/* CÓD. — oculto temporalmente
-                        <th className="px-2 py-1 text-left text-gray-500 w-14">
-                          Cód.
-                        </th>
-                        */}
                         <th className="px-2 py-1 text-center text-gray-500 w-20">
                           Tipo
                         </th>
@@ -3507,7 +3559,6 @@ function BoletaContent() {
                                   value={busquedaProducto[i] ?? ""}
                                   disabled={!!d._esIcbper || esPorConsumo}
                                   onChange={(e) => {
-                                    // Si el producto ya está seleccionado y el Enter del escáner agrega un salto de línea, ignorarlo
                                     if (detalles[i]?.productoId && e.target.value.trim() === (detalles[i]?.descripcion ?? "").trim()) {
                                       const nb = [...busquedaProducto];
                                       nb[i] = detalles[i]?.descripcion ?? "";
@@ -3520,8 +3571,6 @@ function BoletaContent() {
                                     const nd = [...showDropdownProducto];
                                     nd[i] = true;
                                     setShowDropdownProducto(nd);
-                                    // Siempre actualizar descripción y limpiar productoId
-                                    // para que el usuario pueda editar U.M. libremente
                                     const n = [...detalles];
                                     n[i] = {
                                       ...n[i],
@@ -3530,13 +3579,9 @@ function BoletaContent() {
                                     };
                                     setDetalles(n);
 
-                                    // Auto-grow height dynamically
                                     e.target.style.height = "auto";
                                     e.target.style.height = `${e.target.scrollHeight}px`;
 
-                                    // Escáner: detectar código solo cuando el escáner terminó de escanear
-                                    // (envía un salto de línea al presionar Enter). Si no hay salto de línea,
-                                    // es tecleo manual del usuario y no debe validarse como código de barras.
                                     const tieneSaltoDeLinea = e.target.value.includes("\n");
                                     const ultimaLinea = e.target.value.split("\n").pop()?.trim() ?? "";
                                     const candidato = tieneSaltoDeLinea && ultimaLinea.length >= 6 ? ultimaLinea : "";
@@ -3548,7 +3593,6 @@ function BoletaContent() {
                                       if (coincidencia) {
                                         const detalleActual = detalles[i];
                                         if (detalleActual?.productoId === coincidencia.productoId) {
-                                          // Mismo producto ya seleccionado: sumar cantidad y resetear campo
                                           actualizarCantidad(i, (detalleActual.cantidad ?? 1) + 1);
                                           const nb = [...busquedaProducto];
                                           nb[i] = coincidencia.nomProducto;
@@ -3558,17 +3602,14 @@ function BoletaContent() {
                                           setShowDropdownProducto(nd);
                                           showToast(`✓ ${coincidencia.nomProducto} ×${(detalleActual.cantidad ?? 1) + 1}`, "success");
                                         } else if (detalleActual?.productoId) {
-                                          // Producto diferente en fila ocupada: agregar nueva fila y seleccionar ahí
                                           setPendingScanProducto(coincidencia);
                                           agregarFila();
                                         } else {
-                                          // Fila vacía: seleccionar normalmente
                                           seleccionarProducto(coincidencia, i);
                                           showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
                                         }
                                         return;
                                       }
-                                      // Código escaneado no encontrado en el catálogo
                                       showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
                                       const nb = [...busquedaProducto];
                                       nb[i] = "";
@@ -3582,14 +3623,12 @@ function BoletaContent() {
                                     setFocusedItemIndex(i);
                                     focusedItemIndexRef.current = i;
 
-                                    // Force layout update with wrap to get correct scrollHeight synchronously
                                     const target = e.target;
                                     target.style.whiteSpace = "pre-wrap";
                                     target.style.height = "auto";
                                     target.style.height = `${target.scrollHeight}px`;
                                     target.style.whiteSpace = "";
 
-                                    // Re-verify on next tick after React DOM updates
                                     setTimeout(() => {
                                       if (target) {
                                         target.style.height = "auto";
@@ -3600,22 +3639,18 @@ function BoletaContent() {
                                   onBlur={(e) => {
                                     const target = e.target;
                                     const blurredIndex = i;
-                                    // Resetear height inline para que la clase h-6 tome efecto
                                     target.style.height = "";
                                     setTimeout(() => {
-                                      // Solo limpiar el foco si no se movió ya a otro ítem
                                       if (focusedItemIndexRef.current === blurredIndex) {
                                         setFocusedItemIndex(null);
                                         focusedItemIndexRef.current = null;
                                       } else if (focusedItemIndexRef.current !== null) {
-                                        // Forzar resize del nuevo ítem que ya tiene foco
                                         const el = inputRefs.current[focusedItemIndexRef.current] as HTMLTextAreaElement | null;
                                         if (el) {
                                           el.style.height = "auto";
                                           el.style.height = `${el.scrollHeight}px`;
                                         }
                                       }
-                                      // Cerrar dropdown del ítem que perdió foco
                                       const nd = [...showDropdownProducto];
                                       nd[blurredIndex] = false;
                                       setShowDropdownProducto(nd);
@@ -3769,12 +3804,6 @@ function BoletaContent() {
                                   })()}
                               </td>
 
-                              {/* CÓD. — oculto temporalmente
-                              <td className="px-2 py-1.5 text-gray-500 font-mono text-[10px]">
-                                {d.codigo || "-"}
-                              </td>
-                              */}
-
                               {/* Tipo (Bien/Servicio) */}
                               <td className="px-1 py-1.5">
                                 {esPorConsumo ? (
@@ -3815,9 +3844,6 @@ function BoletaContent() {
                                         Serv.
                                       </button>
                                     </div>
-                                    {/* U.M. debajo — oculto temporalmente
-                                    <span className="text-[9px] text-gray-400">{d.unidadMedida || "NIU"}</span>
-                                    */}
                                   </div>
                                 )}
                               </td>
@@ -4000,6 +4026,7 @@ function BoletaContent() {
                   </table>
                 </div>
               </div>
+              )}
 
               {/* ── Bolsa Plástica ── */}
               <div className="border border-amber-100 rounded-xl px-2 py-1 bg-amber-50/50 space-y-3">
