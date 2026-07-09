@@ -799,7 +799,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 <Ticket className="w-3.5 h-3.5" /> Administrar Vales
               </Button>
             )}
-            {!soloLectura && config?.isStock && (
+            {!soloLectura && (
               <Button
                 variant={modoSeleccionPromo ? "primary" : "outline"}
                 onClick={() =>
@@ -1075,7 +1075,11 @@ const [importFile, setImportFile] = useState<File | null>(null);
             <Button
               variant="outline"
               onClick={quitarPromocionMasiva}
-              disabled={seleccionadosPromo.size === 0 || aplicandoPromoMasiva}
+              disabled={
+                seleccionadosPromo.size === 0 ||
+                aplicandoPromoMasiva ||
+                !productos.some((p) => seleccionadosPromo.has(p.productoId) && !!p.sucursalProducto.enPromocion)
+              }
               className="py-1.5 px-3 text-xs rounded-md h-auto"
             >
               {aplicandoPromoMasiva && promoProgreso

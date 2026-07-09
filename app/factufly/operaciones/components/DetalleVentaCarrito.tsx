@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Plus,
   Trash2,
@@ -8,6 +8,8 @@ import {
   Car,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
@@ -124,6 +126,8 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
 }: DetalleVentaCarritoProps<T>) {
   const [expandido, setExpandido] = useState<Record<number, boolean>>({});
   const mostrarAvanzado = !!config?.afectacionIgv || !!config?.descUnitario;
+  const originalItemAlFocoRef = useRef<Record<number, { productoId: number | null; descripcion: string }>>({});
+  const ultimoInputTsRef = useRef(0);
 
   return (
     <div className="space-y-1.5">
@@ -214,15 +218,93 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                       style={{ position: "relative", overflow: "visible" }}
                     >
                       <textarea
+                        data-escaner-producto="true"
                         ref={(el) => {
                           inputRefs.current[i] = el;
                         }}
                         value={busquedaProducto[i] ?? ""}
                         disabled={bloqueado}
                         onChange={(e) => {
+                          const ahora = Date.now();
+                          const gap = ahora - ultimoInputTsRef.current;
+                          ultimoInputTsRef.current = ahora;
+
+                          const valor = e.target.value;
+                          const tieneSaltoDeLinea = valor.includes("\n");
+
+                          if (tieneSaltoDeLinea) {
+                            const ultimaLinea = valor.split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? "";
+                            const candidato = ultimaLinea.length >= 6 ? ultimaLinea : "";
+                            if (candidato) {
+                              const coincidencia = productosSucursal.find(
+                                (p: ProductoSucursal) => !!p.codigoBarras && p.codigoBarras === candidato,
+                              );
+                              if (coincidencia) {
+                                if (config?.isStock && coincidencia.tipoProducto === "BIEN") {
+                                  const se = getStockEfectivo(coincidencia);
+                                  const uv = coincidencia.esPaquete && coincidencia.factorConversion
+                                    ? Math.floor((se ?? 0) / coincidencia.factorConversion) : (se ?? 0);
+                                  if (uv <= 0) {
+                                    showToast(`${coincidencia.nomProducto} sin stock disponible`, "error");
+                                    const orig = originalItemAlFocoRef.current[i];
+                                    const nb = [...busquedaProducto]; nb[i] = orig?.descripcion ?? ""; setBusquedaProducto(nb);
+                                    if (orig?.productoId != null) {
+                                      setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: orig.productoId, descripcion: orig.descripcion } as T; return n; });
+                                    }
+                                    (e.target as HTMLTextAreaElement).blur();
+                                    return;
+                                  }
+                                }
+                                const productoIdOriginal = originalItemAlFocoRef.current[i]?.productoId ?? detalles[i]?.productoId ?? null;
+                                if (productoIdOriginal === coincidencia.productoId) {
+                                  actualizarCantidad(i, (detalles[i]?.cantidad ?? 1) + 1);
+                                  const nb = [...busquedaProducto]; nb[i] = coincidencia.nomProducto; setBusquedaProducto(nb);
+                                  const nd = [...showDropdownProducto]; nd[i] = false; setShowDropdownProducto(nd);
+                                  showToast(`✓ ${coincidencia.nomProducto} ×${(detalles[i]?.cantidad ?? 1) + 1}`, "success");
+                                  setTimeout(() => {
+                                    setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: productoIdOriginal, descripcion: coincidencia.nomProducto } as T; return n; });
+                                  }, 0);
+                                } else if (productoIdOriginal || originalItemAlFocoRef.current[i]?.descripcion?.trim()) {
+                                  const origDesc = originalItemAlFocoRef.current[i]?.descripcion ?? "";
+                                  const nb = [...busquedaProducto]; nb[i] = origDesc; setBusquedaProducto(nb);
+                                  setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: productoIdOriginal, descripcion: origDesc } as T; return n; });
+                                  const idxExistente = detalles.findIndex((d2, idx) => idx !== i && !d2._esIcbper && d2.productoId === coincidencia.productoId);
+                                  if (idxExistente !== -1) {
+                                    actualizarCantidad(idxExistente, (detalles[idxExistente].cantidad ?? 1) + 1);
+                                    showToast(`✓ ${coincidencia.nomProducto} ×${(detalles[idxExistente].cantidad ?? 1) + 1}`, "success");
+                                  } else {
+                                    setPendingScanProducto(coincidencia);
+                                    agregarFila();
+                                  }
+                                } else {
+                                  seleccionarProducto(coincidencia, i);
+                                  showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
+                                }
+                                (e.target as HTMLTextAreaElement).blur();
+                                return;
+                              }
+                              showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
+                              const orig = originalItemAlFocoRef.current[i];
+                              if (orig?.productoId != null) {
+                                const nb = [...busquedaProducto]; nb[i] = orig.descripcion; setBusquedaProducto(nb);
+                                setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: orig.productoId, descripcion: orig.descripcion } as T; return n; });
+                              } else if (orig?.descripcion?.trim()) {
+                                const nb = [...busquedaProducto]; nb[i] = orig.descripcion; setBusquedaProducto(nb);
+                                setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], descripcion: orig.descripcion, productoId: null } as T; return n; });
+                              } else {
+                                const nb = [...busquedaProducto]; nb[i] = ""; setBusquedaProducto(nb);
+                              }
+                              return;
+                            }
+                          }
+
+                          const itemTeniaContenido = originalItemAlFocoRef.current[i]?.productoId != null ||
+                            !!originalItemAlFocoRef.current[i]?.descripcion?.trim();
+                          if (gap < 60 && itemTeniaContenido) return;
+
                           if (
                             detalles[i]?.productoId &&
-                            e.target.value.trim() === (detalles[i]?.descripcion ?? "").trim()
+                            valor.trim() === (detalles[i]?.descripcion ?? "").trim()
                           ) {
                             const nb = [...busquedaProducto];
                             nb[i] = detalles[i]?.descripcion ?? "";
@@ -230,56 +312,23 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                             return;
                           }
                           const nb = [...busquedaProducto];
-                          nb[i] = e.target.value;
+                          nb[i] = valor;
                           setBusquedaProducto(nb);
                           const nd = [...showDropdownProducto];
                           nd[i] = true;
                           setShowDropdownProducto(nd);
                           const n = [...detalles];
-                          n[i] = {
-                            ...n[i],
-                            descripcion: e.target.value,
-                            productoId: null,
-                          };
+                          n[i] = { ...n[i], descripcion: valor, productoId: null };
                           setDetalles(n as T[]);
 
                           e.target.style.height = "auto";
                           e.target.style.height = `${e.target.scrollHeight}px`;
-
-                          const tieneSaltoDeLinea = e.target.value.includes("\n");
-                          const ultimaLinea = e.target.value.split("\n").pop()?.trim() ?? "";
-                          const candidato = tieneSaltoDeLinea && ultimaLinea.length >= 6 ? ultimaLinea : "";
-                          if (candidato) {
-                            const coincidencia = productosSucursal.find(
-                              (p: ProductoSucursal) => !!p.codigoBarras && p.codigoBarras === candidato,
-                            );
-                            if (coincidencia) {
-                              const detalleActual = detalles[i];
-                              if (detalleActual?.productoId === coincidencia.productoId) {
-                                actualizarCantidad(i, (detalleActual.cantidad ?? 1) + 1);
-                                const nb2 = [...busquedaProducto];
-                                nb2[i] = coincidencia.nomProducto;
-                                setBusquedaProducto(nb2);
-                                const nd2 = [...showDropdownProducto];
-                                nd2[i] = false;
-                                setShowDropdownProducto(nd2);
-                                showToast(`✓ ${coincidencia.nomProducto} ×${(detalleActual.cantidad ?? 1) + 1}`, "success");
-                              } else if (detalleActual?.productoId) {
-                                setPendingScanProducto(coincidencia);
-                                agregarFila();
-                              } else {
-                                seleccionarProducto(coincidencia, i);
-                                showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
-                              }
-                              return;
-                            }
-                            showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
-                            const nb3 = [...busquedaProducto];
-                            nb3[i] = "";
-                            setBusquedaProducto(nb3);
-                          }
                         }}
                         onFocus={(e) => {
+                          originalItemAlFocoRef.current[i] = {
+                            productoId: detalles[i]?.productoId ?? null,
+                            descripcion: detalles[i]?.descripcion ?? busquedaProducto[i] ?? "",
+                          };
                           const nd = [...showDropdownProducto];
                           nd[i] = true;
                           setShowDropdownProducto(nd);
@@ -300,6 +349,7 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                           }, 50);
                         }}
                         onBlur={(e) => {
+                          delete originalItemAlFocoRef.current[i];
                           const target = e.target;
                           const blurredIndex = i;
                           target.style.height = "";
@@ -451,7 +501,7 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                   </div>
 
                   <div className="flex items-end justify-between gap-2 flex-wrap">
-                    <div className="flex items-end gap-2">
+                    <div className="flex items-end gap-2 flex-wrap">
                       {/* Tipo Bien/Servicio */}
                       <div className="space-y-0.5">
                         <label className="text-[9px] text-gray-400 block">Tipo</label>
@@ -575,6 +625,83 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                           />
                         </div>
                       </div>
+                      {/* Detalles avanzados — inline, al costado del Precio U. */}
+                      {mostrarAvanzado && (
+                        <>
+                          <div className="space-y-0.5">
+                            <label className="text-[9px] text-gray-400 block">Avan.</label>
+                            <button
+                              type="button"
+                              title={expandido[i] ? "Ocultar avanzado" : "Mostrar avanzado"}
+                              onClick={() => setExpandido((prev) => ({ ...prev, [i]: !prev[i] }))}
+                              className="h-7 w-8 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors"
+                            >
+                              {expandido[i] ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+
+                          {expandido[i] && (
+                            <>
+                              {config?.afectacionIgv === true && (
+                                <div className="space-y-0.5">
+                                  <label className="text-[9px] text-gray-400 block">Afect. IGV</label>
+                                  <select
+                                    value={d.tipoAfectacionIGV ?? "10"}
+                                    disabled={!!d._esIcbper || esPorConsumo}
+                                    onChange={(e) => actualizarTipoAfectacion(i, e.target.value)}
+                                    className="w-20 h-7 py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
+                                  >
+                                    <option value="10">Grav.</option>
+                                    <option value="20">Exon.</option>
+                                    <option value="30">Inaf.</option>
+                                    {tipoAfectacionExtra.map((opt) => (
+                                      <option key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                              <div className="space-y-0.5">
+                                <label className="text-[9px] text-gray-400 block">%IGV</label>
+                                {igvAfectacionValues.includes(d.tipoAfectacionIGV ?? "10") ? (
+                                  <select
+                                    value={d.porcentajeIGV ?? IGV_DEFAULT}
+                                    disabled={!!d._esIcbper}
+                                    onChange={(e) => actualizarPorcentajeIGV(i, Number(e.target.value))}
+                                    className="w-16 h-7 py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
+                                  >
+                                    <option value={18}>18</option>
+                                    <option value={10.5}>10.5</option>
+                                  </select>
+                                ) : (
+                                  <span className="flex items-center justify-center w-16 h-7 text-gray-400 text-xs">N/A</span>
+                                )}
+                              </div>
+                              {config?.descUnitario === true && (
+                                <div className="space-y-0.5">
+                                  <label className="text-[9px] text-gray-400 block">Desc.Unit</label>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={d.descuentoUnitario ?? 0}
+                                    onWheel={(e) => e.currentTarget.blur()}
+                                    onFocus={(e) => {
+                                      if (Number(e.currentTarget.value) === 0) e.currentTarget.select();
+                                    }}
+                                    onChange={(e) => actualizarDescuento(i, Number(e.target.value))}
+                                    disabled={!!d._esIcbper || esPorConsumo || gratuito}
+                                    className={`w-20 h-7 py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                      d._esIcbper || esPorConsumo || gratuito ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"
+                                    }`}
+                                  />
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
                     </div>
 
                     <div className="text-right shrink-0">
@@ -590,79 +717,6 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                       </p>
                     </div>
                   </div>
-
-                  {mostrarAvanzado && (
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => setExpandido((prev) => ({ ...prev, [i]: !prev[i] }))}
-                        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600"
-                      >
-                        {expandido[i] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        Detalles avanzados
-                      </button>
-                      {expandido[i] && (
-                        <div className="grid grid-cols-3 gap-2 pt-1.5">
-                          {config?.afectacionIgv === true && (
-                            <div className="space-y-0.5">
-                              <label className="text-[9px] text-gray-400">Afect. IGV</label>
-                              <select
-                                value={d.tipoAfectacionIGV ?? "10"}
-                                disabled={!!d._esIcbper || esPorConsumo}
-                                onChange={(e) => actualizarTipoAfectacion(i, e.target.value)}
-                                className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
-                              >
-                                <option value="10">Grav.</option>
-                                <option value="20">Exon.</option>
-                                <option value="30">Inaf.</option>
-                                {tipoAfectacionExtra.map((opt) => (
-                                  <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                          <div className="space-y-0.5">
-                            <label className="text-[9px] text-gray-400">%IGV</label>
-                            {igvAfectacionValues.includes(d.tipoAfectacionIGV ?? "10") ? (
-                              <select
-                                value={d.porcentajeIGV ?? IGV_DEFAULT}
-                                disabled={!!d._esIcbper}
-                                onChange={(e) => actualizarPorcentajeIGV(i, Number(e.target.value))}
-                                className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
-                              >
-                                <option value={18}>18</option>
-                                <option value={10.5}>10.5</option>
-                              </select>
-                            ) : (
-                              <span className="block text-center text-gray-400 text-xs py-1">N/A</span>
-                            )}
-                          </div>
-                          {config?.descUnitario === true && (
-                            <div className="space-y-0.5">
-                              <label className="text-[9px] text-gray-400">Desc.Unit</label>
-                              <input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={d.descuentoUnitario ?? 0}
-                                onWheel={(e) => e.currentTarget.blur()}
-                                onFocus={(e) => {
-                                  if (Number(e.currentTarget.value) === 0) e.currentTarget.select();
-                                }}
-                                onChange={(e) => actualizarDescuento(i, Number(e.target.value))}
-                                disabled={!!d._esIcbper || esPorConsumo || gratuito}
-                                className={`w-full py-1 pl-2 pr-3 border rounded-lg text-xs text-right outline-none focus:border-brand-blue/50 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                  d._esIcbper || esPorConsumo || gratuito ? "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 border-gray-200"
-                                }`}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             );

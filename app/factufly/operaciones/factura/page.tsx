@@ -57,6 +57,7 @@ import { useTrabajadoresSucursal } from "../../trabajadores/gestionTrabajadores/
 import { UserCircle, Car } from "lucide-react";
 import MedioDePagoSelector from "../components/MedioDePagoSelector";
 import DetalleVentaCarrito from "../components/DetalleVentaCarrito";
+import { useEscanerGlobal } from "../useEscanerGlobal";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
@@ -636,6 +637,8 @@ function FacturaContent() {
   const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | null)[]>(
     [],
   );
+  const originalItemAlFocoRef = useRef<Record<number, { productoId: number | null; descripcion: string }>>({});
+  const ultimoInputTsRef = useRef(0);
 
   // ── ICBPER y bolsa plástica ───────────────────────────────────
   const [cantidadBolsa, setCantidadBolsa] = useState(0);
@@ -1585,6 +1588,8 @@ function FacturaContent() {
   };
 
   // Cuando se agrega una fila por scan de producto diferente, selecciona el producto pendiente en esa fila.
+  // No se devuelve el foco: el escaneo lo maneja el listener global, que se desactiva
+  // si hay un campo enfocado. Dejar el foco fuera de los inputs lo mantiene operativo.
   React.useEffect(() => {
     if (!pendingScanProducto) return;
     const idx = detalles.filter((d) => !d._esIcbper).length - 1;
@@ -1592,10 +1597,53 @@ function FacturaContent() {
       seleccionarProducto(pendingScanProducto, idx);
       showToast(`✓ ${pendingScanProducto.nomProducto} agregado por código de barras`, "success");
       setPendingScanProducto(null);
-      // Devolver foco al campo de la nueva fila para que el escáner pueda seguir
-      setTimeout(() => inputRefs.current[idx]?.focus(), 50);
     }
   }, [detalles.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Escaneo de código de barras (listener global, sin depender del foco) ──
+  // Regla: si el producto ya está en el carrito, suma 1 a esa fila; si no, lo
+  // agrega como ítem nuevo (reutilizando una fila vacía si existe).
+  const onScanCodigo = (codigo: string) => {
+    if (emitido) return;
+    const producto = productosSucursal.find(
+      (p: ProductoSucursal) => !!p.codigoBarras && p.codigoBarras === codigo,
+    );
+    if (!producto) {
+      showToast(`Código "${codigo}" no encontrado en el catálogo`, "error");
+      return;
+    }
+    if (config?.isStock && producto.tipoProducto === "BIEN") {
+      const se = getStockEfectivo(producto);
+      const uv =
+        producto.esPaquete && producto.factorConversion
+          ? Math.floor((se ?? 0) / producto.factorConversion)
+          : (se ?? 0);
+      if (uv <= 0) {
+        showToast(`${producto.nomProducto} sin stock disponible`, "error");
+        return;
+      }
+    }
+    const idxExistente = detalles.findIndex(
+      (d) => !d._esIcbper && d.productoId === producto.productoId,
+    );
+    if (idxExistente !== -1) {
+      const nuevaCantidad = (detalles[idxExistente].cantidad ?? 1) + 1;
+      actualizarCantidad(idxExistente, nuevaCantidad);
+      showToast(`✓ ${producto.nomProducto} ×${nuevaCantidad}`, "success");
+      return;
+    }
+    const idxVacia = detalles.findIndex(
+      (d) => !d._esIcbper && !d.productoId && !(d.descripcion?.trim()),
+    );
+    if (idxVacia !== -1) {
+      seleccionarProducto(producto, idxVacia);
+      showToast(`✓ ${producto.nomProducto} agregado por código de barras`, "success");
+    } else {
+      setPendingScanProducto(producto);
+      agregarFila();
+    }
+  };
+  useEscanerGlobal(onScanCodigo);
 
   // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
   const getStockEfectivo = (p: ProductoSucursal): number | null => {
@@ -2172,6 +2220,28 @@ function FacturaContent() {
         "error",
       );
       return;
+    }
+    if (config?.isStock) {
+      const itemSinStock = itemsReales.findIndex((d) => {
+        if (!d.productoId) return false;
+        const prod = productosSucursal.find(
+          (p: ProductoSucursal) => p.productoId === d.productoId,
+        );
+        if (!prod || prod.tipoProducto !== "BIEN") return false;
+        const se = getStockEfectivo(prod);
+        const uv =
+          prod.esPaquete && prod.factorConversion
+            ? Math.floor((se ?? 0) / prod.factorConversion)
+            : (se ?? 0);
+        return uv <= 0;
+      });
+      if (itemSinStock !== -1) {
+        showToast(
+          `"${itemsReales[itemSinStock].descripcion ?? `Ítem ${itemSinStock + 1}`}" no tiene stock disponible`,
+          "error",
+        );
+        return;
+      }
     }
     if (aplicarDetraccion) {
       if (totales.importeTotal < 700) {
@@ -3191,7 +3261,7 @@ function FacturaContent() {
                       setPagosEditados([false]);
                     }}
                     className="w-full py-1.5 px-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm"
-                  >
+                  > 
                     <option value="Contado">Contado</option>
                     <option value="Credito">Crédito</option>
                     <option value="CreditoInicial">Crédito con Inicial</option>
@@ -3985,70 +4055,108 @@ function FacturaContent() {
                                 }}
                               >
                                 <textarea
+                                  data-escaner-producto="true"
                                   ref={(el) => {
                                     inputRefs.current[i] = el;
                                   }}
                                   value={busquedaProducto[i] ?? ""}
                                   disabled={!!d._esIcbper || esPorConsumo}
                                   onChange={(e) => {
-                                    if (detalles[i]?.productoId && e.target.value.trim() === (detalles[i]?.descripcion ?? "").trim()) {
-                                      const nb = [...busquedaProducto];
-                                      nb[i] = detalles[i]?.descripcion ?? "";
-                                      setBusquedaProducto(nb);
+                                    const ahora = Date.now();
+                                    const gapMs = ahora - ultimoInputTsRef.current;
+                                    ultimoInputTsRef.current = ahora;
+
+                                    const valor = e.target.value;
+                                    const tieneSaltoDeLinea = valor.includes("\n");
+
+                                    if (tieneSaltoDeLinea) {
+                                      const ultimaLinea = valor.split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? "";
+                                      const candidato = ultimaLinea.length >= 6 ? ultimaLinea : "";
+                                      if (candidato) {
+                                        const coincidencia = productosSucursal.find(
+                                          (p: ProductoSucursal) => !!p.codigoBarras && p.codigoBarras === candidato,
+                                        );
+                                        if (coincidencia) {
+                                          if (config?.isStock && coincidencia.tipoProducto === "BIEN") {
+                                            const se = getStockEfectivo(coincidencia);
+                                            const uv = coincidencia.esPaquete && coincidencia.factorConversion
+                                              ? Math.floor((se ?? 0) / coincidencia.factorConversion) : (se ?? 0);
+                                            if (uv <= 0) {
+                                              showToast(`${coincidencia.nomProducto} sin stock disponible`, "error");
+                                              const orig = originalItemAlFocoRef.current[i];
+                                              const nb = [...busquedaProducto]; nb[i] = orig?.descripcion ?? ""; setBusquedaProducto(nb);
+                                              if (orig?.productoId != null) {
+                                                setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: orig.productoId, descripcion: orig.descripcion }; return n; });
+                                              }
+                                              (e.target as HTMLTextAreaElement).blur();
+                                              return;
+                                            }
+                                          }
+                                          const productoIdOriginal = originalItemAlFocoRef.current[i]?.productoId ?? detalles[i]?.productoId ?? null;
+                                          if (productoIdOriginal === coincidencia.productoId) {
+                                            actualizarCantidad(i, (detalles[i]?.cantidad ?? 1) + 1);
+                                            const nb = [...busquedaProducto]; nb[i] = coincidencia.nomProducto; setBusquedaProducto(nb);
+                                            const nd = [...showDropdownProducto]; nd[i] = false; setShowDropdownProducto(nd);
+                                            showToast(`✓ ${coincidencia.nomProducto} ×${(detalles[i]?.cantidad ?? 1) + 1}`, "success");
+                                            setTimeout(() => {
+                                              setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: productoIdOriginal, descripcion: coincidencia.nomProducto }; return n; });
+                                            }, 0);
+                                          } else if (productoIdOriginal || originalItemAlFocoRef.current[i]?.descripcion?.trim()) {
+                                            const origDesc = originalItemAlFocoRef.current[i]?.descripcion ?? "";
+                                            const nb = [...busquedaProducto]; nb[i] = origDesc; setBusquedaProducto(nb);
+                                            setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: productoIdOriginal, descripcion: origDesc }; return n; });
+                                            const idxExistente = detalles.findIndex((d2, idx) => idx !== i && !d2._esIcbper && d2.productoId === coincidencia.productoId);
+                                            if (idxExistente !== -1) {
+                                              actualizarCantidad(idxExistente, (detalles[idxExistente].cantidad ?? 1) + 1);
+                                              showToast(`✓ ${coincidencia.nomProducto} ×${(detalles[idxExistente].cantidad ?? 1) + 1}`, "success");
+                                            } else {
+                                              setPendingScanProducto(coincidencia);
+                                              agregarFila();
+                                            }
+                                          } else {
+                                            seleccionarProducto(coincidencia, i);
+                                            showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
+                                          }
+                                          (e.target as HTMLTextAreaElement).blur();
+                                          return;
+                                        }
+                                        showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
+                                        const orig = originalItemAlFocoRef.current[i];
+                                        if (orig?.productoId != null) {
+                                          const nb = [...busquedaProducto]; nb[i] = orig.descripcion; setBusquedaProducto(nb);
+                                          setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: orig.productoId, descripcion: orig.descripcion }; return n; });
+                                        } else if (orig?.descripcion?.trim()) {
+                                          const nb = [...busquedaProducto]; nb[i] = orig.descripcion; setBusquedaProducto(nb);
+                                          setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], descripcion: orig.descripcion, productoId: null }; return n; });
+                                        } else {
+                                          const nb = [...busquedaProducto]; nb[i] = ""; setBusquedaProducto(nb);
+                                        }
+                                        return;
+                                      }
+                                    }
+
+                                    const itemTeniaContenido = originalItemAlFocoRef.current[i]?.productoId != null ||
+                                      !!originalItemAlFocoRef.current[i]?.descripcion?.trim();
+                                    if (gapMs < 60 && itemTeniaContenido) return;
+
+                                    if (detalles[i]?.productoId && valor.trim() === (detalles[i]?.descripcion ?? "").trim()) {
+                                      const nb = [...busquedaProducto]; nb[i] = detalles[i]?.descripcion ?? ""; setBusquedaProducto(nb);
                                       return;
                                     }
-                                    const nb = [...busquedaProducto];
-                                    nb[i] = e.target.value;
-                                    setBusquedaProducto(nb);
-                                    const nd = [...showDropdownProducto];
-                                    nd[i] = true;
-                                    setShowDropdownProducto(nd);
+                                    const nb = [...busquedaProducto]; nb[i] = valor; setBusquedaProducto(nb);
+                                    const nd = [...showDropdownProducto]; nd[i] = true; setShowDropdownProducto(nd);
                                     const nuevos = [...detalles];
-                                    nuevos[i] = {
-                                      ...nuevos[i],
-                                      descripcion: e.target.value,
-                                      productoId: null,
-                                    };
+                                    nuevos[i] = { ...nuevos[i], descripcion: valor, productoId: null };
                                     setDetalles(nuevos);
 
                                     e.target.style.height = "auto";
                                     e.target.style.height = `${e.target.scrollHeight}px`;
-
-                                    const tieneSaltoDeLinea = e.target.value.includes("\n");
-                                    const ultimaLinea = e.target.value.split("\n").pop()?.trim() ?? "";
-                                    const candidato = tieneSaltoDeLinea && ultimaLinea.length >= 6 ? ultimaLinea : "";
-                                    if (candidato) {
-                                      const coincidencia = productosSucursal.find(
-                                        (p: ProductoSucursal) =>
-                                          !!p.codigoBarras && p.codigoBarras === candidato,
-                                      );
-                                      if (coincidencia) {
-                                        const detalleActual = detalles[i];
-                                        if (detalleActual?.productoId === coincidencia.productoId) {
-                                          actualizarCantidad(i, (detalleActual.cantidad ?? 1) + 1);
-                                          const nb = [...busquedaProducto];
-                                          nb[i] = coincidencia.nomProducto;
-                                          setBusquedaProducto(nb);
-                                          const nd = [...showDropdownProducto];
-                                          nd[i] = false;
-                                          setShowDropdownProducto(nd);
-                                          showToast(`✓ ${coincidencia.nomProducto} ×${(detalleActual.cantidad ?? 1) + 1}`, "success");
-                                        } else if (detalleActual?.productoId) {
-                                          setPendingScanProducto(coincidencia);
-                                          agregarFila();
-                                        } else {
-                                          seleccionarProducto(coincidencia, i);
-                                          showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
-                                        }
-                                        return;
-                                      }
-                                      showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
-                                      const nb = [...busquedaProducto];
-                                      nb[i] = "";
-                                      setBusquedaProducto(nb);
-                                    }
                                   }}
                                   onFocus={(e) => {
+                                    originalItemAlFocoRef.current[i] = {
+                                      productoId: detalles[i]?.productoId ?? null,
+                                      descripcion: detalles[i]?.descripcion ?? busquedaProducto[i] ?? "",
+                                    };
                                     const nd = [...showDropdownProducto];
                                     nd[i] = true;
                                     setShowDropdownProducto(nd);
@@ -4069,6 +4177,7 @@ function FacturaContent() {
                                     }, 50);
                                   }}
                                   onBlur={(e) => {
+                                    delete originalItemAlFocoRef.current[i];
                                     const target = e.target;
                                     const blurredIndex = i;
                                     target.style.height = "";
@@ -4090,12 +4199,7 @@ function FacturaContent() {
                                     const txt = busquedaProducto[i] ?? "";
                                     if (txt && !detalles[i]?.productoId) {
                                       const nuevos = [...detalles];
-                                      nuevos[i] = {
-                                        ...nuevos[i],
-                                        descripcion: txt,
-                                        productoId: null,
-                                        codigo: null,
-                                      };
+                                      nuevos[i] = { ...nuevos[i], descripcion: txt, productoId: null, codigo: null };
                                       setDetalles(nuevos);
                                     }
                                   }}
