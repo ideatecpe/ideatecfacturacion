@@ -21,7 +21,6 @@ import {
   Search,
 } from "lucide-react";
 import { Button }  from "@/app/components/ui/Button";
-import { Card }    from "@/app/components/ui/Card";
 import { Modal }   from "@/app/components/ui/Modal";
 
 import { useCargaComprobantes }  from "./useCargaComprobantes";
