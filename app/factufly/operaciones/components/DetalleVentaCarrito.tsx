@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Plus,
   Trash2,
@@ -126,6 +126,8 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
 }: DetalleVentaCarritoProps<T>) {
   const [expandido, setExpandido] = useState<Record<number, boolean>>({});
   const mostrarAvanzado = !!config?.afectacionIgv || !!config?.descUnitario;
+  const originalItemAlFocoRef = useRef<Record<number, { productoId: number | null; descripcion: string }>>({});
+  const ultimoInputTsRef = useRef(0);
 
   return (
     <div className="space-y-1.5">
@@ -223,9 +225,86 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                         value={busquedaProducto[i] ?? ""}
                         disabled={bloqueado}
                         onChange={(e) => {
+                          const ahora = Date.now();
+                          const gap = ahora - ultimoInputTsRef.current;
+                          ultimoInputTsRef.current = ahora;
+
+                          const valor = e.target.value;
+                          const tieneSaltoDeLinea = valor.includes("\n");
+
+                          if (tieneSaltoDeLinea) {
+                            const ultimaLinea = valor.split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? "";
+                            const candidato = ultimaLinea.length >= 6 ? ultimaLinea : "";
+                            if (candidato) {
+                              const coincidencia = productosSucursal.find(
+                                (p: ProductoSucursal) => !!p.codigoBarras && p.codigoBarras === candidato,
+                              );
+                              if (coincidencia) {
+                                if (config?.isStock && coincidencia.tipoProducto === "BIEN") {
+                                  const se = getStockEfectivo(coincidencia);
+                                  const uv = coincidencia.esPaquete && coincidencia.factorConversion
+                                    ? Math.floor((se ?? 0) / coincidencia.factorConversion) : (se ?? 0);
+                                  if (uv <= 0) {
+                                    showToast(`${coincidencia.nomProducto} sin stock disponible`, "error");
+                                    const orig = originalItemAlFocoRef.current[i];
+                                    const nb = [...busquedaProducto]; nb[i] = orig?.descripcion ?? ""; setBusquedaProducto(nb);
+                                    if (orig?.productoId != null) {
+                                      setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: orig.productoId, descripcion: orig.descripcion } as T; return n; });
+                                    }
+                                    (e.target as HTMLTextAreaElement).blur();
+                                    return;
+                                  }
+                                }
+                                const productoIdOriginal = originalItemAlFocoRef.current[i]?.productoId ?? detalles[i]?.productoId ?? null;
+                                if (productoIdOriginal === coincidencia.productoId) {
+                                  actualizarCantidad(i, (detalles[i]?.cantidad ?? 1) + 1);
+                                  const nb = [...busquedaProducto]; nb[i] = coincidencia.nomProducto; setBusquedaProducto(nb);
+                                  const nd = [...showDropdownProducto]; nd[i] = false; setShowDropdownProducto(nd);
+                                  showToast(`✓ ${coincidencia.nomProducto} ×${(detalles[i]?.cantidad ?? 1) + 1}`, "success");
+                                  setTimeout(() => {
+                                    setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: productoIdOriginal, descripcion: coincidencia.nomProducto } as T; return n; });
+                                  }, 0);
+                                } else if (productoIdOriginal || originalItemAlFocoRef.current[i]?.descripcion?.trim()) {
+                                  const origDesc = originalItemAlFocoRef.current[i]?.descripcion ?? "";
+                                  const nb = [...busquedaProducto]; nb[i] = origDesc; setBusquedaProducto(nb);
+                                  setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: productoIdOriginal, descripcion: origDesc } as T; return n; });
+                                  const idxExistente = detalles.findIndex((d2, idx) => idx !== i && !d2._esIcbper && d2.productoId === coincidencia.productoId);
+                                  if (idxExistente !== -1) {
+                                    actualizarCantidad(idxExistente, (detalles[idxExistente].cantidad ?? 1) + 1);
+                                    showToast(`✓ ${coincidencia.nomProducto} ×${(detalles[idxExistente].cantidad ?? 1) + 1}`, "success");
+                                  } else {
+                                    setPendingScanProducto(coincidencia);
+                                    agregarFila();
+                                  }
+                                } else {
+                                  seleccionarProducto(coincidencia, i);
+                                  showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
+                                }
+                                (e.target as HTMLTextAreaElement).blur();
+                                return;
+                              }
+                              showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
+                              const orig = originalItemAlFocoRef.current[i];
+                              if (orig?.productoId != null) {
+                                const nb = [...busquedaProducto]; nb[i] = orig.descripcion; setBusquedaProducto(nb);
+                                setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: orig.productoId, descripcion: orig.descripcion } as T; return n; });
+                              } else if (orig?.descripcion?.trim()) {
+                                const nb = [...busquedaProducto]; nb[i] = orig.descripcion; setBusquedaProducto(nb);
+                                setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], descripcion: orig.descripcion, productoId: null } as T; return n; });
+                              } else {
+                                const nb = [...busquedaProducto]; nb[i] = ""; setBusquedaProducto(nb);
+                              }
+                              return;
+                            }
+                          }
+
+                          const itemTeniaContenido = originalItemAlFocoRef.current[i]?.productoId != null ||
+                            !!originalItemAlFocoRef.current[i]?.descripcion?.trim();
+                          if (gap < 60 && itemTeniaContenido) return;
+
                           if (
                             detalles[i]?.productoId &&
-                            e.target.value.trim() === (detalles[i]?.descripcion ?? "").trim()
+                            valor.trim() === (detalles[i]?.descripcion ?? "").trim()
                           ) {
                             const nb = [...busquedaProducto];
                             nb[i] = detalles[i]?.descripcion ?? "";
@@ -233,60 +312,23 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                             return;
                           }
                           const nb = [...busquedaProducto];
-                          nb[i] = e.target.value;
+                          nb[i] = valor;
                           setBusquedaProducto(nb);
                           const nd = [...showDropdownProducto];
                           nd[i] = true;
                           setShowDropdownProducto(nd);
                           const n = [...detalles];
-                          n[i] = {
-                            ...n[i],
-                            descripcion: e.target.value,
-                            productoId: null,
-                          };
+                          n[i] = { ...n[i], descripcion: valor, productoId: null };
                           setDetalles(n as T[]);
 
                           e.target.style.height = "auto";
                           e.target.style.height = `${e.target.scrollHeight}px`;
-
-                          const tieneSaltoDeLinea = e.target.value.includes("\n");
-                          // El escáner envía el código y termina con Enter (salto de línea),
-                          // por lo que la última posición del split queda vacía. Tomamos la
-                          // última línea NO vacía = el código escaneado (sin el salto).
-                          const ultimaLinea = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? "";
-                          const candidato = tieneSaltoDeLinea && ultimaLinea.length >= 6 ? ultimaLinea : "";
-                          if (candidato) {
-                            const coincidencia = productosSucursal.find(
-                              (p: ProductoSucursal) => !!p.codigoBarras && p.codigoBarras === candidato,
-                            );
-                            if (coincidencia) {
-                              const detalleActual = detalles[i];
-                              if (detalleActual?.productoId === coincidencia.productoId) {
-                                actualizarCantidad(i, (detalleActual.cantidad ?? 1) + 1);
-                                const nb2 = [...busquedaProducto];
-                                nb2[i] = coincidencia.nomProducto;
-                                setBusquedaProducto(nb2);
-                                const nd2 = [...showDropdownProducto];
-                                nd2[i] = false;
-                                setShowDropdownProducto(nd2);
-                                showToast(`✓ ${coincidencia.nomProducto} ×${(detalleActual.cantidad ?? 1) + 1}`, "success");
-                              } else if (detalleActual?.productoId) {
-                                setPendingScanProducto(coincidencia);
-                                agregarFila();
-                              } else {
-                                seleccionarProducto(coincidencia, i);
-                                showToast(`✓ ${coincidencia.nomProducto} agregado por código de barras`, "success");
-                              }
-                              (e.target as HTMLTextAreaElement).blur();
-                              return;
-                            }
-                            showToast(`Código "${candidato}" no encontrado en el catálogo`, "error");
-                            const nb3 = [...busquedaProducto];
-                            nb3[i] = "";
-                            setBusquedaProducto(nb3);
-                          }
                         }}
                         onFocus={(e) => {
+                          originalItemAlFocoRef.current[i] = {
+                            productoId: detalles[i]?.productoId ?? null,
+                            descripcion: detalles[i]?.descripcion ?? busquedaProducto[i] ?? "",
+                          };
                           const nd = [...showDropdownProducto];
                           nd[i] = true;
                           setShowDropdownProducto(nd);
@@ -307,6 +349,7 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                           }, 50);
                         }}
                         onBlur={(e) => {
+                          delete originalItemAlFocoRef.current[i];
                           const target = e.target;
                           const blurredIndex = i;
                           target.style.height = "";
