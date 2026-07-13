@@ -693,7 +693,7 @@ function FacturaContent() {
       setShowDropdownProducto([]);
       inputRefs.current = [];
     }
-  }, [porConsumo]);
+  }, [porConsumo, IGV_DEFAULT]);
 
   // guard: skip bolsa else-branch on first render
   const bolsaMountedRef = useRef(false);
