@@ -5,14 +5,6 @@ interface OpcionesEscaner {
   maxGapMs?: number;
 }
 
-/**
- * Escucha globalmente el lector de código de barras en la pantalla de emisión.
- *
- * Solo se desactiva cuando el foco está en un TEXTAREA de búsqueda de producto
- * (marcado con data-escaner-producto), ya que ahí el textarea maneja el escaneo
- * por sí mismo. Para cualquier otro campo (checkbox, input de precio, cantidad,
- * select, etc.) el escáner global sigue activo.
- */
 export function useEscanerGlobal(
   onScan: (codigo: string) => void,
   opciones?: OpcionesEscaner,
@@ -31,6 +23,7 @@ export function useEscanerGlobal(
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       const el = document.activeElement as HTMLElement | null;
+
       if (el?.dataset?.escanerProducto === "true") {
         bufferRef.current = "";
         return;
@@ -55,6 +48,12 @@ export function useEscanerGlobal(
 
       if (e.key.length === 1) {
         bufferRef.current += e.key;
+        if (gap <= maxGap && bufferRef.current.length >= 2 && el) {
+          const tag = el.tagName;
+          if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+            el.blur();
+          }
+        }
       }
     };
 

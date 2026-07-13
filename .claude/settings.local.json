@@ -24,7 +24,29 @@
       "Read(//c/Users/Usuario/Desktop/BackFacturacion/IdeatecAPI/src/IdeatecAPI.Application/Features/Proveedor/**)",
       "Read(//c/Users/Usuario/Desktop/BackFacturacion/IdeatecAPI/src/IdeatecAPI.Application/Features/Productos/**)",
       "Read(//c/Users/Usuario/Desktop/BackFacturacion/IdeatecAPI/src/IdeatecAPI.API/Controllers/**)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/factufly/productos)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/factufly/productos)",
+      "Bash(netstat -ano)",
+      "Bash(timeout 15 npm run dev)",
+      "mcp__claude-in-chrome__navigate",
+      "mcp__claude-in-chrome__computer",
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\")",
+      "PowerShell(Stop-Process -Id 6840,16312,20620,20788 -Force -ErrorAction SilentlyContinue)",
+      "Bash(pandoc -t markdown \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\Carta_JOLCE_EIRL_Error_Correlativo_B001.docx\")",
+      "Read(//c/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion/740cd6b9-2f6b-432b-aab0-6bc86cbb91a1/scratchpad/**)",
+      "Bash(cp \"/c/Users/Usuario/Downloads/Carta_JOLCE_EIRL_Error_Correlativo_B001.docx\" .)",
+      "Bash(unzip -q Carta_JOLCE_EIRL_Error_Correlativo_B001.docx -d unpacked)",
+      "Bash(SC=\"/c/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion/740cd6b9-2f6b-432b-aab0-6bc86cbb91a1/scratchpad\"; ls \"$SC\")",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e ' *)",
+      "PowerShell(node \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion\\\\740cd6b9-2f6b-432b-aab0-6bc86cbb91a1\\\\scratchpad\\\\extract.js\")",
+      "Bash(python 'C:\\\\Users\\\\Usuario\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\996f928f-6d37-4840-ab37-8abf721aceba\\\\15f61b5f-3a78-4c1f-88e9-89d528210d98\\\\skills\\\\docx\\\\scripts\\\\merge_runs.py' 'C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion\\\\740cd6b9-2f6b-432b-aab0-6bc86cbb91a1\\\\scratchpad\\\\unpacked/')",
+      "Bash(py -3 --version)",
+      "Bash(where python3 *)",
+      "PowerShell(node \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion\\\\740cd6b9-2f6b-432b-aab0-6bc86cbb91a1\\\\scratchpad\\\\edit.js\")",
+      "PowerShell(node \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion\\\\740cd6b9-2f6b-432b-aab0-6bc86cbb91a1\\\\scratchpad\\\\verify.js\")",
+      "Bash(cp \"/c/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion/740cd6b9-2f6b-432b-aab0-6bc86cbb91a1/scratchpad/Carta_JOLCE_EIRL_actualizada.docx\" \"/c/Users/Usuario/Downloads/Carta_JOLCE_EIRL_Error_Correlativo_B001_actualizada.docx\")",
+      "Read(//c/Users/Usuario/Downloads/**)"
     ]
   }
 }

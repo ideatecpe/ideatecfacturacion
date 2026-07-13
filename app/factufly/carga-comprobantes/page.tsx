@@ -21,7 +21,6 @@ import {
   Search,
 } from "lucide-react";
 import { Button }  from "@/app/components/ui/Button";
-import { Card }    from "@/app/components/ui/Card";
 import { Modal }   from "@/app/components/ui/Modal";
 
 import { useCargaComprobantes }  from "./useCargaComprobantes";
@@ -857,7 +856,7 @@ export default function CargaComprobantesPage() {
                                     actualizarFila(fila.id, col.key, val);
                                   }}
                                   onDragStart={(e) => e.preventDefault()}
-                                  title={campoError ?? col.label}
+                                  title={campoError ?? String(fila[col.key] ?? "")}
                                   className={`w-full px-2 py-1 rounded-md border outline-none transition-all text-gray-800 text-[11px] focus:ring-2 ${
                                     campoError
                                       ? "border-red-300 bg-red-50 focus:border-red-400 focus:ring-red-100"

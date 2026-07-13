@@ -35,6 +35,7 @@ import { ModalGuardarClienteBoleta } from "../operaciones/boleta/gestionBoletas/
 import { useTrabajadoresSucursal } from "../trabajadores/gestionTrabajadores/useTrabajadoresSucursal";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 
 // ── Tipos ──────────────────────────────────────────────────────
 type TipoComprobante = "boleta" | "factura";
@@ -101,7 +102,8 @@ export default function EmisionRapidaPage({
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
   const isSuperAdmin = user?.rol === "superadmin";
-  const IGV_DEFAULT = user?.igv ?? 18;
+  const { config } = useConfiguracion();
+  const IGV_DEFAULT = config?.igv ? parseFloat(config.igv) : (user?.igv ?? 18);
 
   const { empresa } = useEmpresaEmisor();
 
@@ -290,7 +292,7 @@ export default function EmisionRapidaPage({
           i._precioVentaConIGV ??
           i.precioUnitario ??
           0,
-        porcentajeIGV: i.porcentajeIGV ?? 18,
+        porcentajeIGV: i.porcentajeIGV ?? IGV_DEFAULT,
         productoId: i.productoId,
         unidadMedida: i.unidadMedida || "NIU",
         codigo: i.codigo || null,
@@ -580,7 +582,7 @@ export default function EmisionRapidaPage({
       setItems((prev) => prev.filter((i) => i.id !== "por-consumo"));
       setBusquedaProducto((prev) => prev.filter((s) => s !== "Por Consumo"));
     }
-  }, [porConsumo]);
+  }, [porConsumo, IGV_DEFAULT]);
 
   // Al cambiar moneda — recalcular precios de items normales
   useEffect(() => {
