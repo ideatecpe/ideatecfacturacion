@@ -1121,14 +1121,21 @@ const LoginClient: React.FC = () => {
 
             <div className="mt-8 flex items-center gap-6 animate-in fade-in duration-1000 delay-500">
               <div className="flex -space-x-3">
-                {[1, 2, 3, 4].map((i) => (
+                {[
+                  "/logosEmpresas/alCalifa.webp",
+                  "/logosEmpresas/jolce.webp",
+                  "/logosEmpresas/rapidnails.webp",
+                  "/logosEmpresas/resterika.webp",
+                  "/logosEmpresas/velsat.webp",
+                ].map((logo, i) => (
                   <div
                     key={i}
-                    className="w-10 h-10 rounded-full border-2 border-blue-900 bg-slate-300 overflow-hidden"
+                    className="w-10 h-10 rounded-full border-2 border-blue-900 overflow-hidden animate-in zoom-in duration-500"
+                    style={{ animationDelay: `${i * 100}ms` }}
                   >
                     <img
-                      src={`https://i.pravatar.cc/100?img=${i + 10}`}
-                      alt="User"
+                      src={logo}
+                      alt="Logo Empresa"
                       className="w-full h-full object-cover"
                     />
                   </div>
