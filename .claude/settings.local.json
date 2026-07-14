@@ -46,7 +46,12 @@
       "PowerShell(node \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion\\\\740cd6b9-2f6b-432b-aab0-6bc86cbb91a1\\\\scratchpad\\\\edit.js\")",
       "PowerShell(node \"C:\\\\Users\\\\Usuario\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion\\\\740cd6b9-2f6b-432b-aab0-6bc86cbb91a1\\\\scratchpad\\\\verify.js\")",
       "Bash(cp \"/c/Users/Usuario/AppData/Local/Temp/claude/C--Users-Usuario-Desktop-FrontFacturacion-ideatecfacturacion/740cd6b9-2f6b-432b-aab0-6bc86cbb91a1/scratchpad/Carta_JOLCE_EIRL_actualizada.docx\" \"/c/Users/Usuario/Downloads/Carta_JOLCE_EIRL_Error_Correlativo_B001_actualizada.docx\")",
-      "Read(//c/Users/Usuario/Downloads/**)"
+      "Read(//c/Users/Usuario/Downloads/**)",
+      "Bash(pandoc -t markdown \"Carta_JOLCE_EIRL_Error_Correlativo.docx\")",
+      "Bash(which pandoc *)",
+      "Bash(rm -rf unpacked)",
+      "Bash(unzip -q \"Carta_JOLCE_EIRL_Error_Correlativo.docx\" -d unpacked)",
+      "Bash(cd \"C:/Users/Usuario/Downloads\" && ls unpacked/word/ && which python python3 py 2>&1)"
     ]
   }
 }

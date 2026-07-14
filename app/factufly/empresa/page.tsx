@@ -85,6 +85,7 @@ interface Configuracion {
   afectacionIgv:     boolean;
   descUnitario:      boolean;
   isStock:           boolean;
+  numeroStockBajo?:  string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -117,14 +118,16 @@ function FieldLabel({
 }
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label: string;
+  label: React.ReactNode;
   required?: boolean;
   hint?: string;
+  hintClassName?: string;
 }
 function Input({
   label,
   required,
   hint,
+  hintClassName,
   disabled,
   className,
   ...props
@@ -144,8 +147,26 @@ function Input({
         )}
         {...props}
       />
-      {hint && <p className="text-[10px] text-gray-400 italic">{hint}</p>}
+      {hint && (
+        <p className={cn(hintClassName ?? "text-[10px] text-gray-400 italic")}>
+          {hint}
+        </p>
+      )}
     </div>
+  );
+}
+
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+      <path d="M12.004 2c-5.514 0-9.99 4.476-9.99 9.99 0 1.76.462 3.48 1.34 4.997L2 22l5.148-1.35a9.955 9.955 0 0 0 4.856 1.24h.004c5.514 0 9.99-4.476 9.99-9.99C21.998 6.476 17.522 2 12.004 2zm0 18.152h-.003a8.14 8.14 0 0 1-4.15-1.137l-.298-.177-3.055.801.815-2.978-.194-.306a8.128 8.128 0 0 1-1.244-4.365c0-4.494 3.657-8.15 8.153-8.15 2.177 0 4.223.849 5.762 2.39a8.093 8.093 0 0 1 2.386 5.763c0 4.495-3.657 8.152-8.152 8.152z" />
+    </svg>
   );
 }
 
@@ -1322,13 +1343,13 @@ export default function ConfiguracionPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-100 rounded-xl overflow-hidden border border-gray-100">
                   {([
-                    { key: "isConsumo"          as const, label: "Consumo interno",        desc: "Módulo de consumo interno" },
+                    { key: "isConsumo"          as const, label: "Consumo interno",         desc: "Módulo de consumo interno" },
                     { key: "guiaRemision"        as const, label: "Guías de remisión",      desc: "Módulo de guías de remisión" },
                     { key: "isVale"              as const, label: "Vales",                  desc: "Emisión de vales" },
                     { key: "deudasCobrar"        as const, label: "Deudas por cobrar",      desc: "Módulo de gestión de deudas" },
                     { key: "trabajadores"        as const, label: "Trabajadores",           desc: "Módulo de gestión de personal" },
                     { key: "cargaComprobantes"   as const, label: "Carga comprobantes",     desc: "Módulo de carga masiva de comprobantes" },
-                    { key: "isStock"             as const, label: "Stock / Proveedores",          desc: "Módulo de gestión de inventario" },
+                    { key: "isStock"             as const, label: "Stock / Proveedores",    desc: "Módulo de gestión de inventario" },
                   ] as { key: keyof Configuracion; label: string; desc: string }[]).map(({ key, label, desc }) => (
                     <div key={key} className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
                       <div>
@@ -1339,6 +1360,28 @@ export default function ConfiguracionPage() {
                     </div>
                   ))}
                 </div>
+                {config.isStock && (
+                  <div className="mt-3">
+                    <Input
+                      label={
+                        <span className="flex items-center gap-1">
+                          <WhatsAppIcon className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                          Número de WhatsApp para aviso de stock bajo
+                        </span>
+                      }
+                      hint="Se notificará a este único número cuando un producto quede con 10 unidades o menos"
+                      hintClassName="text-xs text-gray-400"
+                      value={config.numeroStockBajo ?? ""}
+                      onChange={(e) =>
+                        updConfig("numeroStockBajo")(
+                          e.target.value.replace(/\D/g, "").slice(0, 9),
+                        )
+                      }
+                      disabled={!canEdit}
+                      placeholder="987654321"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Botón guardar */}
