@@ -19,6 +19,7 @@ export interface Configuracion {
   descUnitario: boolean;
   isStock: boolean;
   numeroStockBajo?: string | null;
+  useNotaVenta: boolean;
 }
 
 export function useConfiguracion() {

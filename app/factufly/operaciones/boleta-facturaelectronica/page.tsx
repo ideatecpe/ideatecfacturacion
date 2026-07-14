@@ -86,7 +86,7 @@ export default function BoletaFacturaElectronicaPage() {
           className="flex p-0.5 rounded-lg w-full sm:w-auto"
           style={{ background: "rgba(15,46,100,0.07)", border: "1px solid rgba(15,46,100,0.1)" }}
         >
-          {TABS.map(({ key, label, amber }) => (
+          {TABS.filter(t => t.key !== "notaventa" || config?.useNotaVenta).map(({ key, label, amber }) => (
             <button
               key={key}
               type="button"

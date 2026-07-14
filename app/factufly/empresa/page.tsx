@@ -86,6 +86,7 @@ interface Configuracion {
   descUnitario:      boolean;
   isStock:           boolean;
   numeroStockBajo?:  string | null;
+  useNotaVenta:      boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1350,6 +1351,7 @@ export default function ConfiguracionPage() {
                     { key: "trabajadores"        as const, label: "Trabajadores",           desc: "Módulo de gestión de personal" },
                     { key: "cargaComprobantes"   as const, label: "Carga comprobantes",     desc: "Módulo de carga masiva de comprobantes" },
                     { key: "isStock"             as const, label: "Stock / Proveedores",    desc: "Módulo de gestión de inventario" },
+                    { key: "useNotaVenta"        as const, label: "Nota de Venta",          desc: "Habilitar emisión de notas de venta" },
                   ] as { key: keyof Configuracion; label: string; desc: string }[]).map(({ key, label, desc }) => (
                     <div key={key} className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
                       <div>

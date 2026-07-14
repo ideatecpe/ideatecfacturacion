@@ -236,13 +236,14 @@ const DesgloseNotasCard: React.FC<{
   const ndDia = dashboard?.totalNotasDebitoDelDia ?? 0;
   const ndOtras = dashboard?.totalNotasDebitoOtrasFechas ?? 0;
   const hayNotasOtrasFechas = ncOtras > 0 || ndOtras > 0;
+  const hayNV = (dashboard?.totalNotasVentaDelDia ?? 0) > 0;
 
   return (
     <Card
       title="Desglose de Notas"
       subtitle="Impacto de notas de crédito y débito según fecha del documento afectado"
     >
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 mt-1">
+      <div className={hayNV ? "grid grid-cols-2 lg:grid-cols-6 gap-2 mt-1" : "grid grid-cols-2 lg:grid-cols-5 gap-2 mt-1"}>
         {/* NC del día */}
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-rose-100 bg-rose-50/50">
           <TrendingDown size={13} className="text-rose-500 shrink-0" />
@@ -282,13 +283,15 @@ const DesgloseNotasCard: React.FC<{
         </div>
 
         {/* Notas de Venta */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-100 bg-amber-50/50">
-          <FileText size={13} className="text-amber-500 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">NV · Hoy</p>
-            <p className="text-sm font-bold text-amber-700 truncate">{formatMoneda(dashboard?.totalNotasVentaDelDia ?? 0)}</p>
+        {hayNV && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-100 bg-amber-50/50">
+            <FileText size={13} className="text-amber-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">NV · Hoy</p>
+              <p className="text-sm font-bold text-amber-700 truncate">{formatMoneda(dashboard?.totalNotasVentaDelDia ?? 0)}</p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Ventas netas */}
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#D9E4F5] bg-[#EEF3FB]">
@@ -321,7 +324,6 @@ export default function DashboardPage() {
   const hookEmpresa = useDashboardEmpresa();
   const hookSucursal = useDashboardSucursal();
   const { sucursales } = useSucursalRuc(isSuperAdmin);
-
   const [sucursalSeleccionada, setSucursalSeleccionada] = useState<
     number | null
   >(null);
@@ -455,13 +457,13 @@ export default function DashboardPage() {
       color: "text-orange-500",
       bar: "bg-orange-500",
     },
-    {
+    ...((dashboard?.notasVentaEmitidas ?? 0) > 0 ? [{
       label: "N. de Venta",
       value: String(dashboard?.notasVentaEmitidas ?? 0),
       icon: FileText,
       color: "text-amber-600",
       bar: "bg-amber-500",
-    },
+    }] : []),
   ];
 
   const isPageLoading = loading || isAuthLoading || (!dashboard && !error);
@@ -533,7 +535,7 @@ export default function DashboardPage() {
 
       <div className="space-y-3 animate-in fade-in duration-500">
         {/* ─── KPI Grid ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+        <div className={kpis.length >= 7 ? "grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3" : "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3"}>
           {isPageLoading
             ? Array.from({ length: 7 }).map((_, i) => (
                 <Card key={i} className="p-0">

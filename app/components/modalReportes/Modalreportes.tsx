@@ -13,6 +13,7 @@ import { cn } from "@/app/utils/cn";
 import { Button } from "@/app/components/ui/Button";
 import { FiltrosReporteModal, FiltroNV } from "@/app/factufly/reportes/gestionReportes/Reportes";
 import { UsuarioReporte } from "@/app/factufly/reportes/gestionReportes/UseUsuariosReporte";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface Sucursal {
@@ -141,6 +142,7 @@ export function ModalReportes({
   onDescargarTicket, onDescargarPdfTicket,
 }: ModalReportesProps) {
 
+  const { config } = useConfiguracion();
   const [formato, setFormato] = useState<FormatoReporte>('excel');
 
   const hayDescarga = loadingExcelListado || loadingExcelProductos || loadingExcelMedios || loadingExcelControlCaja || loadingTicketControlCaja;
@@ -363,7 +365,7 @@ export function ModalReportes({
                 </div>
 
                 {/* ── Nota de Venta ─────────────────────────────────────────── */}
-                <div className="flex items-center gap-3 py-2.5 px-3.5 bg-gray-50 border border-gray-200 rounded-xl">
+                {config?.useNotaVenta && <div className="flex items-center gap-3 py-2.5 px-3.5 bg-gray-50 border border-gray-200 rounded-xl">
                   <Receipt size={13} className="text-gray-400 shrink-0" />
                   <span className="text-[11px] font-bold text-gray-600 shrink-0">Nota de Venta</span>
                   <div className="flex gap-1.5 ml-auto">
@@ -385,7 +387,7 @@ export function ModalReportes({
                       </button>
                     ))}
                   </div>
-                </div>
+                </div>}
 
                 {/* ── FILA 3: Nombre del archivo (ancho completo) ───────────── */}
                 <div>

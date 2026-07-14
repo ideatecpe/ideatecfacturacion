@@ -921,8 +921,8 @@ export default function VerComprobantesPage() {
                 </button>
               )}
             </div>
-            <DropdownFiltro label="Tipo" value={filtroTipo} options={TIPOS_OPTS} onChange={setFiltroTipo} />
-            <DropdownFiltro label="Estado SUNAT" value={filtroEstado} options={ESTADOS_OPTS} onChange={setFiltroEstado} colorMap={ESTADO_COLORS_MAP} />
+            <DropdownFiltro label="Tipo" value={filtroTipo} options={comprobantes.some(c => c.tipoComprobante === 'NV') ? TIPOS_OPTS : TIPOS_OPTS.filter(t => t !== "N. Venta")} onChange={setFiltroTipo} />
+            <DropdownFiltro label="Estado SUNAT" value={filtroEstado} options={comprobantes.some(c => c.tipoComprobante === 'NV') ? ESTADOS_OPTS : ESTADOS_OPTS.filter(e => e !== "No Aplica")} onChange={setFiltroEstado} colorMap={ESTADO_COLORS_MAP} />
             <button
               onClick={() => setShowAvanzado((o) => !o)}
               className={cn(

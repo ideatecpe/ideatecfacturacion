@@ -210,7 +210,7 @@ export default function ReportesPage() {
       { name: 'Boletas',          value: d.boletas,       color: DOC_COLORS.boletas },
       { name: 'Notas de Crédito', value: d.notasCredito,  color: DOC_COLORS.notasCredito },
       { name: 'Notas de Débito',  value: d.notasDebito,   color: DOC_COLORS.notasDebito },
-      { name: 'N. de Venta',      value: d.notasVenta ?? 0, color: DOC_COLORS.notasVenta },
+      { name: 'N. de Venta', value: d.notasVenta ?? 0, color: DOC_COLORS.notasVenta },
     ].filter(i => i.value > 0);
   }, [reportes?.distribucion]);
 
@@ -237,12 +237,12 @@ export default function ReportesPage() {
       trend: kpi ? calcTrend(kpi.totalDocumentos, kpi.totalDocumentosAnterior) : { pct: '—', isUp: true },
       icon: PieChartIcon, color: 'text-brand-red', bg: 'bg-red-50',
     },
-    {
+    ...(totalNV > 0 ? [{
       label: 'N. de Venta',
       value: kpi ? formatNum(totalNV) : '—',
       trend: { pct: `${countNV} doc${countNV !== 1 ? 's' : ''}`, isUp: true },
       icon: Receipt, color: 'text-amber-600', bg: 'bg-amber-50',
-    },
+    }] : []),
   ], [kpi, totalNV, countNV]);
 
   // ── Export Excel desde modal ──────────────────────────────────────────────
@@ -465,7 +465,7 @@ export default function ReportesPage() {
       </div>
 
       {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-${stats.length} gap-6`}>
         {stats.map((stat, i) => (
           <Card key={i} className="p-0">
             <div className="p-0">
@@ -543,7 +543,7 @@ export default function ReportesPage() {
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
                   <Bar dataKey="ventas"   name="Ventas Totales"  fill="#0052CC" radius={[4, 4, 0, 0]} barSize={16} />
                   <Bar dataKey="igv"      name="IGV Generado"    fill="#FF6321" radius={[4, 4, 0, 0]} barSize={16} />
-                  <Bar dataKey="ventasNV" name="N. de Venta"     fill="#d97706" radius={[4, 4, 0, 0]} barSize={16} />
+                  {totalNV > 0 && <Bar dataKey="ventasNV" name="N. de Venta" fill="#d97706" radius={[4, 4, 0, 0]} barSize={16} />}
                 </BarChart>
               </ResponsiveContainer>
             )}
