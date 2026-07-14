@@ -15,6 +15,7 @@ export interface GraficoBarra {
   etiqueta: string
   ventas: number
   igv: number
+  ventasNV: number
 }
 
 // ── Distribución donut ─────────────────────────────────────────────────────────
@@ -23,6 +24,8 @@ export interface DistribucionDocumentos {
   boletas: number
   notasCredito: number
   notasDebito: number
+  notasVenta: number
+  totalNotasVenta: number
 }
 
 // ── Tabla clientes ─────────────────────────────────────────────────────────────
@@ -119,9 +122,12 @@ export interface ReportesAvanzadosParams {
   clienteNumDoc?: string | null
   limit?: number | null
   orderBy?: 'monto' | 'cantidad' | 'veces'
+  filtroNV?: FiltroNV | null
 }
 
 // ── Modal filtros ──────────────────────────────────────────────────────────────
+export type FiltroNV = 'excluir' | 'incluir' | 'solo'
+
 export interface FiltrosReporteModal {
   codEstablecimiento?: string | null
   fechaDesde?: string | null
@@ -131,4 +137,5 @@ export interface FiltrosReporteModal {
   limit?: number | null
   orderBy?: 'monto' | 'cantidad' | 'veces'
   tituloPersonalizado?: string | null
+  filtroNV?: FiltroNV | null
 }

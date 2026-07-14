@@ -300,6 +300,7 @@ function SucursalCard({
               label="Guía Transp."
               value={s.serieGuiaTransportista}
             />
+            <SeriesBadge label="Nota Venta" value={s.serieNotaVenta} />
           </div>
         </div>
 
@@ -383,6 +384,7 @@ export default function SucursalesPage() {
     if (s.serieNotaDebitoBoleta) count++;
     if (s.serieGuiaRemision) count++;
     if (s.serieGuiaTransportista) count++;
+    if (s.serieNotaVenta) count++;
     return acc + count;
   }, 0);
 
@@ -438,6 +440,8 @@ export default function SucursalesPage() {
       correlativoGuiaRemision: s.correlativoGuiaRemision ?? 1,
       serieGuiaTransportista: s.serieGuiaTransportista,
       correlativoGuiaTransportista: s.correlativoGuiaTransportista ?? 1,
+      serieNotaVenta: s.serieNotaVenta,
+      correlativoNotaVenta: s.correlativoNotaVenta ?? 1,
     };
   }
 
@@ -470,6 +474,8 @@ export default function SucursalesPage() {
           correlativoGuiaRemision: form.correlativoGuiaRemision,
           serieGuiaTransportista: form.serieGuiaTransportista,
           correlativoGuiaTransportista: form.correlativoGuiaTransportista,
+          serieNotaVenta: form.serieNotaVenta,
+          correlativoNotaVenta: form.correlativoNotaVenta,
           usernameAdminSucursal: form.usuario,
         },
         { headers: { Authorization: `Bearer ${accessToken}` } },

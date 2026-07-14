@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3, TrendingUp, Calendar, Download,
   PieChart as PieChartIcon, ArrowUpRight, ArrowDownRight, Loader2,
-  ChevronLeft, ChevronRight, FileSpreadsheet
+  ChevronLeft, ChevronRight, FileSpreadsheet, Receipt
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -31,6 +31,7 @@ const DOC_COLORS = {
   boletas:      '#FF6321',
   notasCredito: '#6366f1',
   notasDebito:  '#f59e0b',
+  notasVenta:   '#d97706',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -209,11 +210,14 @@ export default function ReportesPage() {
       { name: 'Boletas',          value: d.boletas,       color: DOC_COLORS.boletas },
       { name: 'Notas de Crédito', value: d.notasCredito,  color: DOC_COLORS.notasCredito },
       { name: 'Notas de Débito',  value: d.notasDebito,   color: DOC_COLORS.notasDebito },
+      { name: 'N. de Venta',      value: d.notasVenta ?? 0, color: DOC_COLORS.notasVenta },
     ].filter(i => i.value > 0);
   }, [reportes?.distribucion]);
 
   // ── KPI ───────────────────────────────────────────────────────────────────
   const kpi = reportes?.kpi;
+  const totalNV = reportes?.distribucion?.totalNotasVenta ?? 0;
+  const countNV = reportes?.distribucion?.notasVenta ?? 0;
   const stats = useMemo(() => [
     {
       label: 'Total Ventas (Inc. IGV)',
@@ -233,7 +237,13 @@ export default function ReportesPage() {
       trend: kpi ? calcTrend(kpi.totalDocumentos, kpi.totalDocumentosAnterior) : { pct: '—', isUp: true },
       icon: PieChartIcon, color: 'text-brand-red', bg: 'bg-red-50',
     },
-  ], [kpi]);
+    {
+      label: 'N. de Venta',
+      value: kpi ? formatNum(totalNV) : '—',
+      trend: { pct: `${countNV} doc${countNV !== 1 ? 's' : ''}`, isUp: true },
+      icon: Receipt, color: 'text-amber-600', bg: 'bg-amber-50',
+    },
+  ], [kpi, totalNV, countNV]);
 
   // ── Export Excel desde modal ──────────────────────────────────────────────
   const getParamsBase = (sId: number | null = sucursalSeleccionada) => ({
@@ -455,7 +465,7 @@ export default function ReportesPage() {
       </div>
 
       {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {stats.map((stat, i) => (
           <Card key={i} className="p-0">
             <div className="p-0">
@@ -531,8 +541,9 @@ export default function ReportesPage() {
                     formatter={(value: number | undefined) => value !== undefined ? `S/ ${value.toLocaleString('es-PE')}` : '—'}
                   />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
-                  <Bar dataKey="ventas" name="Ventas Totales" fill="#0052CC" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Bar dataKey="igv"    name="IGV Generado"   fill="#FF6321" radius={[4, 4, 0, 0]} barSize={20} />
+                  <Bar dataKey="ventas"   name="Ventas Totales"  fill="#0052CC" radius={[4, 4, 0, 0]} barSize={16} />
+                  <Bar dataKey="igv"      name="IGV Generado"    fill="#FF6321" radius={[4, 4, 0, 0]} barSize={16} />
+                  <Bar dataKey="ventasNV" name="N. de Venta"     fill="#d97706" radius={[4, 4, 0, 0]} barSize={16} />
                 </BarChart>
               </ResponsiveContainer>
             )}

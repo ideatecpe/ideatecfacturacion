@@ -59,6 +59,8 @@ export function NuevaSucursalModal({
     correlativoGuiaRemision:       1,
     serieGuiaTransportista:        nextSerie(sucursales, "V", "serieGuiaTransportista"),
     correlativoGuiaTransportista:  1,
+    serieNotaVenta:                nextSerie(sucursales, "NV", "serieNotaVenta"),
+    correlativoNotaVenta:          1,
   });
 
   const upd =
@@ -224,6 +226,7 @@ export function NuevaSucursalModal({
                   <SerieRowModal label="Nota Débito Boleta"   serieKey="serieNotaDebitoBoleta"      correlativoKey="correlativoNotaDebitoBoleta"      form={form} setForm={setForm} prefix="BD" />
                   <SerieRowModal label="Guía de Remisión"     serieKey="serieGuiaRemision"          correlativoKey="correlativoGuiaRemision"          form={form} setForm={setForm} prefix="T" />
                   <SerieRowModal label="Guía Transportista"   serieKey="serieGuiaTransportista"     correlativoKey="correlativoGuiaTransportista"     form={form} setForm={setForm} prefix="V" />
+                  <SerieRowModal label="Nota de Venta (Control Interno)" serieKey="serieNotaVenta" correlativoKey="correlativoNotaVenta" form={form} setForm={setForm} prefix="NV" hint="Ej: NV01" />
                 </div>
               </div>
             </div>

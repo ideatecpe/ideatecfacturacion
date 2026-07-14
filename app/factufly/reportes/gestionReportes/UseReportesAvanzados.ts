@@ -246,6 +246,7 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
         clienteNumDoc:      params.clienteNumDoc,
         limit:              params.limit,
         formato,
+        filtroNV:           params.filtroNV ?? 'excluir',
       })
       await descargarBlob(url, titulo, formato)
       showToast(`${formato === 'pdf' ? 'PDF' : 'Excel'} descargado correctamente`, 'success')
@@ -273,6 +274,7 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
         usuarioCreacion:    params.usuarioCreacion,
         clienteNumDoc:      params.clienteNumDoc,
         limit:              params.limit,
+        filtroNV:           params.filtroNV ?? 'excluir',
       })
       const res = await fetch(url, { headers })
       if (!res.ok) throw new Error(`Error ${res.status}`)
@@ -316,6 +318,7 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
         usuarioCreacion:    params.usuarioCreacion,
         clienteNumDoc:      params.clienteNumDoc,
         limit:              params.limit,
+        filtroNV:           params.filtroNV ?? 'excluir',
       })
       await descargarBlob(url, `caja-ticket-${params.fechaDesde ?? 'hoy'}`, 'pdf')
       showToast('PDF descargado correctamente', 'success')

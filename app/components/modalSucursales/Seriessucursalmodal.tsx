@@ -30,6 +30,8 @@ export function SeriesSucursalModal({
     correlativoGuiaRemision:        sucursal.correlativoGuiaRemision,
     serieGuiaTransportista:         sucursal.serieGuiaTransportista,
     correlativoGuiaTransportista:   sucursal.correlativoGuiaTransportista,
+    serieNotaVenta:                 sucursal.serieNotaVenta ?? "",
+    correlativoNotaVenta:           sucursal.correlativoNotaVenta ?? 1,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,6 +54,9 @@ export function SeriesSucursalModal({
     { label: "Guía de Remisión",     serieKey: "serieGuiaRemision",          corrKey: "correlativoGuiaRemision" },
     { label: "Guía Transportista",   serieKey: "serieGuiaTransportista",     corrKey: "correlativoGuiaTransportista" },
   ];
+
+  // NV va separado porque la serie es editable (no viene de SUNAT)
+  const nvSerie = form.serieNotaVenta;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -109,6 +114,39 @@ export function SeriesSucursalModal({
                       </td>
                     </tr>
                   ))}
+                  {/* Nota de Venta — serie editable porque no viene de SUNAT */}
+                  <tr className="border-t border-amber-100 bg-amber-50/40">
+                    <td className="px-4 py-3 text-gray-700 font-medium">
+                      Nota de Venta
+                      <span className="ml-2 text-[10px] text-amber-600 font-semibold bg-amber-100 px-1.5 py-0.5 rounded-full">Control interno</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="NV01"
+                        className="w-20 px-2 py-1 border border-amber-200 rounded-lg text-xs text-center font-bold text-amber-700 bg-amber-50 outline-none focus:border-amber-400 uppercase"
+                        value={nvSerie}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, serieNotaVenta: e.target.value.toUpperCase() }))
+                        }
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="number"
+                        min={1}
+                        className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-xs text-center font-mono text-gray-600 outline-none focus:border-brand-blue/50"
+                        value={form.correlativoNotaVenta}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            correlativoNotaVenta: Math.max(1, parseInt(e.target.value) || 1),
+                          }))
+                        }
+                      />
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>

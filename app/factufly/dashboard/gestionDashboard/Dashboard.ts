@@ -20,6 +20,8 @@ export interface DashboardData {
   boletasEmitidas: number
   notasCreditoEmitidas: number
   notasDebitoEmitidas: number
+  notasVentaEmitidas: number
+  totalNotasVentaDelDia: number
   totalNotasCreditoDelDia: number
   totalNotasCreditoOtrasFechas: number
   totalNotasDebitoDelDia: number

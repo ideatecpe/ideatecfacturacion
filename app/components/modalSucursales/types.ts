@@ -21,6 +21,8 @@ export interface Sucursal {
   correlativoGuiaRemision: number;
   serieGuiaTransportista: string;
   correlativoGuiaTransportista: number;
+  serieNotaVenta?: string;
+  correlativoNotaVenta?: number;
 }
 
 export interface NuevaSucursalForm {
@@ -45,6 +47,8 @@ export interface NuevaSucursalForm {
   correlativoGuiaRemision: number;
   serieGuiaTransportista: string;
   correlativoGuiaTransportista: number;
+  serieNotaVenta?: string;
+  correlativoNotaVenta?: number;
 }
 
 export interface EditSucursalForm {

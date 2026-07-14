@@ -29,6 +29,7 @@ const filtrosIniciales: FiltrosReporteModal = {
   limit:              null,
   orderBy:            'monto',
   tituloPersonalizado: null,
+  filtroNV:           'excluir',
 }
 
 export const useModalReportes = (): UseModalReportesReturn => {

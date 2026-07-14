@@ -63,6 +63,8 @@ interface Sucursal {
   correlativoGuiaRemision: number;
   serieGuiaTransportista: string;
   correlativoGuiaTransportista: number;
+  serieNotaVenta?: string;
+  correlativoNotaVenta?: number;
   estado: boolean;
 }
 
@@ -575,6 +577,22 @@ function SucursalCard({
               hint="V001"
               readOnly={readOnly}
             />
+            {/* ── Nota de Venta (control interno, sin envío SUNAT) ── */}
+            <div className="pt-2 mt-2 border-t border-amber-100">
+              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-2">
+                Control Interno <span className="normal-case font-normal">(sin validez tributaria)</span>
+              </p>
+              <SucursalSerieRow
+                label="Nota de Venta"
+                serie={sucursal.serieNotaVenta ?? ""}
+                correlativo={sucursal.correlativoNotaVenta ?? 1}
+                onSerieChange={(v) => upd("serieNotaVenta")(v.toUpperCase())}
+                onCorrelativoChange={(v) => upd("correlativoNotaVenta")(v)}
+                prefix="NV"
+                hint="NV01"
+                readOnly={readOnly}
+              />
+            </div>
           </div>
 
           {/* Footer — solo visible si puede editar */}
@@ -915,6 +933,8 @@ export default function ConfiguracionPage() {
         correlativoGuiaRemision: sucursal.correlativoGuiaRemision,
         serieGuiaTransportista: sucursal.serieGuiaTransportista,
         correlativoGuiaTransportista: sucursal.correlativoGuiaTransportista,
+        serieNotaVenta: sucursal.serieNotaVenta,
+        correlativoNotaVenta: sucursal.correlativoNotaVenta,
       };
       await axios.put(
         `${BASE_URL}/api/Sucursal/${sucursal.sucursalId}`,

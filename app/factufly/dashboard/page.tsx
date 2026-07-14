@@ -242,7 +242,7 @@ const DesgloseNotasCard: React.FC<{
       title="Desglose de Notas"
       subtitle="Impacto de notas de crédito y débito según fecha del documento afectado"
     >
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mt-1">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 mt-1">
         {/* NC del día */}
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-rose-100 bg-rose-50/50">
           <TrendingDown size={13} className="text-rose-500 shrink-0" />
@@ -278,6 +278,15 @@ const DesgloseNotasCard: React.FC<{
           <div className="min-w-0">
             <p className={cn("text-[10px] font-semibold uppercase tracking-wide", hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400")}>ND · Anteriores</p>
             <p className={cn("text-sm font-bold truncate", hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400")}>{formatMoneda(ndOtras)}</p>
+          </div>
+        </div>
+
+        {/* Notas de Venta */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-100 bg-amber-50/50">
+          <FileText size={13} className="text-amber-500 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">NV · Hoy</p>
+            <p className="text-sm font-bold text-amber-700 truncate">{formatMoneda(dashboard?.totalNotasVentaDelDia ?? 0)}</p>
           </div>
         </div>
 
@@ -446,6 +455,13 @@ export default function DashboardPage() {
       color: "text-orange-500",
       bar: "bg-orange-500",
     },
+    {
+      label: "N. de Venta",
+      value: String(dashboard?.notasVentaEmitidas ?? 0),
+      icon: FileText,
+      color: "text-amber-600",
+      bar: "bg-amber-500",
+    },
   ];
 
   const isPageLoading = loading || isAuthLoading || (!dashboard && !error);
@@ -517,9 +533,9 @@ export default function DashboardPage() {
 
       <div className="space-y-3 animate-in fade-in duration-500">
         {/* ─── KPI Grid ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
           {isPageLoading
-            ? Array.from({ length: 6 }).map((_, i) => (
+            ? Array.from({ length: 7 }).map((_, i) => (
                 <Card key={i} className="p-0">
                   <div className="p-3 flex items-center gap-3">
                     <Skeleton className="w-8 h-8 rounded-lg shrink-0" />

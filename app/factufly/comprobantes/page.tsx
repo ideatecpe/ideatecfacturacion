@@ -69,13 +69,14 @@ import {
 import { CardTable } from "@/app/components/ui/CardTable";
 
 // ─── Constantes filtros ───────────────────────────────────────────────────────
-const TIPOS_OPTS = ["Todos", "Factura", "Boleta", "N.Crédito", "N.Débito"];
-const ESTADOS_OPTS = ["Todos", "Aceptado", "Pendiente", "Rechazado", "Anulado"];
+const TIPOS_OPTS = ["Todos", "Factura", "Boleta", "N.Crédito", "N.Débito", "N. Venta"];
+const ESTADOS_OPTS = ["Todos", "Aceptado", "Pendiente", "Rechazado", "Anulado", "No Aplica"];
 const ESTADO_COLORS_MAP: Record<string, string> = {
   Aceptado: "bg-emerald-500",
   Pendiente: "bg-amber-400",
   Rechazado: "bg-red-500",
   Anulado: "bg-gray-400",
+  "No Aplica": "bg-slate-400",
 };
 
 // ─── Page Principal ───────────────────────────────────────────────────────────
@@ -487,7 +488,9 @@ export default function VerComprobantesPage() {
               ? "Rechazado"
               : c.estadoSunat === "ANULADO"
                 ? "Anulado"
-                : "Pendiente";
+                : c.estadoSunat === "NO_APLICA"
+                  ? "No Aplica"
+                  : "Pendiente";
         const matchEstado =
           filtroEstado === "Todos" || estadoLabel === filtroEstado;
         return matchSearch && matchTipo && matchEstado;
@@ -1412,19 +1415,25 @@ export default function VerComprobantesPage() {
                     </td>
                     <td className="px-2 py-1 text-center w-20">
                       <div className="flex justify-center">
-                        <DropdownOpciones
-                          comprobante={doc}
-                          onEnviarSunat={() => enviarSunat(doc)}
-                          onEditarEnviarSunat={() => editarenviarSunat(doc)}
-                          onResumen={() => agregarResumen(doc)}
-                          onAnular={() => anularComprobante(doc)}
-                          onGenerarNotaCredito={() => generarNotaCredito(doc)}
-                          onGenerarNotaDebito={() => generarNotaDebito(doc)}
-                          mostrarDetallesAdicionales={esRucDetallesAdicionales}
-                          onDetallesAdicionales={() =>
-                            abrirDetallesAdicionales(doc)
-                          }
-                        />
+                        {doc.tipoComprobante === "NV" ? (
+                          <span className="p-2 text-gray-300 cursor-not-allowed">
+                            <MoreHorizontal size={16} />
+                          </span>
+                        ) : (
+                          <DropdownOpciones
+                            comprobante={doc}
+                            onEnviarSunat={() => enviarSunat(doc)}
+                            onEditarEnviarSunat={() => editarenviarSunat(doc)}
+                            onResumen={() => agregarResumen(doc)}
+                            onAnular={() => anularComprobante(doc)}
+                            onGenerarNotaCredito={() => generarNotaCredito(doc)}
+                            onGenerarNotaDebito={() => generarNotaDebito(doc)}
+                            mostrarDetallesAdicionales={esRucDetallesAdicionales}
+                            onDetallesAdicionales={() =>
+                              abrirDetallesAdicionales(doc)
+                            }
+                          />
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1498,6 +1507,13 @@ const BadgeSunat = ({
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap bg-blue-50 text-blue-600 border-blue-200">
         <RefreshCw size={11} className="animate-spin" /> Enviando...
+      </span>
+    );
+  }
+  if (estado === "NO_APLICA") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold whitespace-nowrap bg-slate-50 text-slate-500 border-slate-200">
+        <Ban size={11} /> No Aplica
       </span>
     );
   }

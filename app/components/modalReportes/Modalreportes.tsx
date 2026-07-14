@@ -6,12 +6,12 @@ import {
   X, Download, FileSpreadsheet,
   Calendar, User, Building2, Hash,
   SortAsc, FileText, Loader2, ChevronDown, Check,
-  Printer, FileBarChart2,
+  Printer, FileBarChart2, Receipt,
 } from "lucide-react";
 import { FormatoReporte } from "@/app/factufly/reportes/gestionReportes/UseReportesAvanzados";
 import { cn } from "@/app/utils/cn";
 import { Button } from "@/app/components/ui/Button";
-import { FiltrosReporteModal } from "@/app/factufly/reportes/gestionReportes/Reportes";
+import { FiltrosReporteModal, FiltroNV } from "@/app/factufly/reportes/gestionReportes/Reportes";
 import { UsuarioReporte } from "@/app/factufly/reportes/gestionReportes/UseUsuariosReporte";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -360,6 +360,31 @@ export function ModalReportes({
                       {s.label}
                     </button>
                   ))}
+                </div>
+
+                {/* ── Nota de Venta ─────────────────────────────────────────── */}
+                <div className="flex items-center gap-3 py-2.5 px-3.5 bg-gray-50 border border-gray-200 rounded-xl">
+                  <Receipt size={13} className="text-gray-400 shrink-0" />
+                  <span className="text-[11px] font-bold text-gray-600 shrink-0">Nota de Venta</span>
+                  <div className="flex gap-1.5 ml-auto">
+                    {([
+                      { value: 'excluir' as FiltroNV, label: 'Sin NV' },
+                      { value: 'incluir' as FiltroNV, label: 'Con NV' },
+                      { value: 'solo'    as FiltroNV, label: 'Solo NV' },
+                    ]).map((opt) => (
+                      <button key={opt.value} type="button"
+                        onClick={() => onSetFiltro('filtroNV', opt.value)}
+                        className={cn(
+                          "text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all",
+                          (filtros.filtroNV ?? 'excluir') === opt.value
+                            ? "bg-blue-500 text-white shadow-sm"
+                            : "bg-gray-100 hover:bg-blue-50 hover:text-blue-600 text-gray-500"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* ── FILA 3: Nombre del archivo (ancho completo) ───────────── */}

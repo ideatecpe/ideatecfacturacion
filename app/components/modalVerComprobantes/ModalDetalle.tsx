@@ -162,6 +162,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                         <>
                             {/* Estado SUNAT */}
                             <div className="flex items-center justify-between flex-wrap gap-2">
+                                {comprobante.tipoComprobante !== 'NV' && (
                                 <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold", colorEstado)}>
                                     {iconoEstado} Estado SUNAT: {
                                         comprobante.estadoSunat === 'ACEPTADO' ? 'Aceptado' :
@@ -170,6 +171,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                                         'Pendiente'
                                     }
                                 </div>
+                                )}
                                 {nombreSucursal && (
                                     <div className="inline-flex items-center gap-1.5 px-3 rounded-full border text-xs font-semibold bg-blue-50 text-blue-700 border-blue-200">
                                         <Building2 size={11} /> Sucursal: {nombreSucursal}
