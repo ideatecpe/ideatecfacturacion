@@ -42,6 +42,7 @@ import { useSucursal } from "../boleta/gestionBoletas/useSucursal";
 import { formatoFechaActual, fechaLocalISO, fmtMonto } from "@/app/components/ui/formatoFecha";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
 import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
+import { avisarStockBajoWhatsapp } from "../../productos/gestioProductos/stockAlerta";
 import axios from "axios";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
 import { useToast } from "@/app/components/ui/Toast";
@@ -1990,7 +1991,19 @@ function NotaVentaContent() {
         items,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
-      fetchProductosSucursal();
+      const productosActualizados = await fetchProductosSucursal();
+      if (config?.numeroStockBajo) {
+        const bajos = (productosActualizados ?? [])
+          .filter((p) => {
+            const cantidadVendida = acumulado.get(p.sucursalProducto.sucursalProductoId);
+            if (cantidadVendida === undefined) return false;
+            const stockDespues = p.sucursalProducto.stock ?? 0;
+            const stockAntes = stockDespues + cantidadVendida;
+            return stockDespues <= 10 && stockAntes > 10;
+          })
+          .map((p) => ({ nomProducto: p.nomProducto, stock: p.sucursalProducto.stock ?? 0 }));
+        if (bajos.length) avisarStockBajoWhatsapp(bajos, config.numeroStockBajo);
+      }
     } catch {
       showToast("No se pudo actualizar el stock de los productos.", "error");
     }
