@@ -12,6 +12,8 @@ import { Proveedor, CompraProveedor } from "@/app/factufly/compras/proveedores/g
 import { useRegistrarCompraProveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/useRegistrarCompraProveedor";
 import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { ProductoSucursal } from "@/app/factufly/productos/gestioProductos/Producto";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
+import { avisarStockRepuestoWhatsapp } from "@/app/factufly/productos/gestioProductos/stockAlerta";
 import LineaCompraRow, { LineaCompra } from "./LineaCompraRow";
 
 /** Switch segmentado: misma data en todas las líneas que comparten sucursal,
@@ -120,7 +122,8 @@ export default function RegistrarCompra({
   onCompraRegistrada,
 }: Props) {
   const { showToast } = useToast();
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
+  const { config } = useConfiguracion();
   const isSuperAdmin = user?.rol === "superadmin";
   const sucursalFija = !isSuperAdmin
     ? { id: parseInt(user?.sucursalID ?? "0"), nombre: user?.nombreSucursal ?? "" }
@@ -244,6 +247,7 @@ export default function RegistrarCompra({
     let ok = 0;
     const errores: string[] = [];
     let ultimaCreada: CompraProveedor | null = null;
+    const registrosOk: { sucursalId: number; productoId: number; cantidad: number }[] = [];
 
     for (let i = 0; i < lineas.length; i++) {
       const l = lineas[i];
@@ -254,6 +258,8 @@ export default function RegistrarCompra({
         modoProveedor === "varios" && modoDoc === "porLinea"
           ? l.docReferencia
           : docReferenciaHeader;
+
+      const producto = resolverProductoDeLinea(l);
 
       const creada = await registrarCompraProveedor({
         proveedorId,
@@ -268,6 +274,11 @@ export default function RegistrarCompra({
       if (creada) {
         ok++;
         ultimaCreada = creada;
+        // Los paquetes reponen el stock del producto BASE (no el vendido en la línea),
+        // así que no se puede calcular el cruce de umbral con los datos de esta línea.
+        if (!producto?.esPaquete) {
+          registrosOk.push({ sucursalId, productoId: l.productoId, cantidad: Number(l.cantidad) });
+        }
       } else {
         errores.push(`Línea ${i + 1}`);
       }
@@ -278,7 +289,47 @@ export default function RegistrarCompra({
     setGuardando(false);
     if (ultimaCreada) onCompraRegistrada(ultimaCreada);
 
+    if (config?.numeroStockBajo && registrosOk.length) {
+      avisarStockRepuestoSiAplica(registrosOk, config.numeroStockBajo);
+    }
+
     if (errores.length === 0) onClose();
+  };
+
+  // ── Avisar por WhatsApp si algún producto repuesto cruzó de <=10 a >10 ──────
+  const avisarStockRepuestoSiAplica = async (
+    registros: { sucursalId: number; productoId: number; cantidad: number }[],
+    numero: string,
+  ) => {
+    const sucursalIds = Array.from(new Set(registros.map((r) => r.sucursalId)));
+    const frescos = new Map<number, ProductoSucursal[]>();
+
+    await Promise.all(
+      sucursalIds.map(async (sucursalId) => {
+        try {
+          const res = await axios.get<ProductoSucursal[]>(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${sucursalId}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
+          frescos.set(sucursalId, res.data);
+        } catch {
+          // silencioso: esa sucursal simplemente no participa del aviso
+        }
+      }),
+    );
+
+    const repuestos = registros
+      .map((r) => {
+        const producto = frescos.get(r.sucursalId)?.find((p) => p.productoId === r.productoId);
+        if (!producto) return null;
+        const stockDespues = producto.sucursalProducto.stock ?? 0;
+        const stockAntes = stockDespues - r.cantidad;
+        if (stockAntes > 10 || stockDespues <= 10) return null;
+        return { nomProducto: producto.nomProducto, stock: stockDespues };
+      })
+      .filter((p): p is { nomProducto: string; stock: number } => p !== null);
+
+    if (repuestos.length) avisarStockRepuestoWhatsapp(repuestos, numero);
   };
 
   const totalGeneral = lineas.reduce(
@@ -433,7 +484,7 @@ export default function RegistrarCompra({
                       Cantidad
                     </th>
                     <th className="px-1.5 py-2 text-left font-bold text-gray-500 uppercase text-[10px]">
-                      Precio compra
+                      Precio compra unitario
                     </th>
                     <th className="px-1.5 py-2 text-right font-bold text-gray-500 uppercase text-[10px]">
                       Subtotal

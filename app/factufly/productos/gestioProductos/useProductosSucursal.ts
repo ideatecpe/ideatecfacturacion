@@ -10,9 +10,9 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
   const [productosSucursal, setProductosSucursal] = useState<ProductoSucursal[]>([])
   const [loadingSucursal, setLoadingSucursal] = useState(false)
 
-  const fetchProductosSucursal = async (id?: number | null) => {
+  const fetchProductosSucursal = async (id?: number | null): Promise<ProductoSucursal[]> => {
     const sucursalId = id ?? sucursalIdOverride ?? user?.sucursalID;
-    if (!sucursalId) return;
+    if (!sucursalId) return [];
     setLoadingSucursal(true)
     try {
       const res = await axios.get<ProductoSucursal[]>(
@@ -20,8 +20,10 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
         { headers: { Authorization: `Bearer ${accessToken}` } }
       )
       setProductosSucursal(res.data)
+      return res.data
     } catch {
       showToast("Error al cargar productos", "error");
+      return []
     } finally {
       setLoadingSucursal(false)
     }

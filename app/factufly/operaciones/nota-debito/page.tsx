@@ -22,6 +22,7 @@ import { useSearchParams } from 'next/navigation'
 import { useRef } from "react";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
+import { avisarStockBajoWhatsapp } from "../../productos/gestioProductos/stockAlerta";
 import { actualizarStock } from "../../productos/gestioProductos/actualizarStock";
 
 // ── Catálogo de motivos SUNAT Nota Débito ────────────────────
@@ -558,7 +559,19 @@ function NotaDebitoContent() {
 
     try {
       await actualizarStock(items, accessToken);
-      fetchProductosSucursal();
+      const productosActualizados = await fetchProductosSucursal();
+      if (config?.numeroStockBajo) {
+        const bajos = (productosActualizados ?? [])
+          .filter((p) => {
+            const cantidadVendida = acumulado.get(p.sucursalProducto.sucursalProductoId);
+            if (cantidadVendida === undefined) return false;
+            const stockDespues = p.sucursalProducto.stock ?? 0;
+            const stockAntes = stockDespues + cantidadVendida;
+            return stockDespues <= 10 && stockAntes > 10;
+          })
+          .map((p) => ({ nomProducto: p.nomProducto, stock: p.sucursalProducto.stock ?? 0 }));
+        if (bajos.length) avisarStockBajoWhatsapp(bajos, config.numeroStockBajo);
+      }
     } catch {
       showToast("No se pudo actualizar el stock de los productos.", "error");
     }
