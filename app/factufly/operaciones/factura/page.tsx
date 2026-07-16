@@ -1536,6 +1536,10 @@ function FacturaContent() {
 
   // ── Agregar fila ─────────────────────────────────────────────
   const agregarFila = () => {
+    if (loadingConfig) {
+      showToast("Espera, cargando configuración...", "info");
+      return;
+    }
     setDetalles((prev) => {
       const sinBolsa = prev.filter((d) => !d._esIcbper);
       const bolsa = prev.filter((d) => d._esIcbper);
@@ -1606,6 +1610,10 @@ function FacturaContent() {
   // agrega como ítem nuevo (reutilizando una fila vacía si existe).
   const onScanCodigo = (codigo: string) => {
     if (emitido) return;
+    if (loadingConfig) {
+      showToast("Espera, cargando configuración...", "info");
+      return;
+    }
     const producto = productosSucursal.find(
       (p: ProductoSucursal) => !!p.codigoBarras && p.codigoBarras === codigo,
     );
@@ -1675,6 +1683,10 @@ function FacturaContent() {
 
   // ── Seleccionar producto ─────────────────────────────────────
   const seleccionarProducto = (producto: ProductoSucursal, index: number) => {
+    if (loadingConfig) {
+      showToast("Espera, cargando configuración...", "info");
+      return;
+    }
     // bloquear bolsa plástica — redirige al contador
     if (
       producto.nomProducto.toUpperCase().includes("BOLSA PLASTICA") ||
@@ -3904,6 +3916,7 @@ function FacturaContent() {
                 simbolo={simbolo}
                 IGV_DEFAULT={IGV_DEFAULT}
                 config={config}
+                loadingConfig={loadingConfig}
                 porConsumo={porConsumo}
                 setPorConsumo={setPorConsumo}
                 sinSucursal={sinSucursal}
@@ -3943,18 +3956,23 @@ function FacturaContent() {
                   </div>
                   <div className="flex items-center gap-2">
                     {/* Checkbox por consumo */}
+                    {loadingConfig && (
+                      <span className="text-[11px] text-gray-400 animate-pulse">
+                        Cargando configuración...
+                      </span>
+                    )}
                     {config?.isConsumo && (
                       <label
-                        className={`flex items-center gap-1.5 select-none ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                        className={`flex items-center gap-1.5 select-none ${sinSucursal || loadingConfig ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
                       >
                         <input
                           type="checkbox"
                           checked={porConsumo}
                           onChange={(e) => {
-                            if (sinSucursal) return;
+                            if (sinSucursal || loadingConfig) return;
                             setPorConsumo(e.target.checked);
                           }}
-                          disabled={sinSucursal}
+                          disabled={sinSucursal || loadingConfig}
                           className="w-3.5 h-3.5 accent-brand-blue"
                         />
                         <span className="text-xs text-gray-500">
@@ -3967,7 +3985,7 @@ function FacturaContent() {
                         type="button"
                         variant="ghost"
                         className="h-8 text-xs text-brand-blue"
-                        disabled={sinSucursal}
+                        disabled={sinSucursal || loadingConfig}
                         onClick={agregarFila}
                       >
                         <Plus className="w-3 h-3 mr-1" /> Agregar ítem
@@ -3977,8 +3995,8 @@ function FacturaContent() {
                       <button
                         type="button"
                         onClick={() => setShowModalMonitoreo(true)}
-                        disabled={sinSucursal}
-                        className={`flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                        disabled={sinSucursal || loadingConfig}
+                        className={`flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg ${sinSucursal || loadingConfig ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
                       >
                         <Car className="w-3.5 h-3.5" /> Ítems por defecto
                       </button>
@@ -4521,20 +4539,9 @@ function FacturaContent() {
                               <td className="px-2 py-1.5">
                                 {d.tipoAfectacionIGV === "10" ||
                                 d.tipoAfectacionIGV === "11" ? (
-                                  <select
-                                    value={d.porcentajeIGV ?? IGV_DEFAULT}
-                                    disabled={!!d._esIcbper}
-                                    onChange={(e) =>
-                                      actualizarPorcentajeIGV(
-                                        i,
-                                        Number(e.target.value),
-                                      )
-                                    }
-                                    className="w-full py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
-                                  >
-                                    <option value={18}>18</option>
-                                    <option value={10.5}>10.5</option>
-                                  </select>
+                                  <span className="block text-center text-gray-500 text-xs">
+                                    {d.porcentajeIGV ?? IGV_DEFAULT}
+                                  </span>
                                 ) : (
                                   <span className="block text-center text-gray-400 text-xs">
                                     N/A

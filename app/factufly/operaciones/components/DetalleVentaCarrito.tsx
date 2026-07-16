@@ -70,6 +70,7 @@ interface DetalleVentaCarritoProps<T extends DetalleVentaItem> {
   simbolo: string;
   IGV_DEFAULT: number;
   config: ConfiguracionVenta | null | undefined;
+  loadingConfig: boolean;
   porConsumo: boolean;
   setPorConsumo: (v: boolean) => void;
   sinSucursal: boolean;
@@ -113,6 +114,7 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
   simbolo,
   IGV_DEFAULT,
   config,
+  loadingConfig,
   porConsumo,
   setPorConsumo,
   sinSucursal,
@@ -139,18 +141,23 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
           <label className="text-xs font-semibold text-brand-blue">Detalle de Venta</label>
         </div>
         <div className="flex items-center gap-2">
+          {loadingConfig && (
+            <span className="text-[11px] text-gray-400 animate-pulse">
+              Cargando configuración...
+            </span>
+          )}
           {config?.isConsumo && (
             <label
-              className={`flex items-center gap-1.5 select-none ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+              className={`flex items-center gap-1.5 select-none ${sinSucursal || loadingConfig ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
             >
               <input
                 type="checkbox"
                 checked={porConsumo}
                 onChange={(e) => {
-                  if (sinSucursal) return;
+                  if (sinSucursal || loadingConfig) return;
                   setPorConsumo(e.target.checked);
                 }}
-                disabled={sinSucursal}
+                disabled={sinSucursal || loadingConfig}
                 className="w-3.5 h-3.5 accent-brand-blue"
               />
               <span className="text-xs text-gray-500">Por Consumo</span>
@@ -160,8 +167,8 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
             <Button
               type="button"
               variant="ghost"
-              className={`h-8 text-xs text-brand-blue ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} `}
-              disabled={sinSucursal}
+              className={`h-8 text-xs text-brand-blue ${sinSucursal || loadingConfig ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} `}
+              disabled={sinSucursal || loadingConfig}
               onClick={agregarFila}
             >
               <Plus className="w-3 h-3 mr-1" /> Agregar ítem
@@ -171,8 +178,8 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
             <button
               type="button"
               onClick={() => setShowModalMonitoreo(true)}
-              disabled={sinSucursal}
-              className={`flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg ${sinSucursal ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+              disabled={sinSucursal || loadingConfig}
+              className={`flex items-center gap-1 text-xs font-semibold text-violet-600 hover:text-violet-800 transition-colors bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg ${sinSucursal || loadingConfig ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
             >
               <Car className="w-3.5 h-3.5" /> Ítems por defecto
             </button>
@@ -189,7 +196,7 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
           {detalles.map((d, i) => {
             const esPorConsumo = d._id === "por-consumo";
             const gratuito = esGratuito(d);
-            const bloqueado = !!d._esIcbper || esPorConsumo;
+            const bloqueado = !!d._esIcbper || esPorConsumo || loadingConfig;
             return (
               <div
                 key={i}
@@ -665,15 +672,9 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                               <div className="space-y-0.5">
                                 <label className="text-[9px] text-gray-400 block">%IGV</label>
                                 {igvAfectacionValues.includes(d.tipoAfectacionIGV ?? "10") ? (
-                                  <select
-                                    value={d.porcentajeIGV ?? IGV_DEFAULT}
-                                    disabled={!!d._esIcbper}
-                                    onChange={(e) => actualizarPorcentajeIGV(i, Number(e.target.value))}
-                                    className="w-16 h-7 py-1 px-1 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50"
-                                  >
-                                    <option value={18}>18</option>
-                                    <option value={10.5}>10.5</option>
-                                  </select>
+                                  <span className="flex items-center justify-center w-16 h-7 text-gray-500 text-xs">
+                                    {d.porcentajeIGV ?? IGV_DEFAULT}
+                                  </span>
                                 ) : (
                                   <span className="flex items-center justify-center w-16 h-7 text-gray-400 text-xs">N/A</span>
                                 )}

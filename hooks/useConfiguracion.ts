@@ -22,20 +22,31 @@ export interface Configuracion {
   useNotaVenta: boolean;
 }
 
+// Cache a nivel de módulo: evita que un remount (p.ej. cambiar Boleta <-> Factura)
+// arranque con config=null y muestre valores por defecto (IGV 18%) mientras carga.
+const configCache = new Map<string, Configuracion>();
+
 export function useConfiguracion() {
   const { user, accessToken } = useAuth();
-  const [config, setConfig] = useState<Configuracion | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cached = user?.ruc ? configCache.get(user.ruc) ?? null : null;
+  const [config, setConfig] = useState<Configuracion | null>(cached);
+  const [loading, setLoading] = useState(!cached);
 
   useEffect(() => {
     if (!user?.ruc || !accessToken) return;
-    setLoading(true);
+    const ruc = user.ruc;
+    if (!configCache.has(ruc)) setLoading(true);
     fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${user.ruc}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${ruc}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setConfig(data); })
+      .then((data) => {
+        if (data) {
+          configCache.set(ruc, data);
+          setConfig(data);
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [user?.ruc, accessToken]);
