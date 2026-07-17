@@ -132,26 +132,26 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 flex flex-col animate-in zoom-in-95 duration-200" style={{ maxHeight: '90vh' }}>
 
                 {/* Header */}
-                <div className="bg-blue-600 rounded-t-2xl px-6 pt-6 pb-5 flex items-start justify-between shrink-0">
+                <div className="rounded-t-2xl px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-start justify-between shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
-                            <FileText size={22} className="text-white" />
+                        <div className="w-12 h-12 bg-brand-blue/10 rounded-xl flex items-center justify-center shrink-0">
+                            <FileText size={22} className="text-brand-blue" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-xl font-bold text-white leading-tight">{comprobante.numeroCompleto}</h2>
-                                {loadingDetalles && <RefreshCw size={14} className="animate-spin text-white/70" />}
+                                <h2 className="text-[14px] font-bold text-gray-900 leading-tight">{comprobante.numeroCompleto}</h2>
+                                {loadingDetalles && <RefreshCw size={14} className="animate-spin text-gray-400" />}
                             </div>
-                            <p className="text-blue-200 text-sm mt-0.5">{tipoLabel(comprobante.tipoComprobante)} · {formatFecha(comprobante.fechaEmision)}</p>
+                            <p className="text-gray-500 text-xs mt-0.5">{tipoLabel(comprobante.tipoComprobante)} · {formatFecha(comprobante.fechaEmision)}</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors mt-0.5">
-                        <X size={17} className="text-white" />
+                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-lg text-gray-400 hover:text-gray-600 transition-colors">
+                        <X size={17} />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+                <div className="px-6 py-3 space-y-2 overflow-y-auto flex-1">
 
                     {loadingDetalles ? (
                         <div className="flex flex-col items-center justify-center gap-3 py-20">
@@ -205,7 +205,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                             {tieneDetalles && (
                                 <div className="border border-gray-100 rounded-xl overflow-hidden">
                                     <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">Detalle de productos</p>
+                                        <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Detalle de productos</p>
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-xs">
@@ -259,7 +259,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                             {/* Totales */}
                             <div className="border border-gray-100 rounded-xl overflow-hidden">
                                 <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">Resumen de importes</p>
+                                    <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Resumen de importes</p>
                                 </div>
                                 <div className="divide-y divide-gray-100">
                                     {comprobante.totalOperacionesGravadas > 0 && (
@@ -321,7 +321,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                             {comprobante.legends?.length > 0 && (
                                 <div className="border border-gray-100 rounded-xl overflow-hidden">
                                     <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">Leyendas</p>
+                                        <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Leyendas</p>
                                     </div>
                                     <div className="divide-y divide-gray-100">
                                         {comprobante.legends.map((l, i) => (
@@ -337,7 +337,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                             {(tienePagos || tieneCuotas) && (
                                 <div className="border border-gray-100 rounded-xl overflow-hidden">
                                     <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">
+                                        <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">
                                             Pagos{' '}
                                             <span className="text-gray-400 font-normal normal-case">
                                                 ({comprobante.tipoMoneda}
