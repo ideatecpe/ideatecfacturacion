@@ -376,15 +376,21 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                             setShowDropdownProducto(nd);
                           }, 200);
                           const txt = busquedaProducto[i] ?? "";
-                          if (txt && !detalles[i]?.productoId) {
-                            const n = [...detalles];
-                            n[i] = {
-                              ...n[i],
-                              descripcion: txt,
-                              productoId: null,
-                              codigo: null,
-                            };
-                            setDetalles(n as T[]);
+                          if (txt) {
+                            setDetalles((prev) => {
+                              // Si ya se seleccionó un producto (p.ej. por escaneo, cuyo
+                              // .blur() dispara este handler antes de que el estado se
+                              // actualice), no pisar esos datos con el texto en tránsito.
+                              if (prev[i]?.productoId) return prev;
+                              const n = [...prev];
+                              n[i] = {
+                                ...n[i],
+                                descripcion: txt,
+                                productoId: null,
+                                codigo: null,
+                              };
+                              return n as T[];
+                            });
                           }
                         }}
                         placeholder="Buscar o agregar producto..."

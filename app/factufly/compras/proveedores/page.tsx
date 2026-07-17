@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
@@ -13,7 +12,6 @@ import {
   Phone,
   User,
   MapPin,
-  ChevronLeft,
 } from "lucide-react";
 
 import { Card } from "@/app/components/ui/Card";
@@ -29,7 +27,6 @@ import EditarProveedor from "@/app/components/provedores/EditarProveedor";
 import HistorialCompras from "@/app/components/provedores/HistorialCompras";
 
 export default function ProveedoresPage() {
-  const router = useRouter();
   const { proveedores, loadingProveedores, setProveedores } = useProveedoresLista();
   const { eliminarProveedor } = useEliminarProveedor();
 
@@ -80,26 +77,6 @@ export default function ProveedoresPage() {
 
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
-      {/* Cabecera: volver + título */}
-      <div className="flex items-center gap-3 animate-in fade-in duration-300">
-        <button
-          type="button"
-          onClick={() => router.push("/factufly/compras")}
-          className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
-          style={{ background: "rgba(15,46,100,0.08)" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(15,46,100,0.08)")}
-        >
-          <ChevronLeft className="w-4 h-4" style={{ color: "#0f2e64" }} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>
-            Gestión de Proveedores
-          </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Administra tu lista de proveedores</p>
-        </div>
-      </div>
-
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="relative min-w-48 flex-1 max-w-md">

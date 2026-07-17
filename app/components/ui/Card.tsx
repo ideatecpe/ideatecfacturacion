@@ -4,9 +4,9 @@ import { cn } from '../../utils/cn';
 export const Card = ({ children, className, title, subtitle, action, onClick }: { children: React.ReactNode, className?: string, title?: string, subtitle?: string, action?: React.ReactNode, key?: React.Key, onClick?: () => void }) => (
   <div className={cn("bg-white rounded-xl shadow-sm border border-[#E2EAF6] overflow-hidden", className)} onClick={onClick}>
     {(title || action) && (
-      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+      <div className="px-4 pt-3 pb-0 flex items-center justify-between">
         <div>
-          {title && <h3 className="text-sm font-semibold text-[#0f2e64]">{title}</h3>}
+          {title && <h3 className="text-sm font-semibold text-brand-blue">{title}</h3>}
           {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
         </div>
         {action}

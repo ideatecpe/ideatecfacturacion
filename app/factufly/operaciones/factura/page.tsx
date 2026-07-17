@@ -4228,10 +4228,16 @@ function FacturaContent() {
                                       setShowDropdownProducto(nd);
                                     }, 200);
                                     const txt = busquedaProducto[i] ?? "";
-                                    if (txt && !detalles[i]?.productoId) {
-                                      const nuevos = [...detalles];
-                                      nuevos[i] = { ...nuevos[i], descripcion: txt, productoId: null, codigo: null };
-                                      setDetalles(nuevos);
+                                    if (txt) {
+                                      setDetalles((prev) => {
+                                        // Si ya se seleccionó un producto (p.ej. por escaneo,
+                                        // cuyo .blur() dispara este handler antes de que el
+                                        // estado se actualice), no pisar esos datos.
+                                        if (prev[i]?.productoId) return prev;
+                                        const nuevos = [...prev];
+                                        nuevos[i] = { ...nuevos[i], descripcion: txt, productoId: null, codigo: null };
+                                        return nuevos;
+                                      });
                                     }
                                   }}
                                   placeholder="Buscar o agregar producto..."
@@ -4867,10 +4873,7 @@ function FacturaContent() {
 
         {/* ── Sidebar ── */}
         <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
-          <Card
-            title="Vista Previa"
-            subtitle="Representación gráfica del comprobante"
-          >
+          <Card title="Vista Previa">
             {/* ── Serie y correlativo ── */}
 
             <div>
@@ -4930,16 +4933,8 @@ function FacturaContent() {
                   </div>
 
                   {/* Info serie - estilos compactos */}
-                  <div
-                    className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border w-full mt-3 text-sm ${
-                      !sucursal
-                        ? "bg-amber-50 border-amber-200"
-                        : serieDisplay
-                          ? "bg-green-50 border-green-300"
-                          : "bg-gray-50 border-gray-200"
-                    }`}
-                  >
-                    {!sucursal ? (
+                  {!sucursal ? (
+                    <div className="flex items-center gap-2 mt-3 px-2 py-2 rounded-lg border w-full text-sm bg-amber-50 border-amber-200">
                       <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -4955,43 +4950,47 @@ function FacturaContent() {
                         </svg>
                         <span>Elige una sucursal</span>
                       </span>
-                    ) : !serieDisplay ? (
+                    </div>
+                  ) : !serieDisplay ? (
+                    <div className="flex items-center gap-2 mt-3 px-2 py-2 rounded-lg border w-full text-sm bg-gray-50 border-gray-200">
                       <span className="text-xs text-gray-400">Sin serie</span>
-                    ) : (
-                      <>
-                        <p className="text-[11px] font-bold uppercase text-gray-500 tracking-wide">
-                          Factura:
-                        </p>
-                        <span className="text-xs font-mono font-semibold text-gray-800">
-                          {serieDisplay}-{correlativoDisplay}
-                        </span>
-                      </>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 w-full rounded-xl border border-red-500 bg-white px-4 py-3 text-center">
+                      <p className="text-[11px] font-bold text-gray-700 tracking-wide">
+                        R.U.C. {user?.ruc}
+                      </p>
+                      <p className="text-sm font-extrabold text-red-600 uppercase tracking-wide mt-0.5">
+                        Factura Electrónica
+                      </p>
+                      <p className="text-sm font-mono font-bold mt-1" style={{ color: "#0f2e64" }}>
+                        {serieDisplay}-{correlativoDisplay}
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
-                <div
-                  className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border w-full text-sm ${
-                    serieDisplay
-                      ? "bg-green-50 border-green-300"
-                      : "bg-gray-50 border-gray-200"
-                  }`}
-                >
-                  {loadingSucursal ? (
+                loadingSucursal ? (
+                  <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg border w-full text-sm bg-gray-50 border-gray-200">
                     <span className="text-gray-400 text-xs">Cargando...</span>
-                  ) : !serieDisplay ? (
+                  </div>
+                ) : !serieDisplay ? (
+                  <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg border w-full text-sm bg-gray-50 border-gray-200">
                     <span className="text-xs text-gray-400">Sin serie</span>
-                  ) : (
-                    <>
-                      <p className="text-[11px] font-bold uppercase text-gray-500 tracking-wide">
-                        Factura:
-                      </p>
-                      <span className="text-xs font-mono font-semibold text-gray-800">
-                        {serieDisplay}-{correlativoDisplay}
-                      </span>
-                    </>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="w-full rounded-xl border border-green-500 bg-white px-4 py-2 text-center">
+                    <p className="text-[10px] font-bold text-gray-700 tracking-wide">
+                      R.U.C. {user?.ruc}
+                    </p>
+                    <p className="text-[12px] font-extrabold text-green-700 uppercase tracking-wide mt-0.5">
+                      Factura Electrónica
+                    </p>
+                    <p className="text-[12px] font-mono font-bold mt-0" style={{ color: "#0f2e64" }}>
+                      {serieDisplay}-{correlativoDisplay}
+                    </p>
+                  </div>
+                )
               )}
             </div>
 

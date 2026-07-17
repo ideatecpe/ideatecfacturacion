@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Search,
   PackagePlus,
@@ -9,7 +8,6 @@ import {
   PackageSearch,
   Calendar,
   X,
-  ChevronLeft,
   Layers,
   List,
 } from "lucide-react";
@@ -36,7 +34,6 @@ function hoyISO(): string {
 }
 
 export default function OrdenesCompraPage() {
-  const router = useRouter();
   const hoy = hoyISO();
   const { user } = useAuth();
   const isSuperAdmin = user?.rol === "superadmin";
@@ -142,26 +139,6 @@ export default function OrdenesCompraPage() {
 
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
-      {/* Cabecera: volver + título */}
-      <div className="flex items-center gap-3 animate-in fade-in duration-300">
-        <button
-          type="button"
-          onClick={() => router.push("/factufly/compras")}
-          className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
-          style={{ background: "rgba(15,46,100,0.08)" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(15,46,100,0.08)")}
-        >
-          <ChevronLeft className="w-4 h-4" style={{ color: "#0f2e64" }} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>
-            Gestión de Órdenes
-          </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Administra tus órdenes de compra a proveedores</p>
-        </div>
-      </div>
-
       {/* Header */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
