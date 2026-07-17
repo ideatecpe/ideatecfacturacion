@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronLeft, Calendar, PackageSearch, X, Lock } from "lucide-react";
+import { Calendar, PackageSearch, X, Lock } from "lucide-react";
 
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import { useAuth } from "@/context/AuthContext";
@@ -11,7 +10,6 @@ import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas
 import { useRentabilidadLista } from "../useRentabilidadLista";
 
 export default function RentabilidadPage() {
-  const router = useRouter();
   const { user } = useAuth();
   const { config, loading: loadingConfig } = useConfiguracion();
   const isSuperAdmin = user?.rol === "superadmin";
@@ -72,26 +70,6 @@ export default function RentabilidadPage() {
 
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
-      <div className="flex items-center gap-3 animate-in fade-in duration-300">
-        <button
-          type="button"
-          onClick={() => router.push("/factufly/productos/lista")}
-          className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
-          style={{ background: "rgba(15,46,100,0.08)" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(15,46,100,0.08)")}
-        >
-          <ChevronLeft className="w-4 h-4" style={{ color: "#0f2e64" }} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>
-            Rentabilidad por Producto
-          </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Utilidad bruta según el costo PEPS de cada venta
-          </p>
-        </div>
-      </div>
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">

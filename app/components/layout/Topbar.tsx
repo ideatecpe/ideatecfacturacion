@@ -145,12 +145,14 @@ interface TopbarProps {
   isSidebarOpen: boolean;
   toggleSidebar: () => void;
   activeView: View;
+  activeSubViewLabel?: string;
 }
 
 export const Topbar = ({
   isSidebarOpen,
   toggleSidebar,
   activeView,
+  activeSubViewLabel,
 }: TopbarProps) => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -276,6 +278,14 @@ export const Topbar = ({
               <span className="font-semibold text-brand-blue capitalize text-[12px] ">
                 {activeView === "operaciones" ? "Emisión" : activeView}
               </span>
+              {activeSubViewLabel && (
+                <>
+                  <ChevronRight className="w-3 h-3 text-brand-blue/25" />
+                  <span className="font-semibold text-brand-blue text-[12px]">
+                    {activeSubViewLabel}
+                  </span>
+                </>
+              )}
             </div>
 
             <DateChip />

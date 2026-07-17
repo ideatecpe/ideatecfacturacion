@@ -176,6 +176,11 @@ export default function DashboardLayout({
     });
   }, [config]);
 
+  const activeSubViewLabel = React.useMemo(() => {
+    const parent = menuItems.find((m) => m.id === activeView);
+    return parent?.children?.find((c) => c.id === activeSubView)?.label;
+  }, [menuItems, activeView, activeSubView]);
+
   return (
     <ToastProvider>
       <div className="h-screen flex overflow-hidden" style={{ background: "#F5F8FD" }}>
@@ -228,6 +233,7 @@ export default function DashboardLayout({
             isSidebarOpen={isSidebarOpen}
             toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             activeView={activeView}
+            activeSubViewLabel={activeSubViewLabel}
           />
           <main className="flex-1 p-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
             <div className="mx-auto">{children}</div>
