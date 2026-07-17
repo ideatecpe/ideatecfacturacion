@@ -785,7 +785,6 @@ function NotaVentaContent() {
     if (data.items && data.items.length > 0) {
       const mapped = data.items.map((i: any, idx: number) => {
         const cantidad = i.cantidad || 1;
-        const porcentajeIGV = i.porcentajeIGV ?? 18;
         const precioUnitario = i.precioUnitario ?? i._precioBase ?? 0;
         // DetalleLocal uses 'precioVenta', ItemRapido uses 'precioVentaConIGV'
         const precioVenta =
@@ -794,12 +793,8 @@ function NotaVentaContent() {
           i._precioVentaConIGV ??
           precioUnitario;
 
-        // NV: siempre exonerada, sin IGV
-        const precioVentaNV = i._esIcbper
-          ? precioVenta
-          : (i.tipoAfectacionIGV === "10"
-              ? parseFloat((precioVenta / (1 + (i.porcentajeIGV ?? 18) / 100)).toFixed(2))
-              : precioVenta);
+        // NV: siempre exonerada, pero conserva el monto total (con IGV incluido) como base
+        const precioVentaNV = precioVenta;
         const baseIgv = parseFloat((precioVentaNV * cantidad).toFixed(2));
         const montoIGV = 0;
         const totalVentaItem = baseIgv;

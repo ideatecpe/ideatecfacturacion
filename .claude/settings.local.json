@@ -51,7 +51,13 @@
       "Bash(which pandoc *)",
       "Bash(rm -rf unpacked)",
       "Bash(unzip -q \"Carta_JOLCE_EIRL_Error_Correlativo.docx\" -d unpacked)",
-      "Bash(cd \"C:/Users/Usuario/Downloads\" && ls unpacked/word/ && which python python3 py 2>&1)"
+      "Bash(cd \"C:/Users/Usuario/Downloads\" && ls unpacked/word/ && which python python3 py 2>&1)",
+      "WebFetch(domain:apidocs.avanzza.io)",
+      "Bash(dotnet add *)",
+      "Bash(sed -i 's|PON_AQUI_TU_API_TOKEN|TOKEN_PRUEBA_LOCAL|; s|http://dev.carcool.pe/gps-rest|http://127.0.0.1:1|' appsettings.json)",
+      "Bash(timeout 25 ./AvanzzaAgente.exe)",
+      "Bash(rm bin/Debug/net10.0/appsettings.json)",
+      "Bash(timeout 20 ./AvanzzaAgente.exe)"
     ]
   }
 }
