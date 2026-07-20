@@ -19,6 +19,61 @@ const TIPO_LABEL: Record<string, string> = {
   AJUSTE: "Ajuste",
 };
 
+const TIPO_STYLE: Record<string, { badge: string; cantidad: string; signo: string; fila: string }> = {
+  ENTRADA_COMPRA: {
+    badge: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
+    cantidad: "text-blue-700",
+    signo: "+",
+    fila: "border-l-2 border-l-blue-300",
+  },
+  ENTRADA_SALDO_INICIAL: {
+    badge: "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200",
+    cantidad: "text-gray-700",
+    signo: "+",
+    fila: "border-l-2 border-l-gray-300",
+  },
+  ENTRADA_DEVOLUCION: {
+    badge: "bg-fuchsia-50 text-fuchsia-700 ring-1 ring-inset ring-fuchsia-200",
+    cantidad: "text-fuchsia-700",
+    signo: "+",
+    fila: "border-l-2 border-l-fuchsia-300",
+  },
+  SALIDA_VENTA: {
+    badge: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
+    cantidad: "text-emerald-700",
+    signo: "−",
+    fila: "border-l-2 border-l-emerald-300",
+  },
+  SALIDA_NOTA: {
+    badge: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
+    cantidad: "text-amber-700",
+    signo: "−",
+    fila: "border-l-2 border-l-amber-300",
+  },
+  AJUSTE: {
+    badge: "bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-200",
+    cantidad: "text-purple-700",
+    signo: "±",
+    fila: "border-l-2 border-l-purple-300",
+  },
+};
+
+const TIPO_STYLE_DEFAULT = {
+  badge: "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200",
+  cantidad: "text-gray-700",
+  signo: "",
+  fila: "border-l-2 border-l-gray-200",
+};
+
+function MovimientoBadge({ tipo }: { tipo: string }) {
+  const style = TIPO_STYLE[tipo] ?? TIPO_STYLE_DEFAULT;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${style.badge}`}>
+      {TIPO_LABEL[tipo] ?? tipo}
+    </span>
+  );
+}
+
 export default function KardexPage() {
   const { user } = useAuth();
   const { config, loading: loadingConfig } = useConfiguracion();
@@ -130,20 +185,46 @@ export default function KardexPage() {
         </div>
 
         {sucursalProductoId > 0 && kardex.length > 0 && (
-          <p className="text-[12px] text-gray-500">
-            Saldo actual:{" "}
-            <span className="font-semibold text-gray-900">{totalSaldo.cantidad}</span> unid. ·{" "}
-            <span className="font-semibold text-gray-900">S/ {totalSaldo.valor.toFixed(2)}</span>
-          </p>
+          <div className="flex items-center gap-3 ml-auto">
+            <div className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 flex flex-col">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Saldo actual</span>
+              <span className="text-sm font-bold text-gray-900 tabular-nums">{totalSaldo.cantidad} unid.</span>
+            </div>
+            <div className="rounded-lg border border-brand-blue/20 bg-brand-blue/5 px-3 py-1.5 flex flex-col">
+              <span className="text-[10px] font-semibold text-brand-blue/70 uppercase tracking-wide">Valor actual</span>
+              <span className="text-sm font-bold text-brand-blue tabular-nums">S/ {totalSaldo.valor.toFixed(2)}</span>
+            </div>
+          </div>
         )}
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap text-[10px] text-gray-500">
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Entrada por compra
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Salida por venta
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-fuchsia-500" /> Devolución
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Salida por nota
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Ajuste
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-gray-400" /> Saldo inicial
+        </span>
       </div>
 
       <div
         className="overflow-y-auto rounded-xl border border-gray-200 bg-white"
-        style={{ maxHeight: "calc(100vh - 220px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
+        style={{ maxHeight: "calc(100vh - 260px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
       >
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
+        <table className="w-full text-xs tabular-nums">
+          <thead className="sticky top-0 bg-gray-50 border-b-2 border-gray-200 z-10">
             <tr>
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Fecha</th>
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Movimiento</th>
@@ -194,32 +275,45 @@ export default function KardexPage() {
 
             {!loadingKardex &&
               sucursalProductoId > 0 &&
-              kardex.map((m) => (
-                <tr key={m.kardexMovimientoId} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
-                    {new Date(m.fechaMovimiento).toLocaleDateString("es-PE")}
-                  </td>
-                  <td className="px-3 py-2.5 text-gray-700">{TIPO_LABEL[m.tipoMovimiento] ?? m.tipoMovimiento}</td>
-                  <td className="px-3 py-2.5 text-right text-gray-700">{m.cantidad}</td>
-                  <td className="px-3 py-2.5 text-right text-gray-700">
-                    {m.costoUnitarioPromedio != null ? (
-                      <>
-                        S/ {m.costoUnitarioPromedio.toFixed(2)}
-                        {m.lotesConsumidos > 1 && (
-                          <span className="text-gray-400"> (promedio)</span>
-                        )}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-gray-700">
-                    {m.costoTotal != null ? `S/ ${m.costoTotal.toFixed(2)}` : "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{m.saldoCantidadPost}</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-brand-blue">S/ {m.saldoValorPost.toFixed(2)}</td>
-                </tr>
-              ))}
+              kardex.map((m, idx) => {
+                const style = TIPO_STYLE[m.tipoMovimiento] ?? TIPO_STYLE_DEFAULT;
+                return (
+                  <tr
+                    key={m.kardexMovimientoId}
+                    className={`border-b transition-colors hover:bg-blue-50/40 ${style.fila} ${
+                      idx % 2 === 1 ? "bg-gray-50/50 border-gray-100" : "bg-white border-gray-100"
+                    }`}
+                  >
+                    <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                      {new Date(m.fechaMovimiento).toLocaleDateString("es-PE")}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <MovimientoBadge tipo={m.tipoMovimiento} />
+                    </td>
+                    <td className={`px-3 py-2.5 text-right font-semibold ${style.cantidad}`}>
+                      {style.signo}
+                      {m.cantidad}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-700">
+                      {m.costoUnitarioPromedio != null ? (
+                        <>
+                          S/ {m.costoUnitarioPromedio.toFixed(2)}
+                          {m.lotesConsumidos > 1 && (
+                            <span className="text-gray-400"> (promedio)</span>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-700">
+                      {m.costoTotal != null ? `S/ ${m.costoTotal.toFixed(2)}` : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{m.saldoCantidadPost}</td>
+                    <td className="px-3 py-2.5 text-right font-bold text-brand-blue">S/ {m.saldoValorPost.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>
