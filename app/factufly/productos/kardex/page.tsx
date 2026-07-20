@@ -193,6 +193,7 @@ export default function KardexPage() {
             )}
 
             {!loadingKardex &&
+              sucursalProductoId > 0 &&
               kardex.map((m) => (
                 <tr key={m.kardexMovimientoId} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                   <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
