@@ -33,6 +33,7 @@ export const tipoComprobanteLabel = (tipo: string): string => {
   const map: Record<string, string> = {
     '01': 'Factura',
     '03': 'Boleta',
+    'NV': 'Nota de Venta',
   }
   return map[tipo] ?? 'Comprobante'
 }

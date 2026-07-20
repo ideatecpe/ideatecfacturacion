@@ -20,7 +20,7 @@ import { useSucursalRuc } from '../operaciones/boleta/gestionBoletas/useSucursal
 import { useSucursal } from '../operaciones/boleta/gestionBoletas/useSucursal';
 import { ModalReporteCuentasPorCobrar } from '@/app/components/modalCuentasPorCobrar/ModalReporteCuentasPorCobrar';
 
-const TIPO_OPTS = ['Todos', 'Factura', 'Boleta'];
+const TIPO_BASE = ['Todos', 'Factura', 'Boleta'];
 
 export default function CuentasPorCobrarPage() {
   const { user, accessToken } = useAuth();
@@ -111,6 +111,11 @@ export default function CuentasPorCobrarPage() {
     setAvClienteDoc('');
     cargar();
   };
+
+  const tipoOpts = useMemo(() => {
+    const tieneNV = cuentas.some(c => c.tipoComprobante === 'NV');
+    return tieneNV ? [...TIPO_BASE, 'Nota de Venta'] : TIPO_BASE;
+  }, [cuentas]);
 
   const filtered = useMemo(() => {
     return cuentas.filter(c => {
@@ -206,7 +211,7 @@ export default function CuentasPorCobrarPage() {
                   <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
               )}
-            <DropdownFiltro label="Tipo" value={filtroTipo} options={TIPO_OPTS} onChange={setFiltroTipo} />
+            <DropdownFiltro label="Tipo" value={filtroTipo} options={tipoOpts} onChange={setFiltroTipo} />
             <button
               onClick={() => setShowAvanzado(o => !o)}
               className={cn(
