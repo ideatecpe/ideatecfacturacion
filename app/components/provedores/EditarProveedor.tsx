@@ -19,12 +19,13 @@ export default function EditarProveedor({ isOpen, proveedor, onClose, onProveedo
 
   const [form, setForm] = React.useState<EditProveedor | null>(null);
   const [errors, setErrors] = React.useState<Record<string, boolean>>({});
+  const [sinDocumento, setSinDocumento] = React.useState(false);
 
   React.useEffect(() => {
     if (isOpen && proveedor) {
       setForm({
         proveedorId: proveedor.proveedorId,
-        numDocumento: proveedor.numDocumento,
+        numDocumento: proveedor.numDocumento ?? "",
         razonSocial: proveedor.razonSocial,
         nombreComercial: proveedor.nombreComercial ?? "",
         direccion: proveedor.direccion ?? "",
@@ -33,6 +34,7 @@ export default function EditarProveedor({ isOpen, proveedor, onClose, onProveedo
         personaContacto: proveedor.personaContacto ?? "",
       });
       setErrors({});
+      setSinDocumento(!proveedor.numDocumento);
     }
   }, [isOpen, proveedor]);
 
@@ -44,10 +46,18 @@ export default function EditarProveedor({ isOpen, proveedor, onClose, onProveedo
       setForm({ ...form, [field]: e.target.value });
     };
 
+  const handleToggleSinDocumento = (checked: boolean) => {
+    setSinDocumento(checked);
+    if (checked && form) {
+      setForm({ ...form, numDocumento: "" });
+      setErrors((prev) => ({ ...prev, numDocumento: false }));
+    }
+  };
+
   const validar = (): boolean => {
     if (!form) return false;
     const newErrors: Record<string, boolean> = {};
-    if (!form.numDocumento.trim()) newErrors.numDocumento = true;
+    if (!sinDocumento && !(form.numDocumento ?? "").trim()) newErrors.numDocumento = true;
     if (!form.razonSocial.trim()) newErrors.razonSocial = true;
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -57,11 +67,12 @@ export default function EditarProveedor({ isOpen, proveedor, onClose, onProveedo
     e.preventDefault();
     if (!form || !validar()) return;
 
-    const ok = await editarProveedor(form);
+    const numDocumento = sinDocumento ? null : (form.numDocumento ?? null);
+    const ok = await editarProveedor({ ...form, numDocumento });
     if (ok && proveedor) {
       onProveedorEditado({
         ...proveedor,
-        numDocumento: form.numDocumento,
+        numDocumento,
         razonSocial: form.razonSocial,
         nombreComercial: form.nombreComercial ?? null,
         direccion: form.direccion ?? null,
@@ -79,12 +90,25 @@ export default function EditarProveedor({ isOpen, proveedor, onClose, onProveedo
     <Modal isOpen={isOpen} onClose={onClose} title="Editar proveedor">
       <form className="space-y-4" onSubmit={handleGuardar}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InputBase
-            label="N° Documento (RUC/DNI)"
-            value={form.numDocumento}
-            onChange={handleChange("numDocumento")}
-            showError={!!errors.numDocumento}
-          />
+          <div className="space-y-1.5">
+            <InputBase
+              label="N° Documento (RUC/DNI)"
+              labelOptional={sinDocumento ? "(sin documento)" : undefined}
+              value={form.numDocumento ?? ""}
+              onChange={handleChange("numDocumento")}
+              showError={!!errors.numDocumento}
+              disabled={sinDocumento}
+            />
+            <label className="flex items-center gap-1.5 pl-1 text-[11px] text-gray-500 font-medium">
+              <input
+                type="checkbox"
+                checked={sinDocumento}
+                onChange={(e) => handleToggleSinDocumento(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+              />
+              Proveedor sin RUC/DNI (mercado, tienda informal, etc.)
+            </label>
+          </div>
           <InputBase
             label="Razón Social"
             value={form.razonSocial}
@@ -136,7 +160,7 @@ export default function EditarProveedor({ isOpen, proveedor, onClose, onProveedo
         </div>
 
         <div className="pt-4 flex justify-end gap-3">
-          <Button variant="outline" type="button" onClick={onClose}>
+          <Button variant="outline" type="button" onClick={onClose} disabled={loadingEditar}>
             Cancelar
           </Button>
           <Button type="submit" disabled={loadingEditar}>
