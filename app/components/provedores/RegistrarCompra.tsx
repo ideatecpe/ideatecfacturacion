@@ -2,7 +2,7 @@
 
 import React from "react";
 import axios from "axios";
-import { Plus, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/utils/cn";
@@ -14,7 +14,8 @@ import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas
 import { ProductoSucursal } from "@/app/factufly/productos/gestioProductos/Producto";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { avisarStockRepuestoWhatsapp } from "@/app/factufly/productos/gestioProductos/stockAlerta";
-import LineaCompraRow, { LineaCompra } from "./LineaCompraRow";
+import LineaCompraRow, { LineaCompra, NUEVO_PROVEEDOR_VALUE } from "./LineaCompraRow";
+import AgregarProveedor from "./AgregarProveedor";
 
 /** Switch segmentado: misma data en todas las líneas que comparten sucursal,
  * para no repetir el fetch de productos cada vez que se agrega una línea. */
@@ -100,6 +101,7 @@ interface Props {
   proveedores: Proveedor[];
   proveedorPreseleccionado?: Proveedor | null;
   onCompraRegistrada: (compra: CompraProveedor) => void;
+  onProveedorCreado?: (proveedor: Proveedor) => void;
 }
 
 let lineaKeySeq = 0;
@@ -120,6 +122,7 @@ export default function RegistrarCompra({
   proveedores,
   proveedorPreseleccionado,
   onCompraRegistrada,
+  onProveedorCreado,
 }: Props) {
   const { showToast } = useToast();
   const { user, accessToken } = useAuth();
@@ -145,7 +148,8 @@ export default function RegistrarCompra({
   const [lineaErrors, setLineaErrors] = React.useState<Record<number, Record<string, boolean>>>({});
   const [guardando, setGuardando] = React.useState(false);
   const [progreso, setProgreso] = React.useState<{ total: number; actual: number } | null>(null);
-  const [resultados, setResultados] = React.useState<{ ok: number; errores: string[] } | null>(null);
+  const [isAgregarProveedorOpen, setIsAgregarProveedorOpen] = React.useState(false);
+  const [lineaTargetNuevoProveedor, setLineaTargetNuevoProveedor] = React.useState<number | null>(null);
 
   const modoSucursal: "fijo" | "porItem" = isSuperAdmin ? "porItem" : "fijo";
 
@@ -160,7 +164,6 @@ export default function RegistrarCompra({
       setLineaErrors({});
       setGuardando(false);
       setProgreso(null);
-      setResultados(null);
     }
   }, [isOpen, proveedorPreseleccionado]);
 
@@ -182,6 +185,28 @@ export default function RegistrarCompra({
   const handleEliminarLinea = (key: number) =>
     setLineas((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
 
+  const handleAbrirNuevoProveedor = (lineaKey: number | null) => {
+    setLineaTargetNuevoProveedor(lineaKey);
+    setIsAgregarProveedorOpen(true);
+  };
+
+  const handleProveedorCreado = (nuevo: Proveedor) => {
+    onProveedorCreado?.(nuevo);
+
+    if (lineaTargetNuevoProveedor != null) {
+      const key = lineaTargetNuevoProveedor;
+      setLineas((prev) =>
+        prev.map((l) => (l.key === key ? { ...l, proveedorId: nuevo.proveedorId } : l)),
+      );
+      setLineaErrors((prev) => ({ ...prev, [key]: { ...prev[key], proveedorId: false } }));
+    } else {
+      setProveedorIdHeader(nuevo.proveedorId);
+      setLineas((prev) => prev.map((l) => ({ ...l, proveedorId: nuevo.proveedorId })));
+      if (errors.proveedorIdHeader) setErrors((prev) => ({ ...prev, proveedorIdHeader: false }));
+    }
+    setLineaTargetNuevoProveedor(null);
+  };
+
   const handleLineaChange = (key: number, field: keyof Omit<LineaCompra, "key">, value: string | number) => {
     setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, [field]: value } : l)));
     setLineaErrors((prev) => ({ ...prev, [key]: { ...prev[key], [field]: false } }));
@@ -201,6 +226,8 @@ export default function RegistrarCompra({
     const mensajes: string[] = [];
 
     lineas.forEach((l, idx) => {
+      if (l.estado === "guardado") return;
+
       const le: Record<string, boolean> = {};
       if (modoProveedor === "varios" && l.proveedorId === 0) le.proveedorId = true;
       if (modoSucursal === "porItem" && l.sucursalId === 0) le.sucursalId = true;
@@ -240,17 +267,21 @@ export default function RegistrarCompra({
     e.preventDefault();
     if (!validar()) return;
 
-    setGuardando(true);
-    setResultados(null);
-    setProgreso({ total: lineas.length, actual: 0 });
+    // Solo se reenvían las líneas que aún no se guardaron — evita duplicar compras
+    // ya registradas si el usuario reintenta después de un error parcial.
+    const pendientes = lineas.filter((l) => l.estado !== "guardado");
+    if (pendientes.length === 0) return;
 
-    let ok = 0;
-    const errores: string[] = [];
+    setGuardando(true);
+    setProgreso({ total: pendientes.length, actual: 0 });
+
+    let huboError = false;
     let ultimaCreada: CompraProveedor | null = null;
     const registrosOk: { sucursalId: number; productoId: number; cantidad: number }[] = [];
 
-    for (let i = 0; i < lineas.length; i++) {
-      const l = lineas[i];
+    for (let i = 0; i < pendientes.length; i++) {
+      const l = pendientes[i];
+      setLineas((prev) => prev.map((x) => (x.key === l.key ? { ...x, estado: "guardando" } : x)));
 
       const proveedorId = modoProveedor === "unico" ? proveedorIdHeader : l.proveedorId;
       const sucursalId = modoSucursal === "porItem" ? l.sucursalId : sucursalFija?.id ?? 0;
@@ -272,20 +303,20 @@ export default function RegistrarCompra({
       });
 
       if (creada) {
-        ok++;
         ultimaCreada = creada;
         // Los paquetes reponen el stock del producto BASE (no el vendido en la línea),
         // así que no se puede calcular el cruce de umbral con los datos de esta línea.
         if (!producto?.esPaquete) {
           registrosOk.push({ sucursalId, productoId: l.productoId, cantidad: Number(l.cantidad) });
         }
+        setLineas((prev) => prev.map((x) => (x.key === l.key ? { ...x, estado: "guardado" } : x)));
       } else {
-        errores.push(`Línea ${i + 1}`);
+        huboError = true;
+        setLineas((prev) => prev.map((x) => (x.key === l.key ? { ...x, estado: "error" } : x)));
       }
-      setProgreso({ total: lineas.length, actual: i + 1 });
+      setProgreso({ total: pendientes.length, actual: i + 1 });
     }
 
-    setResultados({ ok, errores });
     setGuardando(false);
     if (ultimaCreada) onCompraRegistrada(ultimaCreada);
 
@@ -293,7 +324,7 @@ export default function RegistrarCompra({
       avisarStockRepuestoSiAplica(registrosOk, config.numeroStockBajo);
     }
 
-    if (errores.length === 0) onClose();
+    if (!huboError) onClose();
   };
 
   // ── Avisar por WhatsApp si algún producto repuesto cruzó de <=10 a >10 ──────
@@ -341,7 +372,13 @@ export default function RegistrarCompra({
   const mostrarColSucursal = modoSucursal === "porItem";
   const mostrarColDoc = modoProveedor === "varios" && modoDoc === "porLinea";
 
+  const guardadosCount = lineas.filter((l) => l.estado === "guardado").length;
+  const erroresCount = lineas.filter((l) => l.estado === "error").length;
+  const hayGuardados = guardadosCount > 0;
+  const hayPendientes = lineas.some((l) => l.estado !== "guardado");
+
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose} title="Registrar nueva compra / ingreso de stock" className="max-w-7xl">
       <form className="space-y-2.5" onSubmit={handleGuardar}>
         {/* ── Switches: modo de compra + modo documento, en 2 columnas ── */}
@@ -351,7 +388,7 @@ export default function RegistrarCompra({
               <SwitchSegmentado
                 label="Modo de compra"
                 value={modoProveedor}
-                disabled={guardando}
+                disabled={guardando || hayGuardados}
                 onChange={handleCambiarModoProveedor}
                 activeClassName="bg-white text-brand-blue shadow-sm"
                 options={[
@@ -387,6 +424,10 @@ export default function RegistrarCompra({
               value={proveedorIdHeader}
               onChange={(e) => {
                 const id = Number(e.target.value);
+                if (id === NUEVO_PROVEEDOR_VALUE) {
+                  handleAbrirNuevoProveedor(null);
+                  return;
+                }
                 setProveedorIdHeader(id);
                 setLineas((prev) => prev.map((l) => ({ ...l, proveedorId: id })));
                 if (errors.proveedorIdHeader) setErrors((prev) => ({ ...prev, proveedorIdHeader: false }));
@@ -397,6 +438,9 @@ export default function RegistrarCompra({
               }`}
             >
               <option value={0}>Seleccione un proveedor</option>
+              <option value={NUEVO_PROVEEDOR_VALUE} className="font-semibold text-brand-blue">
+                + Agregar nuevo proveedor
+              </option>
               {proveedores.map((p) => (
                 <option key={p.proveedorId} value={p.proveedorId}>
                   {p.razonSocial}
@@ -508,10 +552,11 @@ export default function RegistrarCompra({
                       productosLoadingIds={productosLoadingIds}
                       ensureProductos={ensureProductos}
                       errors={lineaErrors[l.key] ?? {}}
-                      disabled={guardando}
-                      canRemove={lineas.length > 1}
+                      disabled={guardando || l.estado === "guardado"}
+                      canRemove={lineas.length > 1 && l.estado !== "guardado"}
                       onChange={handleLineaChange}
                       onRemove={handleEliminarLinea}
+                      onAgregarProveedor={handleAbrirNuevoProveedor}
                     />
                   ))}
                 </tbody>
@@ -556,38 +601,44 @@ export default function RegistrarCompra({
           </div>
         )}
 
-        {/* ── Resultados ── */}
-        {resultados && (
-          <div className="space-y-2">
-            {resultados.ok > 0 && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-3">
-                <p className="text-xs font-bold text-green-700 flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5" /> {resultados.ok} producto(s) registrado(s) correctamente
-                </p>
-              </div>
-            )}
-            {resultados.errores.length > 0 && (
-              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-1">
-                <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
-                  <XCircle className="w-3.5 h-3.5" /> {resultados.errores.length} producto(s) con error
-                </p>
-                {resultados.errores.map((nombre, i) => (
-                  <p key={i} className="text-xs text-rose-600">{nombre}</p>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <div className="pt-2 flex items-center justify-between gap-3">
+          {/* ── Estado: pequeño y discreto, solo aparece después de intentar guardar ── */}
+          {(guardadosCount > 0 || erroresCount > 0) ? (
+            <p className="text-[11px] text-gray-500">
+              <span className="text-emerald-600 font-semibold">{guardadosCount} guardado{guardadosCount === 1 ? "" : "s"}</span>
+              {erroresCount > 0 && (
+                <>
+                  {" "}·{" "}
+                  <span className="text-rose-600 font-semibold">{erroresCount} con error</span>
+                </>
+              )}
+              {" "}de {lineas.length} línea{lineas.length === 1 ? "" : "s"}
+            </p>
+          ) : (
+            <span />
+          )}
 
-        <div className="pt-2 flex justify-end gap-3">
-          <Button variant="outline" type="button" onClick={onClose} disabled={guardando}>
-            {resultados ? "Cerrar" : "Cancelar"}
-          </Button>
-          <Button type="submit" disabled={guardando}>
-            {guardando ? "Registrando..." : "Registrar Compra"}
-          </Button>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" type="button" onClick={onClose} disabled={guardando}>
+              {hayGuardados ? "Cerrar" : "Cancelar"}
+            </Button>
+            <Button type="submit" disabled={guardando || !hayPendientes}>
+              {guardando ? "Registrando..." : hayGuardados ? "Guardar faltantes" : "Registrar Compra"}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>
+
+    <AgregarProveedor
+      isOpen={isAgregarProveedorOpen}
+      onClose={() => {
+        setIsAgregarProveedorOpen(false);
+        setLineaTargetNuevoProveedor(null);
+      }}
+      onProveedorAgregado={handleProveedorCreado}
+      elevated
+    />
+    </>
   );
 }

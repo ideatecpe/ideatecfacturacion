@@ -38,7 +38,7 @@ export default function OrdenesCompraPage() {
   const { user } = useAuth();
   const isSuperAdmin = user?.rol === "superadmin";
 
-  const { proveedores } = useProveedoresLista();
+  const { proveedores, setProveedores } = useProveedoresLista();
   const { sucursales } = useSucursalRuc(isSuperAdmin);
   const { ordenes, setOrdenes, loadingOrdenes, fetchOrdenes } = useOrdenesLista();
   const { eliminarCompraProveedor } = useEliminarCompraProveedor();
@@ -401,6 +401,7 @@ export default function OrdenesCompraPage() {
         proveedores={proveedores}
         proveedorPreseleccionado={null}
         onCompraRegistrada={() => recargar()}
+        onProveedorCreado={(nuevo) => setProveedores((prev) => [...prev, nuevo])}
       />
 
       <ModalEliminar

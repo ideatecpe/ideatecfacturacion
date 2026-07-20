@@ -9,9 +9,12 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   className?: string;
+  /** Úsalo cuando este modal puede abrirse encima de otro Modal, para que su propio
+   * fondo (mismo bg-black/20 backdrop-blur-sm de siempre) quede por encima del modal padre. */
+  elevated?: boolean;
 }
 
-export const Modal = ({ isOpen, onClose, title, children, className }: ModalProps) => {
+export const Modal = ({ isOpen, onClose, title, children, className, elevated = false }: ModalProps) => {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -21,9 +24,13 @@ export const Modal = ({ isOpen, onClose, title, children, className }: ModalProp
   animate={{ opacity: 1 }}
   exit={{ opacity: 0 }}
   onClick={onClose}
-  className="fixed top-0 left-0 w-screen h-screen bg-black/20 backdrop-blur-sm z-60"
+  className={elevated
+    ? "fixed top-0 left-0 w-screen h-screen bg-black/20 backdrop-blur-sm z-150"
+    : "fixed top-0 left-0 w-screen h-screen bg-black/20 backdrop-blur-sm z-60"}
 />
-          <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-70 p-4">
+          <div className={elevated
+            ? "fixed inset-0 flex items-center justify-center pointer-events-none z-160 p-4"
+            : "fixed inset-0 flex items-center justify-center pointer-events-none z-70 p-4"}>
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}

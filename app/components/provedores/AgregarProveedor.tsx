@@ -14,6 +14,8 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onProveedorAgregado: (proveedor: Proveedor) => void;
+  /** true cuando este modal se abre encima de otro Modal (ej. desde Registrar Compra). */
+  elevated?: boolean;
 }
 
 const emptyForm: Omit<NuevoProveedor, "rucEmpresa"> = {
@@ -26,19 +28,21 @@ const emptyForm: Omit<NuevoProveedor, "rucEmpresa"> = {
   personaContacto: "",
 };
 
-export default function AgregarProveedor({ isOpen, onClose, onProveedorAgregado }: Props) {
+export default function AgregarProveedor({ isOpen, onClose, onProveedorAgregado, elevated }: Props) {
   const { user } = useAuth();
   const { registrarProveedor, loadingRegistrar } = useRegistrarProveedor();
 
   const [form, setForm] = React.useState(emptyForm);
   const [errors, setErrors] = React.useState<Record<string, boolean>>({});
   const [loadingRuc, setLoadingRuc] = React.useState(false);
+  const [sinDocumento, setSinDocumento] = React.useState(false);
 
   React.useEffect(() => {
     if (isOpen) {
       setForm(emptyForm);
       setErrors({});
       setLoadingRuc(false);
+      setSinDocumento(false);
     }
   }, [isOpen]);
 
@@ -50,7 +54,7 @@ export default function AgregarProveedor({ isOpen, onClose, onProveedorAgregado 
     };
 
   const handleBuscarRuc = async () => {
-    const ruc = form.numDocumento.trim();
+    const ruc = (form.numDocumento ?? "").trim();
     if (ruc.length !== 11 || !/^\d{11}$/.test(ruc) || loadingRuc) return;
 
     setLoadingRuc(true);
@@ -78,10 +82,18 @@ export default function AgregarProveedor({ isOpen, onClose, onProveedorAgregado 
 
   const validar = (): boolean => {
     const newErrors: Record<string, boolean> = {};
-    if (!form.numDocumento.trim()) newErrors.numDocumento = true;
+    if (!sinDocumento && !(form.numDocumento ?? "").trim()) newErrors.numDocumento = true;
     if (!form.razonSocial.trim()) newErrors.razonSocial = true;
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleToggleSinDocumento = (checked: boolean) => {
+    setSinDocumento(checked);
+    if (checked) {
+      setForm((prev) => ({ ...prev, numDocumento: "" }));
+      setErrors((prev) => ({ ...prev, numDocumento: false }));
+    }
   };
 
   const handleGuardar = async (e: React.FormEvent) => {
@@ -89,7 +101,11 @@ export default function AgregarProveedor({ isOpen, onClose, onProveedorAgregado 
     if (!validar()) return;
     if (!user?.ruc) return;
 
-    const creado = await registrarProveedor({ ...form, rucEmpresa: user.ruc });
+    const creado = await registrarProveedor({
+      ...form,
+      numDocumento: sinDocumento ? null : form.numDocumento,
+      rucEmpresa: user.ruc,
+    });
     if (creado) {
       onProveedorAgregado(creado);
       setForm(emptyForm);
@@ -98,21 +114,22 @@ export default function AgregarProveedor({ isOpen, onClose, onProveedorAgregado 
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Registrar nuevo proveedor">
+    <Modal isOpen={isOpen} onClose={onClose} title="Registrar nuevo proveedor" elevated={elevated}>
       <form className="space-y-4" onSubmit={handleGuardar}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <div className="relative">
               <InputBase
                 label="N° Documento (RUC/DNI)"
-                value={form.numDocumento}
+                labelOptional={sinDocumento ? "(sin documento)" : undefined}
+                value={form.numDocumento ?? ""}
                 onChange={handleChange("numDocumento")}
                 onBlur={handleBuscarRuc}
                 onKeyDown={handleNumDocumentoKeyDown}
                 placeholder="20123456789"
                 showError={!!errors.numDocumento}
                 maxLength={11}
-                disabled={loadingRuc}
+                disabled={loadingRuc || sinDocumento}
               />
               {loadingRuc && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400 absolute right-3 top-9" />
@@ -123,12 +140,21 @@ export default function AgregarProveedor({ isOpen, onClose, onProveedorAgregado 
                 <Loader2 className="w-3 h-3 animate-spin" /> Buscando datos del RUC...
               </p>
             )}
+            <label className="flex items-center gap-1.5 pl-1 text-[11px] text-gray-500 font-medium">
+              <input
+                type="checkbox"
+                checked={sinDocumento}
+                onChange={(e) => handleToggleSinDocumento(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+              />
+              Proveedor sin RUC/DNI (mercado, tienda informal, etc.)
+            </label>
           </div>
           <InputBase
             label="Razón Social"
             value={form.razonSocial}
             onChange={handleChange("razonSocial")}
-            placeholder="Se completa al ingresar el RUC"
+            placeholder={sinDocumento ? "Ej: Mercado Central" : "Se completa al ingresar el RUC"}
             showError={!!errors.razonSocial}
           />
         </div>
@@ -181,7 +207,7 @@ export default function AgregarProveedor({ isOpen, onClose, onProveedorAgregado 
         </div>
 
         <div className="pt-4 flex justify-end gap-3">
-          <Button variant="outline" type="button" onClick={onClose}>
+          <Button variant="outline" type="button" onClick={onClose} disabled={loadingRegistrar}>
             Cancelar
           </Button>
           <Button type="submit" disabled={loadingRegistrar}>

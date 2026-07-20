@@ -44,7 +44,7 @@ export default function ProveedoresPage() {
   const filtered = proveedores.filter(
     (p) =>
       p.razonSocial.toLowerCase().includes(search.toLowerCase()) ||
-      p.numDocumento.toLowerCase().includes(search.toLowerCase()) ||
+      (p.numDocumento ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (p.nombreComercial ?? "").toLowerCase().includes(search.toLowerCase()),
   );
 
@@ -153,7 +153,7 @@ export default function ProveedoresPage() {
                 <div className="flex justify-between items-start">
                   <div className="space-y-1 min-w-0">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      {prov.numDocumento}
+                      {prov.numDocumento || "Sin documento"}
                     </p>
                     <h4 className="font-bold text-gray-900 group-hover:text-brand-blue transition-colors line-clamp-2">
                       {prov.razonSocial}
@@ -247,7 +247,7 @@ export default function ProveedoresPage() {
         isOpen={isDeleteOpen}
         mensaje="Eliminarás al proveedor"
         nombre={deleteTarget?.razonSocial ?? ""}
-        documento={deleteTarget?.numDocumento}
+        documento={deleteTarget?.numDocumento ?? undefined}
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleConfirmDelete}
       />

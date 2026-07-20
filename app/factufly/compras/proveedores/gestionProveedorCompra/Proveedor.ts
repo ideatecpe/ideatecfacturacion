@@ -1,7 +1,7 @@
 // ─── Proveedor ────────────────────────────────────────────────
 export interface Proveedor {
   proveedorId: number;
-  numDocumento: string;
+  numDocumento: string | null;
   razonSocial: string;
   nombreComercial: string | null;
   direccion: string | null;
@@ -15,7 +15,7 @@ export interface Proveedor {
 
 // ─── Para crear nuevo proveedor (POST) ────────────────────────
 export interface NuevoProveedor {
-  numDocumento: string;
+  numDocumento?: string | null;
   razonSocial: string;
   nombreComercial?: string;
   direccion?: string;
@@ -28,7 +28,7 @@ export interface NuevoProveedor {
 // ─── Para editar proveedor (PUT) ───────────────────────────────
 export interface EditProveedor {
   proveedorId: number;
-  numDocumento: string;
+  numDocumento?: string | null;
   razonSocial: string;
   nombreComercial?: string;
   direccion?: string;

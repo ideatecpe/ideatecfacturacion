@@ -20,8 +20,15 @@ export function useEliminarCompraProveedor() {
       showToast("Orden de compra eliminada correctamente.", "success");
       return true;
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        showToast("No se encontró la orden de compra.", "error");
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        if (status === 404) {
+          showToast("No se encontró la orden de compra.", "error");
+        } else if (status === 409) {
+          showToast(error.response?.data?.mensaje ?? "No se pudo eliminar la orden de compra.", "error");
+        } else {
+          showToast("No se pudo eliminar la orden de compra. Intenta nuevamente.", "error");
+        }
       } else {
         showToast("No se pudo eliminar la orden de compra. Intenta nuevamente.", "error");
       }

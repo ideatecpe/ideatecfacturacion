@@ -1,9 +1,13 @@
 "use client";
 
 import React from "react";
-import { Trash2, Boxes } from "lucide-react";
+import { Trash2, Boxes, Check } from "lucide-react";
 import { Proveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/Proveedor";
 import { ProductoSucursal } from "@/app/factufly/productos/gestioProductos/Producto";
+import { cn } from "@/app/utils/cn";
+
+/** Valor centinela usado en los <select> de proveedor para la opción "+ Agregar nuevo proveedor". */
+export const NUEVO_PROVEEDOR_VALUE = -1;
 
 export interface LineaCompra {
   key: number;
@@ -14,6 +18,8 @@ export interface LineaCompra {
   cantidad: string;
   precioCompra: string;
   docReferencia: string;
+  /** Estado de guardado de esta línea al registrar la compra (varias líneas se envían una por una). */
+  estado?: "guardando" | "guardado" | "error";
 }
 
 interface Sucursal {
@@ -38,6 +44,7 @@ interface Props {
   canRemove: boolean;
   onChange: (key: number, field: keyof Omit<LineaCompra, "key">, value: string | number) => void;
   onRemove: (key: number) => void;
+  onAgregarProveedor: (key: number) => void;
 }
 
 const inputCls =
@@ -60,6 +67,7 @@ export default function LineaCompraRow({
   canRemove,
   onChange,
   onRemove,
+  onAgregarProveedor,
 }: Props) {
   const sucursalIdEfectiva = mostrarSucursal ? linea.sucursalId : sucursalFija?.id ?? 0;
 
@@ -83,8 +91,18 @@ export default function LineaCompraRow({
   return (
     <tr className="hover:bg-gray-50/70 transition-colors">
       <td className="px-2 py-1.5 text-center align-top">
-        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold">
-          {index + 1}
+        <span
+          title={linea.estado === "guardado" ? "Guardado" : linea.estado === "error" ? "No se pudo guardar" : undefined}
+          className={cn(
+            "inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold",
+            linea.estado === "guardado"
+              ? "bg-emerald-100 text-emerald-700"
+              : linea.estado === "error"
+                ? "bg-rose-100 text-rose-700"
+                : "bg-gray-100 text-gray-500",
+          )}
+        >
+          {linea.estado === "guardado" ? <Check className="w-3 h-3" /> : index + 1}
         </span>
       </td>
 
@@ -92,11 +110,21 @@ export default function LineaCompraRow({
         <td className="px-1.5 py-1.5 align-top min-w-[170px]">
           <select
             value={linea.proveedorId}
-            onChange={(e) => onChange(linea.key, "proveedorId", Number(e.target.value))}
+            onChange={(e) => {
+              const id = Number(e.target.value);
+              if (id === NUEVO_PROVEEDOR_VALUE) {
+                onAgregarProveedor(linea.key);
+                return;
+              }
+              onChange(linea.key, "proveedorId", id);
+            }}
             disabled={disabled}
             className={`${inputCls} ${errors.proveedorId ? "border-rose-400" : "border-gray-200"}`}
           >
             <option value={0}>Seleccione</option>
+            <option value={NUEVO_PROVEEDOR_VALUE} className="font-semibold text-brand-blue">
+              + Agregar nuevo proveedor
+            </option>
             {proveedores.map((p) => (
               <option key={p.proveedorId} value={p.proveedorId}>
                 {p.razonSocial}
