@@ -59,6 +59,7 @@ export default function CuentasPorCobrarPage() {
   const [avFechaHasta, setAvFechaHasta]                 = useState('');
   const [avClienteDoc, setAvClienteDoc]                 = useState('');
   const [showModalReporte, setShowModalReporte] = useState(false)
+  const [huboIntentoInicial, setHuboIntentoInicial] = useState(false)
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
   const cargar = async () => {
@@ -73,6 +74,7 @@ export default function CuentasPorCobrarPage() {
     if (!user || !accessToken) return
     // Superadmin no necesita esperar sucursal
     if (!isSuperAdmin && !sucursal) return
+    setHuboIntentoInicial(true)
     cargar()
   }, [user, accessToken, sucursalFiltro, sucursal])
 
@@ -132,7 +134,7 @@ export default function CuentasPorCobrarPage() {
     }
   };
 
-  const loading = hookCuentas.loading;
+  const loading = hookCuentas.loading || !huboIntentoInicial;
 
   return (
     <div className="space-y-3 py-1 animate-in fade-in duration-500">
