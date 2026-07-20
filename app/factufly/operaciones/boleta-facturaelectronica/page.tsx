@@ -39,7 +39,11 @@ export default function BoletaFacturaElectronicaPage() {
 
   const [tipoManual, setTipoManual] = useState<Tipo | null>(null);
   const tipo: Tipo =
-    tipoManual ?? (config?.isBoletaOrFactura === "f" ? "factura" : "boleta");
+    tipoManual ?? (
+      config?.isBoletaOrFactura === "f" ? "factura" :
+      config?.isBoletaOrFactura === "n" ? "notaventa" :
+      "boleta"
+    );
 
   useEffect(() => {
     sharedVentaStore.clear();

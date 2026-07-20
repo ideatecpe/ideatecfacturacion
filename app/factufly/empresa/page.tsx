@@ -1295,7 +1295,7 @@ export default function ConfiguracionPage() {
                       <p className="text-xs text-gray-400 mt-0.5">Comprobante predeterminado al emitir</p>
                     </div>
                     <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
-                      {(["b", "f"] as const).map((t) => (
+                      {(["b", "f", "n"] as const).map((t) => (
                         <button
                           key={t}
                           type="button"
@@ -1309,7 +1309,7 @@ export default function ConfiguracionPage() {
                             !canEdit && "cursor-not-allowed opacity-60",
                           )}
                         >
-                          {t === "b" ? "Boleta" : "Factura"}
+                          {t === "b" ? "Boleta" : t === "f" ? "Factura" : "Nota de Venta"}
                         </button>
                       ))}
                     </div>
