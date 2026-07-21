@@ -825,15 +825,18 @@ export default function AgregarProducto({
                     Cancelar
                   </button>
                 </div>
-                <div className="relative w-full bg-black rounded-lg overflow-hidden border border-white/10 min-h-[280px]">
+                <div className="relative w-full aspect-[4/3] max-h-[300px] bg-black rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
                   <video
                     ref={videoRef}
-                    className="w-full h-full object-cover min-h-[280px]"
+                    className="absolute inset-0 w-full h-full object-cover"
                     autoPlay
                     playsInline
                     muted
                   />
-                  <div id="reader" className="w-full h-full absolute inset-0 [&_video]:object-cover" />
+                  <div
+                    id="reader"
+                    className="absolute inset-0 w-full h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover"
+                  />
                 </div>
                 <p className="text-[10px] text-gray-400 text-center">
                   Apunte la cámara al código de barras — no necesita estar perfectamente centrado.
