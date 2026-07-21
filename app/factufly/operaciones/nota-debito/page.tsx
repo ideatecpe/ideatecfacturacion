@@ -561,13 +561,14 @@ function NotaDebitoContent() {
       await actualizarStock(items, accessToken);
       const productosActualizados = await fetchProductosSucursal();
       if (config?.numeroStockBajo) {
+        const umbral = config.umbralStockBajo ?? 10;
         const bajos = (productosActualizados ?? [])
           .filter((p) => {
             const cantidadVendida = acumulado.get(p.sucursalProducto.sucursalProductoId);
             if (cantidadVendida === undefined) return false;
             const stockDespues = p.sucursalProducto.stock ?? 0;
             const stockAntes = stockDespues + cantidadVendida;
-            return stockDespues <= 10 && stockAntes > 10;
+            return stockDespues <= umbral && stockAntes > umbral;
           })
           .map((p) => ({ nomProducto: p.nomProducto, stock: p.sucursalProducto.stock ?? 0 }));
         if (bajos.length) avisarStockBajoWhatsapp(bajos, config.numeroStockBajo);

@@ -60,7 +60,7 @@ import { useEscanerGlobal } from "../useEscanerGlobal";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
-import { CajaAutopagoPlaceholder } from "@/app/factufly/operaciones/components/CajaAutopagoPlaceholder";
+import CajaAutopago from "@/app/factufly/operaciones/components/CajaAutopago";
 import React from "react";
 
 // ── Interfaces locales ───────────────────────────────────────
@@ -314,7 +314,10 @@ function NotaVentaContent() {
   const [tipoDoc, setTipoDoc] = useState("01");
   const [busqueda, setBusqueda] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const [clienteVarios, setClienteVarios] = useState(false);
+  // Nota de Venta es siempre documento de control interno: arranca marcado
+  // como "Clientes Varios" por defecto (el cajero puede desmarcarlo si quiere
+  // identificar al cliente igual).
+  const [clienteVarios, setClienteVarios] = useState(true);
   const [nombreEditable, setNombreEditable] = useState(false);
 
   // ── Modal guardar cliente ────────────────────────────────────
@@ -2001,13 +2004,14 @@ function NotaVentaContent() {
       );
       const productosActualizados = await fetchProductosSucursal();
       if (config?.numeroStockBajo) {
+        const umbral = config.umbralStockBajo ?? 10;
         const bajos = (productosActualizados ?? [])
           .filter((p) => {
             const cantidadVendida = acumulado.get(p.sucursalProducto.sucursalProductoId);
             if (cantidadVendida === undefined) return false;
             const stockDespues = p.sucursalProducto.stock ?? 0;
             const stockAntes = stockDespues + cantidadVendida;
-            return stockDespues <= 10 && stockAntes > 10;
+            return stockDespues <= umbral && stockAntes > umbral;
           })
           .map((p) => ({ nomProducto: p.nomProducto, stock: p.sucursalProducto.stock ?? 0 }));
         if (bajos.length) avisarStockBajoWhatsapp(bajos, config.numeroStockBajo);
@@ -2554,7 +2558,7 @@ function NotaVentaContent() {
 
   // ── Render ───────────────────────────────────────────────────
   if (config?.isStock && config?.isCajaAutopago) {
-    return <CajaAutopagoPlaceholder />;
+    return <CajaAutopago />;
   }
 
   return (

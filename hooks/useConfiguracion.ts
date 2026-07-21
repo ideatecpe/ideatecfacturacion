@@ -19,6 +19,7 @@ export interface Configuracion {
   descUnitario: boolean;
   isStock: boolean;
   numeroStockBajo?: string | null;
+  umbralStockBajo?: number | null;
   useNotaVenta: boolean;
   isCajaAutopago: boolean;
   usaSire: boolean;

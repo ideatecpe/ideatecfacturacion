@@ -86,6 +86,7 @@ interface Configuracion {
   descUnitario:      boolean;
   isStock:           boolean;
   numeroStockBajo?:  string | null;
+  umbralStockBajo?:  number | null;
   useNotaVenta:      boolean;
   isCajaAutopago:    boolean;
   usaSire:           boolean;
@@ -880,7 +881,7 @@ export default function ConfiguracionPage() {
 
   const updConfig =
     (key: keyof Configuracion) =>
-    (val: boolean | string) => {
+    (val: boolean | string | number) => {
       if (!canEdit) return;
       setConfig((prev) => {
         if (!prev) return prev;
@@ -1346,20 +1347,20 @@ export default function ConfiguracionPage() {
                 </div>
                 {config.isStock && (
                   <div className="mt-3 rounded-xl border border-gray-100 overflow-hidden bg-gray-100 space-y-px">
-                    <div className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
+                    <div className="flex items-center gap-4 px-4 py-3 bg-white">
+                      <Toggle
+                        checked={!!config.isCajaAutopago}
+                        onChange={updConfig("isCajaAutopago")}
+                        disabled={!canEdit}
+                      />
                       <div>
                         <p className="text-sm font-medium text-gray-800">Caja Autopago</p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           Módulo de autoservicio de pago (requiere Stock / Proveedores activo)
                         </p>
                       </div>
-                      <Toggle
-                        checked={!!config.isCajaAutopago}
-                        onChange={updConfig("isCajaAutopago")}
-                        disabled={!canEdit}
-                      />
                     </div>
-                    <div className="px-4 py-3 bg-white">
+                    <div className="px-4 py-3 bg-white flex flex-col sm:flex-row gap-3 items-start">
                       <Input
                         label={
                           <span className="flex items-center gap-1">
@@ -1367,7 +1368,7 @@ export default function ConfiguracionPage() {
                             Número de WhatsApp para aviso de stock bajo
                           </span>
                         }
-                        hint="Se notificará a este único número cuando un producto quede con 10 unidades o menos"
+                        hint={`Se notificará a este único número cuando un producto quede con ${config.umbralStockBajo ?? 10} unidades o menos`}
                         hintClassName="text-xs text-gray-400"
                         value={config.numeroStockBajo ?? ""}
                         onChange={(e) =>
@@ -1377,6 +1378,18 @@ export default function ConfiguracionPage() {
                         }
                         disabled={!canEdit}
                         placeholder="987654321"
+                        className="w-full sm:w-72"
+                      />
+                      <Input
+                        label="Umbral de unidades"
+                        value={String(config.umbralStockBajo ?? 10)}
+                        onChange={(e) => {
+                          const n = e.target.value.replace(/\D/g, "").slice(0, 5);
+                          updConfig("umbralStockBajo")(n === "" ? 10 : parseInt(n, 10));
+                        }}
+                        disabled={!canEdit}
+                        placeholder="10"
+                        className="sm:w-32"
                       />
                     </div>
                   </div>

@@ -327,11 +327,12 @@ export default function RegistrarCompra({
     if (!huboError) onClose();
   };
 
-  // ── Avisar por WhatsApp si algún producto repuesto cruzó de <=10 a >10 ──────
+  // ── Avisar por WhatsApp si algún producto repuesto cruzó el umbral de stock bajo ──
   const avisarStockRepuestoSiAplica = async (
     registros: { sucursalId: number; productoId: number; cantidad: number }[],
     numero: string,
   ) => {
+    const umbral = config?.umbralStockBajo ?? 10;
     const sucursalIds = Array.from(new Set(registros.map((r) => r.sucursalId)));
     const frescos = new Map<number, ProductoSucursal[]>();
 
@@ -355,7 +356,7 @@ export default function RegistrarCompra({
         if (!producto) return null;
         const stockDespues = producto.sucursalProducto.stock ?? 0;
         const stockAntes = stockDespues - r.cantidad;
-        if (stockAntes > 10 || stockDespues <= 10) return null;
+        if (stockAntes > umbral || stockDespues <= umbral) return null;
         return { nomProducto: producto.nomProducto, stock: stockDespues };
       })
       .filter((p): p is { nomProducto: string; stock: number } => p !== null);

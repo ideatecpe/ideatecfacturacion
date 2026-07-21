@@ -53,6 +53,17 @@ export default function BoletaFacturaElectronicaPage() {
   if (!user || loadingConfig) return null;
 
   const isNV = tipo === "notaventa";
+  const cajaAutopago = !!(config?.isStock && config?.isCajaAutopago);
+
+  // En modo Caja Autopago, la cabecera (título, badge y pestañas) se oculta
+  // para que la nueva vista ocupe todo el espacio disponible.
+  if (cajaAutopago) {
+    return (
+      <div className="flex flex-col h-full">
+        <BoletaPage />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full space-y-2">
