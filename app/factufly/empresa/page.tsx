@@ -88,6 +88,7 @@ interface Configuracion {
   numeroStockBajo?:  string | null;
   useNotaVenta:      boolean;
   isCajaAutopago:    boolean;
+  usaSire:           boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1332,6 +1333,7 @@ export default function ConfiguracionPage() {
                     { key: "cargaComprobantes"   as const, label: "Carga comprobantes",     desc: "Módulo de carga masiva de comprobantes" },
                     { key: "isStock"             as const, label: "Stock / Proveedores",    desc: "Módulo de gestión de inventario" },
                     { key: "useNotaVenta"        as const, label: "Nota de Venta",          desc: "Habilitar emisión de notas de venta" },
+                    { key: "usaSire"             as const, label: "SIRE (Registro de Ventas)", desc: "Módulo de cierre mensual del RVIE ante SUNAT" },
                   ] as { key: keyof Configuracion; label: string; desc: string }[]).map(({ key, label, desc }) => (
                     <div key={key} className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
                       <div>

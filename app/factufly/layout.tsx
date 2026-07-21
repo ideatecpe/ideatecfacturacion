@@ -17,6 +17,7 @@ import {
   Wallet,
   FileSpreadsheet,
   Boxes,
+  BookOpenCheck,
 } from "lucide-react";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
@@ -160,6 +161,7 @@ export default function DashboardLayout({
       },
       { id: "reportes", label: "Reportes", icon: BarChart3 },
       { id: "sunat", label: "SUNAT", icon: Zap },
+      { id: "sire", label: "SIRE", icon: BookOpenCheck },
       { id: "empresa", label: "Empresa", icon: Settings },
       { id: "sucursales", label: "Sucursales", icon: Building2 },
       { id: "usuarios", label: "Usuarios", icon: UserCircle },
@@ -172,6 +174,7 @@ export default function DashboardLayout({
       if (item.id === "deudasporcobrar")   return config?.deudasCobrar ?? false;
       if (item.id === "cuentasporcobrar")  return config?.isCredito ?? false;
       if (item.id === "compras")           return config?.isStock ?? false;
+      if (item.id === "sire")              return config?.usaSire ?? false;
       return true;
     });
   }, [config]);
