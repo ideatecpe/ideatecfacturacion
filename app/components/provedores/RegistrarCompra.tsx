@@ -492,8 +492,8 @@ export default function RegistrarCompra({
           </label>
 
           <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="overflow-y-auto" style={{ maxHeight: "min(38vh, 340px)" }}>
-              <table className="w-full text-xs border-collapse" style={{ tableLayout: "fixed" }}>
+            <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: "min(38vh, 340px)" }}>
+              <table className="w-full text-xs border-collapse" style={{ tableLayout: "fixed", minWidth: "640px" }}>
                 <colgroup>
                   <col style={{ width: "32px" }} />
                   {mostrarColProveedor && <col />}
@@ -566,7 +566,7 @@ export default function RegistrarCompra({
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <button
               type="button"
               onClick={handleAgregarLinea}
@@ -603,9 +603,9 @@ export default function RegistrarCompra({
           </div>
         )}
 
-        <div className="pt-2 flex items-center justify-between gap-3">
+        <div className="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
           {/* ── Estado: pequeño y discreto, solo aparece después de intentar guardar ── */}
-          {(guardadosCount > 0 || erroresCount > 0) ? (
+          {(guardadosCount > 0 || erroresCount > 0) && (
             <p className="text-[11px] text-gray-500">
               <span className="text-emerald-600 font-semibold">{guardadosCount} guardado{guardadosCount === 1 ? "" : "s"}</span>
               {erroresCount > 0 && (
@@ -616,15 +616,13 @@ export default function RegistrarCompra({
               )}
               {" "}de {lineas.length} línea{lineas.length === 1 ? "" : "s"}
             </p>
-          ) : (
-            <span />
           )}
 
           <div className="flex justify-end gap-3">
-            <Button variant="outline" type="button" onClick={onClose} disabled={guardando}>
+            <Button variant="outline" type="button" onClick={onClose} disabled={guardando} className="flex-1 sm:flex-none">
               {hayGuardados ? "Cerrar" : "Cancelar"}
             </Button>
-            <Button type="submit" disabled={guardando || !hayPendientes}>
+            <Button type="submit" disabled={guardando || !hayPendientes} className="flex-1 sm:flex-none">
               {guardando ? "Registrando..." : hayGuardados ? "Guardar faltantes" : "Registrar Compra"}
             </Button>
           </div>

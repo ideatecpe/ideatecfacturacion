@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import type { Html5Qrcode } from "html5-qrcode";
 import dynamic from "next/dynamic";
 import axios from "axios";
 import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, Globe, Loader2 } from "lucide-react";
@@ -110,6 +111,65 @@ export default function AgregarProducto({
   const [buscandoInternet, setBuscandoInternet] = useState(false);
   const [modalCatalogoOpen, setModalCatalogoOpen] = useState(false);
   const [codigoSunatLabel, setCodigoSunatLabel] = useState("");
+
+  const [isScanning, setIsScanning] = useState(false);
+  const scannerRef = React.useRef<Html5Qrcode | null>(null);
+
+  const stopScanning = React.useCallback(async () => {
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+      } catch (err) {
+        console.error("Error stopping barcode scanner", err);
+      }
+      scannerRef.current = null;
+    }
+    setIsScanning(false);
+  }, []);
+
+  const startScanning = async () => {
+    setIsScanning(true);
+    setTimeout(async () => {
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        const html5Qrcode = new Html5Qrcode("reader");
+        scannerRef.current = html5Qrcode;
+
+        await html5Qrcode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: (width, height) => {
+              return { width: Math.floor(width * 0.85), height: Math.floor(height * 0.45) };
+            },
+          },
+          (decodedText) => {
+            setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+            showToast(`Código escaneado: ${decodedText}`, "success");
+            stopScanning();
+          },
+          () => {
+            // Silencioso
+          }
+        );
+      } catch (err) {
+        console.error("Error starting barcode scanner", err);
+        showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
+        setIsScanning(false);
+      }
+    }, 100);
+  };
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      stopScanning();
+    }
+    return () => {
+      stopScanning();
+    };
+  }, [isOpen, stopScanning]);
 
   const eliminarImagenCloudflare = async (imageId: string) => {
     try {
@@ -396,6 +456,7 @@ export default function AgregarProducto({
 
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
+    stopScanning();
     if (!validar()) return;
     if (isSubmitting) return;
 
@@ -613,7 +674,10 @@ export default function AgregarProducto({
               <div className="flex gap-1.5">
                 <button
                   type="button"
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={() => {
+                    stopScanning();
+                    cameraInputRef.current?.click();
+                  }}
                   disabled={subiendoImagen}
                   className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
                 >
@@ -622,7 +686,10 @@ export default function AgregarProducto({
                 </button>
                 <button
                   type="button"
-                  onClick={handleSeleccionarImagen}
+                  onClick={() => {
+                    stopScanning();
+                    handleSeleccionarImagen();
+                  }}
                   disabled={subiendoImagen}
                   className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
                 >
@@ -663,6 +730,45 @@ export default function AgregarProducto({
             </p>
           )}
         </div>
+
+        {/* ── Escáner de Código de Barras (Cámara) ── */}
+        {!soloSucursal && (
+          <div className="space-y-2">
+            {!isScanning ? (
+              <button
+                type="button"
+                onClick={startScanning}
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue font-bold rounded-xl text-xs transition-colors border border-brand-blue/20"
+              >
+                <Camera className="w-4 h-4" />
+                Escanear Código de Barras con Cámara
+              </button>
+            ) : (
+              <div className="space-y-3 p-3 bg-gray-900 text-white rounded-xl border border-gray-800">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping" />
+                    Buscando código de barras...
+                  </span>
+                  <button
+                    type="button"
+                    onClick={stopScanning}
+                    className="text-xs font-semibold text-gray-400 hover:text-white transition-colors px-2.5 py-1 bg-white/10 rounded-lg"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                <div
+                  id="reader"
+                  className="w-full aspect-video bg-black rounded-lg overflow-hidden border border-white/10 relative [&_video]:object-cover"
+                />
+                <p className="text-[10px] text-gray-400 text-center">
+                  Coloque el código de barras centrado frente a la cámara trasera.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Campos base ── */}
         {!soloSucursal && (
