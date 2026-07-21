@@ -143,90 +143,93 @@ export default function AgregarProducto({
   const startScanning = async () => {
     setIsScanning(true);
 
-    // 1. Detección NATIVA ultra-rápida (BarcodeDetector API de Chrome / Android)
-    if ("BarcodeDetector" in window) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
-          },
-        });
-        mediaStreamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-
-        const BarcodeDetectorClass = (
-          window as unknown as {
-            BarcodeDetector: new (options?: { formats: string[] }) => {
-              detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
-            };
+    // Esperar 50ms a que React renderice los nodos DOM <video> y <div id="reader">
+    setTimeout(async () => {
+      // 1. Detección NATIVA ultra-rápida (BarcodeDetector API de Chrome / Android)
+      if ("BarcodeDetector" in window) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
+            },
+          });
+          mediaStreamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play();
           }
-        ).BarcodeDetector;
-        const detector = new BarcodeDetectorClass({
-          formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "qr_code"],
-        });
 
-        let scanned = false;
-        const scanLoop = async () => {
-          if (scanned || !videoRef.current) return;
-          try {
-            if (videoRef.current.readyState >= 2) {
-              const barcodes = await detector.detect(videoRef.current);
-              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-                scanned = true;
-                const decodedText = barcodes[0].rawValue;
-                setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
-                showToast(`Código escaneado: ${decodedText}`, "success");
-                stopScanning();
-                if (decodedText.trim().length >= 8) {
-                  buscarProductoPorInternet(decodedText.trim());
-                }
-                return;
-              }
+          const BarcodeDetectorClass = (
+            window as unknown as {
+              BarcodeDetector: new (options?: { formats: string[] }) => {
+                detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+              };
             }
-          } catch {
-            // Silencioso por fotograma
-          }
-          animFrameRef.current = requestAnimationFrame(scanLoop);
-        };
-        scanLoop();
-        return;
-      } catch (err) {
-        console.warn("Fallback a html5-qrcode por falla en cámara nativa", err);
+          ).BarcodeDetector;
+          const detector = new BarcodeDetectorClass({
+            formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "qr_code"],
+          });
+
+          let scanned = false;
+          const scanLoop = async () => {
+            if (scanned || !videoRef.current) return;
+            try {
+              if (videoRef.current.readyState >= 2) {
+                const barcodes = await detector.detect(videoRef.current);
+                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                  scanned = true;
+                  const decodedText = barcodes[0].rawValue;
+                  setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+                  showToast(`Código escaneado: ${decodedText}`, "success");
+                  stopScanning();
+                  if (decodedText.trim().length >= 8) {
+                    buscarProductoPorInternet(decodedText.trim());
+                  }
+                  return;
+                }
+              }
+            } catch {
+              // Silencioso por fotograma
+            }
+            animFrameRef.current = requestAnimationFrame(scanLoop);
+          };
+          scanLoop();
+          return;
+        } catch (err) {
+          console.warn("Fallback a html5-qrcode por falla en cámara nativa", err);
+        }
       }
-    }
 
-    // 2. Fallback con html5-qrcode (escaneando el 95% del frame a 30 FPS)
-    try {
-      const html5Qrcode = new Html5Qrcode("reader");
-      scannerRef.current = html5Qrcode;
+      // 2. Fallback con html5-qrcode (escaneando el 95% del frame a 30 FPS)
+      try {
+        const html5Qrcode = new Html5Qrcode("reader");
+        scannerRef.current = html5Qrcode;
 
-      await html5Qrcode.start(
-        { facingMode: "environment" },
-        {
-          fps: 30,
-          qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
-        },
-        (decodedText: string) => {
-          setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
-          showToast(`Código escaneado: ${decodedText}`, "success");
-          stopScanning();
-          if (decodedText.trim().length >= 8) {
-            buscarProductoPorInternet(decodedText.trim());
-          }
-        },
-        () => {}
-      );
-    } catch (err) {
-      console.error("Error starting barcode scanner", err);
-      showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
-      setIsScanning(false);
-    }
+        await html5Qrcode.start(
+          { facingMode: "environment" },
+          {
+            fps: 30,
+            qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
+          },
+          (decodedText: string) => {
+            setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+            showToast(`Código escaneado: ${decodedText}`, "success");
+            stopScanning();
+            if (decodedText.trim().length >= 8) {
+              buscarProductoPorInternet(decodedText.trim());
+            }
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error("Error starting barcode scanner", err);
+        showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
+        setIsScanning(false);
+      }
+    }, 50);
   };
 
   React.useEffect(() => {
