@@ -133,30 +133,26 @@ export default function AgregarProducto({
     setIsScanning(true);
     setTimeout(async () => {
       try {
-        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
+        const { Html5Qrcode } = await import("html5-qrcode");
         const html5Qrcode = new Html5Qrcode("reader", {
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.ITF,
-            Html5QrcodeSupportedFormats.QR_CODE,
-          ],
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true,
+          },
           verbose: false,
         });
         scannerRef.current = html5Qrcode;
 
         await html5Qrcode.start(
-          { facingMode: "environment" },
           {
-            fps: 30,
+            facingMode: "environment",
+            width: { min: 640, ideal: 1280, max: 1920 },
+            height: { min: 480, ideal: 720, max: 1080 },
+          },
+          {
+            fps: 25,
             qrbox: (width: number, height: number) => {
-              return { width: Math.floor(width * 0.9), height: Math.floor(height * 0.6) };
+              return { width: Math.floor(width * 0.95), height: Math.floor(height * 0.8) };
             },
-            aspectRatio: 1.0,
             disableFlip: false,
           },
           (decodedText: string) => {
@@ -764,8 +760,7 @@ export default function AgregarProducto({
             ) : (
               <div className="space-y-3 p-3 bg-gray-900 text-white rounded-xl border border-gray-800">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping" />
+                  <span className="text-xs font-bold uppercase tracking-wider">
                     Buscando código de barras...
                   </span>
                   <button
@@ -867,7 +862,7 @@ export default function AgregarProducto({
             {!!form.codigoBarras && form.codigoBarras.trim().length >= 8 && (
               <button
                 type="button"
-                onClick={buscarProductoPorInternet}
+                onClick={() => buscarProductoPorInternet()}
                 disabled={buscandoInternet}
                 className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-60"
               >
@@ -1046,7 +1041,8 @@ export default function AgregarProducto({
             )}
           </div>
  
-          {!soloSucursal && (
+          {/* Campo Código (auto) oculto/comentado porque se genera automáticamente */}
+          {/* {!soloSucursal && (
             <InputBase
               compact
               label="Código"
@@ -1057,7 +1053,7 @@ export default function AgregarProducto({
               showError={false}
               className="bg-gray-100 text-gray-500 cursor-not-allowed"
             />
-          )}
+          )} */}
 
         </div>
 
