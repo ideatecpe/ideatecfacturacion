@@ -60,6 +60,7 @@ import { useEscanerGlobal } from "../useEscanerGlobal";
 import { ModalItemsVelsat } from "@/app/components/modalEmision/Modalitemsvelsat";
 import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
+import { CajaAutopagoPlaceholder } from "@/app/factufly/operaciones/components/CajaAutopagoPlaceholder";
 import React from "react";
 
 // ── Interfaces locales ───────────────────────────────────────
@@ -2657,6 +2658,10 @@ function BoletaContent() {
   };
 
   // ── Render ───────────────────────────────────────────────────
+  if (config?.isStock && config?.isCajaAutopago) {
+    return <CajaAutopagoPlaceholder />;
+  }
+
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

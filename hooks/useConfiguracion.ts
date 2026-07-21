@@ -20,6 +20,7 @@ export interface Configuracion {
   isStock: boolean;
   numeroStockBajo?: string | null;
   useNotaVenta: boolean;
+  isCajaAutopago: boolean;
 }
 
 // Cache a nivel de módulo: evita que un remount (p.ej. cambiar Boleta <-> Factura)

@@ -87,6 +87,7 @@ interface Configuracion {
   isStock:           boolean;
   numeroStockBajo?:  string | null;
   useNotaVenta:      boolean;
+  isCajaAutopago:    boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -880,7 +881,15 @@ export default function ConfiguracionPage() {
     (key: keyof Configuracion) =>
     (val: boolean | string) => {
       if (!canEdit) return;
-      setConfig((prev) => (prev ? { ...prev, [key]: val } : prev));
+      setConfig((prev) => {
+        if (!prev) return prev;
+        // Caja Autopago depende de Stock / Proveedores: al desactivar este último,
+        // se apaga también para no dejar guardado un estado inconsistente.
+        if (key === "isStock" && val === false && prev.isCajaAutopago) {
+          return { ...prev, isStock: false, isCajaAutopago: false };
+        }
+        return { ...prev, [key]: val };
+      });
     };
 
   // ── PUT empresa ───────────────────────────────────────────────────────────
@@ -1015,35 +1024,6 @@ export default function ConfiguracionPage() {
                   onLogoRemove={handleLogoRemove}
                   onError={(msg) => showToast(msg, "error")}
                 />
-
-                {user?.ruc && (
-                  <div className="md:col-span-2 flex items-center gap-5 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                    <div className="p-2 bg-white rounded-xl border border-gray-200 shadow-sm">
-                      <QRCodeSVG
-                        value={JSON.stringify({
-                          empresaRuc: user.ruc,
-                          sucursalId: user.sucursalID ?? "",
-                        })}
-                        size={96}
-                        fgColor="#0f2e64"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-700">
-                        Código QR — FactuFly Alertas
-                      </p>
-                      <p className="text-[11px] text-gray-400 leading-relaxed">
-                        Escanea este código desde la app <strong>FactuFly Alertas</strong> en
-                        tu celular Android para vincular las notificaciones de Yape con esta
-                        empresa y sucursal.
-                      </p>
-                      <p className="text-[10px] text-gray-300 font-mono">
-                        RUC {user.ruc}
-                        {user.sucursalID ? ` · Sucursal ${user.sucursalID}` : ""}
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 <div className="md:col-span-2 mt-3 mx-3">
                   <SectionHeader
@@ -1363,25 +1343,40 @@ export default function ConfiguracionPage() {
                   ))}
                 </div>
                 {config.isStock && (
-                  <div className="mt-3">
-                    <Input
-                      label={
-                        <span className="flex items-center gap-1">
-                          <WhatsAppIcon className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                          Número de WhatsApp para aviso de stock bajo
-                        </span>
-                      }
-                      hint="Se notificará a este único número cuando un producto quede con 10 unidades o menos"
-                      hintClassName="text-xs text-gray-400"
-                      value={config.numeroStockBajo ?? ""}
-                      onChange={(e) =>
-                        updConfig("numeroStockBajo")(
-                          e.target.value.replace(/\D/g, "").slice(0, 9),
-                        )
-                      }
-                      disabled={!canEdit}
-                      placeholder="987654321"
-                    />
+                  <div className="mt-3 rounded-xl border border-gray-100 overflow-hidden bg-gray-100 space-y-px">
+                    <div className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">Caja Autopago</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Módulo de autoservicio de pago (requiere Stock / Proveedores activo)
+                        </p>
+                      </div>
+                      <Toggle
+                        checked={!!config.isCajaAutopago}
+                        onChange={updConfig("isCajaAutopago")}
+                        disabled={!canEdit}
+                      />
+                    </div>
+                    <div className="px-4 py-3 bg-white">
+                      <Input
+                        label={
+                          <span className="flex items-center gap-1">
+                            <WhatsAppIcon className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                            Número de WhatsApp para aviso de stock bajo
+                          </span>
+                        }
+                        hint="Se notificará a este único número cuando un producto quede con 10 unidades o menos"
+                        hintClassName="text-xs text-gray-400"
+                        value={config.numeroStockBajo ?? ""}
+                        onChange={(e) =>
+                          updConfig("numeroStockBajo")(
+                            e.target.value.replace(/\D/g, "").slice(0, 9),
+                          )
+                        }
+                        disabled={!canEdit}
+                        placeholder="987654321"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
