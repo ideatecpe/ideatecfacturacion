@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import type { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import dynamic from "next/dynamic";
 import axios from "axios";
 import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, Globe, Loader2 } from "lucide-react";
@@ -142,92 +142,91 @@ export default function AgregarProducto({
 
   const startScanning = async () => {
     setIsScanning(true);
-    setTimeout(async () => {
-      // 1. Detección NATIVA ultra-rápida (BarcodeDetector API de Chrome / Android)
-      if ("BarcodeDetector" in window) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-          });
-          mediaStreamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            await videoRef.current.play();
-          }
 
-          const BarcodeDetectorClass = (
-            window as unknown as {
-              BarcodeDetector: new (options?: { formats: string[] }) => {
-                detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
-              };
-            }
-          ).BarcodeDetector;
-          const detector = new BarcodeDetectorClass({
-            formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "qr_code"],
-          });
-
-          let scanned = false;
-          const scanLoop = async () => {
-            if (scanned || !videoRef.current) return;
-            try {
-              if (videoRef.current.readyState >= 2) {
-                const barcodes = await detector.detect(videoRef.current);
-                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-                  scanned = true;
-                  const decodedText = barcodes[0].rawValue;
-                  setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
-                  showToast(`Código escaneado: ${decodedText}`, "success");
-                  stopScanning();
-                  if (decodedText.trim().length >= 8) {
-                    buscarProductoPorInternet(decodedText.trim());
-                  }
-                  return;
-                }
-              }
-            } catch {
-              // Silencioso por fotograma
-            }
-            animFrameRef.current = requestAnimationFrame(scanLoop);
-          };
-          scanLoop();
-          return;
-        } catch (err) {
-          console.warn("Fallback a html5-qrcode por falla en cámara nativa", err);
-        }
-      }
-
-      // 2. Fallback con html5-qrcode (escaneando el 95% del frame a 25 FPS)
+    // 1. Detección NATIVA ultra-rápida (BarcodeDetector API de Chrome / Android)
+    if ("BarcodeDetector" in window) {
       try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        const html5Qrcode = new Html5Qrcode("reader");
-        scannerRef.current = html5Qrcode;
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
+          },
+        });
+        mediaStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
 
-        await html5Qrcode.start(
-          { facingMode: "environment" },
-          {
-            fps: 25,
-            qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
-          },
-          (decodedText: string) => {
-            setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
-            showToast(`Código escaneado: ${decodedText}`, "success");
-            stopScanning();
-            if (decodedText.trim().length >= 8) {
-              buscarProductoPorInternet(decodedText.trim());
+        const BarcodeDetectorClass = (
+          window as unknown as {
+            BarcodeDetector: new (options?: { formats: string[] }) => {
+              detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+            };
+          }
+        ).BarcodeDetector;
+        const detector = new BarcodeDetectorClass({
+          formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "qr_code"],
+        });
+
+        let scanned = false;
+        const scanLoop = async () => {
+          if (scanned || !videoRef.current) return;
+          try {
+            if (videoRef.current.readyState >= 2) {
+              const barcodes = await detector.detect(videoRef.current);
+              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                scanned = true;
+                const decodedText = barcodes[0].rawValue;
+                setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+                showToast(`Código escaneado: ${decodedText}`, "success");
+                stopScanning();
+                if (decodedText.trim().length >= 8) {
+                  buscarProductoPorInternet(decodedText.trim());
+                }
+                return;
+              }
             }
-          },
-          () => {}
-        );
+          } catch {
+            // Silencioso por fotograma
+          }
+          animFrameRef.current = requestAnimationFrame(scanLoop);
+        };
+        scanLoop();
+        return;
       } catch (err) {
-        console.error("Error starting barcode scanner", err);
-        showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
-        setIsScanning(false);
+        console.warn("Fallback a html5-qrcode por falla en cámara nativa", err);
       }
-    }, 150);
+    }
+
+    // 2. Fallback con html5-qrcode (escaneando el 95% del frame a 30 FPS)
+    try {
+      const html5Qrcode = new Html5Qrcode("reader");
+      scannerRef.current = html5Qrcode;
+
+      await html5Qrcode.start(
+        { facingMode: "environment" },
+        {
+          fps: 30,
+          qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
+        },
+        (decodedText: string) => {
+          setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+          showToast(`Código escaneado: ${decodedText}`, "success");
+          stopScanning();
+          if (decodedText.trim().length >= 8) {
+            buscarProductoPorInternet(decodedText.trim());
+          }
+        },
+        () => {}
+      );
+    } catch (err) {
+      console.error("Error starting barcode scanner", err);
+      showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
+      setIsScanning(false);
+    }
   };
 
   React.useEffect(() => {
@@ -321,8 +320,8 @@ export default function AgregarProducto({
         return;
       }
 
-      // Nombre: solo si el usuario aún no escribió uno.
-      if (data.nombre && !form.nomProducto.trim()) {
+      // Nombre: actualizar siempre con el producto escaneado
+      if (data.nombre) {
         const nombre: string = data.nombre;
         setPalabraBusqueda("");
         setShowSugerencias(false);
@@ -337,8 +336,8 @@ export default function AgregarProducto({
         if (errors.nomProducto) setErrors((prev) => ({ ...prev, nomProducto: false }));
       }
 
-      // Imagen: solo si aún no hay una cargada.
-      if (data.url && !form.urlImagenProducto) {
+      // Imagen: actualizar siempre con la imagen del producto escaneado
+      if (data.url) {
         // Si había una imagen previa subida sin guardar, liberarla.
         if (currentImageId) eliminarImagenCloudflare(currentImageId);
         setImgError(false);
