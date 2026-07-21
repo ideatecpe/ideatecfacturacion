@@ -134,47 +134,31 @@ export default function AgregarProducto({
     setTimeout(async () => {
       try {
         const { Html5Qrcode } = await import("html5-qrcode");
-        const html5Qrcode = new Html5Qrcode("reader", {
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true,
-          },
-          verbose: false,
-        });
+        const html5Qrcode = new Html5Qrcode("reader");
         scannerRef.current = html5Qrcode;
 
         await html5Qrcode.start(
           { facingMode: "environment" },
           {
-            fps: 25,
-            qrbox: (width: number, height: number) => {
-              return { width: Math.floor(width * 0.95), height: Math.floor(height * 0.8) };
-            },
-            videoConstraints: {
-              facingMode: "environment",
-              width: { min: 640, ideal: 1280, max: 1920 },
-              height: { min: 480, ideal: 720, max: 1080 },
-            },
-            disableFlip: false,
+            fps: 10,
+            qrbox: { width: 280, height: 120 },
           },
           (decodedText: string) => {
             setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
             showToast(`Código escaneado: ${decodedText}`, "success");
             stopScanning();
-            // Buscar automáticamente nombre e imagen por internet
             if (decodedText.trim().length >= 8) {
               buscarProductoPorInternet(decodedText.trim());
             }
           },
-          () => {
-            // Silencioso
-          }
+          () => {}
         );
       } catch (err) {
         console.error("Error starting barcode scanner", err);
         showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
         setIsScanning(false);
       }
-    }, 100);
+    }, 200);
   };
 
   React.useEffect(() => {
@@ -774,7 +758,8 @@ export default function AgregarProducto({
                 </div>
                 <div
                   id="reader"
-                  className="w-full aspect-[4/3] bg-black rounded-lg overflow-hidden border border-white/10 relative [&_video]:object-cover"
+                  className="w-full bg-black rounded-lg overflow-hidden border border-white/10"
+                  style={{ minHeight: 280 }}
                 />
                 <p className="text-[10px] text-gray-400 text-center">
                   Apunte la cámara al código de barras — no necesita estar perfectamente centrado.
