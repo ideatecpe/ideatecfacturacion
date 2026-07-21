@@ -133,22 +133,40 @@ export default function AgregarProducto({
     setIsScanning(true);
     setTimeout(async () => {
       try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        const html5Qrcode = new Html5Qrcode("reader");
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
+        const html5Qrcode = new Html5Qrcode("reader", {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.QR_CODE,
+          ],
+          verbose: false,
+        });
         scannerRef.current = html5Qrcode;
 
         await html5Qrcode.start(
           { facingMode: "environment" },
           {
-            fps: 10,
-            qrbox: (width, height) => {
-              return { width: Math.floor(width * 0.85), height: Math.floor(height * 0.45) };
+            fps: 30,
+            qrbox: (width: number, height: number) => {
+              return { width: Math.floor(width * 0.9), height: Math.floor(height * 0.6) };
             },
+            aspectRatio: 1.0,
+            disableFlip: false,
           },
-          (decodedText) => {
+          (decodedText: string) => {
             setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
             showToast(`Código escaneado: ${decodedText}`, "success");
             stopScanning();
+            // Buscar automáticamente nombre e imagen por internet
+            if (decodedText.trim().length >= 8) {
+              buscarProductoPorInternet(decodedText.trim());
+            }
           },
           () => {
             // Silencioso
@@ -232,8 +250,8 @@ export default function AgregarProducto({
 
   // Busca datos del producto por su código de barras en internet (Open Food Facts)
   // y autocompleta el nombre (si está vacío) y la imagen (si no hay una).
-  const buscarProductoPorInternet = async () => {
-    const barcode = form.codigoBarras?.trim();
+  const buscarProductoPorInternet = async (barcodeOverride?: string) => {
+    const barcode = barcodeOverride || form.codigoBarras?.trim();
     if (!barcode) return;
     setBuscandoInternet(true);
     try {
@@ -740,7 +758,7 @@ export default function AgregarProducto({
                 onClick={startScanning}
                 className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue font-bold rounded-xl text-xs transition-colors border border-brand-blue/20"
               >
-                <Camera className="w-4 h-4" />
+                <ScanBarcode className="w-4 h-4" />
                 Escanear Código de Barras con Cámara
               </button>
             ) : (
@@ -760,12 +778,108 @@ export default function AgregarProducto({
                 </div>
                 <div
                   id="reader"
-                  className="w-full aspect-video bg-black rounded-lg overflow-hidden border border-white/10 relative [&_video]:object-cover"
+                  className="w-full aspect-[4/3] bg-black rounded-lg overflow-hidden border border-white/10 relative [&_video]:object-cover"
                 />
                 <p className="text-[10px] text-gray-400 text-center">
-                  Coloque el código de barras centrado frente a la cámara trasera.
+                  Apunte la cámara al código de barras — no necesita estar perfectamente centrado.
                 </p>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Código de barras (siempre disponible) ── */}
+        {!soloSucursal && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">
+              Código de Barras{" "}
+              <span className="text-gray-400 font-normal normal-case">(opcional)</span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Entrada manual */}
+              <input
+                type="text"
+                value={form.codigoBarras ?? ""}
+                onChange={handleFormChange("codigoBarras")}
+                placeholder="EAN13 / Code128"
+                className="sm:w-52 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+              />
+
+              {/* Panel: generar código automático o vista previa en vivo */}
+              <div className="flex-1 rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-[64px]">
+                {form.codigoBarras ? (
+                  <div className="flex items-center justify-center gap-4 w-full">
+                    <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
+                      <BarcodePreview
+                        value={form.codigoBarras}
+                        format={formatoBarcodeSeguro(form.codigoBarras)}
+                        width={1.5}
+                        height={38}
+                        fontSize={12}
+                        margin={0}
+                        displayValue
+                        background="transparent"
+                        lineColor="#1e293b"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
+                        }
+                        className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Regenerar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-rose-500 hover:underline"
+                      >
+                        <XIcon className="w-3 h-3" /> Quitar código
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
+                    }
+                    className="w-full flex items-center justify-center gap-3 py-1 group"
+                  >
+                    <ScanBarcode className="w-8 h-8 text-brand-blue shrink-0 group-hover:scale-110 transition-transform" />
+                    <div className="text-left">
+                      <span className="block text-xs font-bold text-brand-blue">
+                        Generar código automático
+                      </span>
+                      <span className="block text-[10px] text-gray-400">
+                        EAN-13 interno válido para imprimir y escanear
+                      </span>
+                    </div>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Buscar datos del producto en internet por su código de barras */}
+            {!!form.codigoBarras && form.codigoBarras.trim().length >= 8 && (
+              <button
+                type="button"
+                onClick={buscarProductoPorInternet}
+                disabled={buscandoInternet}
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-60"
+              >
+                {buscandoInternet ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Globe className="w-3.5 h-3.5" />
+                )}
+                {buscandoInternet
+                  ? "Buscando en internet…"
+                  : "Buscar nombre e imagen por este código (internet)"}
+              </button>
             )}
           </div>
         )}
@@ -947,123 +1061,27 @@ export default function AgregarProducto({
 
         </div>
 
-        {/* ── Código de barras (siempre disponible) ── */}
-        {!soloSucursal && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">
-              Código de Barras{" "}
-              <span className="text-gray-400 font-normal normal-case">(opcional)</span>
-            </label>
-            <div className="flex flex-col sm:flex-row gap-3">
-              {/* Entrada manual */}
-              <input
-                type="text"
-                value={form.codigoBarras ?? ""}
-                onChange={handleFormChange("codigoBarras")}
-                placeholder="EAN13 / Code128"
-                className="sm:w-52 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
-              />
-
-              {/* Panel: generar código automático o vista previa en vivo */}
-              <div className="flex-1 rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-[64px]">
-                {form.codigoBarras ? (
-                  <div className="flex items-center justify-center gap-4 w-full">
-                    <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
-                      <BarcodePreview
-                        value={form.codigoBarras}
-                        format={formatoBarcodeSeguro(form.codigoBarras)}
-                        width={1.5}
-                        height={38}
-                        fontSize={12}
-                        margin={0}
-                        displayValue
-                        background="transparent"
-                        lineColor="#1e293b"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
-                        }
-                        className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"
-                      >
-                        <RotateCcw className="w-3 h-3" /> Regenerar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-rose-500 hover:underline"
-                      >
-                        <XIcon className="w-3 h-3" /> Quitar código
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
-                    }
-                    className="w-full flex items-center justify-center gap-3 py-1 group"
-                  >
-                    <ScanBarcode className="w-8 h-8 text-brand-blue shrink-0 group-hover:scale-110 transition-transform" />
-                    <div className="text-left">
-                      <span className="block text-xs font-bold text-brand-blue">
-                        Generar código automático
-                      </span>
-                      <span className="block text-[10px] text-gray-400">
-                        EAN-13 interno válido para imprimir y escanear
-                      </span>
-                    </div>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Buscar datos del producto en internet por su código de barras */}
-            {!!form.codigoBarras && form.codigoBarras.trim().length >= 8 && (
-              <button
-                type="button"
-                onClick={buscarProductoPorInternet}
-                disabled={buscandoInternet}
-                className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-60"
-              >
-                {buscandoInternet ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Globe className="w-3.5 h-3.5" />
-                )}
-                {buscandoInternet
-                  ? "Buscando en internet…"
-                  : "Buscar nombre e imagen por este código (internet)"}
-              </button>
-            )}
-
-            {/* ¿Es un paquete/caja? — fila propia */}
-            {config?.isStock && (
-              <label className="flex items-center gap-2 pt-1 cursor-pointer select-none w-fit">
-                <input
-                  type="checkbox"
-                  checked={!!form.esPaquete}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setForm((prev) => ({
-                      ...prev,
-                      esPaquete: checked,
-                      productoBaseId: checked ? prev.productoBaseId : null,
-                      factorConversion: checked ? prev.factorConversion : null,
-                    }));
-                  }}
-                  className="w-4 h-4 accent-brand-blue"
-                />
-                <span className="text-xs font-semibold text-gray-600">
-                  ¿Es un paquete/caja con unidades dentro?
-                </span>
-              </label>
-            )}
-          </div>
+        {/* ¿Es un paquete/caja? — fila propia */}
+        {!soloSucursal && config?.isStock && (
+          <label className="flex items-center gap-2 pt-1 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={!!form.esPaquete}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setForm((prev) => ({
+                  ...prev,
+                  esPaquete: checked,
+                  productoBaseId: checked ? prev.productoBaseId : null,
+                  factorConversion: checked ? prev.factorConversion : null,
+                }));
+              }}
+              className="w-4 h-4 accent-brand-blue"
+            />
+            <span className="text-xs font-semibold text-gray-600">
+              ¿Es un paquete/caja con unidades dentro?
+            </span>
+          </label>
         )}
 
         {/* ── Código SUNAT (UNSPSC) ── */}
