@@ -143,15 +143,16 @@ export default function AgregarProducto({
         scannerRef.current = html5Qrcode;
 
         await html5Qrcode.start(
-          {
-            facingMode: "environment",
-            width: { min: 640, ideal: 1280, max: 1920 },
-            height: { min: 480, ideal: 720, max: 1080 },
-          },
+          { facingMode: "environment" },
           {
             fps: 25,
             qrbox: (width: number, height: number) => {
               return { width: Math.floor(width * 0.95), height: Math.floor(height * 0.8) };
+            },
+            videoConstraints: {
+              facingMode: "environment",
+              width: { min: 640, ideal: 1280, max: 1920 },
+              height: { min: 480, ideal: 720, max: 1080 },
             },
             disableFlip: false,
           },
