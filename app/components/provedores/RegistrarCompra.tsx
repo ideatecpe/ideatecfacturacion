@@ -300,6 +300,7 @@ export default function RegistrarCompra({
         cantidad: Number(l.cantidad),
         unidadMedida: l.unidadMedida || undefined,
         docReferencia: docReferencia.trim() || undefined,
+        idUsuario: user?.id ? Number(user.id) : undefined,
       });
 
       if (creada) {

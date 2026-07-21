@@ -105,6 +105,7 @@ export default function AgregarProveedor({ isOpen, onClose, onProveedorAgregado,
       ...form,
       numDocumento: sinDocumento ? null : form.numDocumento,
       rucEmpresa: user.ruc,
+      idUsuario: user?.id ? Number(user.id) : undefined,
     });
     if (creado) {
       onProveedorAgregado(creado);

@@ -1,12 +1,10 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
-const Barcode = dynamic(() => import("react-barcode"), { ssr: false });
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Search,
   Upload,
   Plus,
-  Edit2,
   Trash2,
   ChevronDown,
   Package,
@@ -28,7 +26,6 @@ import {
 import axios from "axios";
 
 import { Button } from "@/app/components/ui/Button";
-import { Card } from "@/app/components/ui/Card";
 import { Modal } from "@/app/components/ui/Modal";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { InputBase } from "@/app/components/ui/InputBase";
@@ -37,6 +34,7 @@ import { cn } from "@/app/utils/cn";
 import { ProductoSucursal } from "../gestioProductos/Producto";
 import AgregarProducto from "../gestioProductos/AgregarProducto";
 import EditarProducto from "../gestioProductos/EditarProducto";
+import ProductoCard from "./ProductoCard";
 
 import { useProductosSucursal } from "../gestioProductos/useProductosSucursal";
 import { useCategoriasLista } from "../gestioProductos/useCategoriasLista";
@@ -52,7 +50,6 @@ import { ModalVentasProductoExcel } from "../gestioProductos/ModalVentasProducto
 import ModalImprimirEtiquetas from "../gestioProductos/ModalImprimirEtiquetas";
 import { generarCodigoProducto } from "../gestioProductos/generarCodigoProducto";
 import { useVales } from "../gestioProductos/useVales";
-import { formatoBarcodeSeguro } from "../gestioProductos/barcodeFormato";
 
 // Umbral de stock bajo (alerta visual) para productos normales, en unidades.
 const STOCK_MINIMO_UNIDAD = 5;
@@ -167,6 +164,26 @@ const [importFile, setImportFile] = useState<File | null>(null);
   // Ids de productos cuya imagen falló al cargar: se muestra el placeholder "Sin imagen".
   const [imgErrorIds, setImgErrorIds] = useState<Set<number>>(new Set());
 
+  // ── Virtualización de la grilla ──────────────────────────────────
+  // Solo se montan en el DOM las filas visibles (+ overscan), para que la
+  // página no se ponga lenta con catálogos grandes (cientos/miles de productos).
+  const gridScrollRef = useRef<HTMLDivElement>(null);
+  const gridProbeRef = useRef<HTMLDivElement>(null);
+  const [columnasGrid, setColumnasGrid] = useState(2);
+
+  useEffect(() => {
+    const medirColumnas = () => {
+      if (!gridProbeRef.current) return;
+      const cols = window
+        .getComputedStyle(gridProbeRef.current)
+        .gridTemplateColumns.split(" ").length;
+      setColumnasGrid(cols > 0 ? cols : 1);
+    };
+    medirColumnas();
+    window.addEventListener("resize", medirColumnas);
+    return () => window.removeEventListener("resize", medirColumnas);
+  }, []);
+
   const abrirModalImprimir = (lista: ProductoSucursal[]) => {
     const conCodigo = lista.filter((p) => !!p.codigoBarras);
     if (conCodigo.length === 0) {
@@ -273,6 +290,23 @@ const [importFile, setImportFile] = useState<File | null>(null);
       matchTipo &&
       matchSucursal
     );
+  });
+
+  // Agrupa la lista filtrada en filas de `columnasGrid` productos, para
+  // virtualizar por fila (@tanstack/react-virtual sobre una grilla responsiva).
+  const filasVirtual = React.useMemo(() => {
+    const filas: ProductoSucursal[][] = [];
+    for (let i = 0; i < filtered.length; i += columnasGrid) {
+      filas.push(filtered.slice(i, i + columnasGrid));
+    }
+    return filas;
+  }, [filtered, columnasGrid]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filasVirtual.length,
+    getScrollElement: () => gridScrollRef.current,
+    estimateSize: () => 215,
+    overscan: 4,
   });
 
   const handleProductoEditado = (productoEditado: ProductoSucursal) => {
@@ -1108,6 +1142,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
       {/* Grid */}
 
       <div
+        ref={gridScrollRef}
         className="overflow-y-auto rounded-xl "
         style={{
           maxHeight: showFiltrosAvanzados
@@ -1117,9 +1152,19 @@ const [importFile, setImportFile] = useState<File | null>(null);
           scrollbarColor: "#CBD5E1 transparent",
         }}
       >
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 pb-2">
-          {loadingProductos &&
-            Array.from({ length: 12 }).map((_, i) => (
+        {/* Sonda oculta: solo sirve para medir cuántas columnas tiene la
+            grilla en el breakpoint actual (Tailwind), independiente de los
+            datos, para poder repartir `filtered` en filas virtualizadas. */}
+        <div
+          ref={gridProbeRef}
+          aria-hidden
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2"
+          style={{ position: "absolute", visibility: "hidden", height: 0, overflow: "hidden", pointerEvents: "none" }}
+        />
+
+        {loadingProductos && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 pb-2">
+            {Array.from({ length: 12 }).map((_, i) => (
               <div
                 key={i}
                 className="animate-pulse border border-gray-200 rounded-xl p-4 space-y-4"
@@ -1139,237 +1184,84 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 </div>
               </div>
             ))}
+          </div>
+        )}
 
-          {!loadingProductos && filtered.length === 0 && (
-            <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-              <div className="bg-gray-100 rounded-full p-4 mb-3">
-                <PackageSearch className="w-10 h-10 text-gray-300" />
-              </div>
-              <p className="text-gray-500 font-semibold text-sm">
-                No se encontraron productos
-              </p>
-              <p className="text-gray-400 text-xs mt-1">
-                Intenta ajustar los filtros de búsqueda
-              </p>
+        {!loadingProductos && filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="bg-gray-100 rounded-full p-4 mb-3">
+              <PackageSearch className="w-10 h-10 text-gray-300" />
             </div>
-          )}
-          {!loadingProductos &&
-            filtered.map((prod) => (
-              <Card
-                key={prod.sucursalProducto.sucursalProductoId}
-                className={`group hover:border-brand-blue transition-all ${modoSeleccionPromo && prod.tipoProducto === "BIEN" ? "cursor-pointer" : ""}`}
-                onClick={modoSeleccionPromo && prod.tipoProducto === "BIEN" ? () => toggleSeleccionPromo(prod.productoId) : undefined}
-              >
-                {/* ── Imagen ── */}
-                {prod.urlImagenProducto &&
-                !imgErrorIds.has(prod.sucursalProducto.sucursalProductoId) ? (
-                  <div className="-mx-2 -mt-2 mb-1.5 h-24 bg-white overflow-hidden rounded-t-xl">
-                    <img
-                      src={prod.urlImagenProducto}
-                      alt={prod.nomProducto}
-                      loading="lazy"
-                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-                      onError={() =>
-                        setImgErrorIds((prev) => {
-                          const next = new Set(prev);
-                          next.add(prod.sucursalProducto.sucursalProductoId);
-                          return next;
-                        })
-                      }
-                    />
-                  </div>
-                ) : (
-                  <div className="-mx-2 -mt-2 mb-1.5 h-24 bg-gray-100 rounded-t-xl flex items-center justify-center">
-                    <span className="text-gray-300 font-bold text-xs tracking-wide select-none">Sin imagen</span>
-                  </div>
-                )}
+            <p className="text-gray-500 font-semibold text-sm">
+              No se encontraron productos
+            </p>
+            <p className="text-gray-400 text-xs mt-1">
+              Intenta ajustar los filtros de búsqueda
+            </p>
+          </div>
+        )}
 
-                <div className="flex justify-between items-start">
-                  <div className="space-y-0.5 min-w-0">
-                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
-                      {prod.codigo}
-                    </p>
-                    <h4 className="text-[13px] font-bold text-gray-900 group-hover:text-brand-blue transition-colors line-clamp-1">
-                      {prod.nomProducto}
-                    </h4>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <p className="text-[9px] font-medium text-gray-400 bg-gray-100 w-fit px-1.5 py-0.5 rounded uppercase">
-                        {prod.categoria?.categoriaNombre}
-                      </p>
-                      {isSuperAdmin && (
-                        <p className="text-[9px] text-gray-400 bg-blue-50 w-fit px-1.5 py-0.5 rounded">
-                          {prod.sucursalProducto.nomSucursal}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-0.5 shrink-0">
-                    {modoSeleccionPromo ? (
-                      prod.tipoProducto === "BIEN" && (
-                        <input
-                          type="checkbox"
-                          checked={seleccionadosPromo.has(prod.productoId)}
-                          onChange={() => toggleSeleccionPromo(prod.productoId)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-4 h-4 accent-rose-600"
-                        />
-                      )
-                    ) : (
-                      !soloLectura && (
-                        <>
-                          <button
-                            onClick={() => handleOpenEdit(prod)}
-                            title="Editar producto"
-                            aria-label={`Editar ${prod.nomProducto}`}
-                            className="p-1 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenDelete(prod)}
-                            title="Eliminar producto"
-                            aria-label={`Eliminar ${prod.nomProducto}`}
-                            className="p-1 text-gray-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )
-                    )}
+        {!loadingProductos && filtered.length > 0 && (
+          <div
+            style={{
+              height: rowVirtualizer.getTotalSize(),
+              position: "relative",
+              width: "100%",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const fila = filasVirtual[virtualRow.index];
+              if (!fila) return null;
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  className="pb-2"
+                >
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                    {fila.map((prod) => (
+                      <ProductoCard
+                        key={prod.sucursalProducto.sucursalProductoId}
+                        prod={prod}
+                        isSuperAdmin={isSuperAdmin}
+                        soloLectura={soloLectura}
+                        isStock={config?.isStock}
+                        modoSeleccionPromo={modoSeleccionPromo}
+                        seleccionado={seleccionadosPromo.has(prod.productoId)}
+                        toggleSeleccionPromo={toggleSeleccionPromo}
+                        handleOpenEdit={handleOpenEdit}
+                        handleOpenDelete={handleOpenDelete}
+                        abrirModalImprimir={abrirModalImprimir}
+                        productoBase={
+                          prod.esPaquete && prod.productoBaseId
+                            ? productosPorId.get(prod.productoBaseId)
+                            : undefined
+                        }
+                        getEstadoStock={getEstadoStock}
+                        imgError={imgErrorIds.has(prod.sucursalProducto.sucursalProductoId)}
+                        onImgError={() =>
+                          setImgErrorIds((prev) => {
+                            const next = new Set(prev);
+                            next.add(prod.sucursalProducto.sucursalProductoId);
+                            return next;
+                          })
+                        }
+                      />
+                    ))}
                   </div>
                 </div>
-
-                <div className="mt-1.5 flex justify-between items-end">
-                  <div>
-                    {config?.isStock && prod.tipoProducto === "BIEN" && (
-                      <>
-                        {prod.esPaquete && prod.factorConversion ? (
-                          (() => {
-                            const base = prod.productoBaseId
-                              ? productosPorId.get(prod.productoBaseId)
-                              : undefined;
-                            const stockBase = base?.sucursalProducto.stock ?? null;
-                            const factor = prod.factorConversion!;
-                            const cajas = stockBase != null ? Math.floor(stockBase / factor) : null;
-                            const sueltas = stockBase != null ? stockBase % factor : null;
-                            const estado = getEstadoStock(prod);
-                            const labelPrincipal = (() => {
-                              if (cajas == null) return "STOCK: —";
-                              if (cajas > 0) return `STOCK: ${cajas} caja${cajas > 1 ? "s" : ""}`;
-                              if (sueltas! > 0) return `STOCK: 0 cajas`;
-                              return "STOCK: 0";
-                            })();
-                            const labelDetalle = (() => {
-                              if (cajas == null || !base) return null;
-                              const partes = [];
-                              if (cajas > 0) partes.push(`${cajas} caj. (${factor} und. c/u)`);
-                              if (sueltas! > 0) partes.push(`${sueltas} und. sueltas`);
-                              return partes.length ? partes.join(" + ") : null;
-                            })();
-                            return (
-                              <div className="mb-0.5">
-                                <p
-                                  className={cn(
-                                    "text-[13px] font-bold leading-tight",
-                                    estado === "agotado"
-                                      ? "text-slate-400"
-                                      : estado === "bajo"
-                                        ? "text-amber-600"
-                                        : "text-gray-900",
-                                  )}
-                                >
-                                  {labelPrincipal}
-                                </p>
-                                {labelDetalle && (
-                                  <p className="text-[9px] font-normal text-gray-400 leading-tight">
-                                    {labelDetalle}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })()
-                        ) : (
-                          <p
-                            className={cn(
-                              "text-[13px] font-bold",
-                              getEstadoStock(prod) === "agotado"
-                                ? "text-slate-400"
-                                : getEstadoStock(prod) === "bajo"
-                                  ? "text-amber-600"
-                                  : "text-gray-900",
-                            )}
-                          >
-                            STOCK: {prod.sucursalProducto.stock} und.
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[9px] text-gray-400 uppercase font-bold leading-tight">
-                      {prod.tipoAfectacionIGV === "10"
-                        ? prod.incluirIGV
-                          ? "Gravado (Inc. IGV)"
-                          : "Gravado (Sin. IGV)"
-                        : prod.tipoAfectacionIGV === "20"
-                          ? "Exonerado"
-                          : "Inafecto"}
-                    </p>
-                    {config?.isStock && prod.sucursalProducto.enPromocion && prod.sucursalProducto.porcentajeDescuento ? (
-                      <>
-                        <div className="flex items-center justify-end gap-1">
-                          <Tag className="w-3 h-3 text-orange-500" />
-                          <span className="text-[9px] font-bold text-orange-500 uppercase">
-                            -{prod.sucursalProducto.porcentajeDescuento}%
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-gray-400 line-through leading-tight">
-                          S/ {prod.sucursalProducto.precioUnitario.toFixed(2)}
-                        </p>
-                        <p className="text-[13px] font-black text-orange-500 leading-tight">
-                          S/{" "}
-                          {(
-                            prod.sucursalProducto.precioUnitario *
-                            (1 - prod.sucursalProducto.porcentajeDescuento / 100)
-                          ).toFixed(2)}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-[13px] font-black text-brand-blue leading-tight">
-                        S/ {prod.sucursalProducto.precioUnitario.toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* ── Código de barras — pie de tarjeta ── */}
-                {prod.codigoBarras && (
-                  <div className="mt-1.5 -mx-2 -mb-2 border-t border-dashed border-gray-200 bg-gray-50 rounded-b-xl flex flex-col items-center py-1 px-2 relative">
-                    <Barcode
-                      value={prod.codigoBarras}
-                      format={formatoBarcodeSeguro(prod.codigoBarras)}
-                      width={1.2}
-                      height={26}
-                      fontSize={8}
-                      margin={0}
-                      displayValue={true}
-                      background="transparent"
-                      lineColor="#334155"
-                    />
-                    <button
-                      onClick={() => abrirModalImprimir([prod])}
-                      title="Imprimir etiqueta"
-                      aria-label={`Imprimir etiqueta de ${prod.nomProducto}`}
-                      className="absolute right-1 top-1 p-1 text-gray-400 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
-                    >
-                      <Printer className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-              </Card>
-            ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <AgregarProducto
