@@ -23,6 +23,7 @@ export interface NuevoProveedor {
   email?: string;
   personaContacto?: string;
   rucEmpresa: string;
+  idUsuario?: number;
 }
 
 // ─── Para editar proveedor (PUT) ───────────────────────────────
@@ -62,4 +63,5 @@ export interface NuevaCompraProveedor {
   cantidad: number;
   unidadMedida?: string;
   docReferencia?: string;
+  idUsuario?: number;
 }
