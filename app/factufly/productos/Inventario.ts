@@ -39,8 +39,19 @@ export interface StockValorizado {
 // ─── Rentabilidad por producto (ingreso vs costo PEPS) ──────────
 export interface RentabilidadProducto {
   productoId: number;
+  sucursalProductoId: number;
   nomProducto: string | null;
   codigo: string | null;
+  cantidadVendida: number;
+  ingresoVentas: number;
+  costoVentas: number;
+  utilidadBruta: number;
+  margenPorcentaje: number;
+}
+
+// ─── Rentabilidad diaria de un producto (para el gráfico de evolución) ──
+export interface RentabilidadDiaria {
+  fecha: string;
   cantidadVendida: number;
   ingresoVentas: number;
   costoVentas: number;
