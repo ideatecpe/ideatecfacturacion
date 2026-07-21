@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImageOff } from "lucide-react";
+import { conVarianteImagen } from "@/app/utils/cloudflareImagen";
 
 interface ImagenProductoCuadradaProps {
   url?: string | null;
@@ -26,9 +27,15 @@ export default function ImagenProductoCuadrada({
   size = "md",
   className = "",
 }: ImagenProductoCuadradaProps) {
-  const [error, setError] = useState(false);
+  // Intenta primero la variante liviana "thumbnail"; si no existe todavía en
+  // Cloudflare (404), cae a la imagen original en vez de mostrar "sin imagen".
+  const [intento, setIntento] = useState<"thumbnail" | "original" | "error">("thumbnail");
 
-  const mostrarImagen = !!url && !error;
+  useEffect(() => {
+    setIntento("thumbnail");
+  }, [url]);
+
+  const mostrarImagen = !!url && intento !== "error";
 
   return (
     <div
@@ -36,10 +43,11 @@ export default function ImagenProductoCuadrada({
     >
       {mostrarImagen ? (
         <img
-          src={url as string}
+          src={intento === "thumbnail" ? conVarianteImagen(url as string, "thumbnail") : (url as string)}
           alt={alt}
+          loading="lazy"
           className="w-full h-full object-cover"
-          onError={() => setError(true)}
+          onError={() => setIntento((prev) => (prev === "thumbnail" ? "original" : "error"))}
         />
       ) : (
         <div className="w-full h-full bg-gray-100 flex items-center justify-center">
