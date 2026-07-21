@@ -113,9 +113,20 @@ export default function AgregarProducto({
   const [codigoSunatLabel, setCodigoSunatLabel] = useState("");
 
   const [isScanning, setIsScanning] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = React.useRef<MediaStream | null>(null);
+  const animFrameRef = React.useRef<number | null>(null);
   const scannerRef = React.useRef<Html5Qrcode | null>(null);
 
   const stopScanning = React.useCallback(async () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
     if (scannerRef.current) {
       try {
         if (scannerRef.current.isScanning) {
@@ -132,6 +143,64 @@ export default function AgregarProducto({
   const startScanning = async () => {
     setIsScanning(true);
     setTimeout(async () => {
+      // 1. Detección NATIVA ultra-rápida (BarcodeDetector API de Chrome / Android)
+      if ("BarcodeDetector" in window) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          });
+          mediaStreamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play();
+          }
+
+          const BarcodeDetectorClass = (
+            window as unknown as {
+              BarcodeDetector: new (options?: { formats: string[] }) => {
+                detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+              };
+            }
+          ).BarcodeDetector;
+          const detector = new BarcodeDetectorClass({
+            formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "qr_code"],
+          });
+
+          let scanned = false;
+          const scanLoop = async () => {
+            if (scanned || !videoRef.current) return;
+            try {
+              if (videoRef.current.readyState >= 2) {
+                const barcodes = await detector.detect(videoRef.current);
+                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                  scanned = true;
+                  const decodedText = barcodes[0].rawValue;
+                  setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+                  showToast(`Código escaneado: ${decodedText}`, "success");
+                  stopScanning();
+                  if (decodedText.trim().length >= 8) {
+                    buscarProductoPorInternet(decodedText.trim());
+                  }
+                  return;
+                }
+              }
+            } catch {
+              // Silencioso por fotograma
+            }
+            animFrameRef.current = requestAnimationFrame(scanLoop);
+          };
+          scanLoop();
+          return;
+        } catch (err) {
+          console.warn("Fallback a html5-qrcode por falla en cámara nativa", err);
+        }
+      }
+
+      // 2. Fallback con html5-qrcode (escaneando el 95% del frame a 25 FPS)
       try {
         const { Html5Qrcode } = await import("html5-qrcode");
         const html5Qrcode = new Html5Qrcode("reader");
@@ -140,8 +209,8 @@ export default function AgregarProducto({
         await html5Qrcode.start(
           { facingMode: "environment" },
           {
-            fps: 10,
-            qrbox: { width: 280, height: 120 },
+            fps: 25,
+            qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
           },
           (decodedText: string) => {
             setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
@@ -158,7 +227,7 @@ export default function AgregarProducto({
         showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
         setIsScanning(false);
       }
-    }, 200);
+    }, 150);
   };
 
   React.useEffect(() => {
@@ -756,11 +825,16 @@ export default function AgregarProducto({
                     Cancelar
                   </button>
                 </div>
-                <div
-                  id="reader"
-                  className="w-full bg-black rounded-lg overflow-hidden border border-white/10"
-                  style={{ minHeight: 280 }}
-                />
+                <div className="relative w-full bg-black rounded-lg overflow-hidden border border-white/10 min-h-[280px]">
+                  <video
+                    ref={videoRef}
+                    className="w-full h-full object-cover min-h-[280px]"
+                    autoPlay
+                    playsInline
+                    muted
+                  />
+                  <div id="reader" className="w-full h-full absolute inset-0 [&_video]:object-cover" />
+                </div>
                 <p className="text-[10px] text-gray-400 text-center">
                   Apunte la cámara al código de barras — no necesita estar perfectamente centrado.
                 </p>
