@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 import dynamic from "next/dynamic";
 import axios from "axios";
 import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, Globe, Loader2 } from "lucide-react";
@@ -113,6 +114,135 @@ export default function AgregarProducto({
   const [modalCatalogoOpen, setModalCatalogoOpen] = useState(false);
   const [codigoSunatLabel, setCodigoSunatLabel] = useState("");
 
+  const [isScanning, setIsScanning] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = React.useRef<MediaStream | null>(null);
+  const animFrameRef = React.useRef<number | null>(null);
+  const scannerRef = React.useRef<Html5Qrcode | null>(null);
+
+  const stopScanning = React.useCallback(async () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+      } catch (err) {
+        console.error("Error stopping barcode scanner", err);
+      }
+      scannerRef.current = null;
+    }
+    setIsScanning(false);
+  }, []);
+
+  const startScanning = async () => {
+    setIsScanning(true);
+
+    // Esperar 50ms a que React renderice los nodos DOM <video> y <div id="reader">
+    setTimeout(async () => {
+      // 1. Detección NATIVA ultra-rápida (BarcodeDetector API de Chrome / Android)
+      if ("BarcodeDetector" in window) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
+            },
+          });
+          mediaStreamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play();
+          }
+
+          const BarcodeDetectorClass = (
+            window as unknown as {
+              BarcodeDetector: new (options?: { formats: string[] }) => {
+                detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+              };
+            }
+          ).BarcodeDetector;
+          const detector = new BarcodeDetectorClass({
+            formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "qr_code"],
+          });
+
+          let scanned = false;
+          const scanLoop = async () => {
+            if (scanned || !videoRef.current) return;
+            try {
+              if (videoRef.current.readyState >= 2) {
+                const barcodes = await detector.detect(videoRef.current);
+                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                  scanned = true;
+                  const decodedText = barcodes[0].rawValue;
+                  setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+                  showToast(`Código escaneado: ${decodedText}`, "success");
+                  stopScanning();
+                  if (decodedText.trim().length >= 8) {
+                    buscarProductoPorInternet(decodedText.trim());
+                  }
+                  return;
+                }
+              }
+            } catch {
+              // Silencioso por fotograma
+            }
+            animFrameRef.current = requestAnimationFrame(scanLoop);
+          };
+          scanLoop();
+          return;
+        } catch (err) {
+          console.warn("Fallback a html5-qrcode por falla en cámara nativa", err);
+        }
+      }
+
+      // 2. Fallback con html5-qrcode (escaneando el 95% del frame a 30 FPS)
+      try {
+        const html5Qrcode = new Html5Qrcode("reader");
+        scannerRef.current = html5Qrcode;
+
+        await html5Qrcode.start(
+          { facingMode: "environment" },
+          {
+            fps: 30,
+            qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
+          },
+          (decodedText: string) => {
+            setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+            showToast(`Código escaneado: ${decodedText}`, "success");
+            stopScanning();
+            if (decodedText.trim().length >= 8) {
+              buscarProductoPorInternet(decodedText.trim());
+            }
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error("Error starting barcode scanner", err);
+        showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
+        setIsScanning(false);
+      }
+    }, 50);
+  };
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      stopScanning();
+    }
+    return () => {
+      stopScanning();
+    };
+  }, [isOpen, stopScanning]);
+
   const eliminarImagenCloudflare = async (imageId: string) => {
     try {
       await fetch("/api/upload-imagen", {
@@ -174,8 +304,8 @@ export default function AgregarProducto({
 
   // Busca datos del producto por su código de barras en internet (Open Food Facts)
   // y autocompleta el nombre (si está vacío) y la imagen (si no hay una).
-  const buscarProductoPorInternet = async () => {
-    const barcode = form.codigoBarras?.trim();
+  const buscarProductoPorInternet = async (barcodeOverride?: string) => {
+    const barcode = barcodeOverride || form.codigoBarras?.trim();
     if (!barcode) return;
     setBuscandoInternet(true);
     try {
@@ -195,8 +325,8 @@ export default function AgregarProducto({
         return;
       }
 
-      // Nombre: solo si el usuario aún no escribió uno.
-      if (data.nombre && !form.nomProducto.trim()) {
+      // Nombre: actualizar siempre con el producto escaneado
+      if (data.nombre) {
         const nombre: string = data.nombre;
         setPalabraBusqueda("");
         setShowSugerencias(false);
@@ -211,8 +341,8 @@ export default function AgregarProducto({
         if (errors.nomProducto) setErrors((prev) => ({ ...prev, nomProducto: false }));
       }
 
-      // Imagen: solo si aún no hay una cargada.
-      if (data.url && !form.urlImagenProducto) {
+      // Imagen: actualizar siempre con la imagen del producto escaneado
+      if (data.url) {
         // Si había una imagen previa subida sin guardar, liberarla.
         if (currentImageId) eliminarImagenCloudflare(currentImageId);
         setImgError(false);
@@ -398,6 +528,7 @@ export default function AgregarProducto({
 
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
+    stopScanning();
     if (!validar()) return;
     if (isSubmitting) return;
 
@@ -617,7 +748,10 @@ export default function AgregarProducto({
               <div className="flex gap-1.5">
                 <button
                   type="button"
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={() => {
+                    stopScanning();
+                    cameraInputRef.current?.click();
+                  }}
                   disabled={subiendoImagen}
                   className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
                 >
@@ -626,7 +760,10 @@ export default function AgregarProducto({
                 </button>
                 <button
                   type="button"
-                  onClick={handleSeleccionarImagen}
+                  onClick={() => {
+                    stopScanning();
+                    handleSeleccionarImagen();
+                  }}
                   disabled={subiendoImagen}
                   className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
                 >
@@ -667,6 +804,149 @@ export default function AgregarProducto({
             </p>
           )}
         </div>
+
+        {/* ── Escáner de Código de Barras (Cámara) ── */}
+        {!soloSucursal && (
+          <div className="space-y-2">
+            {!isScanning ? (
+              <button
+                type="button"
+                onClick={startScanning}
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue font-bold rounded-xl text-xs transition-colors border border-brand-blue/20"
+              >
+                <ScanBarcode className="w-4 h-4" />
+                Escanear Código de Barras con Cámara
+              </button>
+            ) : (
+              <div className="space-y-3 p-3 bg-gray-900 text-white rounded-xl border border-gray-800">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-wider">
+                    Buscando código de barras...
+                  </span>
+                  <button
+                    type="button"
+                    onClick={stopScanning}
+                    className="text-xs font-semibold text-gray-400 hover:text-white transition-colors px-2.5 py-1 bg-white/10 rounded-lg"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                <div className="relative w-full aspect-[4/3] max-h-[300px] bg-black rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
+                  <video
+                    ref={videoRef}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    autoPlay
+                    playsInline
+                    muted
+                  />
+                  <div
+                    id="reader"
+                    className="absolute inset-0 w-full h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 text-center">
+                  Apunte la cámara al código de barras — no necesita estar perfectamente centrado.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Código de barras (siempre disponible) ── */}
+        {!soloSucursal && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase">
+              Código de Barras{" "}
+              <span className="text-gray-400 font-normal normal-case">(opcional)</span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Entrada manual */}
+              <input
+                type="text"
+                value={form.codigoBarras ?? ""}
+                onChange={handleFormChange("codigoBarras")}
+                placeholder="EAN13 / Code128"
+                className="sm:w-52 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+              />
+
+              {/* Panel: generar código automático o vista previa en vivo */}
+              <div className="flex-1 rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-[64px]">
+                {form.codigoBarras ? (
+                  <div className="flex items-center justify-center gap-4 w-full">
+                    <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
+                      <BarcodePreview
+                        value={form.codigoBarras}
+                        format={formatoBarcodeSeguro(form.codigoBarras)}
+                        width={1.5}
+                        height={38}
+                        fontSize={12}
+                        margin={0}
+                        displayValue
+                        background="transparent"
+                        lineColor="#1e293b"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
+                        }
+                        className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Regenerar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-rose-500 hover:underline"
+                      >
+                        <XIcon className="w-3 h-3" /> Quitar código
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
+                    }
+                    className="w-full flex items-center justify-center gap-3 py-1 group"
+                  >
+                    <ScanBarcode className="w-8 h-8 text-brand-blue shrink-0 group-hover:scale-110 transition-transform" />
+                    <div className="text-left">
+                      <span className="block text-xs font-bold text-brand-blue">
+                        Generar código automático
+                      </span>
+                      <span className="block text-[10px] text-gray-400">
+                        EAN-13 interno válido para imprimir y escanear
+                      </span>
+                    </div>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Buscar datos del producto en internet por su código de barras */}
+            {!!form.codigoBarras && form.codigoBarras.trim().length >= 8 && (
+              <button
+                type="button"
+                onClick={() => buscarProductoPorInternet()}
+                disabled={buscandoInternet}
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-60"
+              >
+                {buscandoInternet ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Globe className="w-3.5 h-3.5" />
+                )}
+                {buscandoInternet
+                  ? "Buscando en internet…"
+                  : "Buscar nombre e imagen por este código (internet)"}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ── Campos base ── */}
         {!soloSucursal && (
@@ -830,7 +1110,8 @@ export default function AgregarProducto({
             )}
           </div>
  
-          {!soloSucursal && (
+          {/* Campo Código (auto) oculto/comentado porque se genera automáticamente */}
+          {/* {!soloSucursal && (
             <InputBase
               compact
               label="Código"
@@ -841,29 +1122,9 @@ export default function AgregarProducto({
               showError={false}
               className="bg-gray-100 text-gray-500 cursor-not-allowed"
             />
-          )}
+          )} */}
 
         </div>
-
-        {/* ── Ubicación en tienda (solo informativo, opcional) ── */}
-        {config?.isStock && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <InputBase
-              compact
-              label="Ubicación en Tienda"
-              labelOptional="(opcional)"
-              value={form.ubicacionTienda ?? ""}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  ubicacionTienda: e.target.value.trim() === "" ? null : e.target.value,
-                }))
-              }
-              placeholder="Ej: Pasillo 3, Estante B"
-              showError={false}
-            />
-          </div>
-        )}
 
         {/* ── Código de barras (siempre disponible) ── */}
         {!soloSucursal && (
@@ -959,29 +1220,27 @@ export default function AgregarProducto({
               </button>
             )}
 
-            {/* ¿Es un paquete/caja? — fila propia */}
-            {config?.isStock && (
-              <label className="flex items-center gap-2 pt-1 cursor-pointer select-none w-fit">
-                <input
-                  type="checkbox"
-                  checked={!!form.esPaquete}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setForm((prev) => ({
-                      ...prev,
-                      esPaquete: checked,
-                      productoBaseId: checked ? prev.productoBaseId : null,
-                      factorConversion: checked ? prev.factorConversion : null,
-                    }));
-                  }}
-                  className="w-4 h-4 accent-brand-blue"
-                />
-                <span className="text-xs font-semibold text-gray-600">
-                  ¿Es un paquete/caja con unidades dentro?
-                </span>
-              </label>
-            )}
-          </div>
+        {/* ¿Es un paquete/caja? — fila propia */}
+        {!soloSucursal && config?.isStock && (
+          <label className="flex items-center gap-2 pt-1 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={!!form.esPaquete}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setForm((prev) => ({
+                  ...prev,
+                  esPaquete: checked,
+                  productoBaseId: checked ? prev.productoBaseId : null,
+                  factorConversion: checked ? prev.factorConversion : null,
+                }));
+              }}
+              className="w-4 h-4 accent-brand-blue"
+            />
+            <span className="text-xs font-semibold text-gray-600">
+              ¿Es un paquete/caja con unidades dentro?
+            </span>
+          </label>
         )}
 
         {/* ── Código SUNAT (UNSPSC) ── */}
