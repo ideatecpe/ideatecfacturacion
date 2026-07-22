@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Store,
@@ -29,7 +29,13 @@ import {
   Columns3,
   HandCoins,
   Tag,
+  X,
+  ScanBarcode,
+  Check,
+  CameraOff,
 } from "lucide-react";
+
+import { scanImageData } from "@undecaf/zbar-wasm";
 
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
@@ -93,7 +99,15 @@ const precioConDescuento = (p: ProductoSucursal) => {
 };
 
 // Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
-function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => void }) {
+function ProductoGridCard({
+  p,
+  cantidadEnCarrito = 0,
+  onClick,
+}: {
+  p: ProductoSucursal;
+  cantidadEnCarrito?: number;
+  onClick: () => void;
+}) {
   const [imgError, setImgError] = useState(false);
   const tieneImagen = !!p.urlImagenProducto && !imgError;
   const enOferta = !!p.sucursalProducto.enPromocion && !!p.sucursalProducto.porcentajeDescuento;
@@ -102,7 +116,11 @@ function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => 
   return (
     <button
       onClick={onClick}
-      className="group flex flex-col rounded-md border border-gray-100 bg-white overflow-hidden hover:border-brand-blue hover:shadow-md active:scale-[0.97] transition-all text-left"
+      className={`group relative flex flex-col rounded-md border transition-all text-left overflow-hidden ${
+        seleccionado
+          ? "border-gray-100 bg-[#008000]/5"
+          : "border-gray-100 bg-white hover:border-brand-blue hover:shadow-md active:scale-[0.97]"
+      }`}
     >
       <div className="aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden relative p-2">
         {tieneImagen ? (
@@ -115,8 +133,17 @@ function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => 
         ) : (
           <ImageOff className="w-5 h-5 text-gray-300" />
         )}
+
+        {/* Badge de seleccionado / Check + Cantidad (#008000) */}
+        {seleccionado && (
+          <span className="absolute top-1.5 right-1.5 flex items-center justify-center gap-0.5 rounded-full bg-[#008000] text-white px-1.5 py-0.5 text-[10px] font-bold shadow-md animate-in zoom-in-75 duration-200 z-10">
+            <Check className="w-3 h-3 stroke-[3]" />
+            {cantidadEnCarrito > 1 && <span>{cantidadEnCarrito}</span>}
+          </span>
+        )}
+
         {enOferta && (
-          <span className="absolute top-1 left-1 flex items-center gap-0.5 rounded-md bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+          <span className="absolute top-1 left-1 flex items-center gap-0.5 rounded-md bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold text-white z-10">
             <Tag className="w-2.5 h-2.5" /> -{p.sucursalProducto.porcentajeDescuento}%
           </span>
         )}
@@ -127,7 +154,7 @@ function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => 
         )}
       </div>
       <div className="p-1">
-        <p className="text-[11px] font-semibold text-gray-800 line-clamp-1 leading-tight">
+        <p className={`text-[11px] font-semibold line-clamp-1 leading-tight ${seleccionado ? "text-[#008000] font-bold" : "text-gray-800"}`}>
           {p.nomProducto}
         </p>
         {enOferta ? (
@@ -163,12 +190,204 @@ export default function CajaAutopago() {
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [itemAEliminar, setItemAEliminar] = useState<ItemCarrito | null>(null);
+  const [confirmarLimpiarTodo, setConfirmarLimpiarTodo] = useState(false);
+  const [mostrarPago, setMostrarPago] = useState(false);
   const [documento, setDocumento] = useState("");
   const [tipoSinDocumento, setTipoSinDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   // Con DNI/CE (no RUC), el cajero puede pasar de Boleta a Nota de Venta; por defecto Boleta.
   const [tipoConDocumento, setTipoConDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   const inputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
+
+  // ── Cámara Escáner de Código de Barras (Móvil / Web) ───────────────
+  const [isScanning, setIsScanning] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const lastScannedCodeRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
+  // ── Agregar / quitar / cantidad ──────────────────────────────
+  const agregarProducto = useCallback((p: ProductoSucursal) => {
+    setItems((prev) => {
+      const idx = prev.findIndex((i) => i.productoId === p.productoId);
+      if (idx !== -1) {
+        const copia = [...prev];
+        copia[idx] = { ...copia[idx], cantidad: copia[idx].cantidad + 1 };
+        return copia;
+      }
+      return [
+        ...prev,
+        {
+          key: crypto.randomUUID(),
+          productoId: p.productoId,
+          sucursalProductoId: p.sucursalProducto.sucursalProductoId,
+          codigo: p.codigo,
+          descripcion: p.nomProducto,
+          cantidad: 1,
+          precio: precioConDescuento(p),
+          tipoAfectacionIGV: p.tipoAfectacionIGV,
+          urlImagen: p.urlImagenProducto ?? null,
+          unidadMedida: p.unidadMedida ?? "NIU",
+          tipoProducto: p.tipoProducto,
+        },
+      ];
+    });
+    setBusqueda("");
+    inputRef.current?.focus();
+  }, []);
+
+  const stopScanning = useCallback(async () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setCameraError(null);
+    setIsScanning(false);
+  }, []);
+
+  const processScannedBarcode = useCallback(
+    (decodedText: string) => {
+      const code = decodedText.trim().toLowerCase();
+      if (!code) return;
+
+      // Cooldown de 700ms para lecturas súper rápidas entre productos
+      const now = Date.now();
+      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 700) {
+        return;
+      }
+      lastScannedCodeRef.current = { code, time: now };
+
+      const p = productosSucursal.find(
+        (prod) =>
+          prod.codigoBarras?.trim().toLowerCase() === code ||
+          prod.codigo?.trim().toLowerCase() === code,
+      );
+
+      if (p) {
+        if (config?.isStock && p.tipoProducto === "BIEN" && (p.sucursalProducto.stock ?? 0) <= 0) {
+          showToast(`El producto "${p.nomProducto}" no tiene stock disponible.`, "error");
+          return;
+        }
+        agregarProducto(p);
+        showToast(`✓ Agregado: ${p.nomProducto}`, "success");
+      } else {
+        showToast(`No se encontró producto con código: ${decodedText}`, "error");
+      }
+    },
+    [productosSucursal, config?.isStock, showToast, agregarProducto],
+  );
+
+  const startScanning = async () => {
+    setCameraError(null);
+    setIsScanning(true);
+
+    setTimeout(async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setCameraError("Tu navegador no soporta el uso de la cámara.");
+          return;
+        }
+
+        const stream = await navigator.mediaDevices
+          .getUserMedia({
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1920, min: 1280 },
+              height: { ideal: 1080, min: 720 },
+              frameRate: { ideal: 60, min: 30 },
+              advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
+            },
+          })
+          .catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
+
+        mediaStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+        // 1. Camino primario NATIVO por GPU (Chrome / Android / Edge)
+        if ("BarcodeDetector" in window) {
+          try {
+            const BarcodeDetectorClass = (
+              window as unknown as {
+                BarcodeDetector: new (options?: { formats: string[] }) => {
+                  detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+                };
+              }
+            ).BarcodeDetector;
+
+            const detector = new BarcodeDetectorClass({
+              formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8", "code_39", "upc_e", "itf", "codabar"],
+            });
+
+            const scanLoopNative = async () => {
+              if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
+              try {
+                if (videoRef.current.readyState >= 2) {
+                  const barcodes = await detector.detect(videoRef.current);
+                  if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                    processScannedBarcode(barcodes[0].rawValue);
+                  }
+                }
+              } catch {
+                // Silencioso por fotograma
+              }
+              animFrameRef.current = requestAnimationFrame(scanLoopNative);
+            };
+            scanLoopNative();
+            return;
+          } catch (err) {
+            console.warn("Fallback a ZBar-WASM por falla en cámara nativa", err);
+          }
+        }
+
+        // 2. Camino C-WASM ultra-rápido con ZBar (iOS Safari / Firefox)
+        const scanLoopZBar = async () => {
+          if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !ctx) return;
+          try {
+            if (videoRef.current.readyState >= 2) {
+              const vWidth = videoRef.current.videoWidth || 640;
+              const vHeight = videoRef.current.videoHeight || 480;
+              if (canvas.width !== vWidth || canvas.height !== vHeight) {
+                canvas.width = vWidth;
+                canvas.height = vHeight;
+              }
+              ctx.drawImage(videoRef.current, 0, 0, vWidth, vHeight);
+              const imgData = ctx.getImageData(0, 0, vWidth, vHeight);
+              const symbols = await scanImageData(imgData);
+              if (symbols && symbols.length > 0) {
+                const text = symbols[0].decode();
+                if (text) {
+                  processScannedBarcode(text);
+                }
+              }
+            }
+          } catch {
+            // Silencioso por fotograma
+          }
+          animFrameRef.current = requestAnimationFrame(scanLoopZBar);
+        };
+        scanLoopZBar();
+      } catch (err: unknown) {
+        const errorName = (err as { name?: string })?.name;
+        if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+          setCameraError("No se detectó ninguna cámara conectada en este equipo.");
+        } else if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+          setCameraError("Permiso de cámara denegado en tu navegador.");
+        } else {
+          setCameraError("No se pudo acceder a la cámara de este dispositivo.");
+        }
+      }
+    }, 50);
+  };
 
   const igvPct = config?.igv ? parseFloat(config.igv) : 18;
 
@@ -208,11 +427,6 @@ export default function CajaAutopago() {
 
   // ── Agregar / quitar / cantidad ──────────────────────────────
   const agregarProducto = (p: ProductoSucursal) => {
-    const hoy = new Date().toISOString().split("T")[0];
-    const tieneVencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
-    if (tieneVencido) {
-      showToast("⚠ Este producto tiene lotes vencidos sin retirar del inventario", "error");
-    }
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
@@ -234,7 +448,6 @@ export default function CajaAutopago() {
           urlImagen: p.urlImagenProducto ?? null,
           unidadMedida: p.unidadMedida ?? "NIU",
           tipoProducto: p.tipoProducto,
-          tieneVencido,
         },
       ];
     });
@@ -258,20 +471,79 @@ export default function CajaAutopago() {
     setItemAEliminar(null);
   };
 
-  // Enter en el buscador: si hay una coincidencia exacta de código de barras
-  // (lector físico) o un único resultado, lo agrega directo.
-  const onEnterBusqueda = () => {
-    const q = busqueda.trim();
+  // Enter en el buscador o escáner de código de barras físico:
+  // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
+  // limpiando la búsqueda para la siguiente lectura.
+  const onEnterBusqueda = useCallback((overrideQuery?: string) => {
+    const q = (overrideQuery ?? busqueda).trim().toLowerCase();
     if (!q) return;
+
+    // 1. Buscar coincidencia exacta por código de barras o código
     const exacto = productosSucursal.find(
-      (p) => p.codigoBarras === q || p.codigo === q,
+      (p) =>
+        p.codigoBarras?.trim().toLowerCase() === q ||
+        p.codigo?.trim().toLowerCase() === q,
     );
+
     if (exacto) {
+      if (config?.isStock && exacto.tipoProducto === "BIEN" && (exacto.sucursalProducto.stock ?? 0) <= 0) {
+        showToast(`El producto "${exacto.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+        setBusqueda("");
+        return;
+      }
       agregarProducto(exacto);
+      setBusqueda("");
       return;
     }
-    if (productosGrid.length === 1) agregarProducto(productosGrid[0]);
-  };
+
+    // 2. Si no hay coincidencia exacta, buscar si hay resultados en el grid
+    if (productosGrid.length > 0) {
+      const matchGrid = productosGrid.find(
+        (p) =>
+          p.codigoBarras?.trim().toLowerCase() === q ||
+          p.codigo?.trim().toLowerCase() === q,
+      ) ?? productosGrid[0];
+
+      if (config?.isStock && matchGrid.tipoProducto === "BIEN" && (matchGrid.sucursalProducto.stock ?? 0) <= 0) {
+        showToast(`El producto "${matchGrid.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+        setBusqueda("");
+        return;
+      }
+
+      agregarProducto(matchGrid);
+      setBusqueda("");
+    } else {
+      showToast("No se encontró ningún producto con ese código de barras o nombre.", "error");
+      setBusqueda("");
+    }
+  }, [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto]);
+
+  // Captura global de lecturas de códigos de barras (escáner físico USB/Bluetooth)
+  // incluso si el usuario hace clic afuera del input.
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (mostrarPago || !!itemAEliminar) return;
+
+      const activeElement = document.activeElement;
+      const isInput =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement instanceof HTMLSelectElement;
+
+      if (e.key === "Enter" && !isInput) {
+        e.preventDefault();
+        onEnterBusqueda();
+        return;
+      }
+
+      if (!isInput && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        inputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [onEnterBusqueda, mostrarPago, itemAEliminar]);
 
   // ── Totales (con desglose por afectación de IGV, para el payload real) ──
   const totales = useMemo(() => {
@@ -311,7 +583,6 @@ export default function CajaAutopago() {
   }, [items, igvPct]);
 
   // ── Pago ────────────────────────────────────────────────────
-  const [mostrarPago, setMostrarPago] = useState(false);
   const [medioPago, setMedioPago] = useState("Efectivo");
   const [montoRecibido, setMontoRecibido] = useState("");
   const [notaPago, setNotaPago] = useState("");
@@ -961,9 +1232,10 @@ export default function CajaAutopago() {
               : (resSunat.data.mensaje ?? `${tipoComprobante} quedó pendiente/rechazada por SUNAT.`),
             resSunat.data.exitoso ? "success" : "error",
           );
-        } catch (errSunat: any) {
+        } catch (errSunat) {
+          const errRes = errSunat as { response?: { data?: { mensaje?: string } } };
           showToast(
-            errSunat?.response?.data?.mensaje ?? "No se pudo conectar con SUNAT. Verifica el estado en Comprobantes.",
+            errRes?.response?.data?.mensaje ?? "No se pudo conectar con SUNAT. Verifica el estado en Comprobantes.",
             "error",
           );
         }
@@ -976,8 +1248,8 @@ export default function CajaAutopago() {
       await imprimirSiAplica(comprobanteId);
       fetchSucursal();
       setEmitido(true);
-    } catch (err: any) {
-      const data = err?.response?.data;
+    } catch (err) {
+      const data = (err as { response?: { data?: { mensaje?: string; message?: string; detalle?: string } } })?.response?.data;
       const mensaje = data?.mensaje ?? data?.message ?? "Error al generar el comprobante";
       const detalle = data?.detalle;
       showToast(detalle ? `${mensaje}: ${detalle}` : mensaje, "error");
@@ -1072,20 +1344,29 @@ export default function CajaAutopago() {
 
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <Send className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <Send size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   value={telWhatsapp}
                   onChange={(e) => setTelWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 9))}
                   placeholder="WhatsApp del cliente"
-                  className="w-full h-10 pl-9 pr-3 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
                 />
+                {telWhatsapp && (
+                  <button
+                    type="button"
+                    onClick={() => setTelWhatsapp("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
               </div>
               <button
                 onClick={enviarComprobantePorWhatsapp}
                 disabled={!telWhatsapp.trim() || enviandoWhatsapp}
-                className="h-10 px-4 rounded-md bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                className="h-[34px] px-3.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center justify-center"
               >
-                {enviandoWhatsapp ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enviar"}
+                {enviandoWhatsapp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Enviar"}
               </button>
             </div>
 
@@ -1108,9 +1389,9 @@ export default function CajaAutopago() {
       <div className="w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:h-[calc(100vh-140px)] lg:overflow-hidden animate-in fade-in duration-500">
         {/* ── Columna izquierda: buscador + grid de productos ── */}
         <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden">
-          <div className="shrink-0 border-b border-gray-100 px-5 py-3">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <div className="shrink-0 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 ref={inputRef}
                 autoFocus
@@ -1122,11 +1403,79 @@ export default function CajaAutopago() {
                     onEnterBusqueda();
                   }
                 }}
-                placeholder="Escanea el código de barras o busca por nombre / código"
-                className="w-full h-12 pl-12 pr-4 rounded-md border border-gray-200 text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                placeholder="Escanea con la cámara, lector físico o busca por nombre / código"
+                className="w-full h-[38px] pl-8 pr-7 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
               />
+              {busqueda && (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
+
+            {!isScanning ? (
+              <button
+                type="button"
+                onClick={startScanning}
+                className="h-[38px] flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0"
+              >
+                <ScanBarcode size={14} />
+                <span className="hidden sm:inline">Cámara</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={stopScanning}
+                className="h-[38px] flex items-center justify-center gap-1.5 px-3 bg-rose-500 text-white rounded-md text-xs font-semibold hover:bg-rose-600 active:scale-[0.98] transition-all shadow-sm shrink-0"
+              >
+                <X size={14} />
+                <span>Cerrar</span>
+              </button>
+            )}
           </div>
+
+          {/* Visor de cámara en vivo para ventas (cuadrado estilo imagetotext.info) */}
+          {isScanning && (
+            <div className="shrink-0 p-3 bg-gray-100/80 border-b border-gray-200 space-y-2.5 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="font-bold text-gray-800">
+                  Escanea tus productos
+                </span>
+                <span className="text-[11px] text-gray-500 font-medium">
+                  {items.length} producto{items.length === 1 ? "" : "s"} en el carrito
+                </span>
+              </div>
+              <div className="relative w-full max-w-[260px] aspect-square mx-auto bg-black rounded-2xl overflow-hidden border border-white/15 shadow-xl flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+
+                {cameraError ? (
+                  <div className="absolute inset-0 z-20 bg-gray-950/95 flex flex-col items-center justify-center text-center p-4">
+                    <CameraOff className="w-9 h-9 text-gray-500 mb-2 animate-bounce" />
+                    <p className="text-xs font-semibold text-gray-300">
+                      {cameraError}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Puedes usar un lector físico de código de barras
+                    </p>
+                  </div>
+                ) : (
+                  <div className="pointer-events-none absolute inset-3 border-2 border-white/20 rounded-xl flex items-center justify-center overflow-hidden z-10">
+                    <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex-1 lg:overflow-y-auto p-3">
             {productosGrid.length === 0 ? (
@@ -1139,9 +1488,17 @@ export default function CajaAutopago() {
               </div>
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5">
-                {productosGrid.map((p) => (
-                  <ProductoGridCard key={p.productoId} p={p} onClick={() => agregarProducto(p)} />
-                ))}
+                {productosGrid.map((p) => {
+                  const itemCarrito = items.find((i) => i.productoId === p.productoId);
+                  return (
+                    <ProductoGridCard
+                      key={p.productoId}
+                      p={p}
+                      cantidadEnCarrito={itemCarrito?.cantidad ?? 0}
+                      onClick={() => agregarProducto(p)}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1149,7 +1506,10 @@ export default function CajaAutopago() {
 
         {/* ── Columna derecha: marca + documento + carrito ── */}
         <div className="w-full lg:w-96 shrink-0 flex flex-col bg-gray-50/40 lg:overflow-hidden">
-          <div className="shrink-0 bg-linear-to-br from-brand-blue to-blue-700 px-5 py-4 text-white flex items-center gap-3">
+          <div
+            className="shrink-0 px-5 py-4 text-white flex items-center gap-3"
+            style={{ background: "linear-gradient(180deg, #0f2e64 0%, #091a3d 100%)" }}
+          >
             <div className="w-9 h-9 rounded-md bg-white/15 flex items-center justify-center shrink-0">
               <Store className="w-5 h-5" />
             </div>
@@ -1165,14 +1525,23 @@ export default function CajaAutopago() {
           {/* Documento del cliente — siempre visible, opcional */}
           <div className="shrink-0 px-3 pt-3">
             <div className="relative">
-              <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <UserRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 value={documento}
                 onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
                 inputMode="numeric"
                 placeholder="DNI o RUC del cliente (opcional)"
-                className="w-full h-12 pl-10 pr-3 rounded-md border border-gray-200 bg-white text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
               />
+              {documento && (
+                <button
+                  type="button"
+                  onClick={() => setDocumento("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
             <p className="text-xs text-gray-400 mt-1 px-1">
               DNI/CE → Boleta{config?.useNotaVenta ? " o Nota de Venta" : ""} · RUC → Factura · Vacío → Clientes varios
@@ -1180,6 +1549,21 @@ export default function CajaAutopago() {
           </div>
 
           <div className="flex-1 lg:overflow-y-auto px-3 py-3 space-y-2">
+            {items.length > 0 && (
+              <div className="flex items-center justify-between px-1 pb-1">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                  Productos ({items.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setConfirmarLimpiarTodo(true)}
+                  className="flex items-center gap-1 text-xs font-semibold text-rose-500 hover:text-rose-700 hover:underline transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Limpiar todo
+                </button>
+              </div>
+            )}
+
             {items.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-4">
                 <div className="bg-gray-100 rounded-full p-4 mb-3">
@@ -1284,6 +1668,17 @@ export default function CajaAutopago() {
         documento={itemAEliminar?.codigo ?? undefined}
         onClose={() => setItemAEliminar(null)}
         onConfirm={confirmarEliminar}
+      />
+
+      <ModalEliminar
+        isOpen={confirmarLimpiarTodo}
+        mensaje="Vaciarás el carrito completo"
+        nombre={`Se quitarán ${items.length} producto${items.length === 1 ? "" : "s"} agregados a la venta.`}
+        onClose={() => setConfirmarLimpiarTodo(false)}
+        onConfirm={() => {
+          setItems([]);
+          setConfirmarLimpiarTodo(false);
+        }}
       />
 
       {/* ── Modal: Confirmar Pago ── */}
