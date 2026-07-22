@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { PackageSearch, ChevronDown, ChevronUp, Lock, Layers } from "lucide-react";
+import { PackageSearch, ChevronDown, ChevronUp, Lock, Layers, Pencil, Check, X as XIcon, CalendarOff } from "lucide-react";
 
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { useStockValorizadoLista } from "../useStockValorizadoLista";
+import { useActualizarFechaVencimientoLote } from "../useActualizarFechaVencimientoLote";
 
 const ORIGEN_STYLE: Record<string, { label: string; className: string }> = {
   COMPRA: { label: "Compra", className: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200" },
@@ -38,12 +39,32 @@ export default function StockValorizadoPage() {
     : parseInt(user?.sucursalID ?? "0");
 
   const { stockValorizado, loadingStockValorizado, fetchStockValorizadoSucursal } = useStockValorizadoLista();
+  const { actualizarFechaVencimiento, actualizandoLoteId } = useActualizarFechaVencimientoLote();
   const [expandido, setExpandido] = useState<number | null>(null);
+  const [editandoLoteId, setEditandoLoteId] = useState<number | null>(null);
+  const [valorEdicion, setValorEdicion] = useState("");
+
+  const recargar = () => {
+    if (sucursalId > 0) fetchStockValorizadoSucursal(sucursalId);
+  };
 
   useEffect(() => {
-    if (sucursalId > 0) fetchStockValorizadoSucursal(sucursalId);
+    recargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sucursalId]);
+
+  const handleIniciarEdicion = (l: { inventarioLoteId: number; fechaVencimiento: string | null }) => {
+    setEditandoLoteId(l.inventarioLoteId);
+    setValorEdicion(l.fechaVencimiento ? l.fechaVencimiento.slice(0, 10) : "");
+  };
+
+  const handleGuardarEdicion = async (inventarioLoteId: number) => {
+    const ok = await actualizarFechaVencimiento(inventarioLoteId, valorEdicion || null);
+    if (ok) {
+      setEditandoLoteId(null);
+      recargar();
+    }
+  };
 
   const totalValor = useMemo(
     () => stockValorizado.reduce((acc, p) => acc + p.valorTotal, 0),
@@ -189,28 +210,80 @@ export default function StockValorizadoPage() {
                                   <th className="text-right font-semibold px-3 py-1.5">Costo Unit.</th>
                                   <th className="text-right font-semibold px-3 py-1.5">Saldo</th>
                                   <th className="text-right font-semibold px-3 py-1.5">Valor</th>
+                                  <th className="text-left font-semibold px-3 py-1.5">Vencimiento</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {p.lotes.map((l, li) => (
-                                  <tr
-                                    key={l.inventarioLoteId}
-                                    className={`border-t border-gray-100 ${li % 2 === 1 ? "bg-gray-50/40" : ""}`}
-                                  >
-                                    <td className="px-3 py-1.5">
-                                      <OrigenBadge origen={l.origen} />
-                                    </td>
-                                    <td className="px-3 py-1.5 text-gray-500">
-                                      {new Date(l.fechaLote).toLocaleDateString("es-PE")}
-                                    </td>
-                                    <td className="px-3 py-1.5 text-right text-gray-600">{l.cantidadOriginal}</td>
-                                    <td className="px-3 py-1.5 text-right text-gray-600">S/ {l.costoUnitario.toFixed(2)}</td>
-                                    <td className="px-3 py-1.5 text-right font-semibold text-gray-700">{l.saldoCantidad}</td>
-                                    <td className="px-3 py-1.5 text-right font-semibold text-emerald-700">
-                                      S/ {l.saldoValor.toFixed(2)}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {p.lotes.map((l, li) => {
+                                  const editando = editandoLoteId === l.inventarioLoteId;
+                                  const guardando = actualizandoLoteId === l.inventarioLoteId;
+                                  return (
+                                    <tr
+                                      key={l.inventarioLoteId}
+                                      className={`border-t border-gray-100 ${li % 2 === 1 ? "bg-gray-50/40" : ""}`}
+                                    >
+                                      <td className="px-3 py-1.5">
+                                        <OrigenBadge origen={l.origen} />
+                                      </td>
+                                      <td className="px-3 py-1.5 text-gray-500">
+                                        {new Date(l.fechaLote).toLocaleDateString("es-PE")}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-right text-gray-600">{l.cantidadOriginal}</td>
+                                      <td className="px-3 py-1.5 text-right text-gray-600">S/ {l.costoUnitario.toFixed(2)}</td>
+                                      <td className="px-3 py-1.5 text-right font-semibold text-gray-700">{l.saldoCantidad}</td>
+                                      <td className="px-3 py-1.5 text-right font-semibold text-emerald-700">
+                                        S/ {l.saldoValor.toFixed(2)}
+                                      </td>
+                                      <td className="px-3 py-1.5">
+                                        {editando ? (
+                                          <div className="flex items-center gap-1">
+                                            <input
+                                              type="date"
+                                              value={valorEdicion}
+                                              onChange={(e) => setValorEdicion(e.target.value)}
+                                              className="text-[11px] border border-gray-200 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-brand-blue/30"
+                                            />
+                                            <button
+                                              onClick={() => handleGuardarEdicion(l.inventarioLoteId)}
+                                              disabled={guardando}
+                                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50"
+                                              title="Guardar"
+                                            >
+                                              <Check className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                              onClick={() => setEditandoLoteId(null)}
+                                              disabled={guardando}
+                                              className="p-1 text-gray-400 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+                                              title="Cancelar"
+                                            >
+                                              <XIcon className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center gap-1.5 group/venc">
+                                            {l.fechaVencimiento ? (
+                                              <span className="text-gray-600">
+                                                {new Date(l.fechaVencimiento).toLocaleDateString("es-PE")}
+                                              </span>
+                                            ) : (
+                                              <span className="flex items-center gap-1 text-gray-300">
+                                                <CalendarOff className="w-3 h-3" /> Sin vencimiento
+                                              </span>
+                                            )}
+                                            <button
+                                              onClick={() => handleIniciarEdicion(l)}
+                                              className="p-0.5 text-gray-300 hover:text-brand-blue opacity-0 group-hover/venc:opacity-100 transition-opacity"
+                                              title="Corregir fecha de vencimiento"
+                                            >
+                                              <Pencil className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
