@@ -1219,6 +1219,28 @@ export default function AgregarProducto({
                   : "Buscar nombre e imagen por este código (internet)"}
               </button>
             )}
+          </div>
+        )}
+
+        {/* ── Ubicación en tienda (solo informativo, opcional) ── */}
+        {config?.isStock && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <InputBase
+              compact
+              label="Ubicación en Tienda"
+              labelOptional="(opcional)"
+              value={form.ubicacionTienda ?? ""}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  ubicacionTienda: e.target.value.trim() === "" ? null : e.target.value,
+                }))
+              }
+              placeholder="Ej: Pasillo 3, Estante B"
+              showError={false}
+            />
+          </div>
+        )}
 
         {/* ¿Es un paquete/caja? — fila propia */}
         {!soloSucursal && config?.isStock && (
