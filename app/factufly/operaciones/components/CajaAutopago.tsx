@@ -32,9 +32,10 @@ import {
   X,
   ScanBarcode,
   Check,
+  CameraOff,
 } from "lucide-react";
 
-import { Html5Qrcode } from "html5-qrcode";
+import { scanImageData } from "@undecaf/zbar-wasm";
 
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
@@ -194,10 +195,10 @@ export default function CajaAutopago() {
 
   // ── Cámara Escáner de Código de Barras (Móvil / Web) ───────────────
   const [isScanning, setIsScanning] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScannedCodeRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
   // ── Agregar / quitar / cantidad ──────────────────────────────
   const agregarProducto = useCallback((p: ProductoSucursal) => {
@@ -238,16 +239,7 @@ export default function CajaAutopago() {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
     }
-    if (scannerRef.current) {
-      try {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop();
-        }
-      } catch (err) {
-        console.error("Error stopping camera scanner", err);
-      }
-      scannerRef.current = null;
-    }
+    setCameraError(null);
     setIsScanning(false);
   }, []);
 
@@ -284,13 +276,18 @@ export default function CajaAutopago() {
   );
 
   const startScanning = async () => {
+    setCameraError(null);
     setIsScanning(true);
 
     setTimeout(async () => {
-      // 1. Detección NATIVA ultra-rápida por GPU (Chrome / Android)
-      if ("BarcodeDetector" in window) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setCameraError("Tu navegador no soporta el uso de la cámara.");
+          return;
+        }
+
+        const stream = await navigator.mediaDevices
+          .getUserMedia({
             video: {
               facingMode: { ideal: "environment" },
               width: { ideal: 1920, min: 1280 },
@@ -298,72 +295,90 @@ export default function CajaAutopago() {
               frameRate: { ideal: 60, min: 30 },
               advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
             },
-          });
-          mediaStreamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            await videoRef.current.play();
+          })
+          .catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
+
+        mediaStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+        // 1. Camino primario NATIVO por GPU (Chrome / Android / Edge)
+        if ("BarcodeDetector" in window) {
+          try {
+            const BarcodeDetectorClass = (
+              window as unknown as {
+                BarcodeDetector: new (options?: { formats: string[] }) => {
+                  detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+                };
+              }
+            ).BarcodeDetector;
+
+            const detector = new BarcodeDetectorClass({
+              formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8", "code_39", "upc_e", "itf", "codabar"],
+            });
+
+            const scanLoopNative = async () => {
+              if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
+              try {
+                if (videoRef.current.readyState >= 2) {
+                  const barcodes = await detector.detect(videoRef.current);
+                  if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                    processScannedBarcode(barcodes[0].rawValue);
+                  }
+                }
+              } catch {
+                // Silencioso por fotograma
+              }
+              animFrameRef.current = requestAnimationFrame(scanLoopNative);
+            };
+            scanLoopNative();
+            return;
+          } catch (err) {
+            console.warn("Fallback a ZBar-WASM por falla en cámara nativa", err);
           }
+        }
 
-          const BarcodeDetectorClass = (
-            window as unknown as {
-              BarcodeDetector: new (options?: { formats: string[] }) => {
-                detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
-              };
-            }
-          ).BarcodeDetector;
-          const detector = new BarcodeDetectorClass({
-            formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8", "code_39", "upc_e", "itf", "codabar"],
-          });
-
-          const scanLoop = async () => {
-            if (!videoRef.current) return;
-            try {
-              if (videoRef.current.readyState >= 2) {
-                const barcodes = await detector.detect(videoRef.current);
-                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-                  processScannedBarcode(barcodes[0].rawValue);
+        // 2. Camino C-WASM ultra-rápido con ZBar (iOS Safari / Firefox)
+        const scanLoopZBar = async () => {
+          if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !ctx) return;
+          try {
+            if (videoRef.current.readyState >= 2) {
+              const vWidth = videoRef.current.videoWidth || 640;
+              const vHeight = videoRef.current.videoHeight || 480;
+              if (canvas.width !== vWidth || canvas.height !== vHeight) {
+                canvas.width = vWidth;
+                canvas.height = vHeight;
+              }
+              ctx.drawImage(videoRef.current, 0, 0, vWidth, vHeight);
+              const imgData = ctx.getImageData(0, 0, vWidth, vHeight);
+              const symbols = await scanImageData(imgData);
+              if (symbols && symbols.length > 0) {
+                const text = symbols[0].decode();
+                if (text) {
+                  processScannedBarcode(text);
                 }
               }
-            } catch {
-              // Silencioso por fotograma
             }
-            animFrameRef.current = requestAnimationFrame(scanLoop);
-          };
-          scanLoop();
-          return;
-        } catch (err) {
-          console.warn("Fallback a html5-qrcode en CajaAutopago", err);
+          } catch {
+            // Silencioso por fotograma
+          }
+          animFrameRef.current = requestAnimationFrame(scanLoopZBar);
+        };
+        scanLoopZBar();
+      } catch (err: unknown) {
+        const errorName = (err as { name?: string })?.name;
+        if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+          setCameraError("No se detectó ninguna cámara conectada en este equipo.");
+        } else if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+          setCameraError("Permiso de cámara denegado en tu navegador.");
+        } else {
+          setCameraError("No se pudo acceder a la cámara de este dispositivo.");
         }
-      }
-
-      // 2. Fallback con html5-qrcode (60 FPS)
-      try {
-        const html5Qrcode = new Html5Qrcode("reader", {
-          verbose: false,
-          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-        });
-        scannerRef.current = html5Qrcode;
-
-        await html5Qrcode.start(
-          { facingMode: "environment" },
-          {
-            fps: 60,
-            qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
-            videoConstraints: {
-              facingMode: "environment",
-              focusMode: "continuous",
-            } as unknown as MediaTrackConstraints,
-          },
-          (decodedText: string) => {
-            processScannedBarcode(decodedText);
-          },
-          () => {}
-        );
-      } catch (err) {
-        console.error("Error starting camera scanner in CajaAutopago", err);
-        showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
-        setIsScanning(false);
       }
     }, 50);
   };
@@ -1413,10 +1428,10 @@ export default function CajaAutopago() {
             )}
           </div>
 
-          {/* Visor de cámara en vivo para ventas (cuando está activo) */}
+          {/* Visor de cámara en vivo para ventas (cuadrado estilo imagetotext.info) */}
           {isScanning && (
-            <div className="shrink-0 p-3 bg-gray-900 border-b border-gray-800 space-y-2 animate-in fade-in duration-300">
-              <div className="flex items-center justify-between text-white text-xs">
+            <div className="shrink-0 p-3 bg-gray-900 border-b border-gray-800 space-y-2.5 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between text-white text-xs px-1">
                 <span className="font-bold text-gray-200">
                   Escanea tus productos
                 </span>
@@ -1424,7 +1439,7 @@ export default function CajaAutopago() {
                   {items.length} producto{items.length === 1 ? "" : "s"} en el carrito
                 </span>
               </div>
-              <div className="relative w-full h-44 bg-black rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
+              <div className="relative w-full max-w-[260px] aspect-square mx-auto bg-black rounded-2xl overflow-hidden border border-white/15 shadow-xl flex items-center justify-center">
                 <video
                   ref={videoRef}
                   className="absolute inset-0 w-full h-full object-cover"
@@ -1432,13 +1447,22 @@ export default function CajaAutopago() {
                   playsInline
                   muted
                 />
-                <div
-                  id="reader"
-                  className="absolute inset-0 w-full h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover"
-                />
-                <div className="pointer-events-none absolute inset-x-6 top-1/2 -translate-y-1/2 h-20 border-2 border-dashed border-emerald-400/70 rounded-lg bg-emerald-400/5 flex items-center justify-center">
-                  <div className="w-full h-0.5 bg-emerald-400/80 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                </div>
+
+                {cameraError ? (
+                  <div className="absolute inset-0 z-20 bg-gray-950/95 flex flex-col items-center justify-center text-center p-4">
+                    <CameraOff className="w-9 h-9 text-gray-500 mb-2 animate-bounce" />
+                    <p className="text-xs font-semibold text-gray-300">
+                      {cameraError}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Puedes usar un lector físico de código de barras
+                    </p>
+                  </div>
+                ) : (
+                  <div className="pointer-events-none absolute inset-3 border-2 border-white/20 rounded-xl flex items-center justify-center overflow-hidden z-10">
+                    <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
+                  </div>
+                )}
               </div>
             </div>
           )}

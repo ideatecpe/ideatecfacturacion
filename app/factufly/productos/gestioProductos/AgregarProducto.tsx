@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { scanImageData } from "@undecaf/zbar-wasm";
 import dynamic from "next/dynamic";
 import axios from "axios";
-import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, Globe, Loader2 } from "lucide-react";
+import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, Globe, Loader2, CameraOff } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 
 const BarcodePreview = dynamic(() => import("react-barcode"), { ssr: false });
@@ -115,10 +115,10 @@ export default function AgregarProducto({
   const [codigoSunatLabel, setCodigoSunatLabel] = useState("");
 
   const [isScanning, setIsScanning] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = React.useRef<MediaStream | null>(null);
   const animFrameRef = React.useRef<number | null>(null);
-  const scannerRef = React.useRef<Html5Qrcode | null>(null);
 
   const stopScanning = React.useCallback(async () => {
     if (animFrameRef.current) {
@@ -129,16 +129,7 @@ export default function AgregarProducto({
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
     }
-    if (scannerRef.current) {
-      try {
-        if (scannerRef.current.isScanning) {
-          await scannerRef.current.stop();
-        }
-      } catch (err) {
-        console.error("Error stopping barcode scanner", err);
-      }
-      scannerRef.current = null;
-    }
+    setCameraError(null);
     setIsScanning(false);
   }, []);
 
@@ -167,47 +158,101 @@ export default function AgregarProducto({
   }, [isOpen]);
 
   const startScanning = async () => {
+    setCameraError(null);
     setIsScanning(true);
 
-    // Esperar 50ms a que React renderice los nodos DOM <video> y <div id="reader">
     setTimeout(async () => {
-      // 1. Detección NATIVA ultra-rápida (BarcodeDetector API de Chrome / Android)
-      if ("BarcodeDetector" in window) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setCameraError("Tu navegador no soporta el uso de la cámara.");
+          return;
+        }
+
+        const stream = await navigator.mediaDevices
+          .getUserMedia({
             video: {
               facingMode: { ideal: "environment" },
-              width: { ideal: 1280, min: 640 },
-              height: { ideal: 720, min: 480 },
+              width: { ideal: 1920, min: 1280 },
+              height: { ideal: 1080, min: 720 },
+              frameRate: { ideal: 60, min: 30 },
               advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
             },
-          });
-          mediaStreamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            await videoRef.current.play();
+          })
+          .catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
+
+        mediaStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+        // 1. Camino NATIVO por GPU (Chrome / Android / Edge)
+        if ("BarcodeDetector" in window) {
+          try {
+            const BarcodeDetectorClass = (
+              window as unknown as {
+                BarcodeDetector: new (options?: { formats: string[] }) => {
+                  detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+                };
+              }
+            ).BarcodeDetector;
+
+            const detector = new BarcodeDetectorClass({
+              formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8", "code_39", "upc_e", "itf", "codabar"],
+            });
+
+            let scanned = false;
+            const scanLoopNative = async () => {
+              if (scanned || !videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
+              try {
+                if (videoRef.current.readyState >= 2) {
+                  const barcodes = await detector.detect(videoRef.current);
+                  if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                    scanned = true;
+                    const decodedText = barcodes[0].rawValue;
+                    setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+                    showToast(`Código escaneado: ${decodedText}`, "success");
+                    stopScanning();
+                    if (decodedText.trim().length >= 8) {
+                      buscarProductoPorInternet(decodedText.trim());
+                    }
+                    return;
+                  }
+                }
+              } catch {
+                // Silencioso por fotograma
+              }
+              animFrameRef.current = requestAnimationFrame(scanLoopNative);
+            };
+            scanLoopNative();
+            return;
+          } catch (err) {
+            console.warn("Fallback a ZBar-WASM por falla en cámara nativa", err);
           }
+        }
 
-          const BarcodeDetectorClass = (
-            window as unknown as {
-              BarcodeDetector: new (options?: { formats: string[] }) => {
-                detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
-              };
-            }
-          ).BarcodeDetector;
-          const detector = new BarcodeDetectorClass({
-            formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8"],
-          });
-
-          let scanned = false;
-          const scanLoop = async () => {
-            if (scanned || !videoRef.current) return;
-            try {
-              if (videoRef.current.readyState >= 2) {
-                const barcodes = await detector.detect(videoRef.current);
-                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-                  scanned = true;
-                  const decodedText = barcodes[0].rawValue;
+        // 2. Camino C-WASM ultra-rápido con ZBar (iOS Safari / Firefox)
+        let scannedZbar = false;
+        const scanLoopZbar = async () => {
+          if (scannedZbar || !videoRef.current || videoRef.current.paused || videoRef.current.ended || !ctx) return;
+          try {
+            if (videoRef.current.readyState >= 2) {
+              const vWidth = videoRef.current.videoWidth || 640;
+              const vHeight = videoRef.current.videoHeight || 480;
+              if (canvas.width !== vWidth || canvas.height !== vHeight) {
+                canvas.width = vWidth;
+                canvas.height = vHeight;
+              }
+              ctx.drawImage(videoRef.current, 0, 0, vWidth, vHeight);
+              const imgData = ctx.getImageData(0, 0, vWidth, vHeight);
+              const symbols = await scanImageData(imgData);
+              if (symbols && symbols.length > 0) {
+                const decodedText = symbols[0].decode();
+                if (decodedText) {
+                  scannedZbar = true;
                   setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
                   showToast(`Código escaneado: ${decodedText}`, "success");
                   stopScanning();
@@ -217,43 +262,22 @@ export default function AgregarProducto({
                   return;
                 }
               }
-            } catch {
-              // Silencioso por fotograma
             }
-            animFrameRef.current = requestAnimationFrame(scanLoop);
-          };
-          scanLoop();
-          return;
-        } catch (err) {
-          console.warn("Fallback a html5-qrcode por falla en cámara nativa", err);
+          } catch {
+            // Silencioso por fotograma
+          }
+          animFrameRef.current = requestAnimationFrame(scanLoopZbar);
+        };
+        scanLoopZbar();
+      } catch (err: unknown) {
+        const errorName = (err as { name?: string })?.name;
+        if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+          setCameraError("No se detectó ninguna cámara conectada en este equipo.");
+        } else if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+          setCameraError("Permiso de cámara denegado en tu navegador.");
+        } else {
+          setCameraError("No se pudo acceder a la cámara de este dispositivo.");
         }
-      }
-
-      // 2. Fallback con html5-qrcode (escaneando el 95% del frame a 30 FPS)
-      try {
-        const html5Qrcode = new Html5Qrcode("reader");
-        scannerRef.current = html5Qrcode;
-
-        await html5Qrcode.start(
-          { facingMode: "environment" },
-          {
-            fps: 30,
-            qrbox: (w: number, h: number) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
-          },
-          (decodedText: string) => {
-            setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
-            showToast(`Código escaneado: ${decodedText}`, "success");
-            stopScanning();
-            if (decodedText.trim().length >= 8) {
-              buscarProductoPorInternet(decodedText.trim());
-            }
-          },
-          () => {}
-        );
-      } catch (err) {
-        console.error("Error starting barcode scanner", err);
-        showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
-        setIsScanning(false);
       }
     }, 50);
   };
@@ -855,7 +879,7 @@ export default function AgregarProducto({
                     Cancelar
                   </button>
                 </div>
-                <div className="relative w-full aspect-4/3 max-h-75 bg-black rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
+                <div className="relative w-full max-w-[260px] aspect-square mx-auto bg-black rounded-2xl overflow-hidden border border-white/15 shadow-xl flex items-center justify-center">
                   <video
                     ref={videoRef}
                     className="absolute inset-0 w-full h-full object-cover"
@@ -863,10 +887,22 @@ export default function AgregarProducto({
                     playsInline
                     muted
                   />
-                  <div
-                    id="reader"
-                    className="absolute inset-0 w-full h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover"
-                  />
+
+                  {cameraError ? (
+                    <div className="absolute inset-0 z-20 bg-gray-950/95 flex flex-col items-center justify-center text-center p-4">
+                      <CameraOff className="w-9 h-9 text-gray-500 mb-2 animate-bounce" />
+                      <p className="text-xs font-semibold text-gray-300">
+                        {cameraError}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Puedes ingresar el código manualmente o con lector USB
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="pointer-events-none absolute inset-3 border-2 border-white/20 rounded-xl flex items-center justify-center overflow-hidden z-10">
+                      <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
+                    </div>
+                  )}
                 </div>
                 <p className="text-[10px] text-gray-400 text-center">
                   Apunte la cámara al código de barras — no necesita estar perfectamente centrado.
