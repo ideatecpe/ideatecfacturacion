@@ -52,6 +52,7 @@ export interface CompraProveedor {
   unidadMedida: string | null;
   docReferencia: string | null;
   fechaCreacion: string;
+  fechaVencimiento?: string | null;
 }
 
 // ─── Para registrar una compra (POST) ─────────────────────────

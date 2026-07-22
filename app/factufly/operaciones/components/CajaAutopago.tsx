@@ -77,6 +77,7 @@ interface ItemCarrito {
   urlImagen: string | null;
   unidadMedida: string;
   tipoProducto: string | null;
+  tieneVencido: boolean;
 }
 
 // Precio de venta efectivo: si el producto está en promoción, aplica el
@@ -96,6 +97,8 @@ function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => 
   const [imgError, setImgError] = useState(false);
   const tieneImagen = !!p.urlImagenProducto && !imgError;
   const enOferta = !!p.sucursalProducto.enPromocion && !!p.sucursalProducto.porcentajeDescuento;
+  const hoy = new Date().toISOString().split("T")[0];
+  const vencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
   return (
     <button
       onClick={onClick}
@@ -115,6 +118,11 @@ function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => 
         {enOferta && (
           <span className="absolute top-1 left-1 flex items-center gap-0.5 rounded-md bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
             <Tag className="w-2.5 h-2.5" /> -{p.sucursalProducto.porcentajeDescuento}%
+          </span>
+        )}
+        {vencido && (
+          <span className="absolute top-1 right-1 flex items-center gap-0.5 rounded-md bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            <AlertTriangle className="w-2.5 h-2.5" /> Vencido
           </span>
         )}
       </div>
@@ -200,6 +208,11 @@ export default function CajaAutopago() {
 
   // ── Agregar / quitar / cantidad ──────────────────────────────
   const agregarProducto = (p: ProductoSucursal) => {
+    const hoy = new Date().toISOString().split("T")[0];
+    const tieneVencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
+    if (tieneVencido) {
+      showToast("⚠ Este producto tiene lotes vencidos sin retirar del inventario", "error");
+    }
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
@@ -221,6 +234,7 @@ export default function CajaAutopago() {
           urlImagen: p.urlImagenProducto ?? null,
           unidadMedida: p.unidadMedida ?? "NIU",
           tipoProducto: p.tipoProducto,
+          tieneVencido,
         },
       ];
     });
@@ -1185,8 +1199,13 @@ export default function CajaAutopago() {
                   <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="md" />
 
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">
+                    <p className="text-sm font-semibold text-gray-800 truncate flex items-center gap-1">
                       {i.descripcion}
+                      {i.tieneVencido && (
+                        <span title="Lote vencido sin retirar">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-gray-400">S/ {i.precio.toFixed(2)} c/u</p>
                   </div>

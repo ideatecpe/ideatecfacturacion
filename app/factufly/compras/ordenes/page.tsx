@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   PackagePlus,
+  Pencil,
   Trash2,
   PackageSearch,
   Calendar,
@@ -24,6 +25,7 @@ import { useEliminarCompraProveedor } from "./gestionOrdenes/useEliminarCompraPr
 import { contarOrdenes, agruparPorDocumento } from "./gestionOrdenes/agruparOrdenes";
 
 import RegistrarCompra from "@/app/components/provedores/RegistrarCompra";
+import EditarCompraModal from "@/app/components/provedores/EditarCompraModal";
 import { useAuth } from "@/context/AuthContext";
 import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursalRuc";
 
@@ -52,6 +54,8 @@ export default function OrdenesCompraPage() {
   const [isCompraOpen, setIsCompraOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompraProveedor | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<CompraProveedor | null>(null);
   // Agrupar por documento: desactivado por defecto, muestra la lista plana actual.
   const [agruparPorDoc, setAgruparPorDoc] = useState(false);
 
@@ -123,6 +127,24 @@ export default function OrdenesCompraPage() {
   const handleOpenDelete = (orden: CompraProveedor) => {
     setDeleteTarget(orden);
     setIsDeleteOpen(true);
+  };
+
+  const handleOpenEdit = (orden: CompraProveedor) => {
+    setEditTarget(orden);
+    setIsEditOpen(true);
+  };
+
+  const handleSaveEdit = (compraEditada: CompraProveedor) => {
+    setOrdenes((prev) => {
+      const sinVieja = prev.filter(
+        (o) => o.compraProveedorId !== editTarget?.compraProveedorId,
+      );
+      return [compraEditada, ...sinVieja].sort(
+        (a, b) =>
+          new Date(b.fechaCreacion).getTime() -
+          new Date(a.fechaCreacion).getTime(),
+      );
+    });
   };
 
   const handleConfirmDelete = async () => {
@@ -294,13 +316,28 @@ export default function OrdenesCompraPage() {
                       <td className="px-3 py-2 text-right font-semibold text-gray-800 whitespace-nowrap">
                         S/ {((o.precioCompra ?? 0) * (o.cantidad ?? 0)).toFixed(2)}
                       </td>
-                      <td className="px-3 py-2 text-center w-8">
-                        <button
-                          onClick={() => handleOpenDelete(o)}
-                          className="p-1 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                      <td className="px-3 py-2 text-gray-400 whitespace-nowrap text-[11px]">
+                        {o.fechaVencimiento
+                          ? new Date(o.fechaVencimiento).toLocaleDateString("es-PE")
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-center w-16">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <button
+                            onClick={() => handleOpenEdit(o)}
+                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDelete(o)}
+                            className="p-1 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -334,6 +371,7 @@ export default function OrdenesCompraPage() {
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Precio</th>
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Subtotal</th>
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Doc. Referencia</th>
+              <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Vencimiento</th>
               <th className="text-center font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Acciones</th>
             </tr>
           </thead>
@@ -341,7 +379,7 @@ export default function OrdenesCompraPage() {
             {loadingOrdenes &&
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i} className="border-b border-gray-100 animate-pulse">
-                  <td className="px-3 py-3" colSpan={isSuperAdmin ? 9 : 8}>
+                  <td className="px-3 py-3" colSpan={isSuperAdmin ? 10 : 9}>
                     <div className="h-3 bg-gray-200 rounded w-full" />
                   </td>
                 </tr>
@@ -349,7 +387,7 @@ export default function OrdenesCompraPage() {
 
             {!loadingOrdenes && filtered.length === 0 && (
               <tr>
-                <td colSpan={isSuperAdmin ? 9 : 8} className="py-16 text-center">
+                <td colSpan={isSuperAdmin ? 10 : 9} className="py-16 text-center">
                   <div className="flex flex-col items-center">
                     <div className="bg-gray-100 rounded-full p-4 mb-3">
                       <PackageSearch className="w-10 h-10 text-gray-300" />
@@ -380,13 +418,28 @@ export default function OrdenesCompraPage() {
                     S/ {((o.precioCompra ?? 0) * (o.cantidad ?? 0)).toFixed(2)}
                   </td>
                   <td className="px-3 py-2.5 text-gray-500">{o.docReferencia || "—"}</td>
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                    {o.fechaVencimiento
+                      ? new Date(o.fechaVencimiento).toLocaleDateString("es-PE")
+                      : "—"}
+                  </td>
                   <td className="px-3 py-2.5 text-center">
-                    <button
-                      onClick={() => handleOpenDelete(o)}
-                      className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => handleOpenEdit(o)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Editar orden"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenDelete(o)}
+                        className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Eliminar orden"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -411,6 +464,14 @@ export default function OrdenesCompraPage() {
         documento={deleteTarget?.docReferencia ?? undefined}
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleConfirmDelete}
+      />
+
+      <EditarCompraModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        compra={editTarget}
+        proveedores={proveedores}
+        onGuardado={handleSaveEdit}
       />
     </div>
   );

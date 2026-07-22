@@ -16,6 +16,7 @@ const TIPO_LABEL: Record<string, string> = {
   ENTRADA_DEVOLUCION: "Entrada por devolución",
   SALIDA_VENTA: "Salida por venta",
   SALIDA_NOTA: "Salida por nota",
+  SALIDA_VENCIMIENTO: "Salida por vencimiento",
   AJUSTE: "Ajuste",
 };
 
@@ -49,6 +50,12 @@ const TIPO_STYLE: Record<string, { badge: string; cantidad: string; signo: strin
     cantidad: "text-amber-700",
     signo: "−",
     fila: "border-l-2 border-l-amber-300",
+  },
+  SALIDA_VENCIMIENTO: {
+    badge: "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200",
+    cantidad: "text-rose-700",
+    signo: "−",
+    fila: "border-l-2 border-l-rose-300",
   },
   AJUSTE: {
     badge: "bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-200",
@@ -213,6 +220,9 @@ export default function KardexPage() {
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Ajuste
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Salida por vencimiento
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded-full bg-gray-400" /> Saldo inicial
