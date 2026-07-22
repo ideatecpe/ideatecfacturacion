@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Store,
@@ -29,7 +29,11 @@ import {
   Columns3,
   HandCoins,
   Tag,
+  X,
+  ScanBarcode,
 } from "lucide-react";
+
+import { Html5Qrcode } from "html5-qrcode";
 
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
@@ -155,12 +159,181 @@ export default function CajaAutopago() {
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [itemAEliminar, setItemAEliminar] = useState<ItemCarrito | null>(null);
+  const [mostrarPago, setMostrarPago] = useState(false);
   const [documento, setDocumento] = useState("");
   const [tipoSinDocumento, setTipoSinDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   // Con DNI/CE (no RUC), el cajero puede pasar de Boleta a Nota de Venta; por defecto Boleta.
   const [tipoConDocumento, setTipoConDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   const inputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
+
+  // ── Cámara Escáner de Código de Barras (Móvil / Web) ───────────────
+  const [isScanning, setIsScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const lastScannedCodeRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
+  // ── Agregar / quitar / cantidad ──────────────────────────────
+  const agregarProducto = useCallback((p: ProductoSucursal) => {
+    setItems((prev) => {
+      const idx = prev.findIndex((i) => i.productoId === p.productoId);
+      if (idx !== -1) {
+        const copia = [...prev];
+        copia[idx] = { ...copia[idx], cantidad: copia[idx].cantidad + 1 };
+        return copia;
+      }
+      return [
+        ...prev,
+        {
+          key: crypto.randomUUID(),
+          productoId: p.productoId,
+          sucursalProductoId: p.sucursalProducto.sucursalProductoId,
+          codigo: p.codigo,
+          descripcion: p.nomProducto,
+          cantidad: 1,
+          precio: precioConDescuento(p),
+          tipoAfectacionIGV: p.tipoAfectacionIGV,
+          urlImagen: p.urlImagenProducto ?? null,
+          unidadMedida: p.unidadMedida ?? "NIU",
+          tipoProducto: p.tipoProducto,
+        },
+      ];
+    });
+    setBusqueda("");
+    inputRef.current?.focus();
+  }, []);
+
+  const stopScanning = useCallback(async () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+      } catch (err) {
+        console.error("Error stopping camera scanner", err);
+      }
+      scannerRef.current = null;
+    }
+    setIsScanning(false);
+  }, []);
+
+  const processScannedBarcode = useCallback(
+    (decodedText: string) => {
+      const code = decodedText.trim().toLowerCase();
+      if (!code) return;
+
+      // Cooldown de 1.2s para evitar agregar repetidamente el mismo producto mientras la cámara apunta
+      const now = Date.now();
+      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 1200) {
+        return;
+      }
+      lastScannedCodeRef.current = { code, time: now };
+
+      const p = productosSucursal.find(
+        (prod) =>
+          prod.codigoBarras?.trim().toLowerCase() === code ||
+          prod.codigo?.trim().toLowerCase() === code,
+      );
+
+      if (p) {
+        if (config?.isStock && p.tipoProducto === "BIEN" && (p.sucursalProducto.stock ?? 0) <= 0) {
+          showToast(`El producto "${p.nomProducto}" no tiene stock disponible.`, "error");
+          return;
+        }
+        agregarProducto(p);
+        showToast(`✓ Agregado: ${p.nomProducto}`, "success");
+      } else {
+        showToast(`No se encontró producto con código: ${decodedText}`, "error");
+      }
+    },
+    [productosSucursal, config?.isStock, showToast, agregarProducto],
+  );
+
+  const startScanning = async () => {
+    setIsScanning(true);
+
+    setTimeout(async () => {
+      // 1. Detección NATIVA ultra-rápida por GPU (Chrome / Android)
+      if ("BarcodeDetector" in window) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280, min: 640 },
+              height: { ideal: 720, min: 480 },
+              advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
+            },
+          });
+          mediaStreamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            await videoRef.current.play();
+          }
+
+          const BarcodeDetectorClass = (
+            window as unknown as {
+              BarcodeDetector: new (options?: { formats: string[] }) => {
+                detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+              };
+            }
+          ).BarcodeDetector;
+          const detector = new BarcodeDetectorClass({
+            formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8"],
+          });
+
+          const scanLoop = async () => {
+            if (!videoRef.current) return;
+            try {
+              if (videoRef.current.readyState >= 2) {
+                const barcodes = await detector.detect(videoRef.current);
+                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                  processScannedBarcode(barcodes[0].rawValue);
+                }
+              }
+            } catch {
+              // Silencioso por fotograma
+            }
+            animFrameRef.current = requestAnimationFrame(scanLoop);
+          };
+          scanLoop();
+          return;
+        } catch (err) {
+          console.warn("Fallback a html5-qrcode en CajaAutopago", err);
+        }
+      }
+
+      // 2. Fallback con html5-qrcode
+      try {
+        const html5Qrcode = new Html5Qrcode("reader");
+        scannerRef.current = html5Qrcode;
+
+        await html5Qrcode.start(
+          { facingMode: "environment" },
+          {
+            fps: 30,
+            qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
+          },
+          (decodedText: string) => {
+            processScannedBarcode(decodedText);
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error("Error starting camera scanner in CajaAutopago", err);
+        showToast("No se pudo acceder a la cámara. Revisa los permisos.", "error");
+        setIsScanning(false);
+      }
+    }, 50);
+  };
 
   const igvPct = config?.igv ? parseFloat(config.igv) : 18;
 
@@ -198,35 +371,31 @@ export default function CajaAutopago() {
     );
   }, [busqueda, productosSucursal, config?.isStock]);
 
-  // ── Agregar / quitar / cantidad ──────────────────────────────
-  const agregarProducto = (p: ProductoSucursal) => {
-    setItems((prev) => {
-      const idx = prev.findIndex((i) => i.productoId === p.productoId);
-      if (idx !== -1) {
-        const copia = [...prev];
-        copia[idx] = { ...copia[idx], cantidad: copia[idx].cantidad + 1 };
-        return copia;
+
+
+  // Al escribir o escanear un código de barras en el buscador:
+  // Si el valor ingresado coincide EXACTAMENTE con un código de barras o código,
+  // lo agrega DIRECTO al carrito de la derecha y limpia el campo al instante.
+  useEffect(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return;
+
+    const exacto = productosSucursal.find(
+      (p) =>
+        p.codigoBarras?.trim().toLowerCase() === q ||
+        p.codigo?.trim().toLowerCase() === q,
+    );
+
+    if (exacto) {
+      if (config?.isStock && exacto.tipoProducto === "BIEN" && (exacto.sucursalProducto.stock ?? 0) <= 0) {
+        showToast(`El producto "${exacto.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+        setBusqueda("");
+        return;
       }
-      return [
-        ...prev,
-        {
-          key: crypto.randomUUID(),
-          productoId: p.productoId,
-          sucursalProductoId: p.sucursalProducto.sucursalProductoId,
-          codigo: p.codigo,
-          descripcion: p.nomProducto,
-          cantidad: 1,
-          precio: precioConDescuento(p),
-          tipoAfectacionIGV: p.tipoAfectacionIGV,
-          urlImagen: p.urlImagenProducto ?? null,
-          unidadMedida: p.unidadMedida ?? "NIU",
-          tipoProducto: p.tipoProducto,
-        },
-      ];
-    });
-    setBusqueda("");
-    inputRef.current?.focus();
-  };
+      agregarProducto(exacto);
+      setBusqueda("");
+    }
+  }, [busqueda, productosSucursal, config?.isStock, agregarProducto, showToast]);
 
   const cambiarCantidad = (key: string, delta: number) => {
     setItems((prev) =>
@@ -244,20 +413,79 @@ export default function CajaAutopago() {
     setItemAEliminar(null);
   };
 
-  // Enter en el buscador: si hay una coincidencia exacta de código de barras
-  // (lector físico) o un único resultado, lo agrega directo.
-  const onEnterBusqueda = () => {
-    const q = busqueda.trim();
+  // Enter en el buscador o escáner de código de barras físico:
+  // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
+  // limpiando la búsqueda para la siguiente lectura.
+  const onEnterBusqueda = useCallback((overrideQuery?: string) => {
+    const q = (overrideQuery ?? busqueda).trim().toLowerCase();
     if (!q) return;
+
+    // 1. Buscar coincidencia exacta por código de barras o código
     const exacto = productosSucursal.find(
-      (p) => p.codigoBarras === q || p.codigo === q,
+      (p) =>
+        p.codigoBarras?.trim().toLowerCase() === q ||
+        p.codigo?.trim().toLowerCase() === q,
     );
+
     if (exacto) {
+      if (config?.isStock && exacto.tipoProducto === "BIEN" && (exacto.sucursalProducto.stock ?? 0) <= 0) {
+        showToast(`El producto "${exacto.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+        setBusqueda("");
+        return;
+      }
       agregarProducto(exacto);
+      setBusqueda("");
       return;
     }
-    if (productosGrid.length === 1) agregarProducto(productosGrid[0]);
-  };
+
+    // 2. Si no hay coincidencia exacta, buscar si hay resultados en el grid
+    if (productosGrid.length > 0) {
+      const matchGrid = productosGrid.find(
+        (p) =>
+          p.codigoBarras?.trim().toLowerCase() === q ||
+          p.codigo?.trim().toLowerCase() === q,
+      ) ?? productosGrid[0];
+
+      if (config?.isStock && matchGrid.tipoProducto === "BIEN" && (matchGrid.sucursalProducto.stock ?? 0) <= 0) {
+        showToast(`El producto "${matchGrid.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+        setBusqueda("");
+        return;
+      }
+
+      agregarProducto(matchGrid);
+      setBusqueda("");
+    } else {
+      showToast("No se encontró ningún producto con ese código de barras o nombre.", "error");
+      setBusqueda("");
+    }
+  }, [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto]);
+
+  // Captura global de lecturas de códigos de barras (escáner físico USB/Bluetooth)
+  // incluso si el usuario hace clic afuera del input.
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (mostrarPago || !!itemAEliminar) return;
+
+      const activeElement = document.activeElement;
+      const isInput =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement instanceof HTMLSelectElement;
+
+      if (e.key === "Enter" && !isInput) {
+        e.preventDefault();
+        onEnterBusqueda();
+        return;
+      }
+
+      if (!isInput && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        inputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [onEnterBusqueda, mostrarPago, itemAEliminar]);
 
   // ── Totales (con desglose por afectación de IGV, para el payload real) ──
   const totales = useMemo(() => {
@@ -297,7 +525,6 @@ export default function CajaAutopago() {
   }, [items, igvPct]);
 
   // ── Pago ────────────────────────────────────────────────────
-  const [mostrarPago, setMostrarPago] = useState(false);
   const [medioPago, setMedioPago] = useState("Efectivo");
   const [montoRecibido, setMontoRecibido] = useState("");
   const [notaPago, setNotaPago] = useState("");
@@ -947,9 +1174,10 @@ export default function CajaAutopago() {
               : (resSunat.data.mensaje ?? `${tipoComprobante} quedó pendiente/rechazada por SUNAT.`),
             resSunat.data.exitoso ? "success" : "error",
           );
-        } catch (errSunat: any) {
+        } catch (errSunat) {
+          const errRes = errSunat as { response?: { data?: { mensaje?: string } } };
           showToast(
-            errSunat?.response?.data?.mensaje ?? "No se pudo conectar con SUNAT. Verifica el estado en Comprobantes.",
+            errRes?.response?.data?.mensaje ?? "No se pudo conectar con SUNAT. Verifica el estado en Comprobantes.",
             "error",
           );
         }
@@ -962,8 +1190,8 @@ export default function CajaAutopago() {
       await imprimirSiAplica(comprobanteId);
       fetchSucursal();
       setEmitido(true);
-    } catch (err: any) {
-      const data = err?.response?.data;
+    } catch (err) {
+      const data = (err as { response?: { data?: { mensaje?: string; message?: string; detalle?: string } } })?.response?.data;
       const mensaje = data?.mensaje ?? data?.message ?? "Error al generar el comprobante";
       const detalle = data?.detalle;
       showToast(detalle ? `${mensaje}: ${detalle}` : mensaje, "error");
@@ -1058,20 +1286,29 @@ export default function CajaAutopago() {
 
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <Send className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <Send size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   value={telWhatsapp}
                   onChange={(e) => setTelWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 9))}
                   placeholder="WhatsApp del cliente"
-                  className="w-full h-10 pl-9 pr-3 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
                 />
+                {telWhatsapp && (
+                  <button
+                    type="button"
+                    onClick={() => setTelWhatsapp("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
               </div>
               <button
                 onClick={enviarComprobantePorWhatsapp}
                 disabled={!telWhatsapp.trim() || enviandoWhatsapp}
-                className="h-10 px-4 rounded-md bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                className="h-[34px] px-3.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center justify-center"
               >
-                {enviandoWhatsapp ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enviar"}
+                {enviandoWhatsapp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Enviar"}
               </button>
             </div>
 
@@ -1094,9 +1331,9 @@ export default function CajaAutopago() {
       <div className="w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:h-[calc(100vh-140px)] lg:overflow-hidden animate-in fade-in duration-500">
         {/* ── Columna izquierda: buscador + grid de productos ── */}
         <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden">
-          <div className="shrink-0 border-b border-gray-100 px-5 py-3">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <div className="shrink-0 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 ref={inputRef}
                 autoFocus
@@ -1108,11 +1345,71 @@ export default function CajaAutopago() {
                     onEnterBusqueda();
                   }
                 }}
-                placeholder="Escanea el código de barras o busca por nombre / código"
-                className="w-full h-12 pl-12 pr-4 rounded-md border border-gray-200 text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                placeholder="Escanea con la cámara, lector físico o busca por nombre / código"
+                className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
               />
+              {busqueda && (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
+
+            {!isScanning ? (
+              <button
+                type="button"
+                onClick={startScanning}
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0"
+              >
+                <ScanBarcode size={14} />
+                <span className="hidden sm:inline">Cámara</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={stopScanning}
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-rose-500 text-white rounded-md text-xs font-semibold hover:bg-rose-600 active:scale-[0.98] transition-all shadow-sm shrink-0"
+              >
+                <X size={14} />
+                <span>Cerrar</span>
+              </button>
+            )}
           </div>
+
+          {/* Visor de cámara en vivo para ventas (cuando está activo) */}
+          {isScanning && (
+            <div className="shrink-0 p-3 bg-gray-900 border-b border-gray-800 space-y-2 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between text-white text-xs">
+                <span className="font-bold flex items-center gap-1.5 text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Cámara activa · Escanea tus productos uno tras otro
+                </span>
+                <span className="text-[11px] text-gray-400">
+                  {items.length} producto{items.length === 1 ? "" : "s"} en el carrito
+                </span>
+              </div>
+              <div className="relative w-full h-44 bg-black rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+                <div
+                  id="reader"
+                  className="absolute inset-0 w-full h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover"
+                />
+                <div className="pointer-events-none absolute inset-x-6 top-1/2 -translate-y-1/2 h-20 border-2 border-dashed border-emerald-400/70 rounded-lg bg-emerald-400/5 flex items-center justify-center">
+                  <div className="w-full h-0.5 bg-emerald-400/80 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex-1 lg:overflow-y-auto p-3">
             {productosGrid.length === 0 ? (
@@ -1135,7 +1432,10 @@ export default function CajaAutopago() {
 
         {/* ── Columna derecha: marca + documento + carrito ── */}
         <div className="w-full lg:w-96 shrink-0 flex flex-col bg-gray-50/40 lg:overflow-hidden">
-          <div className="shrink-0 bg-linear-to-br from-brand-blue to-blue-700 px-5 py-4 text-white flex items-center gap-3">
+          <div
+            className="shrink-0 px-5 py-4 text-white flex items-center gap-3"
+            style={{ background: "linear-gradient(180deg, #0f2e64 0%, #091a3d 100%)" }}
+          >
             <div className="w-9 h-9 rounded-md bg-white/15 flex items-center justify-center shrink-0">
               <Store className="w-5 h-5" />
             </div>
@@ -1151,14 +1451,23 @@ export default function CajaAutopago() {
           {/* Documento del cliente — siempre visible, opcional */}
           <div className="shrink-0 px-3 pt-3">
             <div className="relative">
-              <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <UserRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 value={documento}
                 onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
                 inputMode="numeric"
                 placeholder="DNI o RUC del cliente (opcional)"
-                className="w-full h-12 pl-10 pr-3 rounded-md border border-gray-200 bg-white text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
               />
+              {documento && (
+                <button
+                  type="button"
+                  onClick={() => setDocumento("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
             <p className="text-xs text-gray-400 mt-1 px-1">
               DNI/CE → Boleta{config?.useNotaVenta ? " o Nota de Venta" : ""} · RUC → Factura · Vacío → Clientes varios
