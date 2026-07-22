@@ -28,6 +28,7 @@ import {
   CalendarClock,
   Columns3,
   HandCoins,
+  Tag,
 } from "lucide-react";
 
 import axios from "axios";
@@ -78,34 +79,63 @@ interface ItemCarrito {
   tipoProducto: string | null;
 }
 
+// Precio de venta efectivo: si el producto está en promoción, aplica el
+// porcentaje de descuento sobre precioUnitario (mismo cálculo que en
+// productos/lista/ProductoCard.tsx y en boleta/factura/nota-venta).
+const precioConDescuento = (p: ProductoSucursal) => {
+  const base = p.sucursalProducto.precioUnitario ?? 0;
+  const { enPromocion, porcentajeDescuento } = p.sucursalProducto;
+  if (enPromocion && porcentajeDescuento) {
+    return base * (1 - porcentajeDescuento / 100);
+  }
+  return base;
+};
+
 // Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
 function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => void }) {
   const [imgError, setImgError] = useState(false);
   const tieneImagen = !!p.urlImagenProducto && !imgError;
+  const enOferta = !!p.sucursalProducto.enPromocion && !!p.sucursalProducto.porcentajeDescuento;
   return (
     <button
       onClick={onClick}
-      className="group flex flex-col rounded-xl border border-gray-100 bg-white overflow-hidden hover:border-brand-blue hover:shadow-md active:scale-[0.97] transition-all text-left"
+      className="group flex flex-col rounded-md border border-gray-100 bg-white overflow-hidden hover:border-brand-blue hover:shadow-md active:scale-[0.97] transition-all text-left"
     >
-      <div className="aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">
+      <div className="aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden relative p-2">
         {tieneImagen ? (
           <img
             src={p.urlImagenProducto as string}
             alt={p.nomProducto}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
             onError={() => setImgError(true)}
           />
         ) : (
           <ImageOff className="w-5 h-5 text-gray-300" />
         )}
+        {enOferta && (
+          <span className="absolute top-1 left-1 flex items-center gap-0.5 rounded-md bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            <Tag className="w-2.5 h-2.5" /> -{p.sucursalProducto.porcentajeDescuento}%
+          </span>
+        )}
       </div>
-      <div className="p-2">
-        <p className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug min-h-[2.2rem]">
+      <div className="p-1">
+        <p className="text-[11px] font-semibold text-gray-800 line-clamp-1 leading-tight">
           {p.nomProducto}
         </p>
-        <p className="text-base font-bold text-brand-blue mt-0.5 tabular-nums">
-          S/ {(p.sucursalProducto.precioUnitario ?? 0).toFixed(2)}
-        </p>
+        {enOferta ? (
+          <>
+            <p className="text-[9px] text-gray-400 line-through leading-tight tabular-nums">
+              S/ {(p.sucursalProducto.precioUnitario ?? 0).toFixed(2)}
+            </p>
+            <p className="text-xs font-bold text-orange-500 leading-tight tabular-nums">
+              S/ {precioConDescuento(p).toFixed(2)}
+            </p>
+          </>
+        ) : (
+          <p className="text-xs font-bold text-brand-blue mt-0.5 tabular-nums">
+            S/ {(p.sucursalProducto.precioUnitario ?? 0).toFixed(2)}
+          </p>
+        )}
       </div>
     </button>
   );
@@ -186,7 +216,7 @@ export default function CajaAutopago() {
           codigo: p.codigo,
           descripcion: p.nomProducto,
           cantidad: 1,
-          precio: p.sucursalProducto.precioUnitario ?? 0,
+          precio: precioConDescuento(p),
           tipoAfectacionIGV: p.tipoAfectacionIGV,
           urlImagen: p.urlImagenProducto ?? null,
           unidadMedida: p.unidadMedida ?? "NIU",
@@ -968,7 +998,7 @@ export default function CajaAutopago() {
   if (emitido) {
     return (
       <div className="h-[calc(100vh-140px)] w-full flex items-center justify-center animate-in fade-in duration-500">
-        <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white shadow-lg overflow-hidden max-h-full overflow-y-auto">
+        <div className="w-full max-w-md rounded-md border border-gray-200 bg-white shadow-lg overflow-hidden max-h-full overflow-y-auto">
           {/* Cabecera verde */}
           <div className="bg-linear-to-br from-emerald-500 to-emerald-600 px-6 py-7 text-center text-white">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white/20 mb-3">
@@ -998,21 +1028,21 @@ export default function CajaAutopago() {
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => imprimirManual("80")}
-                className="flex flex-col items-center gap-1 rounded-xl border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
+                className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
               >
                 <Printer className="w-4 h-4" />
                 <span className="text-[10px] font-semibold">80mm</span>
               </button>
               <button
                 onClick={() => imprimirManual("58")}
-                className="flex flex-col items-center gap-1 rounded-xl border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
+                className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
               >
                 <Printer className="w-4 h-4" />
                 <span className="text-[10px] font-semibold">58mm</span>
               </button>
               <button
                 onClick={() => imprimirManual("A4")}
-                className="flex flex-col items-center gap-1 rounded-xl border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
+                className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
               >
                 <Printer className="w-4 h-4" />
                 <span className="text-[10px] font-semibold">A4</span>
@@ -1021,7 +1051,7 @@ export default function CajaAutopago() {
 
             <button
               onClick={descargarPDF}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
+              className="w-full flex items-center justify-center gap-2 rounded-md border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
             >
               <Download className="w-4 h-4" /> Descargar PDF
             </button>
@@ -1033,13 +1063,13 @@ export default function CajaAutopago() {
                   value={telWhatsapp}
                   onChange={(e) => setTelWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 9))}
                   placeholder="WhatsApp del cliente"
-                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  className="w-full h-10 pl-9 pr-3 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                 />
               </div>
               <button
                 onClick={enviarComprobantePorWhatsapp}
                 disabled={!telWhatsapp.trim() || enviandoWhatsapp}
-                className="h-10 px-4 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                className="h-10 px-4 rounded-md bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
               >
                 {enviandoWhatsapp ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enviar"}
               </button>
@@ -1047,7 +1077,7 @@ export default function CajaAutopago() {
 
             <button
               onClick={nuevaVenta}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-blue py-4 text-white text-lg font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all mt-2"
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-4 text-white text-lg font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all mt-2"
             >
               Nueva venta
               <ArrowRight className="w-5 h-5" />
@@ -1061,9 +1091,9 @@ export default function CajaAutopago() {
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
     <>
-      <div className="h-[calc(100vh-140px)] w-full rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col lg:flex-row animate-in fade-in duration-500">
+      <div className="w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:h-[calc(100vh-140px)] lg:overflow-hidden animate-in fade-in duration-500">
         {/* ── Columna izquierda: buscador + grid de productos ── */}
-        <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100">
+        <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden">
           <div className="shrink-0 border-b border-gray-100 px-5 py-3">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1079,12 +1109,12 @@ export default function CajaAutopago() {
                   }
                 }}
                 placeholder="Escanea el código de barras o busca por nombre / código"
-                className="w-full h-12 pl-12 pr-4 rounded-2xl border border-gray-200 text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                className="w-full h-12 pl-12 pr-4 rounded-md border border-gray-200 text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3">
+          <div className="flex-1 lg:overflow-y-auto p-3">
             {productosGrid.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
                 <div className="bg-gray-100 rounded-full p-5 mb-4">
@@ -1094,7 +1124,7 @@ export default function CajaAutopago() {
                 <p className="text-gray-400 text-sm mt-1">Prueba con otro nombre o código</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5">
                 {productosGrid.map((p) => (
                   <ProductoGridCard key={p.productoId} p={p} onClick={() => agregarProducto(p)} />
                 ))}
@@ -1104,9 +1134,9 @@ export default function CajaAutopago() {
         </div>
 
         {/* ── Columna derecha: marca + documento + carrito ── */}
-        <div className="w-full lg:w-96 shrink-0 flex flex-col bg-gray-50/40">
+        <div className="w-full lg:w-96 shrink-0 flex flex-col bg-gray-50/40 lg:overflow-hidden">
           <div className="shrink-0 bg-linear-to-br from-brand-blue to-blue-700 px-5 py-4 text-white flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-md bg-white/15 flex items-center justify-center shrink-0">
               <Store className="w-5 h-5" />
             </div>
             <div className="min-w-0">
@@ -1127,7 +1157,7 @@ export default function CajaAutopago() {
                 onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
                 inputMode="numeric"
                 placeholder="DNI o RUC del cliente (opcional)"
-                className="w-full h-12 pl-10 pr-3 rounded-xl border border-gray-200 bg-white text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                className="w-full h-12 pl-10 pr-3 rounded-md border border-gray-200 bg-white text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
               />
             </div>
             <p className="text-xs text-gray-400 mt-1 px-1">
@@ -1135,7 +1165,7 @@ export default function CajaAutopago() {
             </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+          <div className="flex-1 lg:overflow-y-auto px-3 py-3 space-y-2">
             {items.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-4">
                 <div className="bg-gray-100 rounded-full p-4 mb-3">
@@ -1150,7 +1180,7 @@ export default function CajaAutopago() {
               items.map((i) => (
                 <div
                   key={i.key}
-                  className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2.5 hover:border-gray-200 transition-colors"
+                  className="flex items-center gap-3 rounded-md border border-gray-100 bg-white px-3 py-2.5 hover:border-gray-200 transition-colors"
                 >
                   <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="md" />
 
@@ -1198,8 +1228,8 @@ export default function CajaAutopago() {
             )}
           </div>
 
-          {/* Footer con totales y cobrar */}
-          <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-4 space-y-3">
+          {/* Footer con totales y cobrar — fijo en la parte inferior en mobile */}
+          <div className="shrink-0 sticky bottom-0 lg:static border-t border-gray-200 bg-white px-4 py-4 space-y-3 z-10">
             <div className="flex items-center justify-between text-xs text-gray-500">
               <span>Subtotal</span>
               <span className="tabular-nums">S/ {totales.subtotal.toFixed(2)}</span>
@@ -1219,7 +1249,7 @@ export default function CajaAutopago() {
             <button
               onClick={abrirPago}
               disabled={items.length === 0}
-              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
             >
               Cobrar S/ {totales.total.toFixed(2)}
               <ArrowRight className="w-4.5 h-4.5" />
@@ -1247,7 +1277,7 @@ export default function CajaAutopago() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* ── Izquierda: resumen de productos ── */}
           <div className="space-y-3">
-            <div className="rounded-xl border border-gray-100 overflow-hidden">
+            <div className="rounded-md border border-gray-100 overflow-hidden">
               <div className="max-h-56 overflow-y-auto divide-y divide-gray-100">
                 {items.map((i) => (
                   <div key={i.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
@@ -1265,7 +1295,7 @@ export default function CajaAutopago() {
               </div>
             </div>
 
-            <div className="rounded-xl bg-gray-50 px-4 py-3 space-y-1 text-sm">
+            <div className="rounded-md bg-gray-50 px-4 py-3 space-y-1 text-sm">
               <div className="flex justify-between text-gray-500">
                 <span>Base imponible</span>
                 <span className="tabular-nums">S/ {totales.subtotal.toFixed(2)}</span>
@@ -1290,7 +1320,7 @@ export default function CajaAutopago() {
                 <button
                   onClick={() => elegirTipoComprobante("Boleta")}
                   disabled={esRuc}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl border-2 py-2.5 text-xs font-semibold transition-colors ${
+                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-colors ${
                     tipoComprobante === "Boleta"
                       ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                       : esRuc
@@ -1304,7 +1334,7 @@ export default function CajaAutopago() {
                   <button
                     onClick={() => elegirTipoComprobante("Nota de Venta")}
                     disabled={esRuc}
-                    className={`flex items-center justify-center gap-1.5 rounded-xl border-2 py-2.5 text-xs font-semibold transition-colors ${
+                    className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-colors ${
                       tipoComprobante === "Nota de Venta"
                         ? "border-amber-500 bg-amber-50 text-amber-700"
                         : esRuc
@@ -1317,7 +1347,7 @@ export default function CajaAutopago() {
                 )}
                 <button
                   disabled={!esRuc}
-                  className={`flex items-center justify-center gap-1.5 rounded-xl border-2 py-2.5 text-xs font-semibold transition-colors ${
+                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-colors ${
                     tipoComprobante === "Factura"
                       ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
                       : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
@@ -1371,7 +1401,7 @@ export default function CajaAutopago() {
             </div>
 
             {mostrarFechaManual && (
-              <div className="rounded-xl border border-gray-200 px-3 py-2.5 space-y-1.5">
+              <div className="rounded-md border border-gray-200 px-3 py-2.5 space-y-1.5">
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Fecha de emisión</p>
                 <input
                   type="date"
@@ -1379,7 +1409,7 @@ export default function CajaAutopago() {
                   min={fechaMinimaEmision}
                   max={formatoFechaActual().fecha}
                   onChange={(e) => setFechaEmisionManual(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                 />
                 {fechaEmisionManual && fechaEmisionManual < formatoFechaActual().fecha && (
                   <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1">
@@ -1411,7 +1441,7 @@ export default function CajaAutopago() {
                         <button
                           key={m.nombre}
                           onClick={() => setMedioPago(m.nombre)}
-                          className={`flex flex-col items-center gap-1 rounded-xl border-2 py-2.5 transition-colors ${
+                          className={`flex flex-col items-center gap-1 rounded-md border-2 py-2.5 transition-colors ${
                             activo ? m.activo : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
                           }`}
                         >
@@ -1449,7 +1479,7 @@ export default function CajaAutopago() {
                           onChange={(e) => setAdelantoCredito(e.target.value.replace(/[^0-9.]/g, ""))}
                           inputMode="decimal"
                           placeholder="0.00"
-                          className="w-full h-11 pl-8 pr-3 rounded-xl border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                          className="w-full h-11 pl-8 pr-3 rounded-md border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                         />
                       </div>
                     </div>
@@ -1463,7 +1493,7 @@ export default function CajaAutopago() {
                           <button
                             key={n}
                             onClick={() => setNumeroCuotasCredito(n)}
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
                               numeroCuotasCredito === n
                                 ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
                                 : "border-gray-200 text-gray-500 hover:border-gray-300"
@@ -1486,7 +1516,7 @@ export default function CajaAutopago() {
                                 value={c.monto}
                                 onChange={(e) => actualizarMontoCuota(idx, e.target.value)}
                                 inputMode="decimal"
-                                className="w-full h-10 pl-8 pr-2 rounded-xl border border-gray-200 text-right text-sm font-semibold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                                className="w-full h-10 pl-8 pr-2 rounded-md border border-gray-200 text-right text-sm font-semibold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                               />
                             </div>
                           </div>
@@ -1501,7 +1531,7 @@ export default function CajaAutopago() {
                                   prev.map((cc, i) => (i === idx ? { ...cc, fechaVencimiento: e.target.value } : cc)),
                                 )
                               }
-                              className="w-full h-10 px-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                              className="w-full h-10 px-2 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                             />
                           </div>
                         </div>
@@ -1517,7 +1547,7 @@ export default function CajaAutopago() {
                           <span className="text-xs font-semibold text-rose-600">No cuadra</span>
                           <button
                             onClick={cuadrarCuotasConSaldo}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors"
+                            className="px-3 py-1.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors"
                           >
                             Cuadrar atuomáticamente
                           </button>
@@ -1535,13 +1565,13 @@ export default function CajaAutopago() {
                         value={montoRecibido}
                         onChange={(e) => setMontoRecibido(e.target.value.replace(/[^0-9.]/g, ""))}
                         inputMode="decimal"
-                        className="w-full h-11 pl-8 pr-3 rounded-xl border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                        className="w-full h-11 pl-8 pr-3 rounded-md border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                       />
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       <button
                         onClick={() => setMontoRecibido(totales.total.toFixed(2))}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
                           parseFloat(montoRecibido) === totales.total
                             ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
                             : "border-gray-200 text-gray-500 hover:border-gray-300"
@@ -1553,14 +1583,14 @@ export default function CajaAutopago() {
                         <button
                           key={m}
                           onClick={() => setMontoRecibido(m.toFixed(2))}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-gray-200 text-gray-500 hover:border-gray-300 transition-colors"
+                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold border border-gray-200 text-gray-500 hover:border-gray-300 transition-colors"
                         >
                           S/ {m}
                         </button>
                       ))}
                     </div>
                     <div
-                      className={`mt-2 flex items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold ${
+                      className={`mt-2 flex items-center justify-between rounded-md px-3 py-2 text-sm font-semibold ${
                         faltante > 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-700"
                       }`}
                     >
@@ -1570,18 +1600,18 @@ export default function CajaAutopago() {
                   </div>
                 ) : medioPago === "Tarjeta" ? (
                   /* Tarjeta: se cobra en el POS físico, solo mostramos el monto */
-                  <div className="rounded-xl border border-gray-200 px-3 py-3 space-y-2.5">
+                  <div className="rounded-md border border-gray-200 px-3 py-3 space-y-2.5">
                     <p className="text-xs text-gray-500">
                       El cobro se realiza en el POS físico. Se registra como pago con tarjeta.
                     </p>
-                    <div className="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
+                    <div className="rounded-md bg-gray-50 px-3 py-2.5 text-center">
                       <span className="text-lg font-bold text-gray-900 tabular-nums">S/ {totales.total.toFixed(2)}</span>
                     </div>
                   </div>
                 ) : (
                   /* Yape / Plin / Transferencia / Otro: monto a cobrar + N° operación opcional */
-                  <div className="rounded-xl border border-gray-200 px-3 py-3 space-y-2.5">
-                    <div className="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
+                  <div className="rounded-md border border-gray-200 px-3 py-3 space-y-2.5">
+                    <div className="rounded-md bg-gray-50 px-3 py-2.5 text-center">
                       <span className="text-lg font-bold text-gray-900 tabular-nums">S/ {totales.total.toFixed(2)}</span>
                     </div>
                   </div>
@@ -1599,7 +1629,7 @@ export default function CajaAutopago() {
                           ? "Observaciones (opcional)"
                           : "N° de operación (opcional)"
                     }
-                    className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                    className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                   />
                 </div>
               </>
@@ -1608,7 +1638,7 @@ export default function CajaAutopago() {
                 {/* Pago dividido: varias filas medio de pago + monto */}
                 <div className="space-y-2.5">
                   {pagosDivididos.map((p, idx) => (
-                    <div key={p.id} className="rounded-xl border border-gray-200 px-3 py-2.5">
+                    <div key={p.id} className="rounded-md border border-gray-200 px-3 py-2.5">
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">
                           Pago {idx + 1}
@@ -1626,7 +1656,7 @@ export default function CajaAutopago() {
                         <select
                           value={p.medioPago}
                           onChange={(e) => actualizarPagoDividido(p.id, "medioPago", e.target.value)}
-                          className="h-10 px-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                          className="h-10 px-2 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                         >
                           {MEDIOS_PAGO.map((m) => (
                             <option key={m.nombre} value={m.nombre} disabled={medioEnUsoEnOtraFila(m.nombre, p.id)}>
@@ -1644,7 +1674,7 @@ export default function CajaAutopago() {
                             }
                             inputMode="decimal"
                             placeholder="0.00"
-                            className="w-full h-10 pl-8 pr-2 rounded-xl border border-gray-200 text-right text-sm font-semibold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                            className="w-full h-10 pl-8 pr-2 rounded-md border border-gray-200 text-right text-sm font-semibold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                           />
                         </div>
                       </div>
@@ -1654,14 +1684,14 @@ export default function CajaAutopago() {
                   {pagosDivididos.length < MEDIOS_PAGO.length && (
                     <button
                       onClick={agregarPagoDividido}
-                      className="w-full rounded-xl border-2 border-dashed border-gray-200 py-2 text-xs font-semibold text-brand-blue hover:border-brand-blue/40 transition-colors"
+                      className="w-full rounded-md border-2 border-dashed border-gray-200 py-2 text-xs font-semibold text-brand-blue hover:border-brand-blue/40 transition-colors"
                     >
                       + Agregar otro método
                     </button>
                   )}
                 </div>
 
-                <div className="rounded-xl bg-gray-50 px-3 py-2.5 space-y-1 text-sm">
+                <div className="rounded-md bg-gray-50 px-3 py-2.5 space-y-1 text-sm">
                   <div className="flex justify-between text-gray-500">
                     <span>Total a pagar</span>
                     <span className="tabular-nums">S/ {totales.total.toFixed(2)}</span>
@@ -1688,7 +1718,7 @@ export default function CajaAutopago() {
                     value={notaPago}
                     onChange={(e) => setNotaPago(e.target.value)}
                     placeholder="Observaciones (opcional)"
-                    className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                    className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                   />
                 </div>
               </>
@@ -1702,7 +1732,7 @@ export default function CajaAutopago() {
                 (pagoDividido && faltanteDividido > 0) ||
                 (esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
               }
-              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {emitiendo ? (
                 <>
@@ -1721,7 +1751,7 @@ export default function CajaAutopago() {
       {/* ── Bloqueo total mientras se emite (nada es clickeable hasta el éxito) ── */}
       {emitiendo && (
         <div className="fixed inset-0 z-999 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl px-10 py-9 flex flex-col items-center gap-4">
+          <div className="bg-white rounded-md shadow-2xl px-10 py-9 flex flex-col items-center gap-4">
             <Loader2 className="w-12 h-12 text-brand-blue animate-spin" />
             <div className="text-center">
               <p className="text-base font-bold text-gray-800">Emitiendo comprobante...</p>
