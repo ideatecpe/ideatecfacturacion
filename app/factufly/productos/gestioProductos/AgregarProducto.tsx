@@ -142,6 +142,30 @@ export default function AgregarProducto({
     setIsScanning(false);
   }, []);
 
+  // Pre-calentar el motor de escaneo nativo en memoria GPU al abrir el modal
+  React.useEffect(() => {
+    if (isOpen && "BarcodeDetector" in window) {
+      try {
+        const BarcodeDetectorClass = (
+          window as unknown as {
+            BarcodeDetector: new (options?: { formats: string[] }) => {
+              detect: (src: HTMLCanvasElement) => Promise<unknown>;
+            };
+          }
+        ).BarcodeDetector;
+        const dummyDetector = new BarcodeDetectorClass({
+          formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8"],
+        });
+        const dummyCanvas = document.createElement("canvas");
+        dummyCanvas.width = 32;
+        dummyCanvas.height = 32;
+        dummyDetector.detect(dummyCanvas).catch(() => {});
+      } catch {
+        // Silencioso
+      }
+    }
+  }, [isOpen]);
+
   const startScanning = async () => {
     setIsScanning(true);
 
@@ -153,8 +177,8 @@ export default function AgregarProducto({
           const stream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
+              width: { ideal: 1280, min: 640 },
+              height: { ideal: 720, min: 480 },
               advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
             },
           });
@@ -172,7 +196,7 @@ export default function AgregarProducto({
             }
           ).BarcodeDetector;
           const detector = new BarcodeDetectorClass({
-            formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "qr_code"],
+            formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8"],
           });
 
           let scanned = false;
