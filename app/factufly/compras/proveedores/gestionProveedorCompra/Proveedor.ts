@@ -64,4 +64,5 @@ export interface NuevaCompraProveedor {
   unidadMedida?: string;
   docReferencia?: string;
   idUsuario?: number;
+  fechaVencimiento?: string;
 }

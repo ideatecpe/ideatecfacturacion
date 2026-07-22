@@ -17,6 +17,10 @@ export interface SucursalProducto {
   cantidadMinimaMayorista?: number | null;
   enPromocion?: boolean | null;
   porcentajeDescuento?: number | null;
+  usuarioId?: number | null;
+  ubicacionTienda?: string | null;
+  /** Calculado por el backend: fecha de vencimiento más próxima entre los lotes con saldo. Solo lectura. */
+  proximoVencimiento?: string | null;
 }
 
 // ─── Producto Base (sin datos de sucursal) ───────────────────
@@ -66,6 +70,8 @@ export interface NuevoProducto {
   cantidadMinimaMayorista?: number | null;
   enPromocion?: boolean | null;
   porcentajeDescuento?: number | null;
+  usuarioId?: number | null;
+  ubicacionTienda?: string | null;
 }
 
 // ─── Para editar producto (PUT) ───────────────────────────────
@@ -91,4 +97,6 @@ export interface EditProducto {
   cantidadMinimaMayorista?: number | null;
   enPromocion?: boolean | null;
   porcentajeDescuento?: number | null;
+  usuarioId?: number | null;
+  ubicacionTienda?: string | null;
 }

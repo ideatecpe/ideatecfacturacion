@@ -18,6 +18,7 @@ export interface LineaCompra {
   cantidad: string;
   precioCompra: string;
   docReferencia: string;
+  fechaVencimiento: string;
   /** Estado de guardado de esta línea al registrar la compra (varias líneas se envían una por una). */
   estado?: "guardando" | "guardado" | "error";
 }
@@ -243,6 +244,16 @@ export default function LineaCompraRow({
             className={`${inputCls} pl-6 ${errors.precioCompra ? "border-rose-400" : "border-gray-200"}`}
           />
         </div>
+      </td>
+
+      <td className="px-1.5 py-1.5 align-top w-[130px]">
+        <input
+          type="date"
+          value={linea.fechaVencimiento}
+          onChange={(e) => onChange(linea.key, "fechaVencimiento", e.target.value)}
+          disabled={disabled}
+          className={`${inputCls} border-gray-200`}
+        />
       </td>
 
       <td className="px-1.5 py-1.5 align-top w-[95px]">

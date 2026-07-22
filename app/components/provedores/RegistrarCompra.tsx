@@ -114,6 +114,7 @@ const nuevaLinea = (proveedorId = 0, sucursalId = 0): LineaCompra => ({
   cantidad: "",
   precioCompra: "",
   docReferencia: "",
+  fechaVencimiento: "",
 });
 
 export default function RegistrarCompra({
@@ -301,6 +302,7 @@ export default function RegistrarCompra({
         unidadMedida: l.unidadMedida || undefined,
         docReferencia: docReferencia.trim() || undefined,
         idUsuario: user?.id ? Number(user.id) : undefined,
+        fechaVencimiento: l.fechaVencimiento || undefined,
       });
 
       if (creada) {
@@ -502,6 +504,7 @@ export default function RegistrarCompra({
                   <col />
                   <col style={{ width: "100px" }} />
                   <col style={{ width: "115px" }} />
+                  <col style={{ width: "130px" }} />
                   <col style={{ width: "95px" }} />
                   <col style={{ width: "32px" }} />
                 </colgroup>
@@ -531,6 +534,9 @@ export default function RegistrarCompra({
                     </th>
                     <th className="px-1.5 py-2 text-left font-bold text-gray-500 uppercase text-[10px]">
                       Precio compra unitario
+                    </th>
+                    <th className="px-1.5 py-2 text-left font-bold text-gray-500 uppercase text-[10px]">
+                      Vencimiento <span className="normal-case font-normal text-gray-400">(opc.)</span>
                     </th>
                     <th className="px-1.5 py-2 text-right font-bold text-gray-500 uppercase text-[10px]">
                       Subtotal

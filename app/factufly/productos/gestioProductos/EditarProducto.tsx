@@ -63,6 +63,8 @@ const emptyForm: NuevoProducto = {
   cantidadMinimaMayorista: null,
   enPromocion: false,
   porcentajeDescuento: null,
+  usuarioId: null,
+  ubicacionTienda: null,
 };
 
 export default function EditarProducto({
@@ -119,6 +121,7 @@ export default function EditarProducto({
       cantidadMinimaMayorista: producto.sucursalProducto.cantidadMinimaMayorista ?? null,
       enPromocion: producto.sucursalProducto.enPromocion ?? false,
       porcentajeDescuento: producto.sucursalProducto.porcentajeDescuento ?? null,
+      ubicacionTienda: producto.sucursalProducto.ubicacionTienda ?? null,
     });
 
     setPrecioInput(producto.sucursalProducto.precioUnitario.toFixed(2));
@@ -206,6 +209,8 @@ export default function EditarProducto({
       cantidadMinimaMayorista: form.cantidadMinimaMayorista ?? null,
       enPromocion: form.enPromocion ?? false,
       porcentajeDescuento: form.enPromocion ? form.porcentajeDescuento ?? null : null,
+      ubicacionTienda: config?.isStock ? form.ubicacionTienda ?? null : null,
+      usuarioId: user?.id ? parseInt(user.id) : null,
     };
 
     try {
@@ -246,6 +251,8 @@ export default function EditarProducto({
           cantidadMinimaMayorista: payload.cantidadMinimaMayorista,
           enPromocion: payload.enPromocion,
           porcentajeDescuento: payload.porcentajeDescuento,
+          ubicacionTienda: payload.ubicacionTienda,
+          usuarioId: payload.usuarioId,
         },
       };
 
@@ -253,7 +260,6 @@ export default function EditarProducto({
       onProductoEditado(productoActualizado);
       onClose();
     } catch (error) {
-      console.error("Error editando producto:", error);
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
         if (status === 404) {
@@ -604,28 +610,40 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           onAbrirCatalogo={onAbrirCatalogo}
         />
 
+        {isStock && form.tipoProducto === "BIEN" && (
+          <InputBase
+            label="Ubicación en Tienda"
+            labelOptional="(opcional)"
+            value={form.ubicacionTienda ?? ""}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                ubicacionTienda: e.target.value.trim() === "" ? null : e.target.value,
+              }))
+            }
+            placeholder="Ej: Pasillo 3, Estante B"
+          />
+        )}
+
         {isStock && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">&nbsp;</label>
-            <div className="flex items-center gap-2 h-10 px-1">
-              <input
-                type="checkbox"
-                checked={!!form.esPaquete}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setForm((prev) => ({
-                    ...prev,
-                    esPaquete: checked,
-                    productoBaseId: checked ? prev.productoBaseId : null,
-                    factorConversion: checked ? prev.factorConversion : null,
-                  }));
-                }}
-                className="w-4 h-4 accent-brand-blue"
-              />
-              <label className="text-xs font-semibold text-gray-600">
-                ¿Es un paquete/caja con unidades dentro?
-              </label>
-            </div>
+          <div className="flex items-center gap-2 h-10 px-1 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={!!form.esPaquete}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setForm((prev) => ({
+                  ...prev,
+                  esPaquete: checked,
+                  productoBaseId: checked ? prev.productoBaseId : null,
+                  factorConversion: checked ? prev.factorConversion : null,
+                }));
+              }}
+              className="w-4 h-4 accent-brand-blue"
+            />
+            <label className="text-xs font-semibold text-gray-600">
+              ¿Es un paquete/caja con unidades dentro?
+            </label>
           </div>
         )}
       </div>
@@ -674,7 +692,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
       )}
 
       {isStock && form.tipoProducto === "BIEN" && (
-        <div className="space-y-3 border-t border-gray-100 pt-4">
+        <div className="space-y-3 border-t border-gray-100 pt-2">
           <p className="text-xs font-bold text-gray-500 uppercase">Mayorista y Promoción</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

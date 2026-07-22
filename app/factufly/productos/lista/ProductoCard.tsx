@@ -2,13 +2,24 @@
 import React from "react";
 import dynamic from "next/dynamic";
 const Barcode = dynamic(() => import("react-barcode"), { ssr: false });
-import { Edit2, Trash2, Tag, Printer } from "lucide-react";
+import { Edit2, Trash2, Tag, Printer, MapPin, AlertTriangle, CalendarClock } from "lucide-react";
 
 import { Card } from "@/app/components/ui/Card";
 import { cn } from "@/app/utils/cn";
 import { conVarianteImagen } from "@/app/utils/cloudflareImagen";
 import { formatoBarcodeSeguro } from "../gestioProductos/barcodeFormato";
 import { ProductoSucursal } from "../gestioProductos/Producto";
+
+// Umbral de alerta de vencimiento (días): a partir de aquí se marca el producto
+// como "próximo a vencer" en la tarjeta.
+const DIAS_ALERTA_VENCIMIENTO = 30;
+
+function estaProximoAVencer(fechaISO: string): boolean {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const diffDias = (new Date(fechaISO).getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
+  return diffDias <= DIAS_ALERTA_VENCIMIENTO;
+}
 
 interface ProductoCardProps {
   prod: ProductoSucursal;
@@ -25,6 +36,8 @@ interface ProductoCardProps {
   getEstadoStock: (p: ProductoSucursal) => "agotado" | "bajo" | "normal";
   imgError: boolean;
   onImgError: () => void;
+  /** true cuando el filtro "Vence antes de" está aplicado — fuerza mostrar el badge aunque falten más de 30 días. */
+  filtroVencimientoActivo?: boolean;
 }
 
 export default function ProductoCard({
@@ -42,6 +55,7 @@ export default function ProductoCard({
   getEstadoStock,
   imgError,
   onImgError,
+  filtroVencimientoActivo,
 }: ProductoCardProps) {
   // Intenta primero la variante liviana "thumbnail"; si no existe todavía en
   // Cloudflare (404), cae a la imagen original antes de rendirse a "sin imagen".
@@ -235,6 +249,44 @@ export default function ProductoCard({
           )}
         </div>
       </div>
+
+      {/* ── Ubicación en tienda (solo informativo) ── */}
+      {isStock && prod.sucursalProducto.ubicacionTienda && (
+        <div className="mt-1 flex flex-col gap-0.5">
+          <span className="flex items-center gap-1 text-[9px] font-medium text-gray-400">
+            <MapPin className="w-2.5 h-2.5 shrink-0" />
+            {prod.sucursalProducto.ubicacionTienda}
+          </span>
+        </div>
+      )}
+
+      {/* ── Vencimiento: advertencia (<30 días) vs. dato informativo (solo por el filtro "Vence antes de") ── */}
+      {isStock && prod.sucursalProducto.proximoVencimiento && (() => {
+        const fecha = prod.sucursalProducto.proximoVencimiento;
+        const esUrgente = estaProximoAVencer(fecha);
+
+        if (!esUrgente && !filtroVencimientoActivo) return null;
+
+        const fechaFormateada = new Date(fecha).toLocaleDateString("es-PE");
+
+        // Menos de 30 días: advertencia real, sin importar el filtro.
+        if (esUrgente) {
+          return (
+            <div className="mt-1 flex items-center gap-1 w-fit text-[9px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+              <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+              Hay stock por vencer: {fechaFormateada}
+            </div>
+          );
+        }
+
+        // Solo aparece por el filtro (falta más de 30 días): dato neutral, no es una alerta.
+        return (
+          <div className="mt-1 flex items-center gap-1 w-fit text-[9px] font-semibold text-gray-500 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5">
+            <CalendarClock className="w-2.5 h-2.5 shrink-0" />
+            Vencimiento más próximo: {fechaFormateada}
+          </div>
+        );
+      })()}
 
       {/* ── Código de barras — pie de tarjeta ── */}
       {prod.codigoBarras && (

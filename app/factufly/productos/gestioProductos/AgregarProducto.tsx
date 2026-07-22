@@ -61,6 +61,8 @@ const emptyForm: NuevoProducto = {
   cantidadMinimaMayorista: null,
   enPromocion: false,
   porcentajeDescuento: null,
+  usuarioId: null,
+  ubicacionTienda: null,
 };
 
 // Incrementa el correlativo de un código tipo "COC-001" → "COC-002",
@@ -420,6 +422,9 @@ export default function AgregarProducto({
       sucursalId: sucursalIdEfectivo,
       // El stock siempre arranca en 0: solo se incrementa desde el módulo de Compras a Proveedor.
       stock: config?.isStock && form.tipoProducto === "BIEN" ? 0 : null,
+      // Campo informativo: solo aplica si la empresa maneja stock.
+      ubicacionTienda: config?.isStock ? form.ubicacionTienda : null,
+      usuarioId: user?.id ? parseInt(user.id) : null,
     };
 
     // El código automático puede chocar con un registro que la lista no ve
@@ -466,7 +471,6 @@ export default function AgregarProducto({
         }
       }
     } catch (error) {
-      console.error("Error guardando producto:", error);
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
         if (status === 409) {
@@ -840,6 +844,26 @@ export default function AgregarProducto({
           )}
 
         </div>
+
+        {/* ── Ubicación en tienda (solo informativo, opcional) ── */}
+        {config?.isStock && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <InputBase
+              compact
+              label="Ubicación en Tienda"
+              labelOptional="(opcional)"
+              value={form.ubicacionTienda ?? ""}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  ubicacionTienda: e.target.value.trim() === "" ? null : e.target.value,
+                }))
+              }
+              placeholder="Ej: Pasillo 3, Estante B"
+              showError={false}
+            />
+          </div>
+        )}
 
         {/* ── Código de barras (siempre disponible) ── */}
         {!soloSucursal && (

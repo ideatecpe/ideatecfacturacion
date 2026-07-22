@@ -22,6 +22,7 @@ import {
   Boxes,
   AlertTriangle,
   Printer,
+  CalendarClock,
 } from "lucide-react";
 import axios from "axios";
 
@@ -115,6 +116,7 @@ export default function ProductosPage() {
   const [filtroStockBajo, setFiltroStockBajo] = useState(false);
   const [filtroPromocion, setFiltroPromocion] = useState(false);
   const [filtroPaquete, setFiltroPaquete] = useState(false);
+  const [filtroVencimientoAntes, setFiltroVencimientoAntes] = useState<string>("");
   const [filtroAfectacion, setFiltroAfectacion] = useState<string[]>([]);
   const [filtroTipoProducto, setFiltroTipoProducto] = useState<string[]>([]);
 
@@ -218,6 +220,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
     (config?.isStock && filtroStockBajo) ||
     (config?.isStock && filtroPromocion) ||
     (config?.isStock && filtroPaquete) ||
+    (config?.isStock && !!filtroVencimientoAntes) ||
     filtroAfectacion.length > 0 ||
     filtroTipoProducto.length > 0;
 
@@ -268,6 +271,12 @@ const [importFile, setImportFile] = useState<File | null>(null);
     const matchPaquete =
       !config?.isStock || !filtroPaquete || !!p.esPaquete;
 
+    const matchVencimiento =
+      !config?.isStock ||
+      !filtroVencimientoAntes ||
+      (!!p.sucursalProducto.proximoVencimiento &&
+        new Date(p.sucursalProducto.proximoVencimiento) <= new Date(filtroVencimientoAntes));
+
     const matchAfectacion =
       filtroAfectacion.length === 0 ||
       filtroAfectacion.includes(p.tipoAfectacionIGV);
@@ -286,6 +295,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
       matchStockBajo &&
       matchPromocion &&
       matchPaquete &&
+      matchVencimiento &&
       matchAfectacion &&
       matchTipo &&
       matchSucursal
@@ -794,6 +804,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                       config?.isStock && filtroStockBajo,
                       config?.isStock && filtroPromocion,
                       config?.isStock && filtroPaquete,
+                      config?.isStock && !!filtroVencimientoAntes,
                       ...filtroAfectacion,
                       ...filtroTipoProducto,
                     ].filter(Boolean).length
@@ -991,6 +1002,36 @@ const [importFile, setImportFile] = useState<File | null>(null);
                     <Boxes size={12} /> Solo paquetes/cajas
                   </button>
                 </div>
+
+                <div className="w-px h-4 bg-gray-200 shrink-0" />
+
+                {/* Vencimiento */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0 flex items-center gap-1">
+                    <CalendarClock size={12} /> Vence antes de
+                  </span>
+                  <input
+                    type="date"
+                    value={filtroVencimientoAntes}
+                    onChange={(e) => setFiltroVencimientoAntes(e.target.value)}
+                    className={cn(
+                      "px-2 py-1 text-xs font-semibold border rounded-lg transition-all outline-none",
+                      filtroVencimientoAntes
+                        ? "bg-amber-50 border-amber-300 text-amber-700"
+                        : "bg-white border-gray-200 text-gray-500",
+                    )}
+                  />
+                  {filtroVencimientoAntes && (
+                    <button
+                      type="button"
+                      onClick={() => setFiltroVencimientoAntes("")}
+                      className="text-gray-400 hover:text-rose-500 transition-colors"
+                      title="Quitar filtro de vencimiento"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </>
             )}
 
@@ -1046,6 +1087,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                     setFiltroStockBajo(false);
                     setFiltroPromocion(false);
                     setFiltroPaquete(false);
+                    setFiltroVencimientoAntes("");
                     setFiltroAfectacion([]);
                     setFiltroTipoProducto([]);
                     setFiltroSucursal("");
@@ -1246,6 +1288,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                             : undefined
                         }
                         getEstadoStock={getEstadoStock}
+                        filtroVencimientoActivo={!!filtroVencimientoAntes}
                         imgError={imgErrorIds.has(prod.sucursalProducto.sucursalProductoId)}
                         onImgError={() =>
                           setImgErrorIds((prev) => {
