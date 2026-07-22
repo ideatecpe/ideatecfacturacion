@@ -134,7 +134,10 @@ export default function RegistrarCompra({
     : undefined;
 
   const { registrarCompraProveedor } = useRegistrarCompraProveedor();
-  const { sucursales } = useSucursalRuc(isOpen && isSuperAdmin);
+  // Se carga siempre (no solo para superadmin) porque el número de WhatsApp de
+  // aviso de stock bajo ahora vive por sucursal, y lo necesitamos para avisar
+  // aunque el usuario sea de una sola sucursal.
+  const { sucursales } = useSucursalRuc(isOpen);
   const { cache: productosCache, loadingIds: productosLoadingIds, ensureProductos } =
     useProductosPorSucursalCache();
 
@@ -323,20 +326,22 @@ export default function RegistrarCompra({
     setGuardando(false);
     if (ultimaCreada) onCompraRegistrada(ultimaCreada);
 
-    if (config?.numeroStockBajo && registrosOk.length) {
-      avisarStockRepuestoSiAplica(registrosOk, config.numeroStockBajo);
+    if (registrosOk.length) {
+      avisarStockRepuestoSiAplica(registrosOk);
     }
 
     if (!huboError) onClose();
   };
 
   // ── Avisar por WhatsApp si algún producto repuesto cruzó el umbral de stock bajo ──
+  // El número de aviso es por sucursal, así que agrupamos los repuestos por la
+  // sucursal donde se registró la compra y avisamos al número propio de cada una.
   const avisarStockRepuestoSiAplica = async (
     registros: { sucursalId: number; productoId: number; cantidad: number }[],
-    numero: string,
   ) => {
     const umbral = config?.umbralStockBajo ?? 10;
     const sucursalIds = Array.from(new Set(registros.map((r) => r.sucursalId)));
+    const numeroPorSucursal = new Map(sucursales.map((s) => [s.sucursalId, s.numeroStockBajo]));
     const frescos = new Map<number, ProductoSucursal[]>();
 
     await Promise.all(
@@ -353,18 +358,22 @@ export default function RegistrarCompra({
       }),
     );
 
-    const repuestos = registros
-      .map((r) => {
-        const producto = frescos.get(r.sucursalId)?.find((p) => p.productoId === r.productoId);
-        if (!producto) return null;
-        const stockDespues = producto.sucursalProducto.stock ?? 0;
-        const stockAntes = stockDespues - r.cantidad;
-        if (stockAntes > umbral || stockDespues <= umbral) return null;
-        return { nomProducto: producto.nomProducto, stock: stockDespues };
-      })
-      .filter((p): p is { nomProducto: string; stock: number } => p !== null);
+    const repuestosPorSucursal = new Map<number, { nomProducto: string; stock: number }[]>();
+    registros.forEach((r) => {
+      const producto = frescos.get(r.sucursalId)?.find((p) => p.productoId === r.productoId);
+      if (!producto) return;
+      const stockDespues = producto.sucursalProducto.stock ?? 0;
+      const stockAntes = stockDespues - r.cantidad;
+      if (stockAntes > umbral || stockDespues <= umbral) return;
+      const lista = repuestosPorSucursal.get(r.sucursalId) ?? [];
+      lista.push({ nomProducto: producto.nomProducto, stock: stockDespues });
+      repuestosPorSucursal.set(r.sucursalId, lista);
+    });
 
-    if (repuestos.length) avisarStockRepuestoWhatsapp(repuestos, numero);
+    repuestosPorSucursal.forEach((repuestos, sucursalId) => {
+      const numero = numeroPorSucursal.get(sucursalId);
+      if (numero && repuestos.length) avisarStockRepuestoWhatsapp(repuestos, numero);
+    });
   };
 
   const totalGeneral = lineas.reduce(

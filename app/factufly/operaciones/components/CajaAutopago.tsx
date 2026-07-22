@@ -2,10 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ScanBarcode,
-  ShoppingCart,
-  Wallet,
-  ArrowLeft,
   ArrowRight,
   Store,
   Search,
@@ -13,13 +9,25 @@ import {
   Plus,
   Minus,
   PackageSearch,
-  Delete,
   UserRound,
   Loader2,
   AlertTriangle,
   Receipt,
   FileText,
   Users,
+  ImageOff,
+  CheckCircle2,
+  Printer,
+  Download,
+  Send,
+  Banknote,
+  CreditCard,
+  Smartphone,
+  Landmark,
+  MoreHorizontal,
+  CalendarClock,
+  Columns3,
+  HandCoins,
 } from "lucide-react";
 
 import axios from "axios";
@@ -37,14 +45,6 @@ import { formatoFechaActual } from "@/app/components/ui/formatoFecha";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
 import { avisarStockBajoWhatsapp } from "@/app/factufly/productos/gestioProductos/stockAlerta";
 import { useToast } from "@/app/components/ui/Toast";
-import {
-  Banknote,
-  CreditCard,
-  Smartphone,
-  Landmark,
-  CheckCircle2,
-  Printer,
-} from "lucide-react";
 
 interface MedioPagoOpcion {
   nombre: string;
@@ -58,10 +58,11 @@ const MEDIOS_PAGO: MedioPagoOpcion[] = [
   { nombre: "Yape", icon: Smartphone, activo: "border-violet-500 bg-violet-50 text-violet-700" },
   { nombre: "Plin", icon: Smartphone, activo: "border-sky-500 bg-sky-50 text-sky-700" },
   { nombre: "Transferencia", icon: Landmark, activo: "border-amber-500 bg-amber-50 text-amber-700" },
+  { nombre: "Otro", icon: MoreHorizontal, activo: "border-gray-500 bg-gray-100 text-gray-700" },
 ];
 
-// Pasos del flujo de Caja Autopago. Se irán construyendo vista a vista.
-type Paso = "bienvenida" | "escaneo" | "documento" | "pago";
+const MONTOS_RAPIDOS = [5, 10, 20, 50, 100, 200];
+const TAMANO_MAP: Record<"80" | "58" | "A4", string> = { "80": "Ticket80mm", "58": "Ticket58mm", A4: "A4" };
 
 interface ItemCarrito {
   key: string;
@@ -77,26 +78,38 @@ interface ItemCarrito {
   tipoProducto: string | null;
 }
 
-const PASOS_INFO = [
-  {
-    n: 1,
-    icon: ScanBarcode,
-    titulo: "Escanea los productos",
-    desc: "Pasa el código de barras de cada producto",
-  },
-  {
-    n: 2,
-    icon: ShoppingCart,
-    titulo: "Revisa el carrito",
-    desc: "Confirma cantidades y precios",
-  },
-  {
-    n: 3,
-    icon: Wallet,
-    titulo: "Cobra la venta",
-    desc: "Elige el medio de pago y emite el comprobante",
-  },
-];
+// Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
+function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => void }) {
+  const [imgError, setImgError] = useState(false);
+  const tieneImagen = !!p.urlImagenProducto && !imgError;
+  return (
+    <button
+      onClick={onClick}
+      className="group flex flex-col rounded-xl border border-gray-100 bg-white overflow-hidden hover:border-brand-blue hover:shadow-md active:scale-[0.97] transition-all text-left"
+    >
+      <div className="aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">
+        {tieneImagen ? (
+          <img
+            src={p.urlImagenProducto as string}
+            alt={p.nomProducto}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <ImageOff className="w-5 h-5 text-gray-300" />
+        )}
+      </div>
+      <div className="p-2">
+        <p className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug min-h-[2.2rem]">
+          {p.nomProducto}
+        </p>
+        <p className="text-base font-bold text-brand-blue mt-0.5 tabular-nums">
+          S/ {(p.sucursalProducto.precioUnitario ?? 0).toFixed(2)}
+        </p>
+      </div>
+    </button>
+  );
+}
 
 export default function CajaAutopago() {
   const { user, accessToken } = useAuth();
@@ -107,23 +120,21 @@ export default function CajaAutopago() {
   const { productosSucursal, fetchProductosSucursal } = useProductosSucursal(sucursalId, !!sucursalId);
   const { empresa } = useEmpresaEmisor();
   const { sucursal, fetchSucursal } = useSucursal();
+  const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
 
-  const [paso, setPaso] = useState<Paso>("bienvenida");
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [itemAEliminar, setItemAEliminar] = useState<ItemCarrito | null>(null);
   const [documento, setDocumento] = useState("");
-  const [sinDocumento, setSinDocumento] = useState(false);
   const [tipoSinDocumento, setTipoSinDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   // Con DNI/CE (no RUC), el cajero puede pasar de Boleta a Nota de Venta; por defecto Boleta.
   const [tipoConDocumento, setTipoConDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   const inputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
-  const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
 
   const igvPct = config?.igv ? parseFloat(config.igv) : 18;
 
-  // Default de "Continuar sin documento" según la configuración "Tipo por defecto":
+  // Default del tipo de comprobante (sin documento) según "Tipo por defecto":
   // si el predeterminado es Nota de Venta y está habilitada, arranca en Nota de Venta.
   useEffect(() => {
     if (!config || tipoSinDocInitRef.current) return;
@@ -135,29 +146,27 @@ export default function CajaAutopago() {
 
   // Tipo de comprobante resultante: sin documento → elección manual (Boleta/NV);
   // RUC (11 díg.) → siempre Factura; DNI/CE (8 o 9) → Boleta o Nota de Venta (elección manual).
-  const esRuc = documento.trim().length === 11;
-  const tipoComprobante = sinDocumento
-    ? tipoSinDocumento
-    : esRuc
-      ? "Factura"
-      : tipoConDocumento;
+  const documentoTrim = documento.trim();
+  const sinDocumento = documentoTrim.length === 0;
+  const esRuc = documentoTrim.length === 11;
+  const tipoComprobante = sinDocumento ? tipoSinDocumento : esRuc ? "Factura" : tipoConDocumento;
 
-  // Válido únicamente como DNI (8), CE (9) o RUC (11) dígitos exactos.
-  const documentoValido = [8, 9, 11].includes(documento.trim().length);
-
-  // ── Búsqueda de productos ────────────────────────────────────
-  const resultados = useMemo(() => {
+  // ── Grid de productos (filtrado en vivo por el buscador) ───────
+  const productosGrid = useMemo(() => {
+    // Con control de stock activo, solo se listan los bienes con stock > 0
+    // (los servicios no manejan stock, así que siempre se muestran).
+    const conStock = config?.isStock
+      ? productosSucursal.filter((p) => p.tipoProducto !== "BIEN" || (p.sucursalProducto.stock ?? 0) > 0)
+      : productosSucursal;
     const q = busqueda.trim().toLowerCase();
-    if (!q) return [];
-    return productosSucursal
-      .filter(
-        (p) =>
-          p.nomProducto?.toLowerCase().includes(q) ||
-          p.codigo?.toLowerCase().includes(q) ||
-          p.codigoBarras?.toLowerCase().includes(q),
-      )
-      .slice(0, 8);
-  }, [busqueda, productosSucursal]);
+    if (!q) return conStock;
+    return conStock.filter(
+      (p) =>
+        p.nomProducto?.toLowerCase().includes(q) ||
+        p.codigo?.toLowerCase().includes(q) ||
+        p.codigoBarras?.toLowerCase().includes(q),
+    );
+  }, [busqueda, productosSucursal, config?.isStock]);
 
   // ── Agregar / quitar / cantidad ──────────────────────────────
   const agregarProducto = (p: ProductoSucursal) => {
@@ -205,32 +214,6 @@ export default function CajaAutopago() {
     setItemAEliminar(null);
   };
 
-  // ── Teclado numérico del documento ───────────────────────────
-  const pulsarTecla = (t: string) => {
-    if (t === "back") {
-      setDocumento((prev) => prev.slice(0, -1));
-      return;
-    }
-    setDocumento((prev) => (prev + t).slice(0, 11)); // máx. 11 (RUC)
-  };
-
-  const continuarConDocumento = () => {
-    if (!documentoValido) return;
-    const len = documento.trim().length;
-    if (len === 8) buscarCliente("01", documento);
-    else if (len === 9) buscarCliente("04", documento);
-    else if (len === 11) buscarCliente("06", documento);
-    setTipoConDocumento("Boleta");
-    setSinDocumento(false);
-    setPaso("pago");
-  };
-
-  const continuarSinDocumento = () => {
-    setDocumento("");
-    setSinDocumento(true);
-    setPaso("pago");
-  };
-
   // Enter en el buscador: si hay una coincidencia exacta de código de barras
   // (lector físico) o un único resultado, lo agrega directo.
   const onEnterBusqueda = () => {
@@ -243,7 +226,7 @@ export default function CajaAutopago() {
       agregarProducto(exacto);
       return;
     }
-    if (resultados.length === 1) agregarProducto(resultados[0]);
+    if (productosGrid.length === 1) agregarProducto(productosGrid[0]);
   };
 
   // ── Totales (con desglose por afectación de IGV, para el payload real) ──
@@ -283,16 +266,173 @@ export default function CajaAutopago() {
     };
   }, [items, igvPct]);
 
-  // ── Pago (un solo medio, por el total de la venta) ────────────
+  // ── Pago ────────────────────────────────────────────────────
+  const [mostrarPago, setMostrarPago] = useState(false);
   const [medioPago, setMedioPago] = useState("Efectivo");
-  const [codigoOperacion, setCodigoOperacion] = useState("");
-  const [mostrarResumen, setMostrarResumen] = useState(false);
+  const [montoRecibido, setMontoRecibido] = useState("");
+  const [notaPago, setNotaPago] = useState("");
   const [emitiendo, setEmitiendo] = useState(false);
   const [emitido, setEmitido] = useState(false);
   const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<number | null>(null);
+  const [serieCorrelativoEmitido, setSerieCorrelativoEmitido] = useState<string | null>(null);
+  const [medioPagoEmitido, setMedioPagoEmitido] = useState("Efectivo");
+  const [vueltoEmitido, setVueltoEmitido] = useState(0);
   const [imprimiendo, setImprimiendo] = useState(false);
+  const [telWhatsapp, setTelWhatsapp] = useState("");
+  const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false);
 
-  const requiereCodigoOperacion = medioPago !== "Efectivo";
+  // Emitir con otra fecha (fecha de emisión manual, en vez de la fecha/hora actual)
+  // SUNAT permite emitir hasta 3 días atrás de la fecha actual.
+  const [mostrarFechaManual, setMostrarFechaManual] = useState(false);
+  const [fechaEmisionManual, setFechaEmisionManual] = useState("");
+  const fechaMinimaEmision = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 3);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+
+  // Pago dividido (varios medios de pago para un mismo comprobante)
+  const [pagoDividido, setPagoDividido] = useState(false);
+  const [pagosDivididos, setPagosDivididos] = useState<
+    { id: string; medioPago: string; monto: string }[]
+  >([]);
+
+  const vuelto = Math.max(0, (parseFloat(montoRecibido) || 0) - totales.total);
+  const faltante = Math.max(0, totales.total - (parseFloat(montoRecibido) || 0));
+
+  const ingresadoDividido = parseFloat(
+    pagosDivididos.reduce((a, p) => a + (parseFloat(p.monto) || 0), 0).toFixed(2),
+  );
+  const faltanteDividido = Math.max(0, parseFloat((totales.total - ingresadoDividido).toFixed(2)));
+  const sobranteDividido = Math.max(0, parseFloat((ingresadoDividido - totales.total).toFixed(2)));
+
+  const togglePagoDividido = () => {
+    if (pagoDividido) {
+      setPagoDividido(false);
+      setPagosDivididos([]);
+      return;
+    }
+    setPagoDividido(true);
+    setPagosDivididos([
+      { id: crypto.randomUUID(), medioPago: "Efectivo", monto: "" },
+      { id: crypto.randomUUID(), medioPago: "Yape", monto: "" },
+    ]);
+    setEsCredito(false);
+  };
+
+  const agregarPagoDividido = () => {
+    setPagosDivididos((prev) => {
+      const usados = new Set(prev.map((p) => p.medioPago));
+      const siguiente = MEDIOS_PAGO.map((m) => m.nombre).find((n) => !usados.has(n)) ?? "Otro";
+      return [...prev, { id: crypto.randomUUID(), medioPago: siguiente, monto: "" }];
+    });
+  };
+
+  const quitarPagoDividido = (id: string) => {
+    setPagosDivididos((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const actualizarPagoDividido = (id: string, campo: "medioPago" | "monto", valor: string) => {
+    setPagosDivididos((prev) => prev.map((p) => (p.id === id ? { ...p, [campo]: valor } : p)));
+  };
+
+  const medioEnUsoEnOtraFila = (nombre: string, idActual: string) =>
+    pagosDivididos.some((p) => p.id !== idActual && p.medioPago === nombre);
+
+  // Al crédito (mismo motor de tipoPago Contado/Credito/CreditoInicial de
+  // boleta/factura/nota-venta): solo disponible con DNI/RUC del cliente.
+  const [esCredito, setEsCredito] = useState(false);
+  const [adelantoCredito, setAdelantoCredito] = useState("");
+  const [numeroCuotasCredito, setNumeroCuotasCredito] = useState(1);
+  const [cuotasCredito, setCuotasCredito] = useState<
+    { numeroCuota: string; monto: string; fechaVencimiento: string }[]
+  >([]);
+
+  const saldoPendienteCredito = Math.max(
+    0,
+    parseFloat((totales.total - (parseFloat(adelantoCredito) || 0)).toFixed(2)),
+  );
+  const sumaCuotasCredito = parseFloat(
+    cuotasCredito.reduce((a, c) => a + (parseFloat(c.monto) || 0), 0).toFixed(2),
+  );
+  const cuotasCuadran = Math.abs(sumaCuotasCredito - saldoPendienteCredito) <= 0.01;
+
+  const calcularFechasCuotas = (fechaBase: string, numCuotas: number): string[] => {
+    const fechas: string[] = [];
+    const [anio, mes, dia] = fechaBase.split("-").map(Number);
+    for (let i = 0; i < numCuotas; i++) {
+      let nuevoDia = dia,
+        nuevoMes = mes + i,
+        nuevoAnio = anio;
+      while (nuevoMes > 12) {
+        nuevoMes -= 12;
+        nuevoAnio++;
+      }
+      const ultimoDia = new Date(nuevoAnio, nuevoMes, 0).getDate();
+      if (nuevoDia > ultimoDia) nuevoDia = ultimoDia;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      fechas.push(`${nuevoAnio}-${pad(nuevoMes)}-${pad(nuevoDia)}`);
+    }
+    return fechas;
+  };
+
+  // Recalcula las cuotas (fechas + monto equitativo) cuando cambia el número
+  // de cuotas o el saldo pendiente; la edición manual de un monto individual
+  // no dispara este efecto.
+  useEffect(() => {
+    if (!esCredito) return;
+    const hoy = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fechaBase = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 2)}-15`.replace(
+      /(\d{4})-13-/,
+      (_, y) => `${Number(y) + 1}-01-`,
+    );
+    const fechas = calcularFechasCuotas(fechaBase, numeroCuotasCredito);
+    const monto =
+      saldoPendienteCredito === 0 ? "" : (saldoPendienteCredito / numeroCuotasCredito).toFixed(2);
+    setCuotasCredito(
+      Array.from({ length: numeroCuotasCredito }, (_, i) => ({
+        numeroCuota: `Cuota${String(i + 1).padStart(3, "0")}`,
+        monto,
+        fechaVencimiento: fechas[i],
+      })),
+    );
+  }, [numeroCuotasCredito, saldoPendienteCredito, esCredito]);
+
+  const toggleCredito = () => {
+    setEsCredito((v) => !v);
+    if (!esCredito) {
+      setPagoDividido(false);
+      setPagosDivididos([]);
+    }
+  };
+
+  // Ajusta la última cuota para que la suma cuadre exacto con el saldo pendiente.
+  const cuadrarCuotasConSaldo = () => {
+    setCuotasCredito((prev) => {
+      if (prev.length === 0) return prev;
+      const sumaSinUltima = prev.slice(0, -1).reduce((a, c) => a + (parseFloat(c.monto) || 0), 0);
+      const ultima = parseFloat((saldoPendienteCredito - sumaSinUltima).toFixed(2));
+      return prev.map((c, i) => (i === prev.length - 1 ? { ...c, monto: ultima.toFixed(2) } : c));
+    });
+  };
+
+  const actualizarMontoCuota = (idx: number, valor: string) => {
+    setCuotasCredito((prev) =>
+      prev.map((c, i) => (i === idx ? { ...c, monto: valor.replace(/[^0-9.]/g, "") } : c)),
+    );
+  };
+
+  // Fecha de emisión efectiva: la manual (si está activa) o la actual.
+  const obtenerFechaEmision = () => {
+    const { fechaHora, fecha } = formatoFechaActual();
+    if (mostrarFechaManual && fechaEmisionManual) {
+      const hora = fechaHora.split("T")[1];
+      return { fecha: fechaEmisionManual, fechaHora: `${fechaEmisionManual}T${hora}` };
+    }
+    return { fecha, fechaHora };
+  };
 
   // Réplica de calcularDetalle() de boleta/factura/nota-venta, sin descuentos
   // (Caja Autopago no los maneja): precio ya trae el IGV incluido.
@@ -314,7 +454,7 @@ export default function CajaAutopago() {
   };
 
   // Cliente para el payload: "Clientes Varios" (sin documento) o el documento + datos
-  // ya traídos por useClienteBoleta (buscarCliente, disparado al confirmar en Vista 3).
+  // ya traídos por useClienteBoleta (buscarCliente, disparado al abrir el pago).
   const construirCliente = () => {
     if (sinDocumento) {
       return {
@@ -329,12 +469,12 @@ export default function CajaAutopago() {
         distrito: "",
       };
     }
-    const len = documento.trim().length;
+    const len = documentoTrim.length;
     const tipoDocumento = len === 11 ? "06" : len === 9 ? "04" : "01";
     return {
       clienteId: cliente?.clienteId ?? null,
       tipoDocumento,
-      numeroDocumento: documento,
+      numeroDocumento: documentoTrim,
       razonSocial: cliente?.razonSocial ?? "",
       ubigeo: cliente?.ubigeo || "",
       direccionLineal: cliente?.direccionLineal || "",
@@ -344,9 +484,61 @@ export default function CajaAutopago() {
     };
   };
 
+  // Arma el arreglo "pagos" del payload: la adelanto de un crédito, un único
+  // medio de pago, o varios si "Pago dividido" está activo (se descartan
+  // filas/adelantos sin monto).
+  const construirPagos = (fechaHora: string) => {
+    if (esCredito) {
+      const adelanto = parseFloat(adelantoCredito) || 0;
+      if (adelanto <= 0) return [];
+      return [
+        {
+          medioPago,
+          monto: adelanto,
+          fechaPago: fechaHora,
+          numeroOperacion: medioPago === "Efectivo" ? "" : notaPago,
+          entidadFinanciera: "",
+          observaciones: notaPago,
+        },
+      ];
+    }
+    if (pagoDividido) {
+      return pagosDivididos
+        .filter((p) => (parseFloat(p.monto) || 0) > 0)
+        .map((p) => ({
+          medioPago: p.medioPago,
+          monto: parseFloat(p.monto) || 0,
+          fechaPago: fechaHora,
+          numeroOperacion: p.medioPago === "Efectivo" ? "" : notaPago,
+          entidadFinanciera: "",
+          observaciones: notaPago,
+        }));
+    }
+    return [
+      {
+        medioPago,
+        monto: totales.total,
+        fechaPago: fechaHora,
+        numeroOperacion: medioPago === "Efectivo" ? "" : notaPago,
+        entidadFinanciera: "",
+        observaciones: notaPago,
+      },
+    ];
+  };
+
+  // Arma el arreglo "cuotas" del payload (solo cuando "Al crédito" está activo).
+  const construirCuotas = () =>
+    esCredito
+      ? cuotasCredito.map((c) => ({
+          numeroCuota: c.numeroCuota,
+          monto: parseFloat(c.monto) || 0,
+          fechaVencimiento: c.fechaVencimiento,
+        }))
+      : [];
+
   // Payload para POST /api/Comprobantes/GenerarXml (Boleta "03" / Factura "01").
   const prepararComprobante = (tipoComprobanteCod: "03" | "01") => {
-    const { fechaHora, fecha } = formatoFechaActual();
+    const { fechaHora, fecha } = obtenerFechaEmision();
     const clienteBase = construirCliente();
     const clienteFinal =
       tipoComprobanteCod === "01" && clienteBase.tipoDocumento === "06"
@@ -386,9 +578,11 @@ export default function CajaAutopago() {
       ).padStart(8, "0"),
       fechaEmision: fechaHora,
       horaEmision: fechaHora,
-      fechaVencimiento: fecha,
+      fechaVencimiento: esCredito
+        ? (cuotasCredito[cuotasCredito.length - 1]?.fechaVencimiento ?? fecha)
+        : fecha,
       tipoMoneda: "PEN",
-      tipoPago: "Contado",
+      tipoPago: esCredito ? "Credito" : "Contado",
       cliente: clienteFinal,
       company: empresa
         ? { ...empresa, establecimientoAnexo: sucursal?.codEstablecimiento ?? empresa.establecimientoAnexo ?? "0000" }
@@ -408,19 +602,10 @@ export default function CajaAutopago() {
       valorVenta: totales.valorVenta,
       subTotal: totales.total,
       importeTotal: totales.total,
-      montoCredito: 0,
+      montoCredito: esCredito ? saldoPendienteCredito : 0,
       details: detalles,
-      pagos: [
-        {
-          medioPago,
-          monto: totales.total,
-          fechaPago: fechaHora,
-          numeroOperacion: medioPago === "Efectivo" ? "" : codigoOperacion,
-          entidadFinanciera: "",
-          observaciones: "",
-        },
-      ],
-      cuotas: [],
+      pagos: construirPagos(fechaHora),
+      cuotas: construirCuotas(),
       legends: [{ code: "1000", value: numeroAlertas(totales.total, "SOLES") }],
       guias: [],
       detracciones: [],
@@ -431,7 +616,7 @@ export default function CajaAutopago() {
 
   // Payload para POST /api/NotaVenta — sin IGV discriminado (documento de control interno).
   const prepararNotaVenta = () => {
-    const { fechaHora, fecha } = formatoFechaActual();
+    const { fechaHora, fecha } = obtenerFechaEmision();
     const clienteBase = construirCliente();
     const clienteNV = sinDocumento
       ? { ...clienteBase, tipoDocumento: "1", numeroDocumento: "99999999" }
@@ -439,11 +624,13 @@ export default function CajaAutopago() {
     return {
       sucursalId: parseInt(user?.sucursalID ?? "0"),
       fechaEmision: fechaHora,
-      fechaVencimiento: fecha,
+      fechaVencimiento: esCredito
+        ? (cuotasCredito[cuotasCredito.length - 1]?.fechaVencimiento ?? fecha)
+        : fecha,
       tipoMoneda: "PEN",
       tipoCambio: null,
-      tipoPago: "Contado",
-      observaciones: null,
+      tipoPago: esCredito ? "Credito" : "Contado",
+      observaciones: notaPago || null,
       usuarioCreacion: user?.id ?? 0,
       cliente: clienteNV,
       company: empresa
@@ -455,7 +642,7 @@ export default function CajaAutopago() {
       valorVenta: totales.total,
       subTotal: totales.total,
       importeTotal: totales.total,
-      montoCredito: 0,
+      montoCredito: esCredito ? saldoPendienteCredito : 0,
       detalles: items.map((it, idx) => ({
         trabajadorId: null,
         item: idx + 1,
@@ -472,17 +659,8 @@ export default function CajaAutopago() {
         precioVenta: it.precio,
         totalVentaItem: parseFloat((it.precio * it.cantidad).toFixed(2)),
       })),
-      pagos: [
-        {
-          medioPago,
-          monto: totales.total,
-          fechaPago: fechaHora,
-          numeroOperacion: medioPago === "Efectivo" ? "" : codigoOperacion,
-          entidadFinanciera: "",
-          observaciones: "",
-        },
-      ],
-      cuotas: [],
+      pagos: construirPagos(fechaHora),
+      cuotas: construirCuotas(),
     };
   };
 
@@ -506,7 +684,7 @@ export default function CajaAutopago() {
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const productosActualizados = await fetchProductosSucursal();
-      if (config?.numeroStockBajo) {
+      if (sucursal?.numeroStockBajo) {
         const umbral = config.umbralStockBajo ?? 10;
         const bajos = (productosActualizados ?? [])
           .filter((p) => {
@@ -517,57 +695,163 @@ export default function CajaAutopago() {
             return stockDespues <= umbral && stockAntes > umbral;
           })
           .map((p) => ({ nomProducto: p.nomProducto, stock: p.sucursalProducto.stock ?? 0 }));
-        if (bajos.length) avisarStockBajoWhatsapp(bajos, config.numeroStockBajo);
+        if (bajos.length) avisarStockBajoWhatsapp(bajos, sucursal.numeroStockBajo);
       }
     } catch {
       showToast("No se pudo actualizar el stock de los productos.", "error");
     }
   };
 
-  // ── Impresión automática (según config.isImprime) ──────────────
-  const imprimirSiAplica = async (comprobanteId: number) => {
-    if (!config?.isImprime) return;
-    setImprimiendo(true);
-    const tamanoMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", "A4": "A4" };
-    const tamano = config?.tamañoImpresion ? (tamanoMap[config.tamañoImpresion] ?? "A4") : "A4";
+  // ── Obtener el comprobante ya emitido (HTML ticket o PDF) ───────
+  const obtenerBlobComprobante = async (
+    comprobanteId: number,
+    tamano: string,
+  ): Promise<Blob | null> => {
     const esTicket = tamano === "Ticket58mm" || tamano === "Ticket80mm";
     try {
-      let blobUrl: string | null = null;
       if (esTicket) {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/html?tamano=${tamano}`,
           { headers: { Authorization: `Bearer ${accessToken}` } },
         );
-        if (res.ok) {
-          const html = await res.text();
-          blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-        }
-      } else {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamano}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        if (res.ok) {
-          const blob = await res.blob();
-          blobUrl = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
-        }
+        if (!res.ok) return null;
+        return new Blob([await res.text()], { type: "text/html" });
       }
-      if (blobUrl) {
-        const iframe = document.createElement("iframe");
-        iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
-        iframe.src = blobUrl;
-        document.body.appendChild(iframe);
-        iframe.onload = () => {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-          setTimeout(() => document.body.removeChild(iframe), 2000);
-        };
-      }
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamano}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!res.ok) return null;
+      return new Blob([await res.blob()], { type: "application/pdf" });
     } catch {
-      // Impresión best-effort: no debe bloquear el flujo de caja.
-    } finally {
-      setImprimiendo(false);
+      return null;
     }
+  };
+
+  const imprimirBlob = (blob: Blob) => {
+    const blobUrl = URL.createObjectURL(blob);
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 2000);
+    };
+  };
+
+  // ── Impresión automática (según config.isImprime), justo al emitir ──
+  const imprimirSiAplica = async (comprobanteId: number) => {
+    if (!config?.isImprime) return;
+    setImprimiendo(true);
+    const tamanoMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", A4: "A4" };
+    const tamano = config?.tamañoImpresion ? (tamanoMap[config.tamañoImpresion] ?? "A4") : "A4";
+    const blob = await obtenerBlobComprobante(comprobanteId, tamano);
+    if (blob) imprimirBlob(blob);
+    setImprimiendo(false);
+  };
+
+  // ── Reimpresión manual desde la pantalla de éxito ───────────────
+  const imprimirManual = async (tamanoKey: "80" | "58" | "A4") => {
+    if (!comprobanteIdEmitido) return;
+    const blob = await obtenerBlobComprobante(comprobanteIdEmitido, TAMANO_MAP[tamanoKey]);
+    if (!blob) {
+      showToast("No se pudo generar el comprobante", "error");
+      return;
+    }
+    imprimirBlob(blob);
+  };
+
+  const descargarPDF = async () => {
+    if (!comprobanteIdEmitido) return;
+    const blob = await obtenerBlobComprobante(comprobanteIdEmitido, "A4");
+    if (!blob) {
+      showToast("No se pudo generar el PDF", "error");
+      return;
+    }
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = `${empresa?.numeroDocumento ?? "comprobante"}-${tipoComprobante}-${serieCorrelativoEmitido ?? comprobanteIdEmitido}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  };
+
+  const enviarComprobantePorWhatsapp = async () => {
+    if (!comprobanteIdEmitido || !telWhatsapp.trim()) return;
+    setEnviandoWhatsapp(true);
+    try {
+      const blob = await obtenerBlobComprobante(comprobanteIdEmitido, "A4");
+      if (!blob) throw new Error();
+      const nombreArchivo = `${empresa?.numeroDocumento ?? "comprobante"}-${tipoComprobante}-${serieCorrelativoEmitido ?? comprobanteIdEmitido}.pdf`;
+      const pdfFile = new File([blob], nombreArchivo, { type: "application/pdf" });
+
+      const whatsappApiKey = process.env.NEXT_PUBLIC_WHATSAPP_API_KEY!;
+      const whatsappBase = "https://do.velsat.pe:8443/whatsapp";
+      const uploadForm = new FormData();
+      uploadForm.append("file", pdfFile);
+      const resUpload = await fetch(`${whatsappBase}/api/upload`, {
+        method: "POST",
+        headers: { "x-api-key": whatsappApiKey },
+        body: uploadForm,
+      });
+      if (!resUpload.ok) throw new Error();
+      const fileUrl = (await resUpload.json()).datos.url;
+
+      const numRaw = telWhatsapp.replace(/\D/g, "");
+      const numeroFormateado = numRaw.startsWith("51") ? numRaw : `51${numRaw}`;
+      const res = await fetch(`${whatsappBase}/api/send/single`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": whatsappApiKey },
+        body: JSON.stringify({
+          phone: numeroFormateado,
+          type: "documento",
+          file_url: fileUrl,
+          filename: nombreArchivo,
+          mime_type: "application/pdf",
+          text: `Adjuntamos su ${tipoComprobante.toLowerCase()} electrónica.`,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      showToast("Comprobante enviado por WhatsApp", "success");
+    } catch {
+      showToast("Error al enviar por WhatsApp", "error");
+    } finally {
+      setEnviandoWhatsapp(false);
+    }
+  };
+
+  // ── Abrir el modal de cobro (valida el documento y precarga cliente) ──
+  const abrirPago = () => {
+    if (items.length === 0) return;
+    const len = documentoTrim.length;
+    if (len > 0 && ![8, 9, 11].includes(len)) {
+      showToast("El documento debe tener 8 (DNI), 9 (CE) u 11 (RUC) dígitos, o déjalo vacío", "error");
+      return;
+    }
+    if (len === 8) buscarCliente("01", documentoTrim);
+    else if (len === 9) buscarCliente("04", documentoTrim);
+    else if (len === 11) buscarCliente("06", documentoTrim);
+    setTipoConDocumento("Boleta");
+    setMedioPago("Efectivo");
+    setMontoRecibido(totales.total.toFixed(2));
+    setNotaPago("");
+    setMostrarFechaManual(false);
+    setFechaEmisionManual(formatoFechaActual().fecha);
+    setPagoDividido(false);
+    setPagosDivididos([]);
+    setEsCredito(false);
+    setAdelantoCredito("");
+    setNumeroCuotasCredito(1);
+    setMostrarPago(true);
+  };
+
+  const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta") => {
+    if (sinDocumento) setTipoSinDocumento(t);
+    else setTipoConDocumento(t);
   };
 
   const emitirVenta = async () => {
@@ -579,10 +863,28 @@ export default function CajaAutopago() {
       showToast("No se pudo cargar la sucursal (serie/correlativo). Intenta de nuevo.", "error");
       return;
     }
-    setMostrarResumen(false);
+    setMostrarPago(false);
     setEmitiendo(true);
     try {
       let comprobanteId: number;
+
+      // Congelamos serie-correlativo mostrados ANTES de emitir (el backend
+      // los asigna y luego el refetch de sucursal muestra el siguiente).
+      if (sucursal) {
+        const serie =
+          tipoComprobante === "Factura"
+            ? sucursal.serieFactura
+            : tipoComprobante === "Nota de Venta"
+              ? sucursal.serieNotaVenta
+              : sucursal.serieBoleta;
+        const correlativo =
+          tipoComprobante === "Factura"
+            ? sucursal.correlativoFactura
+            : tipoComprobante === "Nota de Venta"
+              ? sucursal.correlativoNotaVenta
+              : sucursal.correlativoBoleta;
+        setSerieCorrelativoEmitido(serie && correlativo ? `${serie}-${String(correlativo).padStart(8, "0")}` : null);
+      }
 
       if (tipoComprobante === "Nota de Venta") {
         const res = await axios.post(
@@ -624,6 +926,8 @@ export default function CajaAutopago() {
       }
 
       setComprobanteIdEmitido(comprobanteId);
+      setMedioPagoEmitido(esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago);
+      setVueltoEmitido(esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto);
       await descontarStockSiAplica(comprobanteId);
       await imprimirSiAplica(comprobanteId);
       fetchSucursal();
@@ -641,89 +945,127 @@ export default function CajaAutopago() {
   const nuevaVenta = () => {
     setItems([]);
     setDocumento("");
-    setSinDocumento(false);
     setTipoSinDocumento("Boleta");
     setTipoConDocumento("Boleta");
     tipoSinDocInitRef.current = false;
     setMedioPago("Efectivo");
-    setCodigoOperacion("");
-    setMostrarResumen(false);
+    setMontoRecibido("");
+    setNotaPago("");
+    setMostrarFechaManual(false);
+    setFechaEmisionManual("");
+    setPagoDividido(false);
+    setPagosDivididos([]);
+    setEsCredito(false);
+    setAdelantoCredito("");
+    setNumeroCuotasCredito(1);
+    setTelWhatsapp("");
     setComprobanteIdEmitido(null);
+    setSerieCorrelativoEmitido(null);
     setEmitido(false);
-    setPaso("bienvenida");
   };
 
-  // ── Vista 1: Bienvenida ──────────────────────────────────────
-  if (paso === "bienvenida") {
+  // ── Pantalla de éxito tras emitir ───────────────────────────────
+  if (emitido) {
     return (
-      <div className="h-[calc(100vh-140px)] w-full rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col animate-in fade-in duration-500">
-        {/* Cabecera */}
-        <div className="bg-linear-to-br from-brand-blue to-blue-700 px-8 py-10 text-center text-white shrink-0">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-white/15 mb-5">
-            <Store className="w-10 h-10" />
+      <div className="h-[calc(100vh-140px)] w-full flex items-center justify-center animate-in fade-in duration-500">
+        <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white shadow-lg overflow-hidden max-h-full overflow-y-auto">
+          {/* Cabecera verde */}
+          <div className="bg-linear-to-br from-emerald-500 to-emerald-600 px-6 py-7 text-center text-white">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white/20 mb-3">
+              <CheckCircle2 className="w-9 h-9" />
+            </div>
+            <p className="text-3xl font-extrabold tabular-nums">S/ {totales.total.toFixed(2)}</p>
+            {(medioPagoEmitido === "Efectivo" || medioPagoEmitido === "Pago dividido") && vueltoEmitido > 0 && (
+              <p className="text-emerald-50 text-sm font-semibold mt-1">
+                Vuelto: S/ {vueltoEmitido.toFixed(2)}
+              </p>
+            )}
+            {serieCorrelativoEmitido && (
+              <p className="text-emerald-50 text-xs font-bold mt-2 tracking-wide">{serieCorrelativoEmitido}</p>
+            )}
+            <p className="text-emerald-100 text-xs mt-0.5">
+              {tipoComprobante} · {medioPagoEmitido}
+            </p>
+            {imprimiendo && (
+              <p className="text-white text-xs font-semibold flex items-center justify-center gap-1.5 mt-2">
+                <Printer className="w-3.5 h-3.5 animate-pulse" /> Enviando a imprimir...
+              </p>
+            )}
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">Caja Autopago</h1>
-          <p className="text-blue-100 text-base mt-2">
-            {user?.nombreEmpresa ?? "Bienvenido"}
-            {user?.nombreSucursal ? ` · ${user.nombreSucursal}` : ""}
-          </p>
-        </div>
 
-        {/* Pasos */}
-        <div className="flex-1 flex flex-col justify-center px-8 md:px-16 py-8 max-w-6xl w-full mx-auto">
-          <p className="text-center text-sm font-semibold text-gray-400 uppercase tracking-widest mb-8">
-            Vender en 3 pasos
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {PASOS_INFO.map((p) => (
-              <div
-                key={p.n}
-                className="relative flex flex-col items-center text-center rounded-3xl border border-gray-100 bg-gray-50/60 px-6 py-10"
+          {/* Acciones */}
+          <div className="p-5 space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => imprimirManual("80")}
+                className="flex flex-col items-center gap-1 rounded-xl border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
               >
-                <span className="absolute top-4 left-4 flex items-center justify-center w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-bold">
-                  {p.n}
-                </span>
-                <div className="flex items-center justify-center w-20 h-20 rounded-3xl bg-brand-blue/10 text-brand-blue mb-4">
-                  <p.icon className="w-10 h-10" />
-                </div>
-                <p className="text-lg font-semibold text-gray-800">{p.titulo}</p>
-                <p className="text-sm text-gray-400 mt-1.5">{p.desc}</p>
-              </div>
-            ))}
-          </div>
+                <Printer className="w-4 h-4" />
+                <span className="text-[10px] font-semibold">80mm</span>
+              </button>
+              <button
+                onClick={() => imprimirManual("58")}
+                className="flex flex-col items-center gap-1 rounded-xl border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                <span className="text-[10px] font-semibold">58mm</span>
+              </button>
+              <button
+                onClick={() => imprimirManual("A4")}
+                className="flex flex-col items-center gap-1 rounded-xl border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                <span className="text-[10px] font-semibold">A4</span>
+              </button>
+            </div>
 
-          {/* Comenzar */}
-          <button
-            onClick={() => setPaso("escaneo")}
-            className="mt-10 w-full flex items-center justify-center gap-3 rounded-3xl bg-brand-blue py-6 text-white text-2xl font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all"
-          >
-            Comenzar venta
-            <ArrowRight className="w-7 h-7" />
-          </button>
-          <p className="text-center text-sm text-gray-400 mt-4">
-            También puedes escanear un producto para comenzar
-          </p>
+            <button
+              onClick={descargarPDF}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
+            >
+              <Download className="w-4 h-4" /> Descargar PDF
+            </button>
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Send className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  value={telWhatsapp}
+                  onChange={(e) => setTelWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  placeholder="WhatsApp del cliente"
+                  className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                />
+              </div>
+              <button
+                onClick={enviarComprobantePorWhatsapp}
+                disabled={!telWhatsapp.trim() || enviandoWhatsapp}
+                className="h-10 px-4 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+              >
+                {enviandoWhatsapp ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enviar"}
+              </button>
+            </div>
+
+            <button
+              onClick={nuevaVenta}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-blue py-4 text-white text-lg font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all mt-2"
+            >
+              Nueva venta
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ── Vista 2: Escaneo / Carrito ───────────────────────────────
-  if (paso === "escaneo") {
-    return (
-      <>
-      <div className="h-[calc(100vh-140px)] w-full rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col animate-in fade-in duration-500">
-        {/* Cabecera con buscador */}
-        <div className="shrink-0 border-b border-gray-100 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setPaso("bienvenida")}
-              className="h-10 w-10 flex items-center justify-center rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors shrink-0"
-              title="Volver"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="relative flex-1">
+  // ── Pantalla principal: grid de productos + carrito ───────────
+  return (
+    <>
+      <div className="h-[calc(100vh-140px)] w-full rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col lg:flex-row animate-in fade-in duration-500">
+        {/* ── Columna izquierda: buscador + grid de productos ── */}
+        <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100">
+          <div className="shrink-0 border-b border-gray-100 px-5 py-3">
+            <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 ref={inputRef}
@@ -736,53 +1078,79 @@ export default function CajaAutopago() {
                     onEnterBusqueda();
                   }
                 }}
-                placeholder="Escanea el código de barras o escribe el nombre / código del producto"
+                placeholder="Escanea el código de barras o busca por nombre / código"
                 className="w-full h-12 pl-12 pr-4 rounded-2xl border border-gray-200 text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
               />
-              {/* Dropdown de resultados */}
-              {resultados.length > 0 && (
-                <div className="absolute z-20 mt-2 w-full rounded-2xl border border-gray-200 bg-white shadow-lg overflow-hidden max-h-80 overflow-y-auto">
-                  {resultados.map((p) => (
-                    <button
-                      key={p.productoId}
-                      onClick={() => agregarProducto(p)}
-                      className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-blue-50/60 transition-colors border-b border-gray-50 last:border-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {p.nomProducto}
-                        </p>
-                        <p className="text-xs text-gray-400">{p.codigo ?? "—"}</p>
-                      </div>
-                      <span className="text-sm font-bold text-brand-blue whitespace-nowrap tabular-nums">
-                        S/ {(p.sucursalProducto.precioUnitario ?? 0).toFixed(2)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3">
+            {productosGrid.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center">
+                <div className="bg-gray-100 rounded-full p-5 mb-4">
+                  <PackageSearch className="w-10 h-10 text-gray-300" />
+                </div>
+                <p className="text-gray-500 font-semibold">Sin resultados</p>
+                <p className="text-gray-400 text-sm mt-1">Prueba con otro nombre o código</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
+                {productosGrid.map((p) => (
+                  <ProductoGridCard key={p.productoId} p={p} onClick={() => agregarProducto(p)} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Lista de productos agregados */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {items.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center">
-              <div className="bg-gray-100 rounded-full p-5 mb-4">
-                <PackageSearch className="w-10 h-10 text-gray-300" />
-              </div>
-              <p className="text-gray-500 font-semibold">Aún no hay productos</p>
-              <p className="text-gray-400 text-sm mt-1">
-                Escanea o busca un producto para agregarlo a la venta
+        {/* ── Columna derecha: marca + documento + carrito ── */}
+        <div className="w-full lg:w-96 shrink-0 flex flex-col bg-gray-50/40">
+          <div className="shrink-0 bg-linear-to-br from-brand-blue to-blue-700 px-5 py-4 text-white flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+              <Store className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold leading-tight">Caja Autopago</p>
+              <p className="text-[11px] text-blue-100 truncate">
+                {user?.nombreEmpresa ?? ""}
+                {user?.nombreSucursal ? ` · ${user.nombreSucursal}` : ""}
               </p>
             </div>
-          ) : (
-            <div className="space-y-2 max-w-4xl mx-auto">
-              {items.map((i) => (
+          </div>
+
+          {/* Documento del cliente — siempre visible, opcional */}
+          <div className="shrink-0 px-3 pt-3">
+            <div className="relative">
+              <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                value={documento}
+                onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                inputMode="numeric"
+                placeholder="DNI o RUC del cliente (opcional)"
+                className="w-full h-12 pl-10 pr-3 rounded-xl border border-gray-200 bg-white text-base outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1 px-1">
+              DNI/CE → Boleta{config?.useNotaVenta ? " o Nota de Venta" : ""} · RUC → Factura · Vacío → Clientes varios
+            </p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+            {items.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                <div className="bg-gray-100 rounded-full p-4 mb-3">
+                  <PackageSearch className="w-8 h-8 text-gray-300" />
+                </div>
+                <p className="text-gray-500 font-semibold text-sm">Aún no hay productos</p>
+                <p className="text-gray-400 text-xs mt-1">
+                  Toca un producto o escanea su código para agregarlo
+                </p>
+              </div>
+            ) : (
+              items.map((i) => (
                 <div
                   key={i.key}
-                  className="flex items-center gap-4 rounded-2xl border border-gray-100 bg-white px-4 py-3 hover:border-gray-200 transition-colors"
+                  className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2.5 hover:border-gray-200 transition-colors"
                 >
                   <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="md" />
 
@@ -790,81 +1158,71 @@ export default function CajaAutopago() {
                     <p className="text-sm font-semibold text-gray-800 truncate">
                       {i.descripcion}
                     </p>
-                    <p className="text-xs text-gray-400">
-                      {i.codigo ?? "—"} · S/ {i.precio.toFixed(2)} c/u
-                    </p>
+                    <p className="text-xs text-gray-400">S/ {i.precio.toFixed(2)} c/u</p>
                   </div>
 
                   {/* Control de cantidad */}
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => cambiarCantidad(i.key, -1)}
-                      className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                      className="h-7 w-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
                     >
-                      <Minus className="w-4 h-4" />
+                      <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="w-10 text-center text-base font-bold text-gray-800 tabular-nums">
+                    <span className="w-7 text-center text-sm font-bold text-gray-800 tabular-nums">
                       {i.cantidad}
                     </span>
                     <button
                       onClick={() => cambiarCantidad(i.key, 1)}
-                      className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                      className="h-7 w-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
                   {/* Total de línea */}
-                  <span className="w-24 text-right text-base font-bold text-gray-900 tabular-nums shrink-0">
+                  <span className="w-20 text-right text-sm font-bold text-gray-900 tabular-nums shrink-0">
                     S/ {(i.precio * i.cantidad).toFixed(2)}
                   </span>
 
                   {/* Eliminar */}
                   <button
                     onClick={() => setItemAEliminar(i)}
-                    className="h-9 w-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
+                    className="h-7 w-7 flex items-center justify-center rounded-md text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
                     title="Eliminar producto"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              ))
+            )}
+          </div>
 
-        {/* Footer con totales y continuar */}
-        <div className="shrink-0 border-t border-gray-100 px-6 py-4">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-            <div className="flex items-center gap-6 text-sm">
-              <div>
-                <span className="text-gray-400">Subtotal</span>
-                <p className="font-semibold text-gray-700 tabular-nums">
-                  S/ {totales.subtotal.toFixed(2)}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-400">IGV ({igvPct}%)</span>
-                <p className="font-semibold text-gray-700 tabular-nums">
-                  S/ {totales.igv.toFixed(2)}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-400">
-                  Total ({totales.unidades} und.)
-                </span>
-                <p className="text-xl font-bold text-brand-blue tabular-nums">
-                  S/ {totales.total.toFixed(2)}
-                </p>
-              </div>
+          {/* Footer con totales y cobrar */}
+          <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-4 space-y-3">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>Subtotal</span>
+              <span className="tabular-nums">S/ {totales.subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>IGV ({igvPct}%)</span>
+              <span className="tabular-nums">S/ {totales.igv.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+              <span className="text-sm font-semibold text-gray-700">
+                Total ({totales.unidades} und.)
+              </span>
+              <span className="text-xl font-bold text-brand-blue tabular-nums">
+                S/ {totales.total.toFixed(2)}
+              </span>
             </div>
             <button
-              onClick={() => setPaso("documento")}
+              onClick={abrirPago}
               disabled={items.length === 0}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-brand-blue px-8 py-4 text-white text-lg font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
             >
-              Continuar
-              <ArrowRight className="w-5 h-5" />
+              Cobrar S/ {totales.total.toFixed(2)}
+              <ArrowRight className="w-4.5 h-4.5" />
             </button>
           </div>
         </div>
@@ -878,490 +1236,500 @@ export default function CajaAutopago() {
         onClose={() => setItemAEliminar(null)}
         onConfirm={confirmarEliminar}
       />
-      </>
-    );
-  }
 
-  // ── Vista 3: Identificación del cliente / tipo de comprobante ─
-  if (paso === "documento") {
-    return (
-      <div className="h-[calc(100vh-140px)] w-full rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col animate-in fade-in duration-500">
-        {/* Cabecera */}
-        <div className="shrink-0 border-b border-gray-100 px-6 py-4 flex items-center justify-between gap-3">
-          <button
-            onClick={() => setPaso("escaneo")}
-            className="h-10 px-3 inline-flex items-center gap-1.5 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors text-sm font-semibold"
-          >
-            <ArrowLeft className="w-4 h-4" /> Atrás
-          </button>
-          <div className="text-right">
-            <p className="text-xs text-gray-400">Total a cobrar</p>
-            <p className="text-xl font-bold text-brand-blue tabular-nums">
-              S/ {totales.total.toFixed(2)}
-            </p>
-          </div>
-        </div>
-
-        {/* Cuerpo */}
-        <div className="flex-1 overflow-y-auto flex items-center justify-center px-6 py-6">
-          <div className="w-full max-w-md">
-            <div className="text-center mb-5">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-blue/10 text-brand-blue mb-3">
-                <UserRound className="w-7 h-7" />
+      {/* ── Modal: Confirmar Pago ── */}
+      <Modal
+        isOpen={mostrarPago}
+        onClose={() => setMostrarPago(false)}
+        title={`Confirmar Pago · ${items.length} producto${items.length === 1 ? "" : "s"}`}
+        className="max-w-4xl"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* ── Izquierda: resumen de productos ── */}
+          <div className="space-y-3">
+            <div className="rounded-xl border border-gray-100 overflow-hidden">
+              <div className="max-h-56 overflow-y-auto divide-y divide-gray-100">
+                {items.map((i) => (
+                  <div key={i.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">
+                        {i.cantidad}x {i.descripcion}
+                      </p>
+                      <p className="text-xs text-gray-400">{i.unidadMedida}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-800 tabular-nums shrink-0">
+                      S/ {(i.precio * i.cantidad).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <h2 className="text-xl font-bold text-gray-800">Identifica al cliente</h2>
-              <p className="text-sm text-gray-400 mt-1">
-                RUC → Factura · DNI / CE → Boleta
-              </p>
             </div>
 
-            {/* Input del documento */}
-            <input
-              value={documento}
-              onChange={(e) =>
-                setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))
-              }
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  continuarConDocumento();
-                }
-              }}
-              autoFocus
-              inputMode="numeric"
-              placeholder="Ej: 12345678"
-              className="w-full h-14 text-center text-2xl font-bold tracking-wider tabular-nums rounded-2xl border border-gray-200 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
-            />
-
-            {/* Teclado numérico */}
-            <div className="grid grid-cols-3 gap-2.5 mt-4">
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((t) => (
-                <button
-                  key={t}
-                  onClick={() => pulsarTecla(t)}
-                  className="h-14 rounded-2xl bg-gray-50 border border-gray-100 text-xl font-bold text-gray-700 hover:bg-gray-100 active:scale-95 transition-all"
-                >
-                  {t}
-                </button>
-              ))}
-              <div />
-              <button
-                onClick={() => pulsarTecla("0")}
-                className="h-14 rounded-2xl bg-gray-50 border border-gray-100 text-xl font-bold text-gray-700 hover:bg-gray-100 active:scale-95 transition-all"
-              >
-                0
-              </button>
-              <button
-                onClick={() => pulsarTecla("back")}
-                className="h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:scale-95 transition-all"
-              >
-                <Delete className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Continuar */}
-            <button
-              onClick={continuarConDocumento}
-              disabled={!documentoValido}
-              className="mt-5 w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-blue py-4 text-white text-lg font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
-            >
-              Continuar
-              <ArrowRight className="w-5 h-5" />
-            </button>
-            <button
-              onClick={continuarSinDocumento}
-              className="mt-2 w-full py-2.5 text-sm font-semibold text-gray-400 hover:text-brand-blue transition-colors"
-            >
-              Continuar sin documento (Clientes varios)
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Vista 4: Medio de pago y emisión ──────────────────────────
-  if (paso === "pago") {
-    // ── Confirmación tras emitir ──
-    if (emitido) {
-      const serieCorrelativo =
-        tipoComprobante !== "Nota de Venta" && sucursal
-          ? `${tipoComprobante === "Factura" ? sucursal.serieFactura : sucursal.serieBoleta}`
-          : null;
-      return (
-        <div className="h-[calc(100vh-140px)] w-full rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col items-center justify-center px-6 py-8 animate-in fade-in duration-500 overflow-y-auto">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-50 mb-4 shrink-0">
-            <CheckCircle2 className="w-11 h-11 text-emerald-500" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-800 shrink-0">¡Venta registrada!</h1>
-
-          {imprimiendo && (
-            <p className="text-brand-blue text-sm font-semibold flex items-center gap-1.5 mt-2 shrink-0">
-              <Printer className="w-4 h-4 animate-pulse" /> Enviando a imprimir...
-            </p>
-          )}
-
-          {/* Comprobante final */}
-          <div className="w-full max-w-sm mt-5 rounded-2xl border-2 border-gray-100 overflow-hidden shrink-0">
-            <div
-              className={`px-5 py-4 text-center ${
-                tipoComprobante === "Factura"
-                  ? "bg-brand-blue/5"
-                  : tipoComprobante === "Nota de Venta"
-                    ? "bg-amber-50"
-                    : "bg-emerald-50"
-              }`}
-            >
-              <p
-                className={`text-xl font-extrabold uppercase tracking-wide ${
-                  tipoComprobante === "Factura"
-                    ? "text-brand-blue"
-                    : tipoComprobante === "Nota de Venta"
-                      ? "text-amber-700"
-                      : "text-emerald-700"
-                }`}
-              >
-                {tipoComprobante}
-              </p>
-              {comprobanteIdEmitido && (
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {serieCorrelativo ? `${serieCorrelativo} · ` : ""}N° {comprobanteIdEmitido}
-                </p>
-              )}
-            </div>
-
-            <div className="max-h-40 overflow-y-auto divide-y divide-gray-100">
-              {items.map((i) => (
-                <div key={i.key} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
-                  <span className="text-gray-600 truncate">
-                    {i.cantidad} × {i.descripcion}
-                  </span>
-                  <span className="font-semibold text-gray-800 tabular-nums shrink-0">
-                    S/ {(i.precio * i.cantidad).toFixed(2)}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="px-5 py-4 bg-gray-50 space-y-1">
-              <div className="flex justify-between text-xs text-gray-400">
-                <span>{sinDocumento ? "Clientes varios" : (cliente?.razonSocial ?? documento)}</span>
-                <span>{medioPago}</span>
+            <div className="rounded-xl bg-gray-50 px-4 py-3 space-y-1 text-sm">
+              <div className="flex justify-between text-gray-500">
+                <span>Base imponible</span>
+                <span className="tabular-nums">S/ {totales.subtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-2xl font-extrabold text-gray-900 pt-1">
+              <div className="flex justify-between text-gray-500">
+                <span>IGV ({igvPct}%)</span>
+                <span className="tabular-nums">S/ {totales.igv.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-lg font-bold text-gray-900 pt-1.5 border-t border-gray-200">
                 <span>Total</span>
                 <span className="tabular-nums">S/ {totales.total.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
-          <button
-            onClick={nuevaVenta}
-            className="mt-6 flex items-center justify-center gap-2 rounded-2xl bg-brand-blue px-10 py-5 text-white text-xl font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all shrink-0"
-          >
-            Nueva venta
-            <ArrowRight className="w-6 h-6" />
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <>
-      <div className="h-[calc(100vh-140px)] w-full rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col animate-in fade-in duration-500">
-        {/* Cabecera */}
-        <div className="shrink-0 border-b border-gray-100 px-6 py-4 flex items-center justify-between gap-3">
-          <button
-            onClick={() => setPaso("documento")}
-            className="h-10 px-3 inline-flex items-center gap-1.5 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors text-sm font-semibold"
-          >
-            <ArrowLeft className="w-4 h-4" /> Atrás
-          </button>
-          <div className="text-right">
-            <p className="text-xs text-gray-400">Total a cobrar</p>
-            <p className="text-xl font-bold text-brand-blue tabular-nums">
-              S/ {totales.total.toFixed(2)}
-            </p>
-          </div>
-        </div>
-
-        {/* Cuerpo */}
-        <div className="flex-1 overflow-y-auto flex items-center justify-center px-6 py-6">
-          <div className="w-full max-w-lg">
-            {/* Tipo de comprobante + cliente */}
-            {sinDocumento ? (
-              <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-600 mb-2 text-center">
-                  Tipo de comprobante
-                </p>
-                <div className={`grid gap-2.5 ${config?.useNotaVenta ? "grid-cols-2" : "grid-cols-1"}`}>
-                  <button
-                    onClick={() => setTipoSinDocumento("Boleta")}
-                    className={`flex items-center justify-center gap-2 rounded-2xl border-2 py-4 text-sm font-semibold transition-colors ${
-                      tipoSinDocumento === "Boleta"
-                        ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+          {/* ── Derecha: comprobante + pago ── */}
+          <div className="space-y-4">
+            {/* Comprobante */}
+            <div>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Comprobante</p>
+              <div className={`grid gap-2 ${config?.useNotaVenta ? "grid-cols-3" : "grid-cols-2"}`}>
+                <button
+                  onClick={() => elegirTipoComprobante("Boleta")}
+                  disabled={esRuc}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl border-2 py-2.5 text-xs font-semibold transition-colors ${
+                    tipoComprobante === "Boleta"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                      : esRuc
+                        ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
                         : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" /> Boleta
+                </button>
+                {config?.useNotaVenta && (
+                  <button
+                    onClick={() => elegirTipoComprobante("Nota de Venta")}
+                    disabled={esRuc}
+                    className={`flex items-center justify-center gap-1.5 rounded-xl border-2 py-2.5 text-xs font-semibold transition-colors ${
+                      tipoComprobante === "Nota de Venta"
+                        ? "border-amber-500 bg-amber-50 text-amber-700"
+                        : esRuc
+                          ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                          : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
                     }`}
                   >
-                    <FileText className="w-4 h-4" /> Boleta
+                    <Receipt className="w-3.5 h-3.5" /> N. Venta
                   </button>
-                  {config?.useNotaVenta && (
-                    <button
-                      onClick={() => setTipoSinDocumento("Nota de Venta")}
-                      className={`flex items-center justify-center gap-2 rounded-2xl border-2 py-4 text-sm font-semibold transition-colors ${
-                        tipoSinDocumento === "Nota de Venta"
-                          ? "border-amber-500 bg-amber-50 text-amber-700"
-                          : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
+                )}
+                <button
+                  disabled={!esRuc}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl border-2 py-2.5 text-xs font-semibold transition-colors ${
+                    tipoComprobante === "Factura"
+                      ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" /> Factura
+                </button>
+              </div>
+
+              {/* Cliente */}
+              <div className="mt-2 text-xs">
+                {sinDocumento ? (
+                  <span className="text-gray-400 flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" /> Clientes varios
+                  </span>
+                ) : loadingCliente ? (
+                  <span className="text-gray-400 flex items-center gap-1.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando cliente...
+                  </span>
+                ) : errorCliente ? (
+                  <span className="text-rose-500 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" /> {errorCliente}
+                  </span>
+                ) : (
+                  <span className="text-gray-600 font-medium">
+                    {cliente?.razonSocial ?? "—"} · {documentoTrim}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Emitir con otra fecha · Pago dividido */}
+            <div className="flex items-center justify-between text-xs">
+              <button
+                onClick={() => {
+                  setMostrarFechaManual((v) => !v);
+                  if (!fechaEmisionManual) setFechaEmisionManual(formatoFechaActual().fecha);
+                }}
+                className="flex items-center gap-1.5 font-semibold text-gray-500 hover:text-brand-blue transition-colors"
+              >
+                <CalendarClock className="w-3.5 h-3.5" /> Emitir con otra fecha
+              </button>
+              <button
+                onClick={togglePagoDividido}
+                className={`flex items-center gap-1.5 font-semibold transition-colors ${
+                  pagoDividido ? "text-brand-blue" : "text-gray-500 hover:text-brand-blue"
+                }`}
+              >
+                <Columns3 className="w-3.5 h-3.5" /> Pago dividido{pagoDividido ? " (activo)" : ""}
+              </button>
+            </div>
+
+            {mostrarFechaManual && (
+              <div className="rounded-xl border border-gray-200 px-3 py-2.5 space-y-1.5">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Fecha de emisión</p>
+                <input
+                  type="date"
+                  value={fechaEmisionManual}
+                  min={fechaMinimaEmision}
+                  max={formatoFechaActual().fecha}
+                  onChange={(e) => setFechaEmisionManual(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                />
+                {fechaEmisionManual && fechaEmisionManual < formatoFechaActual().fecha && (
+                  <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0" /> Emitirás con fecha pasada. SUNAT permite hasta 3
+                    días atrás.
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    setFechaEmisionManual(formatoFechaActual().fecha);
+                    setMostrarFechaManual(false);
+                  }}
+                  className="text-[11px] font-semibold text-brand-blue hover:underline"
+                >
+                  Usar fecha de hoy
+                </button>
+              </div>
+            )}
+
+            {!pagoDividido ? (
+              <>
+                {/* Medios de pago */}
+                <div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Medio de pago</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {MEDIOS_PAGO.map((m) => {
+                      const activo = medioPago === m.nombre;
+                      return (
+                        <button
+                          key={m.nombre}
+                          onClick={() => setMedioPago(m.nombre)}
+                          className={`flex flex-col items-center gap-1 rounded-xl border-2 py-2.5 transition-colors ${
+                            activo ? m.activo : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
+                          }`}
+                        >
+                          <m.icon className="w-4.5 h-4.5" />
+                          <span className="text-[11px] font-semibold">{m.nombre}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Al crédito: solo si hay documento y la config lo permite */}
+                {!sinDocumento && config?.isCredito && (
+                  <button
+                    onClick={toggleCredito}
+                    className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${
+                      esCredito ? "text-brand-blue" : "text-gray-500 hover:text-brand-blue"
+                    }`}
+                  >
+                    <HandCoins className="w-3.5 h-3.5" /> Al crédito{esCredito ? " (activo)" : ""}
+                  </button>
+                )}
+
+                {esCredito ? (
+                  /* Crédito: adelanto opcional + cuotas del saldo pendiente */
+                  <div className="space-y-2.5">
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
+                        Adelanto (opcional)
+                      </p>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">S/</span>
+                        <input
+                          value={adelantoCredito}
+                          onChange={(e) => setAdelantoCredito(e.target.value.replace(/[^0-9.]/g, ""))}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          className="w-full h-11 pl-8 pr-3 rounded-xl border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
+                        ¿En cuántas cuotas?
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[1, 2, 3, 4, 6, 12].map((n) => (
+                          <button
+                            key={n}
+                            onClick={() => setNumeroCuotasCredito(n)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                              numeroCuotasCredito === n
+                                ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                                : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            }`}
+                          >
+                            {n === 1 ? "1 (contado del saldo)" : `${n} cuotas`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {cuotasCredito.map((c, idx) => (
+                        <div key={c.numeroCuota} className="grid grid-cols-2 gap-2 items-end">
+                          <div>
+                            <p className="text-[10px] text-gray-400 mb-1">Monto {idx + 1}</p>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">S/</span>
+                              <input
+                                value={c.monto}
+                                onChange={(e) => actualizarMontoCuota(idx, e.target.value)}
+                                inputMode="decimal"
+                                className="w-full h-10 pl-8 pr-2 rounded-xl border border-gray-200 text-right text-sm font-semibold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 mb-1">Vence</p>
+                            <input
+                              type="date"
+                              value={c.fechaVencimiento}
+                              min={idx > 0 ? cuotasCredito[idx - 1].fechaVencimiento : undefined}
+                              onChange={(e) =>
+                                setCuotasCredito((prev) =>
+                                  prev.map((cc, i) => (i === idx ? { ...cc, fechaVencimiento: e.target.value } : cc)),
+                                )
+                              }
+                              className="w-full h-10 px-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-xs text-gray-500">
+                        Suma de cuotas: <span className="font-semibold text-gray-800">S/ {sumaCuotasCredito.toFixed(2)}</span>
+                      </span>
+                      {!cuotasCuadran && (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-rose-600">No cuadra</span>
+                          <button
+                            onClick={cuadrarCuotasConSaldo}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors"
+                          >
+                            Cuadrar atuomáticamente
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : medioPago === "Efectivo" ? (
+                  /* Monto recibido + vuelto (solo efectivo) */
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Monto recibido</p>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">S/</span>
+                      <input
+                        value={montoRecibido}
+                        onChange={(e) => setMontoRecibido(e.target.value.replace(/[^0-9.]/g, ""))}
+                        inputMode="decimal"
+                        className="w-full h-11 pl-8 pr-3 rounded-xl border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <button
+                        onClick={() => setMontoRecibido(totales.total.toFixed(2))}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                          parseFloat(montoRecibido) === totales.total
+                            ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                            : "border-gray-200 text-gray-500 hover:border-gray-300"
+                        }`}
+                      >
+                        Exacto
+                      </button>
+                      {MONTOS_RAPIDOS.map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setMontoRecibido(m.toFixed(2))}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-gray-200 text-gray-500 hover:border-gray-300 transition-colors"
+                        >
+                          S/ {m}
+                        </button>
+                      ))}
+                    </div>
+                    <div
+                      className={`mt-2 flex items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold ${
+                        faltante > 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-700"
                       }`}
                     >
-                      <Receipt className="w-4 h-4" /> Nota de Venta
+                      <span>{faltante > 0 ? "Falta" : "Vuelto"}</span>
+                      <span className="tabular-nums">S/ {(faltante > 0 ? faltante : vuelto).toFixed(2)}</span>
+                    </div>
+                  </div>
+                ) : medioPago === "Tarjeta" ? (
+                  /* Tarjeta: se cobra en el POS físico, solo mostramos el monto */
+                  <div className="rounded-xl border border-gray-200 px-3 py-3 space-y-2.5">
+                    <p className="text-xs text-gray-500">
+                      El cobro se realiza en el POS físico. Se registra como pago con tarjeta.
+                    </p>
+                    <div className="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
+                      <span className="text-lg font-bold text-gray-900 tabular-nums">S/ {totales.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Yape / Plin / Transferencia / Otro: monto a cobrar + N° operación opcional */
+                  <div className="rounded-xl border border-gray-200 px-3 py-3 space-y-2.5">
+                    <div className="rounded-lg bg-gray-50 px-3 py-2.5 text-center">
+                      <span className="text-lg font-bold text-gray-900 tabular-nums">S/ {totales.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Observaciones */}
+                <div>
+                  <input
+                    value={notaPago}
+                    onChange={(e) => setNotaPago(e.target.value)}
+                    placeholder={
+                      esCredito
+                        ? "Observaciones (opcional)"
+                        : medioPago === "Efectivo"
+                          ? "Observaciones (opcional)"
+                          : "N° de operación (opcional)"
+                    }
+                    className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Pago dividido: varias filas medio de pago + monto */}
+                <div className="space-y-2.5">
+                  {pagosDivididos.map((p, idx) => (
+                    <div key={p.id} className="rounded-xl border border-gray-200 px-3 py-2.5">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">
+                          Pago {idx + 1}
+                        </span>
+                        {pagosDivididos.length > 1 && (
+                          <button
+                            onClick={() => quitarPagoDividido(p.id)}
+                            className="text-gray-400 hover:text-rose-500 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={p.medioPago}
+                          onChange={(e) => actualizarPagoDividido(p.id, "medioPago", e.target.value)}
+                          className="h-10 px-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                        >
+                          {MEDIOS_PAGO.map((m) => (
+                            <option key={m.nombre} value={m.nombre} disabled={medioEnUsoEnOtraFila(m.nombre, p.id)}>
+                              {m.nombre}
+                              {medioEnUsoEnOtraFila(m.nombre, p.id) ? " (en uso)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">S/</span>
+                          <input
+                            value={p.monto}
+                            onChange={(e) =>
+                              actualizarPagoDividido(p.id, "monto", e.target.value.replace(/[^0-9.]/g, ""))
+                            }
+                            inputMode="decimal"
+                            placeholder="0.00"
+                            className="w-full h-10 pl-8 pr-2 rounded-xl border border-gray-200 text-right text-sm font-semibold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {pagosDivididos.length < MEDIOS_PAGO.length && (
+                    <button
+                      onClick={agregarPagoDividido}
+                      className="w-full rounded-xl border-2 border-dashed border-gray-200 py-2 text-xs font-semibold text-brand-blue hover:border-brand-blue/40 transition-colors"
+                    >
+                      + Agregar otro método
                     </button>
                   )}
                 </div>
-                <p className="text-center text-xs text-gray-400 mt-2 flex items-center justify-center gap-1">
-                  <Users className="w-3.5 h-3.5" /> Clientes varios
-                </p>
-              </div>
-            ) : (
-              <div className="mb-6">
-                <div
-                  className={`rounded-2xl border-2 px-5 py-4 flex items-start gap-4 ${
-                    tipoComprobante === "Factura"
-                      ? "border-brand-blue/30 bg-brand-blue/5"
-                      : tipoComprobante === "Nota de Venta"
-                        ? "border-amber-300 bg-amber-50"
-                        : "border-emerald-300 bg-emerald-50"
-                  }`}
-                >
+
+                <div className="rounded-xl bg-gray-50 px-3 py-2.5 space-y-1 text-sm">
+                  <div className="flex justify-between text-gray-500">
+                    <span>Total a pagar</span>
+                    <span className="tabular-nums">S/ {totales.total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500">
+                    <span>Ingresado</span>
+                    <span className="tabular-nums">S/ {ingresadoDividido.toFixed(2)}</span>
+                  </div>
                   <div
-                    className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
-                      tipoComprobante === "Factura"
-                        ? "bg-brand-blue/10 text-brand-blue"
-                        : tipoComprobante === "Nota de Venta"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-emerald-100 text-emerald-700"
+                    className={`flex justify-between font-semibold ${
+                      faltanteDividido > 0 ? "text-rose-600" : "text-emerald-700"
                     }`}
                   >
-                    {tipoComprobante === "Factura" ? <FileText className="w-7 h-7" /> : <Receipt className="w-7 h-7" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={`text-2xl font-extrabold uppercase tracking-wide leading-tight ${
-                        tipoComprobante === "Factura"
-                          ? "text-brand-blue"
-                          : tipoComprobante === "Nota de Venta"
-                            ? "text-amber-700"
-                            : "text-emerald-700"
-                      }`}
-                    >
-                      {tipoComprobante}
-                    </p>
-                    <p className="text-sm text-gray-500 font-medium mt-0.5">{documento}</p>
-                    {loadingCliente ? (
-                      <p className="text-sm text-gray-400 flex items-center gap-1.5 mt-1.5">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando cliente...
-                      </p>
-                    ) : errorCliente ? (
-                      <p className="text-sm text-rose-500 flex items-center gap-1.5 mt-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5" /> {errorCliente}
-                      </p>
-                    ) : (
-                      <>
-                        <p className="text-base font-semibold text-gray-800 mt-1.5">
-                          {cliente?.razonSocial ?? "—"}
-                        </p>
-                        {tipoComprobante === "Factura" && cliente?.direccionLineal && (
-                          <p className="text-xs text-gray-400 mt-0.5">{cliente.direccionLineal}</p>
-                        )}
-                      </>
-                    )}
+                    <span>{faltanteDividido > 0 ? "Falta" : "Sobra"}</span>
+                    <span className="tabular-nums">
+                      S/ {(faltanteDividido > 0 ? faltanteDividido : sobranteDividido).toFixed(2)}
+                    </span>
                   </div>
                 </div>
 
-                {/* Con DNI/CE se puede pasar a Nota de Venta (por defecto Boleta) */}
-                {!esRuc && config?.useNotaVenta && (
-                  <div className="grid grid-cols-2 gap-2 mt-2.5">
-                    <button
-                      onClick={() => setTipoConDocumento("Boleta")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl border-2 py-2.5 text-xs font-semibold transition-colors ${
-                        tipoConDocumento === "Boleta"
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                          : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
-                      }`}
-                    >
-                      <FileText className="w-3.5 h-3.5" /> Boleta
-                    </button>
-                    <button
-                      onClick={() => setTipoConDocumento("Nota de Venta")}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl border-2 py-2.5 text-xs font-semibold transition-colors ${
-                        tipoConDocumento === "Nota de Venta"
-                          ? "border-amber-500 bg-amber-50 text-amber-700"
-                          : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
-                      }`}
-                    >
-                      <Receipt className="w-3.5 h-3.5" /> Nota de Venta
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="text-center mb-4">
-              <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-brand-blue/10 text-brand-blue mb-2">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <h2 className="text-base font-bold text-gray-800">Selecciona el medio de pago</h2>
-            </div>
-
-            {/* Medios de pago */}
-            <div className="grid grid-cols-3 gap-2">
-              {MEDIOS_PAGO.map((m) => {
-                const activo = medioPago === m.nombre;
-                return (
-                  <button
-                    key={m.nombre}
-                    onClick={() => setMedioPago(m.nombre)}
-                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-3 transition-colors ${
-                      activo ? m.activo : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
-                    }`}
-                  >
-                    <m.icon className="w-5 h-5" />
-                    <span className="text-xs font-semibold">{m.nombre}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Código de operación (opcional, todo menos Efectivo) */}
-            {requiereCodigoOperacion && (
-              <div className="mt-5">
-                <label className="text-sm font-semibold text-gray-600">
-                  Código de operación <span className="font-normal text-gray-400">(opcional)</span>
-                </label>
-                <input
-                  value={codigoOperacion}
-                  onChange={(e) => setCodigoOperacion(e.target.value)}
-                  placeholder="Ej: 000123456"
-                  autoFocus
-                  className="mt-1.5 w-full h-14 px-4 text-lg rounded-2xl border border-gray-200 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
-                />
-                <p className="text-xs text-gray-400 mt-1.5">
-                  Queda como registro interno de la venta
-                </p>
-              </div>
-            )}
-
-            {/* Emitir */}
-            <button
-              onClick={() => setMostrarResumen(true)}
-              disabled={emitiendo}
-              className="mt-6 w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-blue py-5 text-white text-xl font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
-            >
-              {emitiendo ? "Emitiendo..." : `Cobrar y emitir ${tipoComprobante}`}
-              {!emitiendo && <ArrowRight className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Modal: Resumen antes de emitir ── */}
-      <Modal
-        isOpen={mostrarResumen}
-        onClose={() => setMostrarResumen(false)}
-        title="Resumen de la venta"
-      >
-        <div className="space-y-4">
-          {/* Tipo de comprobante + cliente */}
-          <div
-            className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${
-              tipoComprobante === "Factura"
-                ? "border-brand-blue/20 bg-brand-blue/5"
-                : tipoComprobante === "Nota de Venta"
-                  ? "border-amber-200 bg-amber-50"
-                  : "border-emerald-200 bg-emerald-50"
-            }`}
-          >
-            {tipoComprobante === "Factura" ? (
-              <FileText className="w-5 h-5 text-brand-blue shrink-0" />
-            ) : (
-              <Receipt
-                className={`w-5 h-5 shrink-0 ${tipoComprobante === "Nota de Venta" ? "text-amber-600" : "text-emerald-600"}`}
-              />
-            )}
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-gray-800">{tipoComprobante}</p>
-              <p className="text-xs text-gray-500 truncate">
-                {sinDocumento
-                  ? "Clientes varios"
-                  : `${cliente?.razonSocial ?? "—"} · ${documento}`}
-              </p>
-            </div>
-          </div>
-
-          {/* Lista de productos */}
-          <div className="rounded-xl border border-gray-100 overflow-hidden">
-            <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
-              {items.map((i) => (
-                <div key={i.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{i.descripcion}</p>
-                    <p className="text-xs text-gray-400">
-                      {i.cantidad} × S/ {i.precio.toFixed(2)}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold text-gray-800 tabular-nums shrink-0">
-                    S/ {(i.precio * i.cantidad).toFixed(2)}
-                  </span>
+                {/* Observaciones */}
+                <div>
+                  <input
+                    value={notaPago}
+                    onChange={(e) => setNotaPago(e.target.value)}
+                    placeholder="Observaciones (opcional)"
+                    className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  />
                 </div>
-              ))}
-            </div>
-          </div>
+              </>
+            )}
 
-          {/* Totales */}
-          <div className="rounded-xl bg-gray-50 px-4 py-3 space-y-1 text-sm">
-            <div className="flex justify-between text-gray-500">
-              <span>Subtotal</span>
-              <span className="tabular-nums">S/ {totales.subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-gray-500">
-              <span>IGV ({igvPct}%)</span>
-              <span className="tabular-nums">S/ {totales.igv.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-base font-bold text-gray-900 pt-1 border-t border-gray-200">
-              <span>Total</span>
-              <span className="tabular-nums">S/ {totales.total.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Medio de pago */}
-          <div className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-3">
-            <span className="text-sm text-gray-500">Medio de pago</span>
-            <span className="text-sm font-semibold text-gray-800">
-              {medioPago}
-              {codigoOperacion && ` · Op. ${codigoOperacion}`}
-            </span>
-          </div>
-
-          {/* Acciones */}
-          <div className="flex justify-end gap-3 pt-1">
-            <button
-              onClick={() => setMostrarResumen(false)}
-              className="px-4 py-2.5 text-sm font-semibold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors"
-            >
-              Cancelar
-            </button>
+            {/* Confirmar */}
             <button
               onClick={emitirVenta}
-              className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-bold text-white bg-brand-blue hover:bg-blue-700 rounded-xl transition-colors"
+              disabled={
+                emitiendo ||
+                (pagoDividido && faltanteDividido > 0) ||
+                (esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
+              }
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Confirmar y emitir
+              {emitiendo ? (
+                <>
+                  <Loader2 className="w-4.5 h-4.5 animate-spin" /> Emitiendo...
+                </>
+              ) : esCredito ? (
+                "Registrar venta al crédito"
+              ) : (
+                `Confirmar S/ ${totales.total.toFixed(2)}`
+              )}
             </button>
           </div>
         </div>
       </Modal>
-      </>
-    );
-  }
 
-  return null;
+      {/* ── Bloqueo total mientras se emite (nada es clickeable hasta el éxito) ── */}
+      {emitiendo && (
+        <div className="fixed inset-0 z-999 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl px-10 py-9 flex flex-col items-center gap-4">
+            <Loader2 className="w-12 h-12 text-brand-blue animate-spin" />
+            <div className="text-center">
+              <p className="text-base font-bold text-gray-800">Emitiendo comprobante...</p>
+              <p className="text-xs text-gray-400 mt-1">No cierres ni recargues la página</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }

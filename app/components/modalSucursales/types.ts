@@ -3,6 +3,7 @@ export interface Sucursal {
   codigo: string;
   nombre: string;
   direccion: string;
+  numeroStockBajo?: string | null;
   habilitado: boolean;
   usuario: string;
   serieFactura: string;
@@ -54,4 +55,5 @@ export interface NuevaSucursalForm {
 export interface EditSucursalForm {
   nombre: string;
   direccion: string;
+  numeroStockBajo: string;
 }

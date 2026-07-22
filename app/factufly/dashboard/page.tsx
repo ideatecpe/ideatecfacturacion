@@ -503,7 +503,7 @@ export default function DashboardPage() {
             />
           </div>
         </div>
-        <Button onClick={() => router.push("/factufly/operaciones")} className="flex-1 min-w-0 sm:flex-none whitespace-nowrap">
+        <Button onClick={() => router.push("/factufly/operaciones/boleta-facturaelectronica")} className="flex-1 min-w-0 sm:flex-none whitespace-nowrap">
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Nuevo </span>Comprobante
         </Button>

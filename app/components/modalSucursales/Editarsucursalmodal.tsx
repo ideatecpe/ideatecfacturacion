@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { Building2, Edit2, Loader2, X } from "lucide-react";
+import { Building2, Edit2, Loader2, MessageCircle, X } from "lucide-react";
 import { useToast } from "@/app/components/ui/Toast";
 import { EditSucursalForm, Sucursal } from "./types";
 import { FormInput } from "./Sucursalformshared";
@@ -19,6 +19,7 @@ export function EditarSucursalModal({
   const [form, setForm] = useState<EditSucursalForm>({
     nombre: sucursal.nombre === "S/N" ? "" : sucursal.nombre,
     direccion: sucursal.direccion ?? "",
+    numeroStockBajo: sucursal.numeroStockBajo ?? "",
   });
 
   const upd =
@@ -63,6 +64,16 @@ export function EditarSucursalModal({
           <div className="p-6 space-y-4">
             <FormInput label="Nombre" required icon={Building2} value={form.nombre} onChange={upd("nombre")} placeholder="Nombre de la sucursal" />
             <FormInput label="Dirección" icon={Building2} value={form.direccion} onChange={upd("direccion")} placeholder="Ej: Av. Principal 123" />
+            <FormInput
+              label="WhatsApp para aviso de stock bajo"
+              icon={MessageCircle}
+              value={form.numeroStockBajo}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, numeroStockBajo: e.target.value.replace(/\D/g, "").slice(0, 9) }))
+              }
+              placeholder="987654321"
+              hint="Se notificará a este número cuando un producto de esta sucursal quede con pocas unidades"
+            />
           </div>
           <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end bg-gray-50">
             <button type="button" onClick={onClose} className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors">

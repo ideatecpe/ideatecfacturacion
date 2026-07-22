@@ -1348,7 +1348,7 @@ function GuiaRemisionContent() {
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.push("/factufly/operaciones")}
+          onClick={() => router.push("/factufly/dashboard")}
           className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
           style={{ background: "rgba(15,46,100,0.08)" }}
           onMouseEnter={e => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}

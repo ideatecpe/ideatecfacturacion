@@ -929,7 +929,11 @@ function NotaVentaContent() {
   }, [sucursal]);
 
   useEffect(() => {
-    if (fechaEmisionEditada) {
+    // En modo Caja Autopago no se muestra este formulario (ni la hora en vivo),
+    // así que no tiene sentido re-renderizar todo el árbol cada segundo — eso
+    // le robaba el foco a los inputs de Caja Autopago (input desmontado/vuelto
+    // a montar en cada tick por el re-render masivo de este componente).
+    if (fechaEmisionEditada || (config?.isStock && config?.isCajaAutopago)) {
       if (intervaloRef.current) clearInterval(intervaloRef.current);
       return;
     }
@@ -939,7 +943,7 @@ function NotaVentaContent() {
     return () => {
       if (intervaloRef.current) clearInterval(intervaloRef.current);
     };
-  }, [fechaEmisionEditada]);
+  }, [fechaEmisionEditada, config?.isStock, config?.isCajaAutopago]);
 
   // ── Clientes varios efecto ───────────────────────────────────
   useEffect(() => {
@@ -2003,7 +2007,7 @@ function NotaVentaContent() {
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const productosActualizados = await fetchProductosSucursal();
-      if (config?.numeroStockBajo) {
+      if (sucursal?.numeroStockBajo) {
         const umbral = config.umbralStockBajo ?? 10;
         const bajos = (productosActualizados ?? [])
           .filter((p) => {
@@ -2014,7 +2018,7 @@ function NotaVentaContent() {
             return stockDespues <= umbral && stockAntes > umbral;
           })
           .map((p) => ({ nomProducto: p.nomProducto, stock: p.sucursalProducto.stock ?? 0 }));
-        if (bajos.length) avisarStockBajoWhatsapp(bajos, config.numeroStockBajo);
+        if (bajos.length) avisarStockBajoWhatsapp(bajos, sucursal.numeroStockBajo);
       }
     } catch {
       showToast("No se pudo actualizar el stock de los productos.", "error");

@@ -121,7 +121,17 @@ export default function DashboardLayout({
   const menuItems = React.useMemo<MenuItem[]>(() => {
     const todosLosMenuItems: MenuItem[] = [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { id: "operaciones", label: "Emisión", icon: Grip },
+      {
+        id: "operaciones",
+        label: "Emisión",
+        icon: Grip,
+        children: [
+          { id: "boleta-facturaelectronica", label: "Nueva Venta" },
+          { id: "nota-credito", label: "Nota de Crédito" },
+          { id: "nota-debito", label: "Nota de Débito" },
+          { id: "guia-remision", label: "Guía de Remisión" },
+        ],
+      },
       { id: "comprobantes", label: "Comprobantes", icon: FileText },
       {
         id: "carga-comprobantes",

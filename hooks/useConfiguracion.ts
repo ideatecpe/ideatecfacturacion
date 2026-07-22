@@ -18,7 +18,6 @@ export interface Configuracion {
   afectacionIgv: boolean;
   descUnitario: boolean;
   isStock: boolean;
-  numeroStockBajo?: string | null;
   umbralStockBajo?: number | null;
   useNotaVenta: boolean;
   isCajaAutopago: boolean;

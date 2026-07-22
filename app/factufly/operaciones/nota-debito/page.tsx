@@ -560,7 +560,7 @@ function NotaDebitoContent() {
     try {
       await actualizarStock(items, accessToken);
       const productosActualizados = await fetchProductosSucursal();
-      if (config?.numeroStockBajo) {
+      if (sucursal?.numeroStockBajo) {
         const umbral = config.umbralStockBajo ?? 10;
         const bajos = (productosActualizados ?? [])
           .filter((p) => {
@@ -571,7 +571,7 @@ function NotaDebitoContent() {
             return stockDespues <= umbral && stockAntes > umbral;
           })
           .map((p) => ({ nomProducto: p.nomProducto, stock: p.sucursalProducto.stock ?? 0 }));
-        if (bajos.length) avisarStockBajoWhatsapp(bajos, config.numeroStockBajo);
+        if (bajos.length) avisarStockBajoWhatsapp(bajos, sucursal.numeroStockBajo);
       }
     } catch {
       showToast("No se pudo actualizar el stock de los productos.", "error");
@@ -777,7 +777,7 @@ function NotaDebitoContent() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => router.push("/factufly/operaciones")}
+              onClick={() => router.push("/factufly/dashboard")}
               className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
               style={{ background: "rgba(15,46,100,0.08)" }}
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}

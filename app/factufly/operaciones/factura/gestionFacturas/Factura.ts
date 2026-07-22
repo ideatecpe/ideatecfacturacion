@@ -123,6 +123,7 @@ export interface Sucursal {
   codEstablecimiento: string
   nombre: string
   direccion: string
+  numeroStockBajo?: string | null
   serieFactura: string
   correlativoFactura: number
   serieBoleta: string

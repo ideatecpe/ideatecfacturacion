@@ -132,6 +132,7 @@ export interface Sucursal {
   codEstablecimiento: string
   nombre: string
   direccion: string
+  numeroStockBajo?: string | null
   serieFactura: string
   correlativoFactura: number
   serieBoleta: string
@@ -148,5 +149,7 @@ export interface Sucursal {
   correlativoGuiaRemision: number
   serieGuiaTransportista: string
   correlativoGuiaTransportista: number
+  serieNotaVenta?: string
+  correlativoNotaVenta?: number
   estado: boolean
 }
