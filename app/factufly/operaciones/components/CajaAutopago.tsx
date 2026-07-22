@@ -111,6 +111,7 @@ function ProductoGridCard({
   const [imgError, setImgError] = useState(false);
   const tieneImagen = !!p.urlImagenProducto && !imgError;
   const enOferta = !!p.sucursalProducto.enPromocion && !!p.sucursalProducto.porcentajeDescuento;
+  const seleccionado = cantidadEnCarrito > 0;
   const hoy = new Date().toISOString().split("T")[0];
   const vencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
   return (
@@ -148,7 +149,7 @@ function ProductoGridCard({
           </span>
         )}
         {vencido && (
-          <span className="absolute top-1 right-1 flex items-center gap-0.5 rounded-md bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+          <span className="absolute bottom-1 left-1 flex items-center gap-0.5 rounded-md bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white z-10">
             <AlertTriangle className="w-2.5 h-2.5" /> Vencido
           </span>
         )}
@@ -208,6 +209,11 @@ export default function CajaAutopago() {
   const lastScannedCodeRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
   // ── Agregar / quitar / cantidad ──────────────────────────────
   const agregarProducto = useCallback((p: ProductoSucursal) => {
+    const hoy = new Date().toISOString().split("T")[0];
+    const tieneVencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
+    if (tieneVencido) {
+      showToast("⚠ Este producto tiene lotes vencidos sin retirar del inventario", "error");
+    }
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
@@ -229,12 +235,13 @@ export default function CajaAutopago() {
           urlImagen: p.urlImagenProducto ?? null,
           unidadMedida: p.unidadMedida ?? "NIU",
           tipoProducto: p.tipoProducto,
+          tieneVencido,
         },
       ];
     });
     setBusqueda("");
     inputRef.current?.focus();
-  }, []);
+  }, [showToast]);
 
   const stopScanning = useCallback(async () => {
     if (animFrameRef.current) {
@@ -424,36 +431,6 @@ export default function CajaAutopago() {
         p.codigoBarras?.toLowerCase().includes(q),
     );
   }, [busqueda, productosSucursal, config?.isStock]);
-
-  // ── Agregar / quitar / cantidad ──────────────────────────────
-  const agregarProducto = (p: ProductoSucursal) => {
-    setItems((prev) => {
-      const idx = prev.findIndex((i) => i.productoId === p.productoId);
-      if (idx !== -1) {
-        const copia = [...prev];
-        copia[idx] = { ...copia[idx], cantidad: copia[idx].cantidad + 1 };
-        return copia;
-      }
-      return [
-        ...prev,
-        {
-          key: crypto.randomUUID(),
-          productoId: p.productoId,
-          sucursalProductoId: p.sucursalProducto.sucursalProductoId,
-          codigo: p.codigo,
-          descripcion: p.nomProducto,
-          cantidad: 1,
-          precio: precioConDescuento(p),
-          tipoAfectacionIGV: p.tipoAfectacionIGV,
-          urlImagen: p.urlImagenProducto ?? null,
-          unidadMedida: p.unidadMedida ?? "NIU",
-          tipoProducto: p.tipoProducto,
-        },
-      ];
-    });
-    setBusqueda("");
-    inputRef.current?.focus();
-  };
 
   const cambiarCantidad = (key: string, delta: number) => {
     setItems((prev) =>
