@@ -8,6 +8,7 @@ import {
   Building2,
   MapPin,
   Hash,
+  MessageCircle,
   ToggleLeft,
   ToggleRight,
   X,
@@ -266,9 +267,16 @@ function SucursalCard({
         </h3>
 
         {/* Dirección */}
-        <p className="flex items-start gap-1.5 text-xs text-gray-400 mb-4">
+        <p className="flex items-start gap-1.5 text-xs text-gray-400 mb-1.5">
           <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-gray-800" />
           {s.direccion || "Sin dirección registrada"}
+        </p>
+
+        {/* WhatsApp de aviso de stock bajo */}
+        <p className="flex items-center gap-1.5 text-xs text-gray-400 mb-4">
+          <MessageCircle className="w-3 h-3 shrink-0 text-emerald-600" />
+          <span className="font-semibold text-gray-500">Alerta stock bajo:</span>
+          {s.numeroStockBajo || "No configurado"}
         </p>
 
         {/* Series */}
@@ -422,6 +430,7 @@ export default function SucursalesPage() {
       codigo: s.codEstablecimiento,
       nombre: s.nombre ?? s.codEstablecimiento,
       direccion: s.direccion ?? "",
+      numeroStockBajo: s.numeroStockBajo ?? "",
       habilitado: s.estado,
       usuario: "",
       serieFactura: s.serieFactura,
@@ -520,7 +529,7 @@ export default function SucursalesPage() {
     try {
       await axios.patch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/Sucursal/${sucursalId}`,
-        { nombre: data.nombre, direccion: data.direccion },
+        { nombre: data.nombre, direccion: data.direccion, numeroStockBajo: data.numeroStockBajo || null },
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       setModalEditar(null);

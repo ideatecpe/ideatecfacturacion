@@ -960,7 +960,7 @@ export default function VerComprobantesPage() {
                 <span className="hidden sm:inline">Carga Masiva</span>
               </Button>
             )}
-            <Button className="py-2.5 px-3 text-xs rounded-md h-auto" onClick={() => router.push("/factufly/operaciones")}>
+            <Button className="py-2.5 px-3 text-xs rounded-md h-auto" onClick={() => router.push("/factufly/operaciones/boleta-facturaelectronica")}>
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Nuevo Comprobante</span>
             </Button>

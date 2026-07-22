@@ -73,7 +73,7 @@ export default function BoletaFacturaElectronicaPage() {
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <button
             type="button"
-            onClick={() => router.push("/factufly/operaciones")}
+            onClick={() => router.push("/factufly/dashboard")}
             className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
             style={{ background: isNV ? "rgba(245,158,11,0.1)" : "rgba(15,46,100,0.08)" }}
             onMouseEnter={e => (e.currentTarget.style.background = isNV ? "rgba(245,158,11,0.2)" : "rgba(15,46,100,0.15)")}
