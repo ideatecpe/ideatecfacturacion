@@ -214,7 +214,7 @@ export default function AgregarProducto({
           { facingMode: "environment" },
           {
             fps: 30,
-            qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
+            qrbox: (w: number, h: number) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
           },
           (decodedText: string) => {
             setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
@@ -831,7 +831,7 @@ export default function AgregarProducto({
                     Cancelar
                   </button>
                 </div>
-                <div className="relative w-full aspect-[4/3] max-h-[300px] bg-black rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
+                <div className="relative w-full aspect-4/3 max-h-75 bg-black rounded-lg overflow-hidden border border-white/10 flex items-center justify-center">
                   <video
                     ref={videoRef}
                     className="absolute inset-0 w-full h-full object-cover"
@@ -870,7 +870,7 @@ export default function AgregarProducto({
               />
 
               {/* Panel: generar código automático o vista previa en vivo */}
-              <div className="flex-1 rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-[64px]">
+              <div className="flex-1 rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-16">
                 {form.codigoBarras ? (
                   <div className="flex items-center justify-center gap-4 w-full">
                     <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
@@ -1144,7 +1144,7 @@ export default function AgregarProducto({
               />
 
               {/* Panel: generar código automático o vista previa en vivo */}
-              <div className="flex-1 rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-[64px]">
+              <div className="flex-1 rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-16">
                 {form.codigoBarras ? (
                   <div className="flex items-center justify-center gap-4 w-full">
                     <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
@@ -1205,7 +1205,7 @@ export default function AgregarProducto({
             {!!form.codigoBarras && form.codigoBarras.trim().length >= 8 && (
               <button
                 type="button"
-                onClick={buscarProductoPorInternet}
+                onClick={() => buscarProductoPorInternet()}
                 disabled={buscandoInternet}
                 className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-60"
               >
