@@ -156,6 +156,7 @@ export default function DashboardLayout({
                 { id: "kardex", label: "Kardex" },
                 { id: "stockValorizado", label: "Stock Valorizado" },
                 { id: "rentabilidad", label: "Rentabilidad" },
+                { id: "vencidos", label: "Productos Vencidos" },
               ],
             }
           : {}),

@@ -7,6 +7,7 @@ export interface LoteReporte {
   costoUnitario: number;
   saldoCantidad: number;
   saldoValor: number;
+  fechaVencimiento: string | null;
 }
 
 // ─── Movimiento de Kardex ───────────────────────────────────────
@@ -57,4 +58,17 @@ export interface RentabilidadDiaria {
   costoVentas: number;
   utilidadBruta: number;
   margenPorcentaje: number;
+}
+
+// ─── Lote vencido (vista previa de solo lectura antes de retirar) ──────
+export interface LoteVencido {
+  inventarioLoteId: number;
+  sucursalProductoId: number;
+  nomProducto: string | null;
+  codigo: string | null;
+  origen: string;
+  fechaLote: string;
+  fechaVencimiento: string;
+  saldoCantidad: number;
+  costoUnitario: number;
 }
