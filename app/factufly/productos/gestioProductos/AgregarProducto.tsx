@@ -822,16 +822,30 @@ export default function AgregarProducto({
           </div>
         )}
 
-        {/* ── Nombre con búsqueda ── */}
+        {/* ── Nombre con búsqueda + Botón Cámara ── */}
         <div className="relative space-y-1.5">
-          <InputBase
-            compact
-            label="Nombre del Producto"
-            value={form.nomProducto}
-            onChange={handleNomProductoChange}
-            placeholder="Buscar o escribir nombre..."
-            showError={!!errors.nomProducto}
-          />
+          <div className="flex items-end gap-2">
+            <div className="flex-1 min-w-0">
+              <InputBase
+                compact
+                label="Nombre del Producto"
+                value={form.nomProducto}
+                onChange={handleNomProductoChange}
+                placeholder="Buscar o escribir nombre..."
+                showError={!!errors.nomProducto}
+              />
+            </div>
+            {!soloSucursal && !isScanning && (
+              <button
+                type="button"
+                onClick={startScanning}
+                title="Escanear código de barras con cámara"
+                className="h-[38px] w-[38px] flex items-center justify-center shrink-0 bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue rounded-xl transition-colors border border-brand-blue/20"
+              >
+                <ScanBarcode className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           {showSugerencias && (
             <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
               {sugerencias.map((p) => (
@@ -853,62 +867,48 @@ export default function AgregarProducto({
           )}
         </div>
 
-        {/* ── Escáner de Código de Barras (Cámara) ── */}
-        {!soloSucursal && (
+        {/* ── Escáner de Código de Barras (Visor Cámara cuando está activo) ── */}
+        {!soloSucursal && isScanning && (
           <div className="space-y-2">
-            {!isScanning ? (
-              <button
-                type="button"
-                onClick={startScanning}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue font-bold rounded-xl text-xs transition-colors border border-brand-blue/20"
-              >
-                <ScanBarcode className="w-4 h-4" />
-                Escanear Código de Barras con Cámara
-              </button>
-            ) : (
-              <div className="space-y-3 p-3 bg-gray-900 text-white rounded-xl border border-gray-800">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold uppercase tracking-wider">
-                    Buscando código de barras...
-                  </span>
-                  <button
-                    type="button"
-                    onClick={stopScanning}
-                    className="text-xs font-semibold text-gray-400 hover:text-white transition-colors px-2.5 py-1 bg-white/10 rounded-lg"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-                <div className="relative w-full max-w-[260px] aspect-square mx-auto bg-black rounded-2xl overflow-hidden border border-white/15 shadow-xl flex items-center justify-center">
-                  <video
-                    ref={videoRef}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    autoPlay
-                    playsInline
-                    muted
-                  />
-
-                  {cameraError ? (
-                    <div className="absolute inset-0 z-20 bg-gray-950/95 flex flex-col items-center justify-center text-center p-4">
-                      <CameraOff className="w-9 h-9 text-gray-500 mb-2 animate-bounce" />
-                      <p className="text-xs font-semibold text-gray-300">
-                        {cameraError}
-                      </p>
-                      <p className="text-[10px] text-gray-400 mt-1">
-                        Puedes ingresar el código manualmente o con lector USB
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="pointer-events-none absolute inset-3 border-2 border-white/20 rounded-xl flex items-center justify-center overflow-hidden z-10">
-                      <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
-                    </div>
-                  )}
-                </div>
-                <p className="text-[10px] text-gray-400 text-center">
-                  Apunte la cámara al código de barras — no necesita estar perfectamente centrado.
-                </p>
+            <div className="space-y-3 p-3 bg-gray-100/80 rounded-xl border border-gray-200 text-gray-800">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">
+                  Buscando código de barras...
+                </span>
+                <button
+                  type="button"
+                  onClick={stopScanning}
+                  className="text-xs font-semibold text-gray-600 hover:text-gray-900 transition-colors px-2.5 py-1 bg-gray-200/80 hover:bg-gray-300 rounded-lg"
+                >
+                  Cancelar
+                </button>
               </div>
-            )}
+              <div className="relative w-full max-w-[260px] aspect-square mx-auto bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-xl flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+
+                {cameraError ? (
+                  <div className="absolute inset-0 z-20 bg-gray-950/95 flex flex-col items-center justify-center text-center p-4 text-white">
+                    <CameraOff className="w-9 h-9 text-gray-400 mb-2 animate-bounce" />
+                    <p className="text-xs font-semibold text-gray-200">
+                      {cameraError}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Puedes ingresar el código manualmente o con lector USB
+                    </p>
+                  </div>
+                ) : (
+                  <div className="pointer-events-none absolute inset-3 border-2 border-white/20 rounded-xl flex items-center justify-center overflow-hidden z-10">
+                    <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

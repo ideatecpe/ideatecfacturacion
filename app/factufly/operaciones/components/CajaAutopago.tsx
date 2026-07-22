@@ -1430,12 +1430,12 @@ export default function CajaAutopago() {
 
           {/* Visor de cámara en vivo para ventas (cuadrado estilo imagetotext.info) */}
           {isScanning && (
-            <div className="shrink-0 p-3 bg-gray-900 border-b border-gray-800 space-y-2.5 animate-in fade-in duration-300">
-              <div className="flex items-center justify-between text-white text-xs px-1">
-                <span className="font-bold text-gray-200">
+            <div className="shrink-0 p-3 bg-gray-100/80 border-b border-gray-200 space-y-2.5 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="font-bold text-gray-800">
                   Escanea tus productos
                 </span>
-                <span className="text-[11px] text-gray-400 font-medium">
+                <span className="text-[11px] text-gray-500 font-medium">
                   {items.length} producto{items.length === 1 ? "" : "s"} en el carrito
                 </span>
               </div>
