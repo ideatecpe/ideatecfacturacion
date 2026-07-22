@@ -31,6 +31,7 @@ import {
   Tag,
   X,
   ScanBarcode,
+  Check,
 } from "lucide-react";
 
 import { Html5Qrcode } from "html5-qrcode";
@@ -96,14 +97,28 @@ const precioConDescuento = (p: ProductoSucursal) => {
 };
 
 // Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
-function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => void }) {
+function ProductoGridCard({
+  p,
+  cantidadEnCarrito = 0,
+  onClick,
+}: {
+  p: ProductoSucursal;
+  cantidadEnCarrito?: number;
+  onClick: () => void;
+}) {
   const [imgError, setImgError] = useState(false);
   const tieneImagen = !!p.urlImagenProducto && !imgError;
   const enOferta = !!p.sucursalProducto.enPromocion && !!p.sucursalProducto.porcentajeDescuento;
+  const seleccionado = cantidadEnCarrito > 0;
+
   return (
     <button
       onClick={onClick}
-      className="group flex flex-col rounded-md border border-gray-100 bg-white overflow-hidden hover:border-brand-blue hover:shadow-md active:scale-[0.97] transition-all text-left"
+      className={`group relative flex flex-col rounded-md border transition-all text-left overflow-hidden ${
+        seleccionado
+          ? "border-[#008000] ring-2 ring-[#008000]/30 bg-[#008000]/10 shadow-xs"
+          : "border-gray-100 bg-white hover:border-brand-blue hover:shadow-md active:scale-[0.97]"
+      }`}
     >
       <div className="aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden relative p-2">
         {tieneImagen ? (
@@ -116,14 +131,23 @@ function ProductoGridCard({ p, onClick }: { p: ProductoSucursal; onClick: () => 
         ) : (
           <ImageOff className="w-5 h-5 text-gray-300" />
         )}
+
+        {/* Badge de seleccionado / Check + Cantidad (#008000) */}
+        {seleccionado && (
+          <span className="absolute top-1.5 right-1.5 flex items-center justify-center gap-0.5 rounded-full bg-[#008000] text-white px-1.5 py-0.5 text-[10px] font-bold shadow-md animate-in zoom-in-75 duration-200 z-10">
+            <Check className="w-3 h-3 stroke-[3]" />
+            {cantidadEnCarrito > 1 && <span>{cantidadEnCarrito}</span>}
+          </span>
+        )}
+
         {enOferta && (
-          <span className="absolute top-1 left-1 flex items-center gap-0.5 rounded-md bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+          <span className="absolute top-1 left-1 flex items-center gap-0.5 rounded-md bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold text-white z-10">
             <Tag className="w-2.5 h-2.5" /> -{p.sucursalProducto.porcentajeDescuento}%
           </span>
         )}
       </div>
       <div className="p-1">
-        <p className="text-[11px] font-semibold text-gray-800 line-clamp-1 leading-tight">
+        <p className={`text-[11px] font-semibold line-clamp-1 leading-tight ${seleccionado ? "text-[#008000] font-bold" : "text-gray-800"}`}>
           {p.nomProducto}
         </p>
         {enOferta ? (
@@ -231,9 +255,9 @@ export default function CajaAutopago() {
       const code = decodedText.trim().toLowerCase();
       if (!code) return;
 
-      // Cooldown de 1.2s para evitar agregar repetidamente el mismo producto mientras la cámara apunta
+      // Cooldown de 700ms para lecturas súper rápidas entre productos
       const now = Date.now();
-      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 1200) {
+      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 700) {
         return;
       }
       lastScannedCodeRef.current = { code, time: now };
@@ -268,8 +292,9 @@ export default function CajaAutopago() {
           const stream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: { ideal: "environment" },
-              width: { ideal: 1280, min: 640 },
-              height: { ideal: 720, min: 480 },
+              width: { ideal: 1920, min: 1280 },
+              height: { ideal: 1080, min: 720 },
+              frameRate: { ideal: 60, min: 30 },
               advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
             },
           });
@@ -287,7 +312,7 @@ export default function CajaAutopago() {
             }
           ).BarcodeDetector;
           const detector = new BarcodeDetectorClass({
-            formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8"],
+            formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8", "code_39", "upc_e", "itf", "codabar"],
           });
 
           const scanLoop = async () => {
@@ -311,16 +336,23 @@ export default function CajaAutopago() {
         }
       }
 
-      // 2. Fallback con html5-qrcode
+      // 2. Fallback con html5-qrcode (60 FPS)
       try {
-        const html5Qrcode = new Html5Qrcode("reader");
+        const html5Qrcode = new Html5Qrcode("reader", {
+          verbose: false,
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        });
         scannerRef.current = html5Qrcode;
 
         await html5Qrcode.start(
           { facingMode: "environment" },
           {
-            fps: 30,
+            fps: 60,
             qrbox: (w, h) => ({ width: Math.floor(w * 0.95), height: Math.floor(h * 0.95) }),
+            videoConstraints: {
+              facingMode: "environment",
+              focusMode: "continuous",
+            } as unknown as MediaTrackConstraints,
           },
           (decodedText: string) => {
             processScannedBarcode(decodedText);
@@ -1346,7 +1378,7 @@ export default function CajaAutopago() {
                   }
                 }}
                 placeholder="Escanea con la cámara, lector físico o busca por nombre / código"
-                className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+                className="w-full h-[38px] pl-8 pr-7 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
               />
               {busqueda && (
                 <button
@@ -1363,7 +1395,7 @@ export default function CajaAutopago() {
               <button
                 type="button"
                 onClick={startScanning}
-                className="flex items-center gap-1.5 px-3 py-2.5 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0"
+                className="h-[38px] flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0"
               >
                 <ScanBarcode size={14} />
                 <span className="hidden sm:inline">Cámara</span>
@@ -1372,7 +1404,7 @@ export default function CajaAutopago() {
               <button
                 type="button"
                 onClick={stopScanning}
-                className="flex items-center gap-1.5 px-3 py-2.5 bg-rose-500 text-white rounded-md text-xs font-semibold hover:bg-rose-600 active:scale-[0.98] transition-all shadow-sm shrink-0"
+                className="h-[38px] flex items-center justify-center gap-1.5 px-3 bg-rose-500 text-white rounded-md text-xs font-semibold hover:bg-rose-600 active:scale-[0.98] transition-all shadow-sm shrink-0"
               >
                 <X size={14} />
                 <span>Cerrar</span>
@@ -1384,11 +1416,10 @@ export default function CajaAutopago() {
           {isScanning && (
             <div className="shrink-0 p-3 bg-gray-900 border-b border-gray-800 space-y-2 animate-in fade-in duration-300">
               <div className="flex items-center justify-between text-white text-xs">
-                <span className="font-bold flex items-center gap-1.5 text-emerald-400">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  Cámara activa · Escanea tus productos uno tras otro
+                <span className="font-bold text-gray-200">
+                  Escanea tus productos
                 </span>
-                <span className="text-[11px] text-gray-400">
+                <span className="text-[11px] text-gray-400 font-medium">
                   {items.length} producto{items.length === 1 ? "" : "s"} en el carrito
                 </span>
               </div>
@@ -1422,9 +1453,17 @@ export default function CajaAutopago() {
               </div>
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5">
-                {productosGrid.map((p) => (
-                  <ProductoGridCard key={p.productoId} p={p} onClick={() => agregarProducto(p)} />
-                ))}
+                {productosGrid.map((p) => {
+                  const itemCarrito = items.find((i) => i.productoId === p.productoId);
+                  return (
+                    <ProductoGridCard
+                      key={p.productoId}
+                      p={p}
+                      cantidadEnCarrito={itemCarrito?.cantidad ?? 0}
+                      onClick={() => agregarProducto(p)}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
