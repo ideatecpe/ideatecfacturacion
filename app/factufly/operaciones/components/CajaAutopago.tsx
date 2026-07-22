@@ -116,7 +116,7 @@ function ProductoGridCard({
       onClick={onClick}
       className={`group relative flex flex-col rounded-md border transition-all text-left overflow-hidden ${
         seleccionado
-          ? "border-[#008000] ring-2 ring-[#008000]/30 bg-[#008000]/10 shadow-xs"
+          ? "border-gray-100 bg-[#008000]/5"
           : "border-gray-100 bg-white hover:border-brand-blue hover:shadow-md active:scale-[0.97]"
       }`}
     >
@@ -183,6 +183,7 @@ export default function CajaAutopago() {
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [itemAEliminar, setItemAEliminar] = useState<ItemCarrito | null>(null);
+  const [confirmarLimpiarTodo, setConfirmarLimpiarTodo] = useState(false);
   const [mostrarPago, setMostrarPago] = useState(false);
   const [documento, setDocumento] = useState("");
   const [tipoSinDocumento, setTipoSinDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
@@ -1514,6 +1515,21 @@ export default function CajaAutopago() {
           </div>
 
           <div className="flex-1 lg:overflow-y-auto px-3 py-3 space-y-2">
+            {items.length > 0 && (
+              <div className="flex items-center justify-between px-1 pb-1">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                  Productos ({items.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setConfirmarLimpiarTodo(true)}
+                  className="flex items-center gap-1 text-xs font-semibold text-rose-500 hover:text-rose-700 hover:underline transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Limpiar todo
+                </button>
+              </div>
+            )}
+
             {items.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-4">
                 <div className="bg-gray-100 rounded-full p-4 mb-3">
@@ -1613,6 +1629,17 @@ export default function CajaAutopago() {
         documento={itemAEliminar?.codigo ?? undefined}
         onClose={() => setItemAEliminar(null)}
         onConfirm={confirmarEliminar}
+      />
+
+      <ModalEliminar
+        isOpen={confirmarLimpiarTodo}
+        mensaje="Vaciarás el carrito completo"
+        nombre={`Se quitarán ${items.length} producto${items.length === 1 ? "" : "s"} agregados a la venta.`}
+        onClose={() => setConfirmarLimpiarTodo(false)}
+        onConfirm={() => {
+          setItems([]);
+          setConfirmarLimpiarTodo(false);
+        }}
       />
 
       {/* ── Modal: Confirmar Pago ── */}
