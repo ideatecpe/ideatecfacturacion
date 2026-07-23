@@ -323,16 +323,19 @@ export default function CajaAutopago() {
           const disp = calcularDisponible(p, itemsRef.current, productosSucursal, true);
           if (disp !== null && disp <= 0) {
             showToast(`"${p.nomProducto}" sin stock — registra una compra primero`, "error");
+            stopScanning();
             return;
           }
         }
         agregarProducto(p);
         showToast(`✓ Agregado: ${p.nomProducto}`, "success");
+        stopScanning();
       } else {
         showToast(`No se encontró producto con código: ${decodedText}`, "error");
+        stopScanning();
       }
     },
-    [productosSucursal, config?.isStock, showToast, agregarProducto],
+    [productosSucursal, config?.isStock, showToast, agregarProducto, stopScanning],
   );
 
   const startScanning = async () => {
