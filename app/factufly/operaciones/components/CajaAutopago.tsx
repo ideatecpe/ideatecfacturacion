@@ -284,7 +284,14 @@ export default function CajaAutopago() {
       ];
     });
     setBusqueda("");
-    inputRef.current?.focus();
+    const active = document.activeElement;
+    const isEditingOtherInput =
+      !!active &&
+      (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT") &&
+      active !== inputRef.current;
+    if (!isEditingOtherInput) {
+      inputRef.current?.focus();
+    }
   }, [showToast, config?.isStock, productosSucursal]);
 
   const stopScanning = useCallback(async () => {
@@ -518,6 +525,32 @@ export default function CajaAutopago() {
     setItemAEliminar(null);
   };
 
+  // Auto-adición instantánea al escanear con lector físico o ingresar código exacto
+  useEffect(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return;
+
+    const exacto = productosSucursal.find(
+      (p) =>
+        (p.codigoBarras && p.codigoBarras.trim().toLowerCase() === q) ||
+        (p.codigo && p.codigo.trim().toLowerCase() === q),
+    );
+
+    if (exacto) {
+      if (config?.isStock && exacto.tipoProducto === "BIEN") {
+        const disp = calcularDisponible(exacto, itemsRef.current, productosSucursal, true);
+        if (disp !== null && disp <= 0) {
+          showToast(`"${exacto.nomProducto}" sin stock — registra una compra primero`, "error");
+          setBusqueda("");
+          return;
+        }
+      }
+      agregarProducto(exacto);
+      showToast(`✓ Agregado: ${exacto.nomProducto}`, "success");
+      setBusqueda("");
+    }
+  }, [busqueda, productosSucursal, config?.isStock, showToast, agregarProducto]);
+
   // Enter en el buscador o escáner de código de barras físico:
   // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
   // limpiando la búsqueda para la siguiente lectura.
@@ -573,17 +606,21 @@ export default function CajaAutopago() {
 
       const activeElement = document.activeElement;
       const isInput =
-        activeElement instanceof HTMLInputElement ||
-        activeElement instanceof HTMLTextAreaElement ||
-        activeElement instanceof HTMLSelectElement;
+        !!activeElement &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          activeElement.tagName === "SELECT" ||
+          (activeElement as HTMLElement).isContentEditable);
 
-      if (e.key === "Enter" && !isInput) {
+      if (isInput) return;
+
+      if (e.key === "Enter") {
         e.preventDefault();
         onEnterBusqueda();
         return;
       }
 
-      if (!isInput && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         inputRef.current?.focus();
       }
     };
