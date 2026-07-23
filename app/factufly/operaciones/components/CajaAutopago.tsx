@@ -312,9 +312,10 @@ export default function CajaAutopago() {
       const code = decodedText.trim().toLowerCase();
       if (!code) return;
 
-      // Cooldown de 700ms para lecturas súper rápidas entre productos
+      // Cooldown de 3.5s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto),
+      // pero si cambia de producto (código diferente), escanea al instante sin esperar.
       const now = Date.now();
-      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 700) {
+      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 3500) {
         return;
       }
       lastScannedCodeRef.current = { code, time: now };
@@ -330,19 +331,16 @@ export default function CajaAutopago() {
           const disp = calcularDisponible(p, itemsRef.current, productosSucursal, true);
           if (disp !== null && disp <= 0) {
             showToast(`"${p.nomProducto}" sin stock — registra una compra primero`, "error");
-            stopScanning();
             return;
           }
         }
         agregarProducto(p);
         showToast(`✓ Agregado: ${p.nomProducto}`, "success");
-        stopScanning();
       } else {
         showToast(`No se encontró producto con código: ${decodedText}`, "error");
-        stopScanning();
       }
     },
-    [productosSucursal, config?.isStock, showToast, agregarProducto, stopScanning],
+    [productosSucursal, config?.isStock, showToast, agregarProducto],
   );
 
   const startScanning = async () => {
