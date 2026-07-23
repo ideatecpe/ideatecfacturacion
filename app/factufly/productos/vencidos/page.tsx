@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { PackageSearch, ChevronDown, ChevronUp, Lock, AlertTriangle, Trash2, XCircle } from "lucide-react";
+import { PackageSearch, ChevronDown, ChevronUp, Lock, AlertTriangle, Trash2, XCircle, History } from "lucide-react";
 
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import { Button } from "@/app/components/ui/Button";
@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { useLotesVencidosLista } from "../useLotesVencidosLista";
+import { useHistorialVencidosLista } from "../useHistorialVencidosLista";
 import { LoteVencido } from "../Inventario";
 
 interface ProductoVencidoGrupo {
@@ -109,18 +110,26 @@ export default function ProductosVencidosPage() {
     retirandoId,
   } = useLotesVencidosLista();
 
+  const { historial, loadingHistorial, fetchHistorialVencidos } = useHistorialVencidosLista();
+
   const [expandido, setExpandido] = useState<number | null>(null);
   const [retirarTarget, setRetirarTarget] = useState<ProductoVencidoGrupo | null>(null);
   const [isRetirarOpen, setIsRetirarOpen] = useState(false);
 
   const recargar = () => {
-    if (sucursalId > 0) fetchLotesVencidosSucursal(sucursalId);
+    if (sucursalId > 0) {
+      fetchLotesVencidosSucursal(sucursalId);
+      fetchHistorialVencidos(sucursalId);
+    }
   };
 
   useEffect(() => {
     recargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sucursalId]);
+
+  const totalHistorialCantidad = useMemo(() => historial.reduce((acc, h) => acc + h.cantidad, 0), [historial]);
+  const totalHistorialCosto = useMemo(() => historial.reduce((acc, h) => acc + h.costoTotal, 0), [historial]);
 
   const grupos = useMemo(() => agruparPorProducto(lotesVencidos), [lotesVencidos]);
 
@@ -338,6 +347,80 @@ export default function ProductosVencidosPage() {
           </tbody>
         </table>
       </div>
+
+      {/* ── Historial de retirados ── */}
+      {sucursalId > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          {/* Cabecera con totales */}
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex-wrap">
+            <div className="flex items-center gap-1.5 text-gray-500">
+              <History className="w-3.5 h-3.5" />
+              <span className="text-xs font-bold uppercase tracking-wide">Historial de retirados</span>
+            </div>
+            <div className="flex items-center gap-3 ml-auto text-[11px] text-gray-500">
+              <span>
+                Total retirado:{" "}
+                <span className="font-semibold text-gray-700 tabular-nums">{totalHistorialCantidad} und.</span>
+              </span>
+              <span className="text-gray-300">|</span>
+              <span>
+                Costo total:{" "}
+                <span className="font-semibold text-rose-700 tabular-nums">S/ {totalHistorialCosto.toFixed(2)}</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="overflow-y-auto" style={{ maxHeight: "220px", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}>
+            <table className="w-full text-xs tabular-nums">
+              <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
+                <tr>
+                  <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2">Fecha</th>
+                  <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2">Código</th>
+                  <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2">Producto</th>
+                  <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2">Cantidad</th>
+                  <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2">Costo Unit.</th>
+                  <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2">Costo Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingHistorial &&
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <tr key={i} className="border-b border-gray-100 animate-pulse">
+                      <td className="px-3 py-2.5" colSpan={6}>
+                        <div className="h-3 bg-gray-200 rounded w-full" />
+                      </td>
+                    </tr>
+                  ))}
+
+                {!loadingHistorial && historial.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-xs text-gray-400">
+                      Sin retiros registrados en esta sucursal
+                    </td>
+                  </tr>
+                )}
+
+                {!loadingHistorial &&
+                  historial.map((h, idx) => (
+                    <tr
+                      key={h.kardexMovimientoId}
+                      className={`border-b border-gray-100 ${idx % 2 === 1 ? "bg-gray-50/50" : "bg-white"}`}
+                    >
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                        {new Date(h.fechaMovimiento).toLocaleDateString("es-PE")}
+                      </td>
+                      <td className="px-3 py-2 text-gray-500">{h.codigo ?? "—"}</td>
+                      <td className="px-3 py-2 font-medium text-gray-800">{h.nomProducto ?? "—"}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{h.cantidad}</td>
+                      <td className="px-3 py-2 text-right text-gray-600">S/ {h.costoUnitarioPromedio.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-rose-700">S/ {h.costoTotal.toFixed(2)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <ModalRetirarVencido
         isOpen={isRetirarOpen}

@@ -1203,29 +1203,6 @@ export default function AgregarProducto({
           )}
         </div>
 
-        {/* ¿Es un paquete/caja? — fila propia */}
-        {!soloSucursal && config?.isStock && (
-          <label className="flex items-center gap-2 pt-1 cursor-pointer select-none w-fit">
-            <input
-              type="checkbox"
-              checked={!!form.esPaquete}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setForm((prev) => ({
-                  ...prev,
-                  esPaquete: checked,
-                  productoBaseId: checked ? prev.productoBaseId : null,
-                  factorConversion: checked ? prev.factorConversion : null,
-                }));
-              }}
-              className="w-4 h-4 accent-brand-blue"
-            />
-            <span className="text-xs font-semibold text-gray-600">
-              ¿Es un paquete/caja con unidades dentro?
-            </span>
-          </label>
-        )}
-
         {/* ── Código SUNAT (UNSPSC) ── */}
         {!soloSucursal && (
           <div className="space-y-1.5">
@@ -1265,6 +1242,29 @@ export default function AgregarProducto({
               </button>
             </div>
           </div>
+        )}
+
+        {/* ¿Es un paquete/caja? — fila propia */}
+        {!soloSucursal && config?.isStock && (
+          <label className="flex items-center gap-2 pt-1 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={!!form.esPaquete}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setForm((prev) => ({
+                  ...prev,
+                  esPaquete: checked,
+                  productoBaseId: checked ? prev.productoBaseId : null,
+                  factorConversion: checked ? prev.factorConversion : null,
+                }));
+              }}
+              className="w-4 h-4 accent-brand-blue"
+            />
+            <span className="text-xs font-semibold text-gray-600">
+              ¿Es un paquete/caja con unidades dentro?
+            </span>
+          </label>
         )}
 
         {/* ── Paquete: producto base + factor de conversión (solo si maneja stock) ── */}

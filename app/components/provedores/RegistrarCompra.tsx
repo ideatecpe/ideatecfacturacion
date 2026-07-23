@@ -633,7 +633,7 @@ export default function RegistrarCompra({
             </p>
           )}
 
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 sm:ml-auto">
             <Button variant="outline" type="button" onClick={onClose} disabled={guardando} className="flex-1 sm:flex-none">
               {hayGuardados ? "Cerrar" : "Cancelar"}
             </Button>
