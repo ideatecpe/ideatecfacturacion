@@ -300,7 +300,11 @@ export default function CajaAutopago() {
       !!active &&
       (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT") &&
       active !== inputRef.current;
-    if (!isEditingOtherInput) {
+    const isMobileDevice =
+      typeof window !== "undefined" &&
+      ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
+
+    if (!isEditingOtherInput && !isMobileDevice) {
       inputRef.current?.focus();
     }
   }, [showToast, config?.isStock, productosSucursal]);
@@ -717,9 +721,12 @@ export default function CajaAutopago() {
     [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor],
   );
 
-  // Foco inicial único al cargar la página
+  // Foco inicial único al cargar la página (solo en computadoras/laptops)
   useEffect(() => {
-    inputRef.current?.focus();
+    const isMobile = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
+    if (!isMobile) {
+      inputRef.current?.focus();
+    }
   }, []);
 
   // Captura global de lecturas de códigos de barras (escáner físico USB/Bluetooth)
@@ -774,7 +781,10 @@ export default function CajaAutopago() {
       }
 
       if (!isEditingOther && document.activeElement !== inputRef.current && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        inputRef.current?.focus();
+        const isMobileDevice = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
+        if (!isMobileDevice) {
+          inputRef.current?.focus();
+        }
       }
     };
 
