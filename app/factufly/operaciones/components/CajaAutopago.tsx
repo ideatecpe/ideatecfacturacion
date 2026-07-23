@@ -98,14 +98,46 @@ const precioConDescuento = (p: ProductoSucursal) => {
   return base;
 };
 
+// Cuántas unidades adicionales del producto `p` caben en el pool compartido de stock,
+// descontando lo que el carrito ya tiene comprometido (incluyendo paquetes × factor).
+// Devuelve null cuando isStock está apagado o el producto es un servicio.
+function calcularDisponible(
+  p: ProductoSucursal,
+  cartItems: ItemCarrito[],
+  allProducts: ProductoSucursal[],
+  isStock: boolean,
+): number | null {
+  if (!isStock || p.tipoProducto !== "BIEN") return null;
+  const baseId = p.esPaquete && p.productoBaseId ? p.productoBaseId : p.productoId;
+  const baseProd = p.esPaquete && p.productoBaseId
+    ? allProducts.find((x) => x.productoId === p.productoBaseId)
+    : p;
+  const stockBase = baseProd?.sucursalProducto.stock ?? 0;
+  const comprometido = cartItems.reduce((total, it) => {
+    if (it.tipoProducto !== "BIEN") return total;
+    const itProd = allProducts.find((x) => x.productoId === it.productoId);
+    if (!itProd) return total;
+    const itBaseId = itProd.esPaquete && itProd.productoBaseId ? itProd.productoBaseId : itProd.productoId;
+    if (itBaseId !== baseId) return total;
+    return total + (itProd.esPaquete && itProd.factorConversion ? it.cantidad * itProd.factorConversion : it.cantidad);
+  }, 0);
+  const disponibleBase = Math.max(0, stockBase - comprometido);
+  if (p.esPaquete && p.factorConversion && p.factorConversion > 0) {
+    return Math.floor(disponibleBase / p.factorConversion);
+  }
+  return disponibleBase;
+}
+
 // Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
 function ProductoGridCard({
   p,
   cantidadEnCarrito = 0,
+  stockDisp = null,
   onClick,
 }: {
   p: ProductoSucursal;
   cantidadEnCarrito?: number;
+  stockDisp?: number | null;
   onClick: () => void;
 }) {
   const [imgError, setImgError] = useState(false);
@@ -172,6 +204,11 @@ function ProductoGridCard({
             S/ {(p.sucursalProducto.precioUnitario ?? 0).toFixed(2)}
           </p>
         )}
+        {stockDisp !== null && stockDisp <= 10 && (
+          <p className="text-[9px] text-gray-300 leading-tight tabular-nums mt-0.5">
+            {stockDisp} disponibles
+          </p>
+        )}
       </div>
     </button>
   );
@@ -189,6 +226,8 @@ export default function CajaAutopago() {
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
 
   const [items, setItems] = useState<ItemCarrito[]>([]);
+  const itemsRef = useRef<ItemCarrito[]>([]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
   const [busqueda, setBusqueda] = useState("");
   const [itemAEliminar, setItemAEliminar] = useState<ItemCarrito | null>(null);
   const [confirmarLimpiarTodo, setConfirmarLimpiarTodo] = useState(false);
@@ -213,6 +252,11 @@ export default function CajaAutopago() {
     const tieneVencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
     if (tieneVencido) {
       showToast("⚠ Este producto tiene lotes vencidos sin retirar del inventario", "error");
+    }
+    const disp = calcularDisponible(p, itemsRef.current, productosSucursal, config?.isStock ?? false);
+    if (disp !== null && disp <= 0) {
+      showToast(`Stock insuficiente: no hay unidades disponibles de "${p.nomProducto}"`, "error");
+      return;
     }
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.productoId === p.productoId);
@@ -241,7 +285,7 @@ export default function CajaAutopago() {
     });
     setBusqueda("");
     inputRef.current?.focus();
-  }, [showToast]);
+  }, [showToast, config?.isStock, productosSucursal]);
 
   const stopScanning = useCallback(async () => {
     if (animFrameRef.current) {
@@ -275,9 +319,12 @@ export default function CajaAutopago() {
       );
 
       if (p) {
-        if (config?.isStock && p.tipoProducto === "BIEN" && (p.sucursalProducto.stock ?? 0) <= 0) {
-          showToast(`El producto "${p.nomProducto}" no tiene stock disponible.`, "error");
-          return;
+        if (config?.isStock && p.tipoProducto === "BIEN") {
+          const disp = calcularDisponible(p, itemsRef.current, productosSucursal, true);
+          if (disp !== null && disp <= 0) {
+            showToast(`"${p.nomProducto}" sin stock — registra una compra primero`, "error");
+            return;
+          }
         }
         agregarProducto(p);
         showToast(`✓ Agregado: ${p.nomProducto}`, "success");
@@ -417,10 +464,17 @@ export default function CajaAutopago() {
 
   // ── Grid de productos (filtrado en vivo por el buscador) ───────
   const productosGrid = useMemo(() => {
-    // Con control de stock activo, solo se listan los bienes con stock > 0
-    // (los servicios no manejan stock, así que siempre se muestran).
+    // Con control de stock activo, solo se muestran los bienes que tienen al menos
+    // 1 unidad disponible en el pool compartido (desconta lo comprometido en el carrito).
+    // Los servicios no manejan stock y siempre se muestran.
     const conStock = config?.isStock
-      ? productosSucursal.filter((p) => p.tipoProducto !== "BIEN" || (p.sucursalProducto.stock ?? 0) > 0)
+      ? productosSucursal.filter((p) => {
+          if (p.tipoProducto !== "BIEN") return true;
+          // Si ya está en el carrito siempre se muestra (aunque su pool esté agotado).
+          if (items.some((i) => i.productoId === p.productoId)) return true;
+          const disp = calcularDisponible(p, items, productosSucursal, true);
+          return disp === null || disp > 0;
+        })
       : productosSucursal;
     const q = busqueda.trim().toLowerCase();
     if (!q) return conStock;
@@ -430,9 +484,22 @@ export default function CajaAutopago() {
         p.codigo?.toLowerCase().includes(q) ||
         p.codigoBarras?.toLowerCase().includes(q),
     );
-  }, [busqueda, productosSucursal, config?.isStock]);
+  }, [busqueda, productosSucursal, config?.isStock, items]);
 
   const cambiarCantidad = (key: string, delta: number) => {
+    if (delta > 0) {
+      const item = items.find((i) => i.key === key);
+      if (item) {
+        const prod = productosSucursal.find((p) => p.productoId === item.productoId);
+        if (prod) {
+          const disp = calcularDisponible(prod, items, productosSucursal, config?.isStock ?? false);
+          if (disp !== null && disp <= 0) {
+            showToast(`Stock insuficiente: no hay más unidades disponibles de "${item.descripcion}"`, "info");
+            return;
+          }
+        }
+      }
+    }
     setItems((prev) =>
       prev
         .map((i) =>
@@ -1467,11 +1534,15 @@ export default function CajaAutopago() {
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5">
                 {productosGrid.map((p) => {
                   const itemCarrito = items.find((i) => i.productoId === p.productoId);
+                  const stockDisp = config?.isStock
+                    ? calcularDisponible(p, items, productosSucursal, true)
+                    : null;
                   return (
                     <ProductoGridCard
                       key={p.productoId}
                       p={p}
                       cantidadEnCarrito={itemCarrito?.cantidad ?? 0}
+                      stockDisp={stockDisp}
                       onClick={() => agregarProducto(p)}
                     />
                   );
