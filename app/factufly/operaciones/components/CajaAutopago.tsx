@@ -33,6 +33,7 @@ import {
   ScanBarcode,
   Check,
   CameraOff,
+  ShoppingBag,
 } from "lucide-react";
 
 import { scanImageData } from "@undecaf/zbar-wasm";
@@ -241,6 +242,7 @@ export default function CajaAutopago() {
   const [busqueda, setBusqueda] = useState("");
   const [confirmarLimpiarTodo, setConfirmarLimpiarTodo] = useState(false);
   const [mostrarPago, setMostrarPago] = useState(false);
+  const [mostrarCarritoMobile, setMostrarCarritoMobile] = useState(false);
   const [documento, setDocumento] = useState("");
   const [tipoSinDocumento, setTipoSinDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   // Con DNI/CE (no RUC), el cajero puede pasar de Boleta a Nota de Venta; por defecto Boleta.
@@ -1756,9 +1758,9 @@ export default function CajaAutopago() {
           </div>
         </div>
 
-        {/* ── Columna derecha: marca + documento + carrito ── */}
-        <div className="w-full lg:w-96 shrink-0 flex flex-col bg-gray-50/40 lg:overflow-hidden">
-        <div
+        {/* ── Columna derecha: marca + documento + carrito (docked en desktop) ── */}
+        <div className="hidden lg:flex w-96 shrink-0 flex-col bg-gray-50/40 lg:overflow-hidden">
+          <div
             className="shrink-0 px-5 py-4 text-white flex items-center gap-3 relative overflow-hidden bg-cover bg-center"
             style={{
               backgroundImage: "linear-gradient(rgba(15, 46, 100, 0.90), rgba(9, 26, 61, 0.20)), url('/banner.jpeg')",
@@ -1982,7 +1984,7 @@ export default function CajaAutopago() {
             )}
           </div>
 
-          {/* Footer con totales y cobrar — fijo en la parte inferior en mobile */}
+          {/* Footer con totales y cobrar — fijo en la parte inferior en desktop */}
           <div className="shrink-0 sticky bottom-0 lg:static border-t border-gray-200 bg-white px-4 py-4 space-y-3 z-10">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-gray-700">
@@ -2003,6 +2005,233 @@ export default function CajaAutopago() {
           </div>
         </div>
       </div>
+
+      {/* ── Barra Flotante de Carrito en Móvil (lg:hidden) ── */}
+      {items.length > 0 && !mostrarPago && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.12)] flex items-center justify-between gap-3 animate-in slide-in-from-bottom duration-300">
+          <button
+            type="button"
+            onClick={() => setMostrarCarritoMobile(true)}
+            className="flex items-center gap-2.5 min-w-0 text-left"
+          >
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-brand-blue/10 text-brand-blue shrink-0">
+              <ShoppingBag className="w-5 h-5 text-brand-blue" />
+              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brand-blue text-white text-[10px] font-bold flex items-center justify-center border-2 border-white shadow-xs">
+                {items.length}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] text-gray-500 font-medium block uppercase tracking-wide">
+                Ver carrito ({totales.unidades % 1 === 0 ? totales.unidades : parseFloat(totales.unidades.toFixed(3))} und.)
+              </span>
+              <span className="text-base font-bold text-gray-900 tabular-nums">
+                S/ {totales.total.toFixed(2)}
+              </span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={abrirPago}
+            className="flex items-center justify-center gap-2 rounded-xl bg-brand-blue px-5 py-3 text-white text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all shrink-0"
+          >
+            Cobrar S/ {totales.total.toFixed(2)}
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Drawer / Modal Deslizante del Carrito en Móvil (lg:hidden) ── */}
+      {mostrarCarritoMobile && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200">
+          <div
+            className="fixed inset-0"
+            onClick={() => setMostrarCarritoMobile(false)}
+          />
+          <div className="relative z-10 w-full bg-white rounded-t-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
+            {/* Header del Drawer */}
+            <div className="shrink-0 px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-brand-blue" />
+                <span className="text-sm font-bold text-gray-900">
+                  Tu Carrito ({items.length} producto{items.length === 1 ? "" : "s"})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {items.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmarLimpiarTodo(true);
+                    }}
+                    className="flex items-center gap-1 text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Limpiar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMostrarCarritoMobile(false)}
+                  className="w-8 h-8 rounded-full bg-gray-200/70 text-gray-600 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Documento Cliente opcional en el drawer */}
+            <div className="shrink-0 px-4 pt-3">
+              <div className="relative">
+                <UserRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={documento}
+                  onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                  inputMode="numeric"
+                  placeholder="DNI o RUC del cliente (opcional)"
+                  className="w-full pl-8 pr-7 py-2 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all text-xs"
+                />
+                {documento && (
+                  <button
+                    type="button"
+                    onClick={() => setDocumento("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Lista de productos en el Drawer */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+              {items.map((i) => (
+                <div
+                  key={i.key}
+                  className="rounded-lg border border-gray-100 bg-white p-2.5 shadow-2xs space-y-1.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
+                        {i.descripcion}
+                        {i.tieneVencido && (
+                          <span title="Lote vencido sin retirar">
+                            <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                          </span>
+                        )}
+                      </p>
+                      <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-0.5">
+                        <span className="font-medium">S/</span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={i.precioStr !== undefined ? i.precioStr : i.precio === 0 ? "0" : i.precio}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(",", ".");
+                            if (raw === "" || raw === ".") {
+                              actualizarPrecioUnitarioDirecto(i.key, 0, raw);
+                            } else if (/^\d*\.?\d*$/.test(raw)) {
+                              const parsed = parseFloat(raw);
+                              if (!isNaN(parsed)) actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const raw = e.target.value.replace(",", ".");
+                            const parsed = parseFloat(raw);
+                            actualizarPrecioUnitarioDirecto(i.key, isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)), undefined);
+                          }}
+                          className="w-14 h-5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
+                        />
+                        <span>
+                          {i.unidadMedida ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}` : "c/u"}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
+                      className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => cambiarCantidad(i.key, -1)}
+                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={i.cantidadStr !== undefined ? i.cantidadStr : i.cantidad === 0 ? "" : i.cantidad}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(",", ".");
+                          if (raw === "" || raw === ".") {
+                            setItems((prev) => prev.map((it) => (it.key === i.key ? { ...it, cantidad: 0, cantidadStr: raw } : it)));
+                          } else if (/^\d*\.?\d*$/.test(raw)) {
+                            const parsed = parseFloat(raw);
+                            actualizarCantidadDirecta(i.key, isNaN(parsed) ? 0 : parsed, raw);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const raw = e.target.value.replace(",", ".");
+                          const parsed = parseFloat(raw);
+                          if (isNaN(parsed) || parsed <= 0) {
+                            setItems((prev) => prev.filter((it) => it.key !== i.key));
+                          } else {
+                            setItems((prev) => prev.map((it) => (it.key === i.key ? { ...it, cantidad: parseFloat(parsed.toFixed(3)), cantidadStr: undefined } : it)));
+                          }
+                        }}
+                        className="w-12 h-6 text-center text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums px-0.5"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => cambiarCantidad(i.key, 1)}
+                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] text-gray-400 font-medium">Total:</span>
+                      <span className="text-xs font-bold text-gray-900 tabular-nums">
+                        S/ {(i.precio * i.cantidad).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer del Drawer */}
+            <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-semibold text-gray-700">Total ({totales.unidades % 1 === 0 ? totales.unidades : parseFloat(totales.unidades.toFixed(3))} und.)</span>
+                <span className="font-bold text-brand-blue tabular-nums text-base">S/ {totales.total.toFixed(2)}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarCarritoMobile(false);
+                  abrirPago();
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-blue py-3.5 text-white text-base font-bold shadow-md hover:bg-blue-700 active:scale-[0.99] transition-all"
+              >
+                Cobrar S/ {totales.total.toFixed(2)}
+                <ArrowRight className="w-4.5 h-4.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ModalEliminar
         isOpen={confirmarLimpiarTodo}
