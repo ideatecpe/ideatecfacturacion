@@ -78,7 +78,9 @@ interface ItemCarrito {
   codigo: string | null;
   descripcion: string;
   cantidad: number;
+  cantidadStr?: string;
   precio: number; // precio de venta (con IGV incluido)
+  precioStr?: string;
   tipoAfectacionIGV: string;
   urlImagen: string | null;
   unidadMedida: string;
@@ -169,9 +171,17 @@ function ProductoGridCard({
 
         {/* Badge de seleccionado / Check + Cantidad (#008000) */}
         {seleccionado && (
-          <span className="absolute top-1.5 right-1.5 flex items-center justify-center gap-0.5 rounded-full bg-[#008000] text-white px-1.5 py-0.5 text-[10px] font-bold shadow-md animate-in zoom-in-75 duration-200 z-10">
-            <Check className="w-3 h-3 stroke-[3]" />
-            {cantidadEnCarrito > 1 && <span>{cantidadEnCarrito}</span>}
+          <span
+            className={`absolute top-1.5 right-1.5 flex items-center justify-center bg-[#008000] text-white shadow-md animate-in zoom-in-75 duration-200 z-10 ${
+              cantidadEnCarrito === 1
+                ? "w-6 h-6 rounded-full"
+                : "min-w-6 h-6 px-1.5 rounded-full gap-0.5 text-[10px] font-bold"
+            }`}
+          >
+            <Check className="w-3.5 h-3.5 stroke-3" />
+            {cantidadEnCarrito !== 1 && (
+              <span>{cantidadEnCarrito % 1 === 0 ? cantidadEnCarrito : parseFloat(cantidadEnCarrito.toFixed(3))}</span>
+            )}
           </span>
         )}
 
@@ -205,8 +215,8 @@ function ProductoGridCard({
           </p>
         )}
         {stockDisp !== null && stockDisp <= 10 && (
-          <p className="text-[9px] text-gray-300 leading-tight tabular-nums mt-0.5">
-            {stockDisp} disponibles
+          <p className="text-[10px] font-extrabold text-red-600 leading-tight tabular-nums mt-0.5">
+            {stockDisp} {stockDisp === 1 ? "unidad" : "unidades"}
           </p>
         )}
       </div>
@@ -220,7 +230,7 @@ export default function CajaAutopago() {
   const { showToast } = useToast();
 
   const sucursalId = user?.sucursalID ? parseInt(user.sucursalID) : null;
-  const { productosSucursal, fetchProductosSucursal } = useProductosSucursal(sucursalId, !!sucursalId);
+  const { productosSucursal, setProductosSucursal, fetchProductosSucursal } = useProductosSucursal(sucursalId, !!sucursalId);
   const { empresa } = useEmpresaEmisor();
   const { sucursal, fetchSucursal } = useSucursal();
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
@@ -229,7 +239,6 @@ export default function CajaAutopago() {
   const itemsRef = useRef<ItemCarrito[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
   const [busqueda, setBusqueda] = useState("");
-  const [itemAEliminar, setItemAEliminar] = useState<ItemCarrito | null>(null);
   const [confirmarLimpiarTodo, setConfirmarLimpiarTodo] = useState(false);
   const [mostrarPago, setMostrarPago] = useState(false);
   const [documento, setDocumento] = useState("");
@@ -307,8 +316,34 @@ export default function CajaAutopago() {
     setIsScanning(false);
   }, []);
 
+  const buscarEnServidor = useCallback(
+    async (queryStr: string): Promise<ProductoSucursal[]> => {
+      const q = queryStr.trim();
+      if (!sucursalId || !accessToken || !q) return [];
+      try {
+        const res = await axios.get<ProductoSucursal[]>(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/productos/buscar/${sucursalId}?palabra=${encodeURIComponent(q)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          setProductosSucursal((prev) => {
+            const map = new Map(prev.map((p) => [p.productoId, p]));
+            res.data.forEach((p) => map.set(p.productoId, p));
+            return Array.from(map.values());
+          });
+          return res.data;
+        }
+        return [];
+      } catch (err) {
+        console.error("Error en búsqueda remota de productos:", err);
+        return [];
+      }
+    },
+    [sucursalId, accessToken, setProductosSucursal],
+  );
+
   const processScannedBarcode = useCallback(
-    (decodedText: string) => {
+    async (decodedText: string) => {
       const code = decodedText.trim().toLowerCase();
       if (!code) return;
 
@@ -320,11 +355,22 @@ export default function CajaAutopago() {
       }
       lastScannedCodeRef.current = { code, time: now };
 
-      const p = productosSucursal.find(
+      let p = productosSucursal.find(
         (prod) =>
           prod.codigoBarras?.trim().toLowerCase() === code ||
           prod.codigo?.trim().toLowerCase() === code,
       );
+
+      if (!p) {
+        const remotos = await buscarEnServidor(code);
+        if (remotos.length > 0) {
+          p = remotos.find(
+            (prod) =>
+              prod.codigoBarras?.trim().toLowerCase() === code ||
+              prod.codigo?.trim().toLowerCase() === code,
+          ) ?? remotos[0];
+        }
+      }
 
       if (p) {
         if (config?.isStock && p.tipoProducto === "BIEN") {
@@ -340,7 +386,7 @@ export default function CajaAutopago() {
         showToast(`No se encontró producto con código: ${decodedText}`, "error");
       }
     },
-    [productosSucursal, config?.isStock, showToast, agregarProducto],
+    [productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor],
   );
 
   const startScanning = async () => {
@@ -510,18 +556,75 @@ export default function CajaAutopago() {
     }
     setItems((prev) =>
       prev
-        .map((i) =>
-          i.key === key ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i,
-        )
+        .map((i) => {
+          if (i.key !== key) return i;
+          const nuevaCant = parseFloat(Math.max(0, i.cantidad + delta).toFixed(3));
+          return { ...i, cantidad: nuevaCant };
+        })
         .filter((i) => i.cantidad > 0),
     );
   };
 
-  const confirmarEliminar = () => {
-    if (!itemAEliminar) return;
-    setItems((prev) => prev.filter((i) => i.key !== itemAEliminar.key));
-    setItemAEliminar(null);
+  const actualizarCantidadDirecta = (key: string, val: number, rawStr?: string) => {
+    if (isNaN(val) || val < 0) return;
+    const item = items.find((i) => i.key === key);
+    if (!item) return;
+    if (val > item.cantidad) {
+      const prod = productosSucursal.find((p) => p.productoId === item.productoId);
+      if (prod) {
+        const disp = calcularDisponible(prod, items, productosSucursal, config?.isStock ?? false);
+        const incremento = val - item.cantidad;
+        if (disp !== null && disp < incremento) {
+          showToast(
+            `Stock insuficiente para "${item.descripcion}". Máximo disponible: ${parseFloat((disp + item.cantidad).toFixed(3))}`,
+            "info",
+          );
+          return;
+        }
+      }
+    }
+    setItems((prev) =>
+      prev.map((i) => (i.key === key ? { ...i, cantidad: val, cantidadStr: rawStr } : i)),
+    );
   };
+
+  const actualizarPrecioUnitarioDirecto = (key: string, precioNuevo: number, rawStr?: string) => {
+    if (isNaN(precioNuevo) || precioNuevo < 0) return;
+    setItems((prev) =>
+      prev.map((i) => (i.key === key ? { ...i, precio: precioNuevo, precioStr: rawStr } : i)),
+    );
+  };
+
+  // Captura de lecturas de código de barras por escáner físico (USB / Bluetooth)
+  const scannerBufferRef = useRef<{ text: string; lastTime: number }>({ text: "", lastTime: 0 });
+
+  // ── Paginación y límite de renderizado inicial (36 ítems por página) ──
+  const [limiteVistaGrid, setLimiteVistaGrid] = useState(36);
+  useEffect(() => { setLimiteVistaGrid(36); }, [busqueda]);
+
+  const productosGridVisualizados = useMemo(() => {
+    return productosGrid.slice(0, limiteVistaGrid);
+  }, [productosGrid, limiteVistaGrid]);
+
+  // Búsqueda remota automática cuando no hay coincidencias locales
+  useEffect(() => {
+    const q = busqueda.trim();
+    if (q.length < 2) return;
+
+    const tieneCoincidenciaLocal = productosSucursal.some(
+      (p) =>
+        p.nomProducto?.toLowerCase().includes(q.toLowerCase()) ||
+        p.codigo?.toLowerCase().includes(q.toLowerCase()) ||
+        p.codigoBarras?.toLowerCase().includes(q.toLowerCase()),
+    );
+
+    if (!tieneCoincidenciaLocal) {
+      const timer = setTimeout(() => {
+        buscarEnServidor(q);
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [busqueda, productosSucursal, buscarEnServidor]);
 
   // Auto-adición instantánea al escanear con lector físico o ingresar código exacto
   useEffect(() => {
@@ -551,81 +654,131 @@ export default function CajaAutopago() {
 
   // Enter en el buscador o escáner de código de barras físico:
   // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
-  // limpiando la búsqueda para la siguiente lectura.
-  const onEnterBusqueda = useCallback((overrideQuery?: string) => {
-    const q = (overrideQuery ?? busqueda).trim().toLowerCase();
-    if (!q) return;
+  // limpiando siempre la búsqueda para la siguiente lectura.
+  const onEnterBusqueda = useCallback(
+    async (overrideQuery?: string) => {
+      const q = (overrideQuery ?? busqueda).trim().toLowerCase();
+      if (!q) return;
 
-    // 1. Buscar coincidencia exacta por código de barras o código
-    const exacto = productosSucursal.find(
-      (p) =>
-        p.codigoBarras?.trim().toLowerCase() === q ||
-        p.codigo?.trim().toLowerCase() === q,
-    );
-
-    if (exacto) {
-      if (config?.isStock && exacto.tipoProducto === "BIEN" && (exacto.sucursalProducto.stock ?? 0) <= 0) {
-        showToast(`El producto "${exacto.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
-        setBusqueda("");
-        return;
-      }
-      agregarProducto(exacto);
-      setBusqueda("");
-      return;
-    }
-
-    // 2. Si no hay coincidencia exacta, buscar si hay resultados en el grid
-    if (productosGrid.length > 0) {
-      const matchGrid = productosGrid.find(
+      // 1. Buscar coincidencia exacta local por código de barras o código
+      let exacto = productosSucursal.find(
         (p) =>
           p.codigoBarras?.trim().toLowerCase() === q ||
           p.codigo?.trim().toLowerCase() === q,
-      ) ?? productosGrid[0];
+      );
 
-      if (config?.isStock && matchGrid.tipoProducto === "BIEN" && (matchGrid.sucursalProducto.stock ?? 0) <= 0) {
-        showToast(`El producto "${matchGrid.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+      // 2. Si no está en memoria local, consultar al servidor
+      if (!exacto) {
+        const remotos = await buscarEnServidor(q);
+        if (remotos.length > 0) {
+          exacto = remotos.find(
+            (p) =>
+              p.codigoBarras?.trim().toLowerCase() === q ||
+              p.codigo?.trim().toLowerCase() === q,
+          ) ?? remotos[0];
+        }
+      }
+
+      if (exacto) {
+        if (config?.isStock && exacto.tipoProducto === "BIEN" && (exacto.sucursalProducto.stock ?? 0) <= 0) {
+          showToast(`El producto "${exacto.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+          setBusqueda("");
+          return;
+        }
+        agregarProducto(exacto);
+        showToast(`✓ Agregado: ${exacto.nomProducto}`, "success");
         setBusqueda("");
         return;
       }
 
-      agregarProducto(matchGrid);
-      setBusqueda("");
-    } else {
-      showToast("No se encontró ningún producto con ese código de barras o nombre.", "error");
-      setBusqueda("");
-    }
-  }, [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto]);
+      // 3. Si no hay coincidencia exacta, buscar si hay resultados en el grid
+      if (productosGrid.length > 0) {
+        const matchGrid = productosGrid.find(
+          (p) =>
+            p.codigoBarras?.trim().toLowerCase() === q ||
+            p.codigo?.trim().toLowerCase() === q,
+        ) ?? productosGrid[0];
+
+        if (config?.isStock && matchGrid.tipoProducto === "BIEN" && (matchGrid.sucursalProducto.stock ?? 0) <= 0) {
+          showToast(`El producto "${matchGrid.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+          setBusqueda("");
+          return;
+        }
+
+        agregarProducto(matchGrid);
+        setBusqueda("");
+      } else {
+        showToast(`No se encontró producto con el código o nombre: "${q}"`, "error");
+        setBusqueda("");
+      }
+    },
+    [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor],
+  );
+
+  // Foco inicial único al cargar la página
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   // Captura global de lecturas de códigos de barras (escáner físico USB/Bluetooth)
   // incluso si el usuario hace clic afuera del input.
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (mostrarPago || !!itemAEliminar) return;
+      if (mostrarPago) return;
 
-      const activeElement = document.activeElement;
-      const isInput =
-        !!activeElement &&
-        (activeElement.tagName === "INPUT" ||
-          activeElement.tagName === "TEXTAREA" ||
-          activeElement.tagName === "SELECT" ||
-          (activeElement as HTMLElement).isContentEditable);
+      const target = e.target as HTMLElement | null;
+      const active = document.activeElement;
+      const isEditingOther =
+        (!!target &&
+          target !== inputRef.current &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.tagName === "SELECT" ||
+            target.isContentEditable)) ||
+        (!!active &&
+          active !== inputRef.current &&
+          (active.tagName === "INPUT" ||
+            active.tagName === "TEXTAREA" ||
+            active.tagName === "SELECT" ||
+            (active as HTMLElement).isContentEditable));
 
-      if (isInput) return;
+      if (isEditingOther) return;
+
+      const now = Date.now();
+      const timeDiff = now - scannerBufferRef.current.lastTime;
+
+      // Si las teclas se envían en menos de 45ms (típico de pistola de código de barras)
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (timeDiff < 45) {
+          scannerBufferRef.current.text += e.key;
+        } else {
+          scannerBufferRef.current.text = e.key;
+        }
+        scannerBufferRef.current.lastTime = now;
+      }
 
       if (e.key === "Enter") {
-        e.preventDefault();
-        onEnterBusqueda();
+        const barcodeFromScanner = scannerBufferRef.current.text.trim();
+        const currentQuery = (inputRef.current?.value || busqueda).trim();
+        const queryToUse = barcodeFromScanner.length >= 3 ? barcodeFromScanner : currentQuery;
+
+        scannerBufferRef.current = { text: "", lastTime: 0 };
+
+        if (queryToUse) {
+          e.preventDefault();
+          onEnterBusqueda(queryToUse);
+        }
         return;
       }
 
-      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (!isEditingOther && document.activeElement !== inputRef.current && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         inputRef.current?.focus();
       }
     };
 
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [onEnterBusqueda, mostrarPago, itemAEliminar]);
+  }, [onEnterBusqueda, mostrarPago, busqueda]);
 
   // ── Totales (con desglose por afectación de IGV, para el payload real) ──
   const totales = useMemo(() => {
@@ -1446,7 +1599,7 @@ export default function CajaAutopago() {
               <button
                 onClick={enviarComprobantePorWhatsapp}
                 disabled={!telWhatsapp.trim() || enviandoWhatsapp}
-                className="h-[34px] px-3.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center justify-center"
+                className="h-8.5 px-3.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center justify-center"
               >
                 {enviandoWhatsapp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Enviar"}
               </button>
@@ -1468,7 +1621,7 @@ export default function CajaAutopago() {
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
     <>
-      <div className="w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:h-[calc(100vh-140px)] lg:overflow-hidden animate-in fade-in duration-500">
+      <div className="w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:h-[calc(100vh-125px)] lg:overflow-hidden animate-in fade-in duration-500">
         {/* ── Columna izquierda: buscador + grid de productos ── */}
         <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden">
           <div className="shrink-0 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
@@ -1476,7 +1629,6 @@ export default function CajaAutopago() {
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 ref={inputRef}
-                autoFocus
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 onKeyDown={(e) => {
@@ -1486,7 +1638,7 @@ export default function CajaAutopago() {
                   }
                 }}
                 placeholder="Escanea con la cámara, lector físico o busca por nombre / código"
-                className="w-full h-[38px] pl-8 pr-7 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+                className="w-full h-9.5 pl-8 pr-7 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
               />
               {busqueda && (
                 <button
@@ -1503,7 +1655,7 @@ export default function CajaAutopago() {
               <button
                 type="button"
                 onClick={startScanning}
-                className="h-[38px] flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0"
+                className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0"
               >
                 <ScanBarcode size={14} />
                 <span className="hidden sm:inline">Cámara</span>
@@ -1512,7 +1664,7 @@ export default function CajaAutopago() {
               <button
                 type="button"
                 onClick={stopScanning}
-                className="h-[38px] flex items-center justify-center gap-1.5 px-3 bg-rose-500 text-white rounded-md text-xs font-semibold hover:bg-rose-600 active:scale-[0.98] transition-all shadow-sm shrink-0"
+                className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-rose-500 text-white rounded-md text-xs font-semibold hover:bg-rose-600 active:scale-[0.98] transition-all shadow-sm shrink-0"
               >
                 <X size={14} />
                 <span>Cerrar</span>
@@ -1531,7 +1683,7 @@ export default function CajaAutopago() {
                   {items.length} producto{items.length === 1 ? "" : "s"} en el carrito
                 </span>
               </div>
-              <div className="relative w-full max-w-[260px] aspect-square mx-auto bg-black rounded-2xl overflow-hidden border border-white/15 shadow-xl flex items-center justify-center">
+              <div className="relative w-full max-w-65 aspect-square mx-auto bg-black rounded-2xl overflow-hidden border border-white/15 shadow-xl flex items-center justify-center">
                 <video
                   ref={videoRef}
                   className="absolute inset-0 w-full h-full object-cover"
@@ -1569,22 +1721,36 @@ export default function CajaAutopago() {
                 <p className="text-gray-400 text-sm mt-1">Prueba con otro nombre o código</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5">
-                {productosGrid.map((p) => {
-                  const itemCarrito = items.find((i) => i.productoId === p.productoId);
-                  const stockDisp = config?.isStock
-                    ? calcularDisponible(p, items, productosSucursal, true)
-                    : null;
-                  return (
-                    <ProductoGridCard
-                      key={p.productoId}
-                      p={p}
-                      cantidadEnCarrito={itemCarrito?.cantidad ?? 0}
-                      stockDisp={stockDisp}
-                      onClick={() => agregarProducto(p)}
-                    />
-                  );
-                })}
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5">
+                  {productosGridVisualizados.map((p) => {
+                    const itemCarrito = items.find((i) => i.productoId === p.productoId);
+                    const stockDisp = config?.isStock
+                      ? calcularDisponible(p, items, productosSucursal, true)
+                      : null;
+                    return (
+                      <ProductoGridCard
+                        key={p.productoId}
+                        p={p}
+                        cantidadEnCarrito={itemCarrito?.cantidad ?? 0}
+                        stockDisp={stockDisp}
+                        onClick={() => agregarProducto(p)}
+                      />
+                    );
+                  })}
+                </div>
+
+                {productosGrid.length > limiteVistaGrid && (
+                  <div className="flex justify-center pt-2 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => setLimiteVistaGrid((prev) => prev + 36)}
+                      className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-semibold transition-colors shadow-2xs"
+                    >
+                      Cargar más productos (mostrando {limiteVistaGrid} de {productosGrid.length})
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1592,16 +1758,18 @@ export default function CajaAutopago() {
 
         {/* ── Columna derecha: marca + documento + carrito ── */}
         <div className="w-full lg:w-96 shrink-0 flex flex-col bg-gray-50/40 lg:overflow-hidden">
-          <div
-            className="shrink-0 px-5 py-4 text-white flex items-center gap-3"
-            style={{ background: "linear-gradient(180deg, #0f2e64 0%, #091a3d 100%)" }}
+        <div
+            className="shrink-0 px-5 py-4 text-white flex items-center gap-3 relative overflow-hidden bg-cover bg-center"
+            style={{
+              backgroundImage: "linear-gradient(rgba(15, 46, 100, 0.90), rgba(9, 26, 61, 0.20)), url('/banner.jpeg')",
+            }}
           >
-            <div className="w-9 h-9 rounded-md bg-white/15 flex items-center justify-center shrink-0">
-              <Store className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-md bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20 shadow-sm z-10">
+              <Store className="w-5 h-5 text-white" />
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold leading-tight">Caja Autopago</p>
-              <p className="text-[11px] text-blue-100 truncate">
+            <div className="min-w-0 relative z-10">
+              <p className="text-sm font-bold leading-tight drop-shadow-xs">Caja Autopago</p>
+              <p className="text-[11px] text-blue-100 truncate font-medium">
                 {user?.nombreEmpresa ?? ""}
                 {user?.nombreSucursal ? ` · ${user.nombreSucursal}` : ""}
               </p>
@@ -1664,54 +1832,151 @@ export default function CajaAutopago() {
               items.map((i) => (
                 <div
                   key={i.key}
-                  className="flex items-center gap-3 rounded-md border border-gray-100 bg-white px-3 py-2.5 hover:border-gray-200 transition-colors"
+                  className="rounded-lg border border-gray-100 bg-white p-2 hover:border-gray-200 transition-all shadow-2xs space-y-1.5"
                 >
-                  <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="md" />
+                  {/* Fila superior: Imagen + Nombre + Precio Unitario Editable + Eliminar */}
+                  <div className="flex items-center gap-2">
+                    <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
 
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate flex items-center gap-1">
-                      {i.descripcion}
-                      {i.tieneVencido && (
-                        <span title="Lote vencido sin retirar">
-                          <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
+                        {i.descripcion}
+                        {i.tieneVencido && (
+                          <span title="Lote vencido sin retirar">
+                            <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                          </span>
+                        )}
+                      </p>
+
+                      {/* Precio Unitario Editable */}
+                      <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-0.5">
+                        <span className="font-medium">S/</span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={
+                            i.precioStr !== undefined
+                              ? i.precioStr
+                              : i.precio === 0
+                                ? "0"
+                                : i.precio
+                          }
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(",", ".");
+                            if (raw === "" || raw === ".") {
+                              actualizarPrecioUnitarioDirecto(i.key, 0, raw);
+                            } else if (/^\d*\.?\d*$/.test(raw)) {
+                              const parsed = parseFloat(raw);
+                              if (!isNaN(parsed)) {
+                                actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
+                              }
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const raw = e.target.value.replace(",", ".");
+                            const parsed = parseFloat(raw);
+                            actualizarPrecioUnitarioDirecto(
+                              i.key,
+                              isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)),
+                              undefined,
+                            );
+                          }}
+                          className="w-14 h-4.5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
+                          title="Haz clic para cambiar el precio unitario"
+                        />
+                        <span>
+                          {i.unidadMedida
+                            ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}`
+                            : "c/u"}
                         </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-gray-400">S/ {i.precio.toFixed(2)} c/u</p>
-                  </div>
+                      </div>
+                    </div>
 
-                  {/* Control de cantidad */}
-                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Eliminar */}
                     <button
-                      onClick={() => cambiarCantidad(i.key, -1)}
-                      className="h-7 w-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                      type="button"
+                      onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
+                      className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
+                      title="Eliminar producto"
                     >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="w-7 text-center text-sm font-bold text-gray-800 tabular-nums">
-                      {i.cantidad}
-                    </span>
-                    <button
-                      onClick={() => cambiarCantidad(i.key, 1)}
-                      className="h-7 w-7 flex items-center justify-center rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  {/* Total de línea */}
-                  <span className="w-20 text-right text-sm font-bold text-gray-900 tabular-nums shrink-0">
-                    S/ {(i.precio * i.cantidad).toFixed(2)}
-                  </span>
+                  {/* Fila inferior: Control de Cantidad (Izquierda) + Total de Línea (Derecha en 1 sola línea) */}
+                  <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => cambiarCantidad(i.key, -1)}
+                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+                        title="Disminuir"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
 
-                  {/* Eliminar */}
-                  <button
-                    onClick={() => setItemAEliminar(i)}
-                    className="h-7 w-7 flex items-center justify-center rounded-md text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
-                    title="Eliminar producto"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={
+                          i.cantidadStr !== undefined
+                            ? i.cantidadStr
+                            : i.cantidad === 0
+                              ? ""
+                              : i.cantidad
+                        }
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(",", ".");
+                          if (raw === "" || raw === ".") {
+                            setItems((prev) =>
+                              prev.map((it) =>
+                                it.key === i.key ? { ...it, cantidad: 0, cantidadStr: raw } : it,
+                              ),
+                            );
+                          } else if (/^\d*\.?\d*$/.test(raw)) {
+                            const parsed = parseFloat(raw);
+                            const val = isNaN(parsed) ? 0 : parsed;
+                            actualizarCantidadDirecta(i.key, val, raw);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const raw = e.target.value.replace(",", ".");
+                          const parsed = parseFloat(raw);
+                          if (isNaN(parsed) || parsed <= 0) {
+                            setItems((prev) => prev.filter((it) => it.key !== i.key));
+                          } else {
+                            setItems((prev) =>
+                              prev.map((it) =>
+                                it.key === i.key
+                                  ? { ...it, cantidad: parseFloat(parsed.toFixed(3)), cantidadStr: undefined }
+                                  : it,
+                              ),
+                            );
+                          }
+                        }}
+                        className="w-12 h-6 text-center text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums px-0.5"
+                        title="Ingresa la cantidad o peso (ej. 0.5, 0.4)"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => cambiarCantidad(i.key, 1)}
+                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+                        title="Aumentar"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] text-gray-400 font-medium">Total:</span>
+                      <span className="text-xs font-bold text-gray-900 tabular-nums">
+                        S/ {(i.precio * i.cantidad).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               ))
             )}
@@ -1719,19 +1984,11 @@ export default function CajaAutopago() {
 
           {/* Footer con totales y cobrar — fijo en la parte inferior en mobile */}
           <div className="shrink-0 sticky bottom-0 lg:static border-t border-gray-200 bg-white px-4 py-4 space-y-3 z-10">
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>Subtotal</span>
-              <span className="tabular-nums">S/ {totales.subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>IGV ({igvPct}%)</span>
-              <span className="tabular-nums">S/ {totales.igv.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+            <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-gray-700">
-                Total ({totales.unidades} und.)
+                Total ({totales.unidades % 1 === 0 ? totales.unidades : parseFloat(totales.unidades.toFixed(3))} und.)
               </span>
-              <span className="text-xl font-bold text-brand-blue tabular-nums">
+              <span className="text-base font-bold text-brand-blue tabular-nums">
                 S/ {totales.total.toFixed(2)}
               </span>
             </div>
@@ -1746,15 +2003,6 @@ export default function CajaAutopago() {
           </div>
         </div>
       </div>
-
-      <ModalEliminar
-        isOpen={!!itemAEliminar}
-        mensaje="Quitarás de la venta"
-        nombre={itemAEliminar?.descripcion ?? ""}
-        documento={itemAEliminar?.codigo ?? undefined}
-        onClose={() => setItemAEliminar(null)}
-        onConfirm={confirmarEliminar}
-      />
 
       <ModalEliminar
         isOpen={confirmarLimpiarTodo}
@@ -1796,14 +2044,23 @@ export default function CajaAutopago() {
             </div>
 
             <div className="rounded-md bg-gray-50 px-4 py-3 space-y-1 text-sm">
-              <div className="flex justify-between text-gray-500">
-                <span>Base imponible</span>
-                <span className="tabular-nums">S/ {totales.subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-gray-500">
-                <span>IGV ({igvPct}%)</span>
-                <span className="tabular-nums">S/ {totales.igv.toFixed(2)}</span>
-              </div>
+              {tipoComprobante !== "Nota de Venta" ? (
+                <>
+                  <div className="flex justify-between text-gray-500">
+                    <span>Base imponible</span>
+                    <span className="tabular-nums">S/ {totales.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500">
+                    <span>IGV ({igvPct}%)</span>
+                    <span className="tabular-nums">S/ {totales.igv.toFixed(2)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-gray-500 text-xs italic">
+                  <span>Nota de Venta</span>
+                  <span>Sin IGV discriminado</span>
+                </div>
+              )}
               <div className="flex justify-between text-lg font-bold text-gray-900 pt-1.5 border-t border-gray-200">
                 <span>Total</span>
                 <span className="tabular-nums">S/ {totales.total.toFixed(2)}</span>
