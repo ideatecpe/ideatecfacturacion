@@ -2570,6 +2570,7 @@ export default function CajaAutopago() {
                       <input
                         value={montoRecibido}
                         onChange={(e) => setMontoRecibido(e.target.value.replace(/[^0-9.]/g, ""))}
+                        onFocus={(e) => e.target.select()}
                         inputMode="decimal"
                         className="w-full h-11 pl-8 pr-3 rounded-md border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                       />
