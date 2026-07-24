@@ -231,7 +231,7 @@ export default function CajaAutopago() {
   const { showToast } = useToast();
 
   const sucursalId = user?.sucursalID ? parseInt(user.sucursalID) : null;
-  const { productosSucursal, setProductosSucursal, fetchProductosSucursal } = useProductosSucursal(sucursalId, !!sucursalId);
+  const { productosSucursal, loadingSucursal, setProductosSucursal, fetchProductosSucursal } = useProductosSucursal(sucursalId, !!sucursalId);
   const { empresa } = useEmpresaEmisor();
   const { sucursal, fetchSucursal } = useSucursal();
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
@@ -1508,9 +1508,7 @@ export default function CajaAutopago() {
   const nuevaVenta = () => {
     setItems([]);
     setDocumento("");
-    setTipoSinDocumento("Boleta");
     setTipoConDocumento("Boleta");
-    tipoSinDocInitRef.current = false;
     setMedioPago("Efectivo");
     setMontoRecibido("");
     setNotaPago("");
@@ -1724,7 +1722,19 @@ export default function CajaAutopago() {
           )}
 
           <div className="flex-1 lg:overflow-y-auto p-3">
-            {productosGrid.length === 0 ? (
+            {loadingSucursal ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5 animate-pulse">
+                {Array.from({ length: 24 }).map((_, i) => (
+                  <div key={i} className="flex flex-col rounded-md border border-gray-100 bg-white overflow-hidden">
+                    <div className="aspect-square w-full bg-gray-100" />
+                    <div className="p-1 space-y-1.5">
+                      <div className="h-2.5 bg-gray-100 rounded w-3/4" />
+                      <div className="h-3 bg-gray-100 rounded w-1/2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : productosGrid.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
                 <div className="bg-gray-100 rounded-full p-5 mb-4">
                   <PackageSearch className="w-10 h-10 text-gray-300" />
