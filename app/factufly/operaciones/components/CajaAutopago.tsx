@@ -43,6 +43,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useProductosSucursal } from "@/app/factufly/productos/gestioProductos/useProductosSucursal";
 import { ProductoSucursal } from "@/app/factufly/productos/gestioProductos/Producto";
+import { abreviaturaUnidad, formatearCantidadUnidad } from "@/app/factufly/productos/gestioProductos/unidadMedida";
 import ImagenProductoCuadrada from "@/app/factufly/operaciones/components/ImagenProductoCuadrada";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { Modal } from "@/app/components/ui/Modal";
@@ -217,7 +218,7 @@ function ProductoGridCard({
         )}
         {stockDisp !== null && stockDisp <= 10 && (
           <p className="text-[10px] font-extrabold text-red-600 leading-tight tabular-nums mt-0.5">
-            {stockDisp} {stockDisp === 1 ? "unidad" : "unidades"}
+            {formatearCantidadUnidad(stockDisp, p.unidadMedida)} {abreviaturaUnidad(p.unidadMedida)}
           </p>
         )}
       </div>
@@ -521,6 +522,59 @@ export default function CajaAutopago() {
   const sinDocumento = documentoTrim.length === 0;
   const esRuc = documentoTrim.length === 11;
   const tipoComprobante = sinDocumento ? tipoSinDocumento : esRuc ? "Factura" : tipoConDocumento;
+
+  // Consulta el nombre / razón social en cuanto se escribe un documento válido
+  // (8=DNI, 9=CE, 11=RUC), con debounce. Guarda el último documento consultado
+  // para no repetir la llamada al abrir el modal de cobro: una sola consulta a la
+  // API por documento. buscarCliente no está memoizado, se accede por ref.
+  const buscarClienteRef = useRef(buscarCliente);
+  useEffect(() => { buscarClienteRef.current = buscarCliente; });
+  const ultimoDocConsultadoRef = useRef("");
+  useEffect(() => {
+    const len = documentoTrim.length;
+    if (![8, 9, 11].includes(len)) {
+      ultimoDocConsultadoRef.current = "";
+      return;
+    }
+    if (ultimoDocConsultadoRef.current === documentoTrim) return;
+    const timer = setTimeout(() => {
+      ultimoDocConsultadoRef.current = documentoTrim;
+      buscarClienteRef.current(len === 11 ? "06" : len === 9 ? "04" : "01", documentoTrim);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [documentoTrim]);
+
+  // Línea de estado del cliente bajo el input de documento (nombre confirmable
+  // sin abrir el modal). Se compara numeroDocumento para nunca mostrar un nombre
+  // que corresponde a un documento anterior (evita datos obsoletos al reescribir).
+  const estadoClienteInline = (() => {
+    if (!documentoTrim) return null;
+    if (![8, 9, 11].includes(documentoTrim.length))
+      return (
+        <span className="flex items-center gap-1 text-amber-600">
+          <AlertTriangle className="w-3 h-3 shrink-0" /> Faltan dígitos (DNI 8 · CE 9 · RUC 11)
+        </span>
+      );
+    if (loadingCliente)
+      return (
+        <span className="flex items-center gap-1 text-gray-400">
+          <Loader2 className="w-3 h-3 animate-spin shrink-0" /> Buscando cliente…
+        </span>
+      );
+    if (errorCliente)
+      return (
+        <span className="flex items-center gap-1 text-rose-500">
+          <AlertTriangle className="w-3 h-3 shrink-0" /> {errorCliente}
+        </span>
+      );
+    if (cliente?.numeroDocumento === documentoTrim && cliente?.razonSocial)
+      return (
+        <span className="flex items-center gap-1.5 font-semibold" style={{ color: "#008000" }}>
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> {cliente.razonSocial}
+        </span>
+      );
+    return null;
+  })();
 
   // ── Grid de productos (filtrado en vivo por el buscador) ───────
   const productosGrid = useMemo(() => {
@@ -1259,8 +1313,24 @@ export default function CajaAutopago() {
           .map((p) => ({ nomProducto: p.nomProducto, stock: p.sucursalProducto.stock ?? 0 }));
         if (bajos.length) avisarStockBajoWhatsapp(bajos, sucursal.numeroStockBajo);
       }
-    } catch {
-      showToast("No se pudo actualizar el stock de los productos.", "error");
+    } catch (err) {
+      // La venta YA quedó registrada; lo que falló es solo el descuento de stock.
+      // Se avisa explícitamente para que el cajero sepa que debe ajustarlo a mano.
+      const axErr = err as {
+        response?: { status?: number; data?: { mensaje?: string; message?: string; detalle?: string } };
+      };
+      const data = axErr?.response?.data;
+      const motivo = data?.detalle ?? data?.mensaje ?? data?.message;
+      showToast(
+        motivo
+          ? `Venta registrada, pero no se descontó el stock: ${motivo}`
+          : "Venta registrada, pero no se pudo descontar el stock. Ajústalo manualmente.",
+        "error",
+      );
+      console.error(
+        "descontar-stock falló:",
+        { status: axErr?.response?.status, data: axErr?.response?.data, payloadItems },
+      );
     }
   };
 
@@ -1394,9 +1464,9 @@ export default function CajaAutopago() {
       showToast("El documento debe tener 8 (DNI), 9 (CE) u 11 (RUC) dígitos, o déjalo vacío", "error");
       return;
     }
-    if (len === 8) buscarCliente("01", documentoTrim);
-    else if (len === 9) buscarCliente("04", documentoTrim);
-    else if (len === 11) buscarCliente("06", documentoTrim);
+    // El cliente ya se consultó al escribir el documento (efecto con debounce),
+    // así que aquí no se vuelve a llamar a la API. Si el debounce aún no disparó
+    // (clic muy rápido), el efecto pendiente lo resuelve una sola vez.
     setTipoConDocumento("Boleta");
     setMedioPago("Efectivo");
     setMontoRecibido(totales.total.toFixed(2));
@@ -1819,9 +1889,13 @@ export default function CajaAutopago() {
                 </button>
               )}
             </div>
-            <p className="text-xs text-gray-400 mt-1 px-1">
-              DNI/CE → Boleta{config?.useNotaVenta ? " o Nota de Venta" : ""} · RUC → Factura · Vacío → Clientes varios
-            </p>
+            {documentoTrim ? (
+              <div className="text-xs mt-1.5 px-1">{estadoClienteInline}</div>
+            ) : (
+              <p className="text-xs text-gray-400 mt-1 px-1">
+                DNI/CE → Boleta{config?.useNotaVenta ? " o Nota de Venta" : ""} · RUC → Factura · Vacío → Clientes varios
+              </p>
+            )}
           </div>
 
           <div className="flex-1 lg:overflow-y-auto px-3 py-3 space-y-2">
@@ -2120,6 +2194,7 @@ export default function CajaAutopago() {
                   </button>
                 )}
               </div>
+              {documentoTrim && <div className="text-xs mt-1.5 px-1">{estadoClienteInline}</div>}
             </div>
 
             {/* Lista de productos en el Drawer */}
@@ -2280,7 +2355,7 @@ export default function CajaAutopago() {
                   <div key={i.key} className="flex items-center justify-between gap-3 px-3 py-2.5">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">
-                        {i.cantidad}x {i.descripcion}
+                        {i.cantidad} {abreviaturaUnidad(i.unidadMedida)} · {i.descripcion}
                       </p>
                       <p className="text-xs text-gray-400">{i.unidadMedida}</p>
                     </div>

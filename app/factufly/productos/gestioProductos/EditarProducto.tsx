@@ -12,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useProductosEmpresaLista } from "./useProductosEmpresaLista";
 import ModalCatalogoSunat from "./ModalCatalogoSunat";
+import { esUnidadContable } from "./unidadMedida";
 
 
 interface Props {
@@ -153,9 +154,25 @@ export default function EditarProducto({
       }
 
       if (field === "tipoProducto") {
+        const tipoProducto = value as string;
+        const nuevaUnidad = tipoProducto === "SERVICIO" ? "ZZ" : "NIU";
         setForm((prev) => ({
           ...prev,
-          tipoProducto: value as string,
+          tipoProducto,
+          unidadMedida: nuevaUnidad,
+          // Un servicio no lleva código de barras.
+          codigoBarras: esUnidadContable(nuevaUnidad) ? prev.codigoBarras : "",
+        }));
+        return;
+      }
+
+      if (field === "unidadMedida") {
+        const nuevaUnidad = value as string;
+        setForm((prev) => ({
+          ...prev,
+          unidadMedida: nuevaUnidad,
+          // Solo Unidad / Caja conservan código de barras; kilo, litro, metro, etc. lo limpian.
+          codigoBarras: esUnidadContable(nuevaUnidad) ? prev.codigoBarras : "",
         }));
         return;
       }
@@ -533,9 +550,16 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
           >
             <option value="NIU">NIU - Unidad</option>
-            <option value="KGM">KGM - Kilogramo</option>
-            <option value="LTR">LTR - Litro</option>
             <option value="ZZ">ZZ - Servicio</option>
+            <option value="KGM">KGM - Kilogramo</option>
+            <option value="GRM">GRM - Gramo</option>
+            <option value="TNE">TNE - Tonelada métrica</option>
+            <option value="LTR">LTR - Litro</option>
+            <option value="MLT">MLT - Mililitro</option>
+            <option value="MTR">MTR - Metro</option>
+            <option value="MTK">MTK - Metro cuadrado</option>
+            <option value="MTQ">MTQ - Metro cúbico</option>
+            <option value="BX">BX - Caja</option>
           </select>
         </div>
       </div>
@@ -587,22 +611,25 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <InputBase
-            label="Código de Barras"
-            labelOptional="(opcional)"
-            value={form.codigoBarras ?? ""}
-            onChange={onChange("codigoBarras")}
-            placeholder="EAN13 / Code128"
-          />
-          <button
-            type="button"
-            disabled
-            className="text-[10px] font-semibold text-gray-300 cursor-not-allowed"
-          >
-            Generar código automático
-          </button>
-        </div>
+        {/* Código de barras: solo unidades contables (Unidad / Caja) */}
+        {esUnidadContable(form.unidadMedida) && (
+          <div className="space-y-1.5">
+            <InputBase
+              label="Código de Barras"
+              labelOptional="(opcional)"
+              value={form.codigoBarras ?? ""}
+              onChange={onChange("codigoBarras")}
+              placeholder="EAN13 / Code128"
+            />
+            <button
+              type="button"
+              disabled
+              className="text-[10px] font-semibold text-gray-300 cursor-not-allowed"
+            >
+              Generar código automático
+            </button>
+          </div>
+        )}
 
         <CodigoSunatEditar
           value={form.codigoSunat ?? ""}

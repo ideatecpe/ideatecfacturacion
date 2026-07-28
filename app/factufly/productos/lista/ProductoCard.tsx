@@ -9,6 +9,7 @@ import { cn } from "@/app/utils/cn";
 import { conVarianteImagen } from "@/app/utils/cloudflareImagen";
 import { formatoBarcodeSeguro } from "../gestioProductos/barcodeFormato";
 import { ProductoSucursal } from "../gestioProductos/Producto";
+import { abreviaturaUnidad, formatearCantidadUnidad } from "../gestioProductos/unidadMedida";
 
 // Umbral de alerta de vencimiento (días): a partir de aquí se marca el producto
 // como "próximo a vencer" en la tarjeta.
@@ -207,7 +208,8 @@ export default function ProductoCard({
                         : "text-gray-900",
                   )}
                 >
-                  STOCK: {prod.sucursalProducto.stock} und.
+                  STOCK: {formatearCantidadUnidad(prod.sucursalProducto.stock ?? 0, prod.unidadMedida)}{" "}
+                  {abreviaturaUnidad(prod.unidadMedida)}
                 </p>
               )}
             </>

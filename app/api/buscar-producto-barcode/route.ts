@@ -1,5 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Normaliza para comparar: quita espacios, comas y puntos, y pasa a minúsculas.
+// Así "750 ml" = "750ml" y "1,5 L" = "1.5L" se consideran iguales.
+const normalizar = (s: string) => s.toLowerCase().replace(/[\s.,]+/g, "");
+
+// Estandariza el nombre a "Primera Letra De Cada Palabra En Mayúscula", porque
+// Open Food Facts devuelve mayúsculas inconsistentes ("Agua con gas ... San Luis").
+// Usa \p{L} para respetar acentos y ñ, y solo toca las letras (no dígitos ni unidades).
+const aTitulo = (s: string) =>
+  s.replace(/\p{L}+/gu, (palabra) => palabra.charAt(0).toUpperCase() + palabra.slice(1).toLowerCase());
+
+// Une el nombre con la cantidad ("Agua San Luis" + "750ml" → "Agua San Luis 750ml"),
+// pero si el nombre YA incluye la cantidad no la repite ("Agua San Luis 750ml" se
+// queda igual).
+function combinarNombreCantidad(nombre: string, cantidad: string): string {
+  if (!nombre) return nombre;
+  if (!cantidad) return nombre;
+  if (normalizar(nombre).includes(normalizar(cantidad))) return nombre;
+  return `${nombre} ${cantidad}`;
+}
+
 // Busca datos de un producto por su código de barras en Open Food Facts
 // (base de datos abierta y gratuita de productos de supermercado). Si encuentra
 // una imagen, la descarga y la sube a Cloudflare Images (a la cuenta propia),
@@ -30,7 +50,7 @@ export async function POST(req: NextRequest) {
   try {
     const offRes = await fetch(
       `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json` +
-        `?fields=product_name,product_name_es,brands,image_front_url,image_url`,
+        `?fields=product_name,product_name_es,brands,image_front_url,image_url,quantity`,
       {
         headers: {
           // Open Food Facts pide identificar la app en el User-Agent.
@@ -49,8 +69,9 @@ export async function POST(req: NextRequest) {
   }
 
   const p = off.product;
-  const nombre: string =
-    (p.product_name_es || p.product_name || "").trim();
+  const nombreBase: string = aTitulo((p.product_name_es || p.product_name || "").trim());
+  const cantidad: string = (p.quantity || "").trim();
+  const nombre: string = combinarNombreCantidad(nombreBase, cantidad);
   const marca: string = (p.brands || "").split(",")[0]?.trim() ?? "";
   const imagenUrl: string | undefined = p.image_front_url || p.image_url;
 

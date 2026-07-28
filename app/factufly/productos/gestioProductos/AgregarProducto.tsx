@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { scanImageData } from "@undecaf/zbar-wasm";
 import dynamic from "next/dynamic";
 import axios from "axios";
-import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, Globe, Loader2, CameraOff } from "lucide-react";
+import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, Loader2, CameraOff } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 
 const BarcodePreview = dynamic(() => import("react-barcode"), { ssr: false });
@@ -28,6 +28,7 @@ import ModalAgregarCategoria from "./ModalAgregarCategoria";
 import ModalCatalogoSunat from "./ModalCatalogoSunat";
 import { SelectConAgregar } from "@/app/components/ui/SelectConAgregar";
 import { generarEAN13Interno, formatoBarcodeSeguro } from "./barcodeFormato";
+import { esUnidadContable } from "./unidadMedida";
 
 interface Props {
   isOpen: boolean;
@@ -97,6 +98,14 @@ export default function AgregarProducto({
   const [sugerencias, setSugerencias] = React.useState<ProductoBase[]>([]);
   const [showSugerencias, setShowSugerencias] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  // Debounce para la búsqueda por internet cuando se pega un código de barras
+  // directamente en el campo Nombre.
+  const busquedaBarcodeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    return () => {
+      if (busquedaBarcodeTimerRef.current) clearTimeout(busquedaBarcodeTimerRef.current);
+    };
+  }, []);
 
   const [showNuevaCategoria, setShowNuevaCategoria] = useState(false);
   const [nombreNuevaCategoria, setNombreNuevaCategoria] = useState("");
@@ -385,6 +394,9 @@ export default function AgregarProducto({
             nombre,
             productosEmpresa.length === 0 ? 0 : productosEmpresa.length,
           ),
+          // Guarda el código buscado (solo si la unidad admite código de barras),
+          // para que quede registrado e imprimible sin re-teclearlo.
+          codigoBarras: esUnidadContable(prev.unidadMedida) ? barcode : prev.codigoBarras,
         }));
         if (errors.nomProducto) setErrors((prev) => ({ ...prev, nomProducto: false }));
       }
@@ -478,7 +490,13 @@ export default function AgregarProducto({
   // REEMPLAZA ESTA FUNCIÓN COMPLETA:
   const handleNomProductoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setPalabraBusqueda(value);
+
+    // Si lo que se escribe/pega es SOLO dígitos con largo de código de barras
+    // (EAN-8, UPC, EAN-13, ITF-14), se trata como un código: se busca por
+    // internet y se rellena nombre + foto, sin ir al campo de código de abajo.
+    const esCodigoBarras = /^\d{8,14}$/.test(value.trim());
+
+    setPalabraBusqueda(esCodigoBarras ? "" : value);
 
     // 👇 genera código automático usando el componente
     const codigoAuto =
@@ -495,10 +513,25 @@ export default function AgregarProducto({
     if (errors.nomProducto)
       setErrors((prev) => ({ ...prev, nomProducto: false }));
 
+    // Cancela cualquier búsqueda por código pendiente al seguir escribiendo.
+    if (busquedaBarcodeTimerRef.current) {
+      clearTimeout(busquedaBarcodeTimerRef.current);
+      busquedaBarcodeTimerRef.current = null;
+    }
+
     if (value.trim().length === 0) {
       setSugerencias([]);
       setShowSugerencias(false);
       return;
+    }
+
+    if (esCodigoBarras) {
+      // Sin sugerencias de nombres mientras se resuelve el código.
+      setShowSugerencias(false);
+      const codigo = value.trim();
+      busquedaBarcodeTimerRef.current = setTimeout(() => {
+        buscarProductoPorInternet(codigo);
+      }, 600);
     }
   };
 
@@ -540,10 +573,24 @@ export default function AgregarProducto({
       }
       if (field === "tipoProducto") {
         const tipoProducto = value as string;
+        const nuevaUnidad = tipoProducto === "SERVICIO" ? "ZZ" : "NIU";
         setForm((prev) => ({
           ...prev,
           tipoProducto,
-          unidadMedida: tipoProducto === "SERVICIO" ? "ZZ" : "NIU",
+          unidadMedida: nuevaUnidad,
+          // Un servicio no lleva código de barras: se descarta si lo hubiera.
+          codigoBarras: esUnidadContable(nuevaUnidad) ? prev.codigoBarras : "",
+        }));
+        return;
+      }
+      if (field === "unidadMedida") {
+        const nuevaUnidad = value as string;
+        setForm((prev) => ({
+          ...prev,
+          unidadMedida: nuevaUnidad,
+          // Solo las unidades contables (Unidad / Caja) conservan código de barras;
+          // al pasar a kilo, litro, metro, etc. se limpia para no guardarlo.
+          codigoBarras: esUnidadContable(nuevaUnidad) ? prev.codigoBarras : "",
         }));
         return;
       }
@@ -831,11 +878,11 @@ export default function AgregarProducto({
                 label="Nombre del Producto"
                 value={form.nomProducto}
                 onChange={handleNomProductoChange}
-                placeholder="Buscar o escribir nombre..."
+                placeholder="Escribe el nombre o pega el código de barras…"
                 showError={!!errors.nomProducto}
               />
             </div>
-            {!soloSucursal && !isScanning && (
+            {!soloSucursal && !isScanning && esUnidadContable(form.unidadMedida) && (
               <button
                 type="button"
                 onClick={startScanning}
@@ -865,10 +912,15 @@ export default function AgregarProducto({
               ✓ Producto encontrado — completa precio para esta sucursal
             </p>
           )}
+          {buscandoInternet && (
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue pl-1">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando por código de barras…
+            </p>
+          )}
         </div>
 
         {/* ── Escáner de Código de Barras (Visor Cámara cuando está activo) ── */}
-        {!soloSucursal && isScanning && (
+        {!soloSucursal && isScanning && esUnidadContable(form.unidadMedida) && (
           <div className="space-y-2">
             <div className="space-y-3 p-3 bg-gray-100/80 rounded-xl border border-gray-200 text-gray-800">
               <div className="flex justify-between items-center">
@@ -912,101 +964,8 @@ export default function AgregarProducto({
           </div>
         )}
 
-        {/* ── Código de barras (siempre disponible) ── */}
-        {!soloSucursal && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">
-              Código de Barras{" "}
-              <span className="text-gray-400 font-normal normal-case">(opcional)</span>
-            </label>
-            <div className="flex flex-col sm:flex-row gap-3">
-              {/* Entrada manual */}
-              <input
-                type="text"
-                value={form.codigoBarras ?? ""}
-                onChange={handleFormChange("codigoBarras")}
-                placeholder="EAN13 / Code128"
-                className="sm:w-52 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
-              />
-
-              {/* Panel: generar código automático o vista previa en vivo */}
-              <div className="flex-1 rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-16">
-                {form.codigoBarras ? (
-                  <div className="flex items-center justify-center gap-4 w-full">
-                    <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
-                      <BarcodePreview
-                        value={form.codigoBarras}
-                        format={formatoBarcodeSeguro(form.codigoBarras)}
-                        width={1.5}
-                        height={38}
-                        fontSize={12}
-                        margin={0}
-                        displayValue
-                        background="transparent"
-                        lineColor="#1e293b"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
-                        }
-                        className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"
-                      >
-                        <RotateCcw className="w-3 h-3" /> Regenerar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-rose-500 hover:underline"
-                      >
-                        <XIcon className="w-3 h-3" /> Quitar código
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
-                    }
-                    className="w-full flex items-center justify-center gap-3 py-1 group"
-                  >
-                    <ScanBarcode className="w-8 h-8 text-brand-blue shrink-0 group-hover:scale-110 transition-transform" />
-                    <div className="text-left">
-                      <span className="block text-xs font-bold text-brand-blue">
-                        Generar código automático
-                      </span>
-                      <span className="block text-[10px] text-gray-400">
-                        EAN-13 interno válido para imprimir y escanear
-                      </span>
-                    </div>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Buscar datos del producto en internet por su código de barras */}
-            {!!form.codigoBarras && form.codigoBarras.trim().length >= 8 && (
-              <button
-                type="button"
-                onClick={() => buscarProductoPorInternet()}
-                disabled={buscandoInternet}
-                className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-60"
-              >
-                {buscandoInternet ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Globe className="w-3.5 h-3.5" />
-                )}
-                {buscandoInternet
-                  ? "Buscando en internet…"
-                  : "Buscar nombre e imagen por este código (internet)"}
-              </button>
-            )}
-          </div>
-        )}
+        {/* El código de barras se muestra más abajo, después del selector de
+            unidad, y solo para unidades contables (Unidad / Caja). */}
 
         {/* ── Campos base ── */}
         {!soloSucursal && (
@@ -1135,6 +1094,70 @@ export default function AgregarProducto({
                 </select>
               </div>
             </div>
+
+            {/* ── Código de barras: solo unidades contables (Unidad / Caja) ── */}
+            {esUnidadContable(form.unidadMedida) && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-500 uppercase">
+                  Código de Barras
+                </label>
+                <div className="w-full rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-16">
+                  {form.codigoBarras ? (
+                    <div className="flex items-center justify-center gap-4 w-full">
+                      <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
+                        <BarcodePreview
+                          value={form.codigoBarras}
+                          format={formatoBarcodeSeguro(form.codigoBarras)}
+                          width={1.5}
+                          height={38}
+                          fontSize={12}
+                          margin={0}
+                          displayValue
+                          background="transparent"
+                          lineColor="#1e293b"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
+                          }
+                          className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"
+                        >
+                          <RotateCcw className="w-3 h-3" /> Regenerar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-rose-500 hover:underline"
+                        >
+                          <XIcon className="w-3 h-3" /> Quitar código
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
+                      }
+                      className="w-full flex items-center justify-center gap-3 py-1 group"
+                    >
+                      <ScanBarcode className="w-8 h-8 text-brand-blue shrink-0 group-hover:scale-110 transition-transform" />
+                      <div className="text-left">
+                        <span className="block text-xs font-bold text-brand-blue">
+                          Generar código automático
+                        </span>
+                        <span className="block text-[10px] text-gray-400">
+                          EAN-13 interno válido para imprimir y escanear
+                        </span>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
 
