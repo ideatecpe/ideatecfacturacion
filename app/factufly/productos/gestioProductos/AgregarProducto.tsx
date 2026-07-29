@@ -378,7 +378,26 @@ export default function AgregarProducto({
         return;
       }
       if (!data.encontrado) {
-        showToast("No se encontró información para este código de barras.", "info");
+        // El producto no está en la base de datos (típico de productos nuevos del
+        // país). Igual conservamos el código que se tecleó como código de barras
+        // real del producto —para que al escanearlo después coincida—, en vez de
+        // dejar solo la opción de generar uno distinto. Solo falta el nombre.
+        setPalabraBusqueda("");
+        setShowSugerencias(false);
+        setForm((prev) => {
+          const nombreEraSoloElCodigo = prev.nomProducto.trim() === barcode;
+          return {
+            ...prev,
+            codigoBarras: esUnidadContable(prev.unidadMedida) ? barcode : prev.codigoBarras,
+            // Si el nombre quedó con los puros dígitos, se limpia para escribir el real.
+            nomProducto: nombreEraSoloElCodigo ? "" : prev.nomProducto,
+            codigo: nombreEraSoloElCodigo ? "" : prev.codigo,
+          };
+        });
+        showToast(
+          `No está en la base de datos. Escribe el nombre — el código ${barcode} quedó guardado.`,
+          "info",
+        );
         return;
       }
 
