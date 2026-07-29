@@ -154,53 +154,47 @@ export default function RentabilidadPage() {
       </div>
 
       {rentabilidad.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col justify-center">
-            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Ingreso</span>
-            <span className="text-xl font-bold text-gray-900 tabular-nums">S/ {totales.ingreso.toFixed(2)}</span>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col justify-center">
-            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Costo</span>
-            <span className="text-xl font-bold text-gray-900 tabular-nums">S/ {totales.costo.toFixed(2)}</span>
-          </div>
-          <div
-            className={`rounded-xl border px-4 py-3 flex flex-col justify-center ${
-              totales.utilidad >= 0
-                ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100/60"
-                : "border-rose-200 bg-gradient-to-br from-rose-50 to-rose-100/60"
-            }`}
-          >
-            <span
-              className={`text-[11px] font-semibold uppercase tracking-wide ${
-                totales.utilidad >= 0 ? "text-emerald-700/70" : "text-rose-700/70"
-              }`}
-            >
-              Utilidad
-            </span>
-            <span
-              className={`text-xl font-bold tabular-nums ${totales.utilidad >= 0 ? "text-emerald-700" : "text-rose-600"}`}
-            >
-              S/ {totales.utilidad.toFixed(2)}
-            </span>
-          </div>
-          <div
-            className={`rounded-xl border px-4 py-3 flex flex-col justify-center ${
-              margenTotal >= 0 ? "border-brand-blue/20 bg-gradient-to-br from-brand-blue/5 to-brand-blue/10" : "border-rose-200 bg-rose-50"
-            }`}
-          >
-            <span className={`text-[11px] font-semibold uppercase tracking-wide ${margenTotal >= 0 ? "text-brand-blue/70" : "text-rose-700/70"}`}>
-              Margen
-            </span>
-            <span className={`text-xl font-bold tabular-nums ${margenTotal >= 0 ? "text-brand-blue" : "text-rose-600"}`}>
-              {margenTotal.toFixed(1)}%
-            </span>
+        <div className="rounded-xl border border-gray-200 overflow-hidden bg-gray-100">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-px">
+            <div className="bg-white px-3 py-2 flex flex-col">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Ingreso</span>
+              <span className="text-base sm:text-lg font-bold text-gray-900 tabular-nums leading-tight">
+                S/ {totales.ingreso.toFixed(2)}
+              </span>
+            </div>
+            <div className="bg-white px-3 py-2 flex flex-col">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Costo</span>
+              <span className="text-base sm:text-lg font-bold text-gray-600 tabular-nums leading-tight">
+                S/ {totales.costo.toFixed(2)}
+              </span>
+            </div>
+            <div className="bg-white px-3 py-2 flex flex-col">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Utilidad</span>
+              <span
+                className={`text-base sm:text-lg font-bold tabular-nums leading-tight ${
+                  totales.utilidad >= 0 ? "text-emerald-600" : "text-rose-600"
+                }`}
+              >
+                S/ {totales.utilidad.toFixed(2)}
+              </span>
+            </div>
+            <div className={`px-3 py-2 flex flex-col ${margenTotal >= 0 ? "bg-brand-blue/5" : "bg-rose-50"}`}>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Margen</span>
+              <span
+                className={`text-base sm:text-lg font-bold tabular-nums leading-tight ${
+                  margenTotal >= 0 ? "text-brand-blue" : "text-rose-600"
+                }`}
+              >
+                {margenTotal.toFixed(1)}%
+              </span>
+            </div>
           </div>
         </div>
       )}
 
       <div
         className="overflow-y-auto rounded-xl border border-gray-200 bg-white"
-        style={{ maxHeight: "calc(100vh - 280px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
+        style={{ maxHeight: "calc(100vh - 250px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
       >
         <table className="w-full text-xs tabular-nums">
           <thead className="sticky top-0 bg-gray-50 border-b-2 border-gray-200 z-10">

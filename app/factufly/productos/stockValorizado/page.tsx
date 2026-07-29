@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { PackageSearch, ChevronDown, ChevronUp, Lock, Layers, Pencil, Check, X as XIcon, CalendarOff } from "lucide-react";
+import { PackageSearch, ChevronDown, ChevronUp, Lock, Layers, Pencil, Check, X as XIcon, CalendarOff, Boxes, Wallet } from "lucide-react";
 
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import { useAuth } from "@/context/AuthContext";
@@ -99,20 +99,22 @@ export default function StockValorizadoPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-[auto_1fr] gap-3">
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col justify-center">
-          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Productos con stock</span>
-          <span className="text-2xl font-bold text-gray-900 tabular-nums">{stockValorizado.length}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
+          <Boxes className="w-4 h-4 text-gray-400 shrink-0" />
+          <span className="text-[11px] font-medium text-gray-500">Productos con stock</span>
+          <span className="text-base font-bold text-gray-900 tabular-nums">{stockValorizado.length}</span>
         </div>
-        <div className="rounded-xl border border-brand-blue/20 bg-gradient-to-br from-brand-blue/5 to-brand-blue/10 px-4 py-3 flex flex-col justify-center">
-          <span className="text-[11px] font-semibold text-brand-blue/70 uppercase tracking-wide">Valor total del inventario</span>
-          <span className="text-2xl font-bold text-brand-blue tabular-nums">S/ {totalValor.toFixed(2)}</span>
+        <div className="inline-flex items-center gap-2 rounded-lg border border-brand-blue/20 bg-brand-blue/5 px-3 py-1.5">
+          <Wallet className="w-4 h-4 text-brand-blue/70 shrink-0" />
+          <span className="text-[11px] font-medium text-brand-blue/70">Valor del inventario</span>
+          <span className="text-base font-bold text-brand-blue tabular-nums">S/ {totalValor.toFixed(2)}</span>
         </div>
       </div>
 
       <div
         className="overflow-y-auto rounded-xl border border-gray-200 bg-white"
-        style={{ maxHeight: "calc(100vh - 220px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
+        style={{ maxHeight: "calc(100vh - 180px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
       >
         <table className="w-full text-xs tabular-nums">
           <thead className="sticky top-0 bg-gray-50 border-b-2 border-gray-200 z-10">
