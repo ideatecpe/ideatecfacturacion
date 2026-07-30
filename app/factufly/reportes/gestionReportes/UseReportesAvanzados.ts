@@ -112,6 +112,7 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
         clienteNumDoc:      params.clienteNumDoc,
         limit:              params.limit,
         orderBy:            params.orderBy,
+        filtroNV:           params.filtroNV ?? 'excluir',
       })
       const res = await fetch(url, { headers })
       if (!res.ok) throw new Error(`Error ${res.status}`)
@@ -191,6 +192,7 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
         clienteNumDoc:      params.clienteNumDoc,
         limit:              params.limit,
         orderBy:            params.orderBy,
+        filtroNV:           params.filtroNV ?? 'excluir',
         formato,
       })
       await descargarBlob(url, titulo, formato)
