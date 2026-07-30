@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, X, Check } from "lucide-react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import { ChevronDown, X, Check, Search } from "lucide-react";
 import { cn } from "@/app/utils/cn";
 
 interface DropdownFiltroProps {
@@ -10,18 +10,22 @@ interface DropdownFiltroProps {
   onChange: (v: string) => void;
   colorMap?: Record<string, string>;
   className?: string;
+  searchable?: boolean;
 }
 
-export const DropdownFiltro = ({ 
-  label, 
-  value, 
-  options, 
-  onChange, 
+export const DropdownFiltro = ({
+  label,
+  value,
+  options,
+  onChange,
   colorMap,
-  className 
+  className,
+  searchable = false,
 }: DropdownFiltroProps) => {
   const [open, setOpen] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -30,6 +34,20 @@ export const DropdownFiltro = ({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setBusqueda("");
+    } else if (searchable) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open, searchable]);
+
+  const opcionesFiltradas = useMemo(() => {
+    if (!searchable || !busqueda.trim()) return options;
+    const termino = busqueda.trim().toLowerCase();
+    return options.filter((opt) => opt.toLowerCase().includes(termino));
+  }, [options, busqueda, searchable]);
 
   const active = value !== "Todos" && value !== "";
 
@@ -59,9 +77,26 @@ export const DropdownFiltro = ({
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden min-w-[140px]">
+        <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden min-w-[200px]">
+          {searchable && (
+            <div className="relative border-b border-gray-100 p-1.5">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="Buscar..."
+                className="w-full text-xs pl-7 pr-2 py-1.5 rounded outline-none border border-gray-200 focus:border-blue-300"
+              />
+            </div>
+          )}
           <div className="max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
-            {options.map((opt) => (
+            {opcionesFiltradas.length === 0 && (
+              <div className="px-3 py-3 text-xs text-gray-400 text-center">Sin resultados</div>
+            )}
+            {opcionesFiltradas.map((opt) => (
               <button
                 key={opt}
                 onClick={() => { onChange(opt); setOpen(false); }}

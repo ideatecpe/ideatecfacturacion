@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { PackageSearch, ChevronDown, ChevronUp, Lock, AlertTriangle, Trash2, XCircle, History } from "lucide-react";
+import { PackageSearch, ChevronDown, ChevronUp, Lock, AlertTriangle, Trash2, XCircle, History, Search, X, PackageX, Coins } from "lucide-react";
 
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import { Button } from "@/app/components/ui/Button";
@@ -115,6 +115,7 @@ export default function ProductosVencidosPage() {
   const [expandido, setExpandido] = useState<number | null>(null);
   const [retirarTarget, setRetirarTarget] = useState<ProductoVencidoGrupo | null>(null);
   const [isRetirarOpen, setIsRetirarOpen] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
 
   const recargar = () => {
     if (sucursalId > 0) {
@@ -137,6 +138,16 @@ export default function ProductosVencidosPage() {
     () => grupos.reduce((acc, g) => acc + g.totalCosto, 0),
     [grupos],
   );
+
+  const gruposFiltrados = useMemo(() => {
+    const termino = busqueda.trim().toLowerCase();
+    if (!termino) return grupos;
+    return grupos.filter(
+      (g) =>
+        (g.nomProducto ?? "").toLowerCase().includes(termino) ||
+        (g.codigo ?? "").toLowerCase().includes(termino),
+    );
+  }, [grupos, busqueda]);
 
   const handleOpenRetirar = (grupo: ProductoVencidoGrupo) => {
     setRetirarTarget(grupo);
@@ -165,7 +176,7 @@ export default function ProductosVencidosPage() {
   }
 
   return (
-    <div className="space-y-2 animate-in fade-in duration-500">
+    <div className="animate-in fade-in duration-500">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         {isSuperAdmin && (
           <DropdownFiltro
@@ -177,14 +188,37 @@ export default function ProductosVencidosPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-[auto_1fr] gap-3">
-        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col justify-center">
-          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Productos vencidos</span>
-          <span className="text-2xl font-bold text-gray-900 tabular-nums">{grupos.length}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por código o producto..."
+            className="w-full h-9 text-xs pl-8 pr-8 rounded-lg border border-gray-200 bg-white outline-none focus:ring-1 focus:ring-brand-blue/30 focus:border-brand-blue/30"
+          />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
-        <div className="rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-rose-100/60 px-4 py-3 flex flex-col justify-center">
-          <span className="text-[11px] font-semibold text-rose-500/80 uppercase tracking-wide">Costo total vencido</span>
-          <span className="text-2xl font-bold text-rose-700 tabular-nums">S/ {totalCostoVencido.toFixed(2)}</span>
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="inline-flex items-center h-9 gap-2 rounded-lg border border-gray-200 bg-white px-3">
+            <PackageX className="w-4 h-4 text-gray-400 shrink-0" />
+            <span className="text-[11px] font-medium text-gray-500">Productos vencidos</span>
+            <span className="text-base font-bold text-gray-900 tabular-nums">{grupos.length}</span>
+          </div>
+          <div className="inline-flex items-center h-9 gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3">
+            <Coins className="w-4 h-4 text-rose-500 shrink-0" />
+            <span className="text-[11px] font-medium text-rose-500/80">Costo total vencido</span>
+            <span className="text-base font-bold text-rose-700 tabular-nums">S/ {totalCostoVencido.toFixed(2)}</span>
+          </div>
         </div>
       </div>
 
@@ -242,8 +276,24 @@ export default function ProductosVencidosPage() {
               </tr>
             )}
 
+            {!loadingLotesVencidos && sucursalId > 0 && grupos.length > 0 && gruposFiltrados.length === 0 && (
+              <tr>
+                <td colSpan={6} className="py-16 text-center">
+                  <div className="flex flex-col items-center">
+                    <div className="bg-gray-100 rounded-full p-4 mb-3">
+                      <PackageSearch className="w-10 h-10 text-gray-300" />
+                    </div>
+                    <p className="text-gray-500 font-semibold text-sm">Sin resultados</p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      No se encontraron productos para &quot;{busqueda}&quot;
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
+
             {!loadingLotesVencidos &&
-              grupos.map((g, idx) => {
+              gruposFiltrados.map((g, idx) => {
                 const isOpen = expandido === g.sucursalProductoId;
                 const retirando = retirandoId === g.sucursalProductoId;
                 return (

@@ -170,7 +170,7 @@ export default function OrdenesCompraPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por producto, proveedor o doc. referencia..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+              className="w-full h-9 pl-10 pr-4 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
             />
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
@@ -191,8 +191,8 @@ export default function OrdenesCompraPage() {
               />
             )}
 
-            <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 py-2 shadow-sm">
-              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+            <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 shadow-sm">
+              <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
               <input
                 type="date"
                 value={fechaDesde}
@@ -202,7 +202,7 @@ export default function OrdenesCompraPage() {
                   setFechaDesde(v);
                   if (v && fechaHasta && v > fechaHasta) setFechaHasta(v);
                 }}
-                className="text-xs outline-none w-[105px]"
+                className="text-xs outline-none w-[105px] h-full"
               />
               <span className="text-gray-300">–</span>
               <input
@@ -215,14 +215,14 @@ export default function OrdenesCompraPage() {
                   setFechaHasta(v);
                   if (v && fechaDesde && v < fechaDesde) setFechaDesde(v);
                 }}
-                className="text-xs outline-none w-[105px]"
+                className="text-xs outline-none w-[105px] h-full"
               />
             </div>
 
             {filtrosActivos && (
               <button
                 onClick={limpiarFiltros}
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-rose-500 font-semibold transition-colors px-2 py-2"
+                className="flex items-center h-9 gap-1 text-xs text-gray-400 hover:text-rose-500 font-semibold transition-colors px-2"
               >
                 <X className="w-3.5 h-3.5" /> Limpiar
               </button>
@@ -232,7 +232,7 @@ export default function OrdenesCompraPage() {
               type="button"
               onClick={() => setAgruparPorDoc((prev) => !prev)}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold border rounded-md transition-all whitespace-nowrap",
+                "flex items-center h-9 gap-1.5 px-2.5 text-xs font-semibold border rounded-md shadow-sm transition-all whitespace-nowrap",
                 agruparPorDoc
                   ? "bg-blue-50 border-blue-300 text-blue-700"
                   : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
@@ -246,7 +246,7 @@ export default function OrdenesCompraPage() {
 
             <Button
               onClick={() => setIsCompraOpen(true)}
-              className="py-2.5 px-3 text-xs rounded-md h-auto"
+              className="h-9 px-3 text-xs rounded-md"
             >
               <PackagePlus className="w-3.5 h-3.5" /> Registrar Compra
             </Button>
@@ -353,7 +353,7 @@ export default function OrdenesCompraPage() {
       <div
         className="overflow-y-auto rounded-xl border border-gray-200 bg-white"
         style={{
-          maxHeight: "calc(100vh - 220px)",
+          maxHeight: "calc(100vh - 200px)",
           scrollbarWidth: "thin",
           scrollbarColor: "#CBD5E1 transparent",
         }}

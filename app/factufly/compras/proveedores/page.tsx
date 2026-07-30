@@ -8,13 +8,9 @@ import {
   Trash2,
   Truck,
   History,
-  Mail,
-  Phone,
-  User,
   MapPin,
 } from "lucide-react";
 
-import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 
@@ -108,114 +104,125 @@ export default function ProveedoresPage() {
         </p>
       </div>
 
-      {/* Grid */}
+      {/* Tabla */}
       <div
-        className="overflow-y-auto rounded-xl"
+        className="overflow-y-auto rounded-xl border border-gray-200 bg-white"
         style={{
           maxHeight: "calc(100vh - 170px)",
           scrollbarWidth: "thin",
           scrollbarColor: "#CBD5E1 transparent",
         }}
       >
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pb-2">
-          {loadingProveedores &&
-            Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className="animate-pulse border border-gray-200 rounded-xl p-4 space-y-4"
-              >
-                <div className="h-3 bg-gray-200 rounded w-1/3" />
-                <div className="h-4 bg-gray-200 rounded w-2/3" />
-                <div className="h-3 bg-gray-200 rounded w-1/2" />
-              </div>
-            ))}
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-gray-50 border-b-2 border-gray-200 z-10">
+            <tr>
+              <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Documento</th>
+              <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Proveedor</th>
+              <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Contacto</th>
+              <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Teléfono</th>
+              <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Email</th>
+              <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loadingProveedores &&
+              Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i} className="border-b border-gray-100 animate-pulse">
+                  <td className="px-3 py-3" colSpan={6}>
+                    <div className="h-3 bg-gray-200 rounded w-full" />
+                  </td>
+                </tr>
+              ))}
 
-          {!loadingProveedores && filtered.length === 0 && (
-            <div className="col-span-4 flex flex-col items-center justify-center py-16 text-center">
-              <div className="bg-gray-100 rounded-full p-4 mb-3">
-                <Truck className="w-10 h-10 text-gray-300" />
-              </div>
-              <p className="text-gray-500 font-semibold text-sm">
-                No se encontraron proveedores
-              </p>
-              <p className="text-gray-400 text-xs mt-1">
-                Registra tu primer proveedor para empezar
-              </p>
-            </div>
-          )}
-
-          {!loadingProveedores &&
-            filtered.map((prov) => (
-              <Card
-                key={prov.proveedorId}
-                className="group hover:border-brand-blue transition-all"
-              >
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1 min-w-0">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      {prov.numDocumento || "Sin documento"}
+            {!loadingProveedores && filtered.length === 0 && (
+              <tr>
+                <td colSpan={6} className="py-16 text-center">
+                  <div className="flex flex-col items-center">
+                    <div className="bg-gray-100 rounded-full p-4 mb-3">
+                      <Truck className="w-10 h-10 text-gray-300" />
+                    </div>
+                    <p className="text-gray-500 font-semibold text-sm">
+                      No se encontraron proveedores
                     </p>
-                    <h4 className="font-bold text-gray-900 group-hover:text-brand-blue transition-colors line-clamp-2">
-                      {prov.razonSocial}
-                    </h4>
-                    {prov.nombreComercial && (
-                      <p className="text-[10px] font-medium text-gray-400 bg-gray-100 w-fit px-1.5 py-0.5 rounded uppercase">
-                        {prov.nombreComercial}
-                      </p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      Registra tu primer proveedor para empezar
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
+
+            {!loadingProveedores &&
+              filtered.map((prov, idx) => (
+                <tr
+                  key={prov.proveedorId}
+                  className={`border-b transition-colors ${
+                    idx % 2 === 1
+                      ? "bg-gray-50/50 border-gray-100 hover:bg-blue-50/40"
+                      : "bg-white border-gray-100 hover:bg-blue-50/40"
+                  }`}
+                >
+                  <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">
+                    {prov.numDocumento || "—"}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-start gap-1.5">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-800 line-clamp-1">{prov.razonSocial}</p>
+                        {prov.nombreComercial && (
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wide line-clamp-1">
+                            {prov.nombreComercial}
+                          </p>
+                        )}
+                      </div>
+                      {prov.direccion && (
+                        <span
+                          title={prov.direccion}
+                          className="shrink-0 text-gray-300 hover:text-brand-blue cursor-help mt-0.5"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-600">{prov.personaContacto || "—"}</td>
+                  <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{prov.telefono || "—"}</td>
+                  <td className="px-3 py-2.5 text-gray-600 max-w-[200px]">
+                    {prov.email ? (
+                      <span title={prov.email} className="block truncate">{prov.email}</span>
+                    ) : (
+                      "—"
                     )}
-                  </div>
-
-                  <div className="flex gap-1 shrink-0">
-                    <button
-                      onClick={() => handleOpenEdit(prov)}
-                      className="p-1.5 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleOpenDelete(prov)}
-                      className="p-1.5 text-gray-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 space-y-1">
-                  {prov.personaContacto && (
-                    <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
-                      <User className="w-3 h-3 text-gray-400" /> {prov.personaContacto}
-                    </p>
-                  )}
-                  {prov.telefono && (
-                    <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
-                      <Phone className="w-3 h-3 text-gray-400" /> {prov.telefono}
-                    </p>
-                  )}
-                  {prov.email && (
-                    <p className="text-[11px] text-gray-500 flex items-center gap-1.5 truncate">
-                      <Mail className="w-3 h-3 text-gray-400 shrink-0" /> {prov.email}
-                    </p>
-                  )}
-                  {prov.direccion && (
-                    <p className="text-[11px] text-gray-500 flex items-start gap-1.5">
-                      <MapPin className="w-3 h-3 text-gray-400 shrink-0 self-center" />
-                      <span className="whitespace-pre-line break-words">{prov.direccion}</span>
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={() => handleOpenHistorial(prov)}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
-                  >
-                    <History className="w-3.5 h-3.5" /> Historial de compras
-                  </button>
-                </div>
-              </Card>
-            ))}
-        </div>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => handleOpenHistorial(prov)}
+                        title="Historial de compras"
+                        className="p-1.5 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <History className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenEdit(prov)}
+                        title="Editar"
+                        className="p-1.5 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenDelete(prov)}
+                        title="Eliminar"
+                        className="p-1.5 text-gray-500 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
       </div>
 
       <AgregarProveedor

@@ -105,7 +105,12 @@ export default function KardexPage() {
 
   useEffect(() => {
     if (!sucursalProductoId) return;
-    fetchKardex({ sucursalProductoId, desde: fechaDesde || undefined, hasta: fechaHasta || undefined });
+    // Si solo se llena "Desde", se filtra por ese día exacto (no un rango abierto hasta hoy).
+    fetchKardex({
+      sucursalProductoId,
+      desde: fechaDesde || undefined,
+      hasta: fechaHasta || fechaDesde || undefined,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sucursalProductoId, fechaDesde, fechaHasta]);
 
@@ -160,16 +165,17 @@ export default function KardexPage() {
             value={filtroProducto}
             options={["Todos", ...productosSucursal.map((p) => p.nomProducto)]}
             onChange={setFiltroProducto}
+            searchable
           />
 
-          <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 py-2 shadow-sm">
-            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+          <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 shadow-sm">
+            <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
             <input
               type="date"
               value={fechaDesde}
               max={fechaHasta || undefined}
               onChange={(e) => setFechaDesde(e.target.value)}
-              className="text-xs outline-none w-[105px]"
+              className="text-xs outline-none w-[105px] h-full"
             />
             <span className="text-gray-300">–</span>
             <input
@@ -177,7 +183,7 @@ export default function KardexPage() {
               value={fechaHasta}
               min={fechaDesde || undefined}
               onChange={(e) => setFechaHasta(e.target.value)}
-              className="text-xs outline-none w-[105px]"
+              className="text-xs outline-none w-[105px] h-full"
             />
           </div>
 
@@ -194,7 +200,7 @@ export default function KardexPage() {
         {sucursalProductoId > 0 && kardex.length > 0 && (
           <div className="flex items-center gap-3 ml-auto">
             <div className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 flex flex-col">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Saldo actual</span>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Stock actual</span>
               <span className="text-sm font-bold text-gray-900 tabular-nums">{totalSaldo.cantidad} unid.</span>
             </div>
             <div className="rounded-lg border border-brand-blue/20 bg-brand-blue/5 px-3 py-1.5 flex flex-col">
@@ -203,30 +209,6 @@ export default function KardexPage() {
             </div>
           </div>
         )}
-      </div>
-
-      <div className="flex items-center gap-3 flex-wrap text-[10px] text-gray-500">
-        <span className="inline-flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Entrada por compra
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Salida por venta
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-fuchsia-500" /> Devolución
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Salida por nota
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Ajuste
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Salida por vencimiento
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-gray-400" /> Saldo inicial
-        </span>
       </div>
 
       <div
@@ -241,15 +223,13 @@ export default function KardexPage() {
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Cantidad</th>
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Costo Unit.</th>
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Costo Total</th>
-              <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Saldo Cant.</th>
-              <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Saldo Valor</th>
             </tr>
           </thead>
           <tbody>
             {loadingKardex &&
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i} className="border-b border-gray-100 animate-pulse">
-                  <td className="px-3 py-3" colSpan={7}>
+                  <td className="px-3 py-3" colSpan={5}>
                     <div className="h-3 bg-gray-200 rounded w-full" />
                   </td>
                 </tr>
@@ -257,7 +237,7 @@ export default function KardexPage() {
 
             {!loadingKardex && sucursalProductoId === 0 && (
               <tr>
-                <td colSpan={7} className="py-16 text-center">
+                <td colSpan={5} className="py-16 text-center">
                   <div className="flex flex-col items-center">
                     <div className="bg-gray-100 rounded-full p-4 mb-3">
                       <PackageSearch className="w-10 h-10 text-gray-300" />
@@ -271,7 +251,7 @@ export default function KardexPage() {
 
             {!loadingKardex && sucursalProductoId > 0 && kardex.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-16 text-center">
+                <td colSpan={5} className="py-16 text-center">
                   <div className="flex flex-col items-center">
                     <div className="bg-gray-100 rounded-full p-4 mb-3">
                       <PackageSearch className="w-10 h-10 text-gray-300" />
@@ -319,8 +299,6 @@ export default function KardexPage() {
                     <td className="px-3 py-2.5 text-right text-gray-700">
                       {m.costoTotal != null ? `S/ ${m.costoTotal.toFixed(2)}` : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-semibold text-gray-800">{m.saldoCantidadPost}</td>
-                    <td className="px-3 py-2.5 text-right font-bold text-brand-blue">S/ {m.saldoValorPost.toFixed(2)}</td>
                   </tr>
                 );
               })}

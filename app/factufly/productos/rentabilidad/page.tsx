@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Calendar, PackageSearch, X, Lock, ChevronDown, ChevronUp, LineChart as LineChartIcon } from "lucide-react";
+import { Calendar, PackageSearch, X, Lock, ChevronDown, ChevronUp, LineChart as LineChartIcon, Search } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -28,6 +28,7 @@ export default function RentabilidadPage() {
   const [filtroSucursal, setFiltroSucursal] = useState<string>("Todos");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
+  const [busqueda, setBusqueda] = useState("");
 
   const sucursalId = isSuperAdmin
     ? sucursales.find((s) => s.nombre === filtroSucursal)?.sucursalId ?? 0
@@ -51,12 +52,13 @@ export default function RentabilidadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sucursalId, fechaDesde, fechaHasta, config?.isStock]);
 
-  const filtrosActivos = filtroSucursal !== "Todos" || !!fechaDesde || !!fechaHasta;
+  const filtrosActivos = filtroSucursal !== "Todos" || !!fechaDesde || !!fechaHasta || !!busqueda;
 
   const limpiarFiltros = () => {
     setFiltroSucursal("Todos");
     setFechaDesde("");
     setFechaHasta("");
+    setBusqueda("");
   };
 
   const toggleExpandido = (r: (typeof rentabilidad)[number]) => {
@@ -85,6 +87,16 @@ export default function RentabilidadPage() {
     [rentabilidad],
   );
   const margenTotal = totales.ingreso === 0 ? 0 : (totales.utilidad / totales.ingreso) * 100;
+
+  const rentabilidadFiltrada = useMemo(() => {
+    const termino = busqueda.trim().toLowerCase();
+    if (!termino) return rentabilidad;
+    return rentabilidad.filter(
+      (r) =>
+        (r.nomProducto ?? "").toLowerCase().includes(termino) ||
+        (r.codigo ?? "").toLowerCase().includes(termino),
+    );
+  }, [rentabilidad, busqueda]);
 
   const chartData = useMemo(
     () =>
@@ -115,6 +127,26 @@ export default function RentabilidadPage() {
     <div className="space-y-2 animate-in fade-in duration-500">
 
       <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por código o producto..."
+            className="w-full h-9 text-xs pl-8 pr-8 rounded-lg border border-gray-200 bg-white outline-none focus:ring-1 focus:ring-brand-blue/30 focus:border-brand-blue/30"
+          />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
         {isSuperAdmin && (
           <DropdownFiltro
             label="Sucursal"
@@ -124,14 +156,14 @@ export default function RentabilidadPage() {
           />
         )}
 
-        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 py-2 shadow-sm">
+        <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 shadow-sm ml-auto">
           <Calendar className="w-3.5 h-3.5 text-gray-400" />
           <input
             type="date"
             value={fechaDesde}
             max={fechaHasta || undefined}
             onChange={(e) => setFechaDesde(e.target.value)}
-            className="text-xs outline-none w-[105px]"
+            className="text-xs outline-none w-[105px] h-full"
           />
           <span className="text-gray-300">–</span>
           <input
@@ -139,7 +171,7 @@ export default function RentabilidadPage() {
             value={fechaHasta}
             min={fechaDesde || undefined}
             onChange={(e) => setFechaHasta(e.target.value)}
-            className="text-xs outline-none w-[105px]"
+            className="text-xs outline-none w-[105px] h-full"
           />
         </div>
 
@@ -246,8 +278,24 @@ export default function RentabilidadPage() {
               </tr>
             )}
 
+            {!loadingRentabilidad && sucursalId > 0 && rentabilidad.length > 0 && rentabilidadFiltrada.length === 0 && (
+              <tr>
+                <td colSpan={8} className="py-16 text-center">
+                  <div className="flex flex-col items-center">
+                    <div className="bg-gray-100 rounded-full p-4 mb-3">
+                      <PackageSearch className="w-10 h-10 text-gray-300" />
+                    </div>
+                    <p className="text-gray-500 font-semibold text-sm">Sin resultados</p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      No se encontraron productos para &quot;{busqueda}&quot;
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
+
             {!loadingRentabilidad &&
-              rentabilidad.map((r, idx) => {
+              rentabilidadFiltrada.map((r, idx) => {
                 const isOpen = expandido === r.sucursalProductoId;
                 return (
                   <React.Fragment key={r.productoId}>

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { KardexMovimiento } from "./Inventario";
 import { useAuth } from "@/context/AuthContext";
@@ -15,10 +15,18 @@ export function useKardexLista() {
   const { accessToken } = useAuth();
   const [kardex, setKardex] = useState<KardexMovimiento[]>([]);
   const [loadingKardex, setLoadingKardex] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchKardex = useCallback(
     async ({ sucursalProductoId, desde, hasta }: FetchKardexParams) => {
       if (!sucursalProductoId) return;
+
+      // Cancela la petición anterior para que una respuesta lenta con
+      // un filtro de fecha viejo no sobreescriba el resultado del filtro actual.
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       setLoadingKardex(true);
       try {
         const res = await axios.get<KardexMovimiento[]>(
@@ -26,13 +34,19 @@ export function useKardexLista() {
           {
             params: { desde: desde || undefined, hasta: hasta || undefined },
             headers: { Authorization: `Bearer ${accessToken}` },
+            signal: controller.signal,
           },
         );
         setKardex(res.data ?? []);
-      } catch {
+      } catch (err) {
+        if (axios.isCancel(err) || (axios.isAxiosError(err) && err.code === "ERR_CANCELED")) {
+          return;
+        }
         showToast("Error al cargar el kardex del producto", "error");
       } finally {
-        setLoadingKardex(false);
+        if (abortRef.current === controller) {
+          setLoadingKardex(false);
+        }
       }
     },
     [accessToken],
