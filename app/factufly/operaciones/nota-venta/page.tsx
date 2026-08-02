@@ -562,6 +562,18 @@ function NotaVentaContent() {
   );
   const originalItemAlFocoRef = useRef<Record<number, { productoId: number | null; descripcion: string }>>({});
   const ultimoInputTsRef = useRef(0);
+  // Navegación por teclado en el dropdown de productos (↓/↑ + Enter).
+  const [highlightIdx, setHighlightIdx] = useState(0);
+  // Lista visible del dropdown de la fila enfocada, para que onKeyDown seleccione el resaltado.
+  const filtradosDropdownRef = useRef<ProductoSucursal[]>([]);
+  // Instante del último carácter tipeado: sirve para distinguir Enter manual (con pausa)
+  // del Enter del escáner (inmediato, gap corto), y así no romper el escaneo.
+  const ultimaTeclaRef = useRef(0);
+  // Al mover el resaltado con ↓/↑, mantener visible el ítem activo en listas largas.
+  useEffect(() => {
+    const el = document.querySelector('[data-hl-producto="true"]');
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }, [highlightIdx]);
 
   // ── ICBPER bolsa plástica ─────────────────────────────────────
   const [cantidadBolsa, setCantidadBolsa] = useState(0);
@@ -3564,7 +3576,11 @@ function NotaVentaContent() {
 
                                     if (tieneSaltoDeLinea) {
                                       const ultimaLinea = valor.split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? "";
-                                      const candidato = ultimaLinea.length >= 6 ? ultimaLinea : "";
+                                      // Un código de barras real es un único token SIN espacios. Si la última
+                                      // línea tiene espacios, es una descripción escrita/pegada a mano: no la
+                                      // tratamos como escaneo (evita el falso "no encontrado en el catálogo").
+                                      const pareceCodigo = ultimaLinea.length >= 6 && !/\s/.test(ultimaLinea);
+                                      const candidato = pareceCodigo ? ultimaLinea : "";
                                       if (candidato) {
                                         const coincidencia = productosSucursal.find(
                                           (p: ProductoSucursal) => !!p.codigoBarras && p.codigoBarras === candidato,
@@ -3626,6 +3642,24 @@ function NotaVentaContent() {
                                         }
                                         return;
                                       }
+                                      // La última línea es una descripción manual (contiene espacios), no un
+                                      // código de barras: no la tratamos como escaneo ni mostramos el error.
+                                      const orig = originalItemAlFocoRef.current[i];
+                                      if (orig?.productoId != null) {
+                                        // El ítem ya era un producto del catálogo: conservamos su selección.
+                                        const nbD = [...busquedaProducto]; nbD[i] = orig.descripcion; setBusquedaProducto(nbD);
+                                        setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], productoId: orig.productoId, descripcion: orig.descripcion }; return n; });
+                                      } else {
+                                        // Producto libre (fuera de catálogo): quitamos el salto de línea y
+                                        // conservamos el texto escrito, en lugar de borrarlo.
+                                        const limpio = valor.replace(/\n+/g, " ").replace(/\s+$/, "");
+                                        const nbD = [...busquedaProducto]; nbD[i] = limpio; setBusquedaProducto(nbD);
+                                        const ndD = [...showDropdownProducto]; ndD[i] = true; setShowDropdownProducto(ndD);
+                                        setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], descripcion: limpio, productoId: null }; return n; });
+                                        e.target.style.height = "auto";
+                                        e.target.style.height = `${e.target.scrollHeight}px`;
+                                      }
+                                      return;
                                     }
 
                                     const itemTeniaContenido = originalItemAlFocoRef.current[i]?.productoId != null ||
@@ -3637,6 +3671,7 @@ function NotaVentaContent() {
                                       return;
                                     }
                                     const nb = [...busquedaProducto]; nb[i] = valor; setBusquedaProducto(nb);
+                                    setHighlightIdx(0);
                                     const nd = [...showDropdownProducto]; nd[i] = true; setShowDropdownProducto(nd);
                                     const n = [...detalles];
                                     n[i] = { ...n[i], descripcion: valor, productoId: null };
@@ -3644,6 +3679,73 @@ function NotaVentaContent() {
 
                                     e.target.style.height = "auto";
                                     e.target.style.height = `${e.target.scrollHeight}px`;
+                                  }}
+                                  onKeyDown={(e) => {
+                                    const items = filtradosDropdownRef.current;
+                                    const dropdownAbierto = !!showDropdownProducto[i] && items.length > 0;
+                                    if (e.key === "ArrowDown") {
+                                      if (!dropdownAbierto) return;
+                                      e.preventDefault();
+                                      setHighlightIdx((prev) => Math.min(prev + 1, items.length - 1));
+                                      return;
+                                    }
+                                    if (e.key === "ArrowUp") {
+                                      if (!dropdownAbierto) return;
+                                      e.preventDefault();
+                                      setHighlightIdx((prev) => Math.max(prev - 1, 0));
+                                      return;
+                                    }
+                                    if (e.key === "Tab") {
+                                      // Autocompletar el campo con el resaltado, SIN seleccionar ni soltar el foco.
+                                      if (!dropdownAbierto) return;
+                                      const sel = items[Math.min(highlightIdx, items.length - 1)];
+                                      if (!sel) return;
+                                      e.preventDefault();
+                                      const nb = [...busquedaProducto]; nb[i] = sel.nomProducto; setBusquedaProducto(nb);
+                                      setHighlightIdx(0);
+                                      setDetalles((prev) => { const n = [...prev]; if (n[i]) n[i] = { ...n[i], descripcion: sel.nomProducto, productoId: null }; return n; });
+                                      // Mantener el foco y dejar el cursor al final del texto.
+                                      requestAnimationFrame(() => {
+                                        const el = inputRefs.current[i] as HTMLTextAreaElement | null;
+                                        if (el) {
+                                          el.focus();
+                                          const len = el.value.length;
+                                          el.setSelectionRange(len, len);
+                                          el.style.height = "auto";
+                                          el.style.height = `${el.scrollHeight}px`;
+                                        }
+                                      });
+                                      return;
+                                    }
+                                    if (e.key === "Enter") {
+                                      // Enter inmediato tras el último carácter = escáner: NO interceptar,
+                                      // dejar que el flujo actual (\n) actúe igual que hoy.
+                                      const gap = Date.now() - ultimaTeclaRef.current;
+                                      if (gap < 50) return;
+                                      // Enter manual con dropdown abierto y con resultados → seleccionar el resaltado.
+                                      const busqueda = (busquedaProducto[i] ?? "").trim();
+                                      if (dropdownAbierto && busqueda.length > 0) {
+                                        const sel = items[Math.min(highlightIdx, items.length - 1)];
+                                        if (sel) {
+                                          e.preventDefault();
+                                          if (config?.isStock && sel.tipoProducto === "BIEN") {
+                                            const se = getStockEfectivo(sel);
+                                            const uv = sel.esPaquete && sel.factorConversion
+                                              ? Math.floor((se ?? 0) / sel.factorConversion) : (se ?? 0);
+                                            if (uv <= 0) {
+                                              showToast(`${sel.nomProducto} sin stock disponible`, "error");
+                                              return;
+                                            }
+                                          }
+                                          seleccionarProducto(sel, i);
+                                          // Igual que al elegir con el mouse: soltar el foco del campo.
+                                          (e.target as HTMLTextAreaElement).blur();
+                                        }
+                                      }
+                                      return;
+                                    }
+                                    // Registrar el instante del último carácter, para medir el gap del próximo Enter.
+                                    if (e.key.length === 1) ultimaTeclaRef.current = Date.now();
                                   }}
                                   onFocus={(e) => {
                                     originalItemAlFocoRef.current[i] = {
@@ -3653,6 +3755,7 @@ function NotaVentaContent() {
                                     const nd = [...showDropdownProducto];
                                     nd[i] = true;
                                     setShowDropdownProducto(nd);
+                                    setHighlightIdx(0);
                                     setFocusedItemIndex(i);
                                     focusedItemIndexRef.current = i;
 
@@ -3735,6 +3838,8 @@ function NotaVentaContent() {
                                             (!!p.codigoBarras &&
                                               p.codigoBarras === (busquedaProducto[i] ?? "")),
                                     );
+                                    // Exponer la lista visible para que onKeyDown (↓/↑ + Enter) seleccione el resaltado.
+                                    filtradosDropdownRef.current = filtrados;
                                     if (!filtrados.length) return null;
                                     return (
                                       <div
@@ -3750,7 +3855,7 @@ function NotaVentaContent() {
                                         }}
                                         className="bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto"
                                       >
-                                        {filtrados.map((p: ProductoSucursal) => {
+                                        {filtrados.map((p: ProductoSucursal, idx: number) => {
                                           const stockEfectivo = getStockEfectivo(p);
                                           const unidadesVendibles =
                                             p.esPaquete && p.factorConversion
@@ -3777,6 +3882,8 @@ function NotaVentaContent() {
                                               key={p.productoId}
                                               type="button"
                                               disabled={sinStock}
+                                              data-hl-producto={idx === highlightIdx ? "true" : undefined}
+                                              onMouseEnter={() => setHighlightIdx(idx)}
                                               onMouseDown={() => {
                                                 if (sinStock) return;
                                                 seleccionarProducto(p, i);
@@ -3785,7 +3892,9 @@ function NotaVentaContent() {
                                                 "w-full text-left px-3 py-1.5 border-b border-gray-50 last:border-0" +
                                                 (sinStock
                                                   ? " opacity-50 cursor-not-allowed"
-                                                  : " hover:bg-gray-50")
+                                                  : idx === highlightIdx
+                                                    ? " bg-[#0f2e64]/10"
+                                                    : " hover:bg-gray-50")
                                               }
                                             >
                                               <p className="text-xs font-medium text-gray-800 flex items-center gap-1">
