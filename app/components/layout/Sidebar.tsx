@@ -1,5 +1,5 @@
 "use client";
-import { LogOut, DollarSign, TrendingUp, ChevronRight } from "lucide-react";
+import { LogOut, DollarSign, TrendingUp, ChevronRight, Lock } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
 
@@ -12,6 +12,7 @@ interface SidebarProps {
   activeSubView?: string;
   onViewChange: (path: string) => void;
   menuItems: MenuItem[];
+  isOnline?: boolean;
 }
 
 interface TipoCambio {
@@ -71,11 +72,16 @@ export const Sidebar = ({
   activeSubView = "",
   onViewChange,
   menuItems,
+  isOnline = true,
 }: SidebarProps) => {
   const handleLogout = () => signOut({ callbackUrl: "/" });
   const tc = useTipoCambio();
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const isOfflineAllowed = (path: string) => {
+    return path === "operaciones/boleta-facturaelectronica";
+  };
 
   // Auto-expande el grupo activo cuando se navega directo por URL
   useEffect(() => {
@@ -123,6 +129,7 @@ export const Sidebar = ({
           const isExpanded = hasChildren && (expandedGroups[item.id] ?? false);
 
           if (!hasChildren) {
+            const allowed = isOnline || isOfflineAllowed(item.id);
             return (
               <div key={item.id} className="relative group">
                 <button
@@ -133,6 +140,7 @@ export const Sidebar = ({
                     active
                       ? "bg-white/12 text-white"
                       : "text-white/50 hover:text-white/90 hover:bg-white/6",
+                    !allowed && "opacity-40 cursor-not-allowed hover:bg-transparent text-white/30",
                   )}
                 >
                   {active && (
@@ -145,16 +153,20 @@ export const Sidebar = ({
                   <item.icon className={cn("w-4.5 h-4.5 shrink-0", active ? "text-white" : "text-white/50 group-hover:text-white/90")} />
 
                   {isOpen && (
-                    <span className="text-[13px] font-medium truncate">{item.label}</span>
+                    <span className="text-[13px] font-medium truncate flex-1 text-left">{item.label}</span>
+                  )}
+
+                  {isOpen && !allowed && (
+                    <Lock className="w-3.5 h-3.5 shrink-0 text-white/40 ml-auto" />
                   )}
                 </button>
 
                 {!isOpen && (
                   <span
-                    className="pointer-events-none absolute left-17 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md text-[12px] font-medium text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50"
+                    className="pointer-events-none absolute left-17 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md text-[12px] font-medium text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 flex items-center gap-1.5"
                     style={{ background: "#0a1f45", border: "1px solid rgba(255,255,255,0.1)" }}
                   >
-                    {item.label}
+                    {item.label} {!allowed && <Lock className="w-3 h-3 text-red-400 inline" />}
                   </span>
                 )}
               </div>
@@ -202,19 +214,23 @@ export const Sidebar = ({
               {isOpen && isExpanded && (
                 <div className="mt-0.5 ml-5 pl-3 border-l border-white/10 space-y-0.5">
                   {item.children!.map((child) => {
+                    const childPath = `${item.id}/${child.id}`;
+                    const childAllowed = isOnline || isOfflineAllowed(childPath);
                     const childActive = groupActive && activeSubView === child.id;
                     return (
                       <button
                         key={child.id}
-                        onClick={() => onViewChange(`${item.id}/${child.id}`)}
+                        onClick={() => onViewChange(childPath)}
                         className={cn(
-                          "w-full text-left px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors duration-150",
+                          "w-full text-left px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors duration-150 flex items-center justify-between gap-1",
                           childActive
                             ? "text-white bg-white/12"
                             : "text-white/45 hover:text-white/85 hover:bg-white/6",
+                          !childAllowed && "opacity-40 cursor-not-allowed hover:bg-transparent text-white/30",
                         )}
                       >
-                        {child.label}
+                        <span className="truncate">{child.label}</span>
+                        {!childAllowed && <Lock className="w-3 h-3 shrink-0 text-white/40 ml-auto" />}
                       </button>
                     );
                   })}
@@ -229,15 +245,23 @@ export const Sidebar = ({
                   <div className="px-3 py-2 text-white/40 text-[10px] uppercase tracking-wider border-b border-white/10">
                     {item.label}
                   </div>
-                  {item.children!.map((child) => (
-                    <button
-                      key={child.id}
-                      onClick={() => onViewChange(`${item.id}/${child.id}`)}
-                      className="w-full text-left px-3 py-2 hover:bg-white/10 transition-colors"
-                    >
-                      {child.label}
-                    </button>
-                  ))}
+                  {item.children!.map((child) => {
+                    const childPath = `${item.id}/${child.id}`;
+                    const childAllowed = isOnline || isOfflineAllowed(childPath);
+                    return (
+                      <button
+                        key={child.id}
+                        onClick={() => onViewChange(childPath)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 flex items-center justify-between gap-2 transition-colors",
+                          childAllowed ? "hover:bg-white/10 text-white" : "opacity-40 cursor-not-allowed text-white/40"
+                        )}
+                      >
+                        <span>{child.label}</span>
+                        {!childAllowed && <Lock className="w-3 h-3 shrink-0 text-white/40" />}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

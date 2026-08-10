@@ -25,7 +25,8 @@ import { useAuth } from "@/context/AuthContext";
 import { DateChip } from "./DateChip";
 import { useNotifications, YapeAlert } from "@/hooks/useNotifications";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
-import Link from "next/link";
+import { useToast } from "@/app/components/ui/Toast";
+import { useRouter } from "next/navigation";
 
 // ─── Yape Toast ───────────────────────────────────────────────────────────────
 function YapeToast({
@@ -182,6 +183,20 @@ export const Topbar = ({
   const [unseenCount, setUnseenCount] = useState(0);
 
   const { user } = useAuth();
+  const { showToast } = useToast();
+  const router = useRouter();
+
+  const irA = (path: string) => {
+    if (!isOnline) {
+      showToast(
+        "Sin conexión: solo Nueva Venta está disponible sin internet.",
+        "error",
+      );
+      return;
+    }
+    setUserOpen(false);
+    router.push(path);
+  };
 
   const isSuperAdmin = user?.rol === "superadmin";
   const {
@@ -679,26 +694,28 @@ export const Topbar = ({
 
                   <ul className="">
                     <li>
-                      <Link
-                        href="/factufly/empresa"
+                      <button
+                        type="button"
+                        onClick={() => irA("/factufly/empresa")}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors group"
                       >
                         <div className="p-1.5 bg-gray-100 rounded-lg group-hover:bg-blue-50 transition-colors">
                           <Settings className="w-3.5 h-3.5 text-gray-500 group-hover:text-blue-600 transition-colors" />
                         </div>
                         <span className="text-[12px]">Empresa</span>
-                      </Link>
+                      </button>
                     </li>
                     <li>
-                      <Link
-                        href="/factufly/sunat"
+                      <button
+                        type="button"
+                        onClick={() => irA("/factufly/sunat")}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors group"
                       >
                         <div className="p-1.5 bg-gray-100 rounded-lg group-hover:bg-blue-50 transition-colors">
                           <Zap className="w-3.5 h-3.5 text-gray-500 group-hover:text-blue-600 transition-colors" />
                         </div>
                         <span className="text-[12px]">SUNAT</span>
-                      </Link>
+                      </button>
                     </li>
                   </ul>
 

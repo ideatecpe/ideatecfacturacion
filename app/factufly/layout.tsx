@@ -21,12 +21,81 @@ import {
 } from "lucide-react";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
-import { ToastProvider } from "../components/ui/Toast";
-import { OfflineSalesProvider } from "../components/offline/OfflineSalesProvider";
+import { ToastProvider, useToast } from "../components/ui/Toast";
+import { OfflineSalesProvider, useOfflineSales } from "../components/offline/OfflineSalesProvider";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { MenuItem, View } from "../types";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
+
+// Única sección preparada para funcionar sin conexión: mientras no haya
+// internet, la navegación a cualquier otra pantalla se bloquea (en vez de
+// dejar que el usuario entre y se encuentre con una pantalla rota) — en la
+// PWA instalada no hay barra de direcciones ni botón "atrás" para salir de ahí.
+const RUTA_SEGURA_OFFLINE = "operaciones/boleta-facturaelectronica";
+
+function OfflineGuard({ children }: { children: React.ReactNode }) {
+  const { isOnline } = useOfflineSales();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { showToast } = useToast();
+
+  React.useEffect(() => {
+    if (!isOnline) {
+      const rutaRelativa = pathname.replace(/^\/factufly\/?/, "").replace(/\/$/, "");
+      if (rutaRelativa !== RUTA_SEGURA_OFFLINE) {
+        showToast(
+          "Sin conexión: solo Nueva Venta está disponible sin internet.",
+          "error",
+        );
+        router.replace(`/factufly/${RUTA_SEGURA_OFFLINE}`);
+      }
+    }
+  }, [isOnline, pathname, router, showToast]);
+
+  return <>{children}</>;
+}
+
+function SidebarConGuardaOffline({
+  isOpen,
+  activeView,
+  activeSubView,
+  menuItems,
+  router,
+  setIsSidebarOpen,
+}: {
+  isOpen: boolean;
+  activeView: View;
+  activeSubView: string;
+  menuItems: MenuItem[];
+  router: ReturnType<typeof useRouter>;
+  setIsSidebarOpen: (v: boolean) => void;
+}) {
+  const { isOnline } = useOfflineSales();
+  const { showToast } = useToast();
+
+  return (
+    <Sidebar
+      isOpen={isOpen}
+      activeView={activeView}
+      activeSubView={activeSubView}
+      isOnline={isOnline}
+      onViewChange={(path) => {
+        if (!isOnline && path !== RUTA_SEGURA_OFFLINE) {
+          showToast(
+            "Sin conexión: solo Nueva Venta está disponible sin internet.",
+            "error",
+          );
+          return;
+        }
+        router.push(`/factufly/${path}`);
+        if (window.innerWidth < 1280) setIsSidebarOpen(false);
+      }}
+      menuItems={menuItems}
+    />
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -84,13 +153,14 @@ export default function DashboardLayout({
       router.push("/factufly/dashboard");
     }
 
-    const requestInterceptor = axios.interceptors.request.use((config) => {
-      return config;
-    });
-
     const responseInterceptor = axios.interceptors.response.use(
       (response) => response,
-      (error) => Promise.reject(error),
+      (error) => {
+        if (!error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED" || (typeof navigator !== "undefined" && !navigator.onLine)) {
+          window.dispatchEvent(new Event("offline"));
+        }
+        return Promise.reject(error);
+      },
     );
 
     const originalFetch = window.fetch;
@@ -105,15 +175,17 @@ export default function DashboardLayout({
           console.warn(`[FETCH ${response.status}] ${method} ${url}`);
         }
         return response;
-      } catch (error) {
+      } catch (error: any) {
         const url = typeof args[0] === "string" ? args[0] : (args[0] as any).url;
         console.warn(`[FETCH FAIL] ${url}`);
+        if (error?.name !== "AbortError") {
+          window.dispatchEvent(new Event("offline"));
+        }
         throw error;
       }
     };
 
     return () => {
-      axios.interceptors.request.eject(requestInterceptor);
       axios.interceptors.response.eject(responseInterceptor);
       window.fetch = originalFetch;
     };
@@ -199,63 +271,65 @@ export default function DashboardLayout({
   return (
     <ToastProvider>
       <OfflineSalesProvider>
-      <div className="h-screen flex overflow-hidden" style={{ background: "#F5F8FD" }}>
-        {/* Backdrop oscuro al abrir sidebar en pantallas < 1280px */}
-        {isSidebarOpen && (
-          <div
-            className="fixed inset-0 z-40 bg-black/40 xl:hidden"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        )}
-        {/* Sidebar — entra desde la izquierda */}
-        <div
-          style={{
-            transform: settled
-              ? "none"
-              : entered
-                ? "translateX(0)"
-                : "translateX(-110%)",
-            opacity: entered ? 1 : 0,
-            transition: entered ? "transform 1s cubic-bezier(0.22, 1, 0.36, 1), opacity 1s ease" : "none",
-            zIndex: 50,
-            position: "relative",
-          }}
-        >
-          <Sidebar
-            isOpen={isSidebarOpen}
-            activeView={activeView}
-            activeSubView={activeSubView}
-            onViewChange={(path) => {
-              router.push(`/factufly/${path}`);
-              if (window.innerWidth < 1280) setIsSidebarOpen(false);
-            }}
-            menuItems={menuItems}
-          />
-        </div>
-        {/* Contenido — entra desde la derecha */}
-        <div
-          className="flex-1 flex flex-col min-w-0 h-full overflow-hidden"
-          style={{
-            transform: settled
-              ? "none"
-              : entered
-                ? "translateX(0)"
-                : "translateX(110%)",
-            opacity: entered ? 1 : 0,
-            transition: entered ? "transform 1s cubic-bezier(0.22, 1, 0.36, 1), opacity 1s ease" : "none",
-          }}
-        >
-          <Topbar
-            isSidebarOpen={isSidebarOpen}
-            toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            activeView={activeView}
-            activeSubViewLabel={activeSubViewLabel}
-          />
-          <main className="flex-1 p-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
-            <div className="mx-auto">{children}</div>
-          </main>
-        </div>
-      </div>
+        <OfflineGuard>
+          <div className="h-screen flex overflow-hidden" style={{ background: "#F5F8FD" }}>
+            {/* Backdrop oscuro al abrir sidebar en pantallas < 1280px */}
+            {isSidebarOpen && (
+              <div
+                className="fixed inset-0 z-40 bg-black/40 xl:hidden"
+                onClick={() => setIsSidebarOpen(false)}
+              />
+            )}
+            {/* Sidebar — entra desde la izquierda */}
+            <div
+              style={{
+                transform: settled
+                  ? "none"
+                  : entered
+                    ? "translateX(0)"
+                    : "translateX(-110%)",
+                opacity: entered ? 1 : 0,
+                transition: entered ? "transform 1s cubic-bezier(0.22, 1, 0.36, 1), opacity 1s ease" : "none",
+                zIndex: 50,
+                position: "relative",
+              }}
+            >
+              <SidebarConGuardaOffline
+                isOpen={isSidebarOpen}
+                activeView={activeView}
+                activeSubView={activeSubView}
+                menuItems={menuItems}
+                router={router}
+                setIsSidebarOpen={setIsSidebarOpen}
+              />
+            </div>
+            {/* Contenido — entra desde la derecha */}
+            <div
+              className="flex-1 flex flex-col min-w-0 h-full overflow-hidden"
+              style={{
+                transform: settled
+                  ? "none"
+                  : entered
+                    ? "translateX(0)"
+                    : "translateX(110%)",
+                opacity: entered ? 1 : 0,
+                transition: entered ? "transform 1s cubic-bezier(0.22, 1, 0.36, 1), opacity 1s ease" : "none",
+              }}
+            >
+              <Topbar
+                isSidebarOpen={isSidebarOpen}
+                toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                activeView={activeView}
+                activeSubViewLabel={activeSubViewLabel}
+              />
+              <main className="flex-1 p-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
+                <div className="mx-auto">
+                  <ErrorBoundary key={pathname}>{children}</ErrorBoundary>
+                </div>
+              </main>
+            </div>
+          </div>
+        </OfflineGuard>
       </OfflineSalesProvider>
     </ToastProvider>
   );
