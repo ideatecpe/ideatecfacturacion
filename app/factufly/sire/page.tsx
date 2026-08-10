@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Lock,
   Info,
-  Calendar,
   History,
   ChevronDown,
   Eye,
@@ -23,15 +22,6 @@ import { SirePeriodoDto } from "./gestionSire/types";
 import { ModalPropuestaSire } from "@/app/components/sire/ModalPropuestaSire";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-function mesActual(): { anio: number; mes: number } {
-  const hoy = new Date();
-  return { anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 };
-}
-
-function toPerTributario(anio: number, mes: number): string {
-  return `${anio}${String(mes).padStart(2, "0")}`;
-}
-
 function formatPeriodoLabel(perTributario: string): string {
   if (!perTributario || perTributario.length !== 6) return perTributario;
   const anio = perTributario.slice(0, 4);
@@ -82,10 +72,6 @@ export default function SirePage() {
   const rucEmpresa = user?.ruc ?? "";
   const canManage = user?.rol === "admin" || user?.rol === "superadmin";
 
-  const { anio: anioActual, mes: mesActualNum } = mesActual();
-  const [anio, setAnio] = useState(anioActual);
-  const [mes, setMes] = useState(mesActualNum);
-
   const [periodos, setPeriodos] = useState<SirePeriodoDto[]>([]);
   const [consultado, setConsultado] = useState(false);
   const [historialExpandido, setHistorialExpandido] = useState(false);
@@ -133,8 +119,6 @@ export default function SirePage() {
     if (next && rucEmpresa) await fetchHistorial(rucEmpresa);
   };
 
-  const perTributarioSeleccionado = toPerTributario(anio, mes);
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {periodoEnRevision && (
@@ -162,37 +146,9 @@ export default function SirePage() {
         </div>
       )}
 
-      {/* ── Selector de periodo ── */}
-      <Card title="Consultar Periodos" subtitle="Consulta el estado de tus periodos ante SUNAT">
-        <div className="p-3 flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Año</label>
-            <input
-              type="number"
-              value={anio}
-              onChange={(e) => setAnio(parseInt(e.target.value) || anioActual)}
-              className="h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50 focus:bg-white transition-all w-28"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Mes</label>
-            <select
-              value={mes}
-              onChange={(e) => setMes(parseInt(e.target.value))}
-              className="h-9 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-blue/50 focus:bg-white transition-all"
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {formatPeriodoLabel(`${anio}${String(m).padStart(2, "0")}`).split(" ")[0]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-400 pb-2">
-            <Calendar className="w-3.5 h-3.5" />
-            Periodo: <span className="font-semibold text-gray-600">{perTributarioSeleccionado}</span>
-          </div>
-          <div className="flex-1" />
+      {/* ── Consultar periodos ── */}
+      <Card title="Consultar Periodos" subtitle="Consulta el estado de todos tus periodos ante SUNAT">
+        <div className="p-3 flex items-center justify-end">
           <Button
             type="button"
             className="h-9 text-xs"
@@ -234,7 +190,7 @@ export default function SirePage() {
               ) : !consultado ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-16 text-center text-sm text-gray-400">
-                    Elige un periodo y presiona "Consultar periodos" para ver el estado en SUNAT.
+                    Presiona "Consultar periodos" para ver el estado de tus periodos en SUNAT.
                   </td>
                 </tr>
               ) : periodos.length === 0 ? (
