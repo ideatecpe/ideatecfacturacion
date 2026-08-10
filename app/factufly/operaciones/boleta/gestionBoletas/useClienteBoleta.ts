@@ -3,6 +3,7 @@ import { BoletaCliente } from './Boleta'
 import { consultaDni } from '@/app/components/apiConsultasJsonPe/consultaDni'
 import { consultaRuc } from '@/app/components/apiConsultasJsonPe/consultaRuc'
 import { consultaCe } from '@/app/components/apiConsultasJsonPe/consultaCe'
+import { cacheCliente, getClienteCache } from '@/lib/offline/offlineDb'
 
 export function useClienteBoleta() {
   const [cliente, setCliente] = useState<Partial<BoletaCliente> | null>(null)
@@ -18,7 +19,7 @@ export function useClienteBoleta() {
       if (tipoDoc === '01') {
         const result = await consultaDni(numeroDoc)
         if (result) {
-          setCliente({
+          const clienteEncontrado: Partial<BoletaCliente> = {
             clienteId: null,
             tipoDocumento: tipoDoc,
             numeroDocumento: numeroDoc,
@@ -28,14 +29,16 @@ export function useClienteBoleta() {
             departamento: '',
             provincia: '',
             distrito: '',
-          })
+          }
+          setCliente(clienteEncontrado)
+          cacheCliente(tipoDoc, numeroDoc, clienteEncontrado).catch(() => {})
         } else {
           setErrorCliente('No se encontró el DNI.')
         }
       } else if (tipoDoc === '06') {
         const result = await consultaRuc(numeroDoc)
         if (result) {
-          setCliente({
+          const clienteEncontrado: Partial<BoletaCliente> = {
             clienteId: null,
             tipoDocumento: tipoDoc,
             numeroDocumento: numeroDoc,
@@ -45,14 +48,16 @@ export function useClienteBoleta() {
             departamento: result.departamento,
             provincia: result.provincia,
             distrito: result.distrito,
-          })
+          }
+          setCliente(clienteEncontrado)
+          cacheCliente(tipoDoc, numeroDoc, clienteEncontrado).catch(() => {})
         } else {
           setErrorCliente('RUC no encontrado')
         }
       } else if (tipoDoc === '04') {
         const result = await consultaCe(numeroDoc)
         if (result) {
-          setCliente({
+          const clienteEncontrado: Partial<BoletaCliente> = {
             clienteId: null,
             tipoDocumento: tipoDoc,
             numeroDocumento: numeroDoc,
@@ -62,13 +67,25 @@ export function useClienteBoleta() {
             departamento: '',
             provincia: '',
             distrito: '',
-          })
+          }
+          setCliente(clienteEncontrado)
+          cacheCliente(tipoDoc, numeroDoc, clienteEncontrado).catch(() => {})
         } else {
           setErrorCliente('No se encontró el Carnet de Extranjería.')
         }
       }
     } catch {
-      setErrorCliente('No se pudo encontrar el cliente')
+      // Sin conexión con el servicio de consulta: usar la última respuesta
+      // conocida para ese mismo documento, si existe.
+      const cache = await getClienteCache(tipoDoc, numeroDoc).catch(() => null)
+      if (cache) {
+        setCliente(cache.cliente)
+        setErrorCliente(null)
+      } else {
+        setErrorCliente(
+          'Sin conexión: no se pudo consultar el documento. Ingresa los datos manualmente.',
+        )
+      }
     } finally {
       setLoadingCliente(false)
     }

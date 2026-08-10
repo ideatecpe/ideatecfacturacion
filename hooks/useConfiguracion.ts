@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { cacheConfig, getConfigCache } from "@/lib/offline/offlineDb";
 
 export interface Configuracion {
   isImprime: boolean;
@@ -37,7 +38,23 @@ export function useConfiguracion() {
   useEffect(() => {
     if (!user?.ruc || !accessToken) return;
     const ruc = user.ruc;
-    if (!configCache.has(ruc)) setLoading(true);
+    let usedNetwork = false;
+
+    if (!configCache.has(ruc)) {
+      setLoading(true);
+      // Mientras se confirma por red, muestra lo último bueno guardado en el
+      // dispositivo (sobrevive a un reload sin conexión, a diferencia del
+      // Map en memoria de arriba).
+      getConfigCache(ruc)
+        .then((entry) => {
+          if (entry && !usedNetwork) {
+            configCache.set(ruc, entry.config);
+            setConfig(entry.config);
+          }
+        })
+        .catch(() => {});
+    }
+
     fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${ruc}`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -45,8 +62,10 @@ export function useConfiguracion() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data) {
+          usedNetwork = true;
           configCache.set(ruc, data);
           setConfig(data);
+          cacheConfig(ruc, data).catch(() => {});
         }
       })
       .catch(() => {})

@@ -62,6 +62,13 @@ import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import CajaAutopago from "@/app/factufly/operaciones/components/CajaAutopago";
 import React from "react";
+import {
+  generarXml,
+  enviarASunatApi,
+  descontarStockApi,
+} from "./gestionBoletas/emitirBoletaApi";
+import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
+import { imprimirTicketProvisional } from "../components/TicketProvisional";
 
 // ── Interfaces locales ───────────────────────────────────────
 interface DetalleLocal extends Partial<BoletaDetalle> {
@@ -122,6 +129,7 @@ function BoletaContent() {
   const router = useRouter();
   const { accessToken, user } = useAuth();
   const { config, loading: loadingConfig } = useConfiguracion();
+  const { enqueueVenta } = useOfflineSales();
 
   //enviar mediante resumen
   const [enviarEnResumen, setEnviarEnResumen] = useState(false);
@@ -305,15 +313,22 @@ function BoletaContent() {
   }, [comprobante]);
 
   // Productos según sucursal
-  const { productosSucursal, fetchProductosSucursal } = useProductosSucursal(
-    isSuperAdmin ? sucursal?.sucursalId : undefined,
-  );
+  const {
+    productosSucursal,
+    fetchProductosSucursal,
+    descontarStockLocal,
+    productosDesactualizados,
+    fechaCache,
+  } = useProductosSucursal(isSuperAdmin ? sucursal?.sucursalId : undefined);
 
   const sinSucursal = isSuperAdmin && !sucursal;
   const { fecha, fechaHora } = formatoFechaActual();
 
   // ── Estado emitido ───────────────────────────────────────────
   const [emitido, setEmitido] = useState(false);
+  const [ultimoTicketOffline, setUltimoTicketOffline] = useState<
+    Parameters<typeof imprimirTicketProvisional>[0] | null
+  >(null);
 
   // ── Estado cliente ───────────────────────────────────────────
   const [tipoDoc, setTipoDoc] = useState("01");
@@ -1990,11 +2005,8 @@ function BoletaContent() {
 
   // ── Descontar stock (solo si config.isStock) ───────────────────
   const stockDescontadoRef = useRef(false);
-  const descontarStockSiAplica = async (comprobanteId: number) => {
-    if (!config?.isStock) return;
-    if (stockDescontadoRef.current) return;
-    stockDescontadoRef.current = true;
 
+  const calcularStockItems = () => {
     const acumulado = new Map<number, number>();
     detalles
       .filter((d) => !d._esIcbper && d._tipoProducto === "BIEN" && d._sucursalProductoId)
@@ -2003,18 +2015,21 @@ function BoletaContent() {
         const cantidad = Number(d.cantidad) || 0;
         acumulado.set(id, (acumulado.get(id) ?? 0) + cantidad);
       });
-
-    const items = Array.from(acumulado.entries()).map(
+    return { acumulado, items: Array.from(acumulado.entries()).map(
       ([sucursalProductoId, cantidad]) => ({ sucursalProductoId, cantidad }),
-    );
+    ) };
+  };
+
+  const descontarStockSiAplica = async (comprobanteId: number) => {
+    if (!config?.isStock) return;
+    if (stockDescontadoRef.current) return;
+    stockDescontadoRef.current = true;
+
+    const { acumulado, items } = calcularStockItems();
     if (!items.length) return;
 
     try {
-      await axios.put(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/descontar-stock`,
-        items,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
+      await descontarStockApi(comprobanteId, items, accessToken);
       const productosActualizados = await fetchProductosSucursal();
       if (sucursal?.numeroStockBajo) {
         const umbral = config.umbralStockBajo ?? 10;
@@ -2032,6 +2047,51 @@ function BoletaContent() {
     } catch {
       showToast("No se pudo actualizar el stock de los productos.", "error");
     }
+  };
+
+  // ── Venta sin conexión: se encola localmente ────────────────────
+  const manejarVentaSinConexion = async (
+    boletaFinal: ReturnType<typeof prepararBoleta>,
+  ) => {
+    const stockItems = config?.isStock ? calcularStockItems().items : [];
+
+    const resumenTicket = {
+      clienteNombre: boleta.cliente?.razonSocial || "Cliente Varios",
+      items: detalles
+        .filter((d) => !d._esIcbper)
+        .map((d) => ({
+          descripcion: d.descripcion ?? "",
+          cantidad: Number(d.cantidad) || 0,
+          precioVenta: Number(d.precioVenta) || 0,
+        })),
+      total: totales.total,
+      moneda: boleta.tipoMoneda === "USD" ? "USD" : "PEN",
+      medioPago:
+        boleta.tipoPago === "Credito"
+          ? "Crédito"
+          : pagos.map((p) => p.medioPago).join(", "),
+    };
+
+    const ventaId = await enqueueVenta(boletaFinal, stockItems, resumenTicket);
+
+    if (stockItems.length) descontarStockLocal(stockItems);
+
+    const datosTicket = {
+      id: ventaId,
+      fecha: new Date(),
+      tamanoImpresion: config?.tamañoImpresion,
+      ...resumenTicket,
+    };
+    setUltimoTicketOffline(datosTicket);
+    // Mismo criterio que la impresión automática online: solo imprime si el
+    // negocio activó "Auto-imprimir" en Empresa.
+    if (config?.isImprime) imprimirTicketProvisional(datosTicket);
+
+    showToast(
+      "Sin conexión: la venta se guardó localmente y se enviará a SUNAT cuando vuelva el internet.",
+      "success",
+    );
+    setEmitido(true);
   };
 
   // ── Emitir ───────────────────────────────────────────────────
@@ -2163,12 +2223,19 @@ function BoletaContent() {
       const boletaFinal = prepararBoleta();
 
       // Primera API: solo guarda en BD
-      const resBoleta = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/GenerarXml`,
-        boletaFinal,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      const comprobanteId = resBoleta.data.comprobanteId;
+      let comprobanteId: number;
+      try {
+        const resBoleta = await generarXml(boletaFinal, accessToken);
+        comprobanteId = resBoleta.comprobanteId;
+      } catch (errGenerar: any) {
+        if (!errGenerar?.response) {
+          // Sin respuesta HTTP en absoluto: no hay forma de llegar al backend.
+          // Se guarda como venta pendiente en vez de perder la venta.
+          await manejarVentaSinConexion(boletaFinal);
+          return;
+        }
+        throw errGenerar;
+      }
 
       // ✅ Guardar id ANTES de llamar a SUNAT
       setComprobanteIdEmitido(comprobanteId);
@@ -2197,16 +2264,12 @@ function BoletaContent() {
   // ── Enviar a SUNAT ───────────────────────────────────────────
   const enviarASunat = async (comprobanteId: number) => {
     try {
-      const resSunat = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/enviar-sunat`,
-        null,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
+      const resSunat = await enviarASunatApi(comprobanteId, accessToken);
 
-      if (resSunat.data.exitoso) {
+      if (resSunat.exitoso) {
         // SUNAT aceptó
         showToast(
-          resSunat.data.mensaje ?? "Boleta emitida correctamente.",
+          resSunat.mensaje ?? "Boleta emitida correctamente.",
           "success",
         );
         setEmitido(true);
@@ -2218,9 +2281,9 @@ function BoletaContent() {
         // ya distingue esto en estadoSunat, así que lo respetamos en vez de
         // asumir siempre "rechazada".
         const serieCorrelativo = `${boleta.serie}-${boleta.correlativo}`;
-        const estadoSunat = resSunat.data.estadoSunat;
+        const estadoSunat = resSunat.estadoSunat;
         setErrorEmision(
-          resSunat.data.mensaje ?? "Comprobante rechazado por SUNAT",
+          resSunat.mensaje ?? "Comprobante rechazado por SUNAT",
         );
         if (estadoSunat === "PENDIENTE") {
           showToast(
@@ -2283,11 +2346,7 @@ function BoletaContent() {
     const delayConJitter = 30000 + Math.random() * 20000; // 30-50s
     await new Promise((res) => setTimeout(res, delayConJitter));
     try {
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/enviar-sunat`,
-        null,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
+      await enviarASunatApi(comprobanteId, accessToken);
     } catch {
       // silencioso
     }
@@ -2525,6 +2584,7 @@ function BoletaContent() {
     setPdfTicketUrl(null);
     setComprobanteIdEmitido(null);
     setErrorEmision(null);
+    setUltimoTicketOffline(null);
     setTamanoPdf(null); // reset → vuelve al valor de config
 
     // Ítems
@@ -4831,10 +4891,27 @@ function BoletaContent() {
                   Selecciona una sucursal para emitir
                 </p>
               )}
+              {productosDesactualizados && (
+                <p className="text-xs text-amber-600 text-center">
+                  Sin conexión: catálogo del{" "}
+                  {fechaCache
+                    ? new Date(fechaCache).toLocaleString("es-PE")
+                    : "último guardado"}
+                </p>
+              )}
               {errorEmision && (
                 <p className="text-xs text-red-500 text-center">
                   {errorEmision}
                 </p>
+              )}
+              {ultimoTicketOffline && emitido && (
+                <button
+                  type="button"
+                  onClick={() => imprimirTicketProvisional(ultimoTicketOffline)}
+                  className="w-full flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Imprimir ticket provisional
+                </button>
               )}
             </div>
           </Card>

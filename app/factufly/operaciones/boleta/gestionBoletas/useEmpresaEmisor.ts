@@ -3,6 +3,7 @@ import axios from 'axios'
 import { BoletaCompany } from './Boleta'
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/app/components/ui/Toast';
+import { cacheEmpresa, getEmpresaCache } from '@/lib/offline/offlineDb';
 
 export function useEmpresaEmisor() {
   const { showToast } = useToast();
@@ -14,7 +15,16 @@ export function useEmpresaEmisor() {
 
   const fetchEmpresa = async () => {
     if (!user?.ruc) return
+    const ruc = user.ruc
     setLoadingEmpresa(true)
+
+    // En paralelo al reintento por red: si hay una copia guardada del
+    // dispositivo, se muestra de una vez (útil sin conexión).
+    getEmpresaCache(ruc)
+      .then((entry) => {
+        if (entry) setEmpresa((prev) => prev ?? entry.empresa)
+      })
+      .catch(() => {})
 
     for (let i = 0; i < 3; i++) {
       try {
@@ -23,7 +33,7 @@ export function useEmpresaEmisor() {
           { headers: { Authorization: `Bearer ${accessToken}` } }
         )
         const data = res.data
-        setEmpresa({
+        const empresaResuelta: BoletaCompany = {
           empresaId: data.id,
           numeroDocumento: data.ruc,
           razonSocial: data.razonSocial,
@@ -34,14 +44,17 @@ export function useEmpresaEmisor() {
           departamento: data.departamento,
           distrito: data.distrito,
           establecimientoAnexo: "0000"
-        })
+        }
+        setEmpresa(empresaResuelta)
+        cacheEmpresa(ruc, empresaResuelta).catch(() => {})
         setLoadingEmpresa(false)
         return
       } catch {
         if (i < 2) {
           await sleep(1000 * (i + 1))
         } else {
-          showToast("Error al obtener los datos de la empresa", "error")
+          const cache = await getEmpresaCache(ruc).catch(() => null)
+          if (!cache) showToast("Error al obtener los datos de la empresa", "error")
           setLoadingEmpresa(false)
         }
       }

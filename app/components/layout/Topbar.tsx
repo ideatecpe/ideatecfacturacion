@@ -16,12 +16,15 @@ import {
   FlaskConical,
   Zap,
   AlertTriangle,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react";
 import { View } from "@/app/types";
 import { signOut } from "next-auth/react";
 import { useAuth } from "@/context/AuthContext";
 import { DateChip } from "./DateChip";
 import { useNotifications, YapeAlert } from "@/hooks/useNotifications";
+import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
 import Link from "next/link";
 
 // ─── Yape Toast ───────────────────────────────────────────────────────────────
@@ -156,9 +159,22 @@ export const Topbar = ({
 }: TopbarProps) => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [ventasOpen, setVentasOpen] = useState(false);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
+  const ventasRef = useRef<HTMLDivElement>(null);
+
+  const {
+    isOnline,
+    ventasPendientes,
+    cantidadPendientes,
+    cantidadError,
+    syncing,
+    sesionExpirada,
+    sincronizarAhora,
+    reintentarVenta,
+  } = useOfflineSales();
 
   const [lastSeenAt, setLastSeenAt] = useState<string>(
     new Date().toISOString(),
@@ -198,6 +214,8 @@ export const Topbar = ({
         setNotifOpen(false);
       if (userRef.current && !userRef.current.contains(e.target as Node))
         setUserOpen(false);
+      if (ventasRef.current && !ventasRef.current.contains(e.target as Node))
+        setVentasOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -342,6 +360,99 @@ export const Topbar = ({
                 </>
               )}
             </div>
+
+            {/* Ventas pendientes de sincronizar (offline) */}
+            {(cantidadPendientes > 0 || cantidadError > 0) && (
+              <div className="relative" ref={ventasRef}>
+                <button
+                  onClick={() => {
+                    setVentasOpen((v) => !v);
+                    setNotifOpen(false);
+                    setUserOpen(false);
+                  }}
+                  className="p-2.5 rounded-xl relative group transition-all hover:bg-white text-slate-400 hover:text-brand-blue"
+                  title="Ventas pendientes de sincronizar"
+                >
+                  <WifiOff className="w-5 h-5 transition-colors group-hover:text-brand-blue" />
+                  <span className="absolute -top-1.5 -right-1.5 min-w-4.5 h-4.5 bg-amber-500 rounded-full border-2 border-white flex items-center justify-center px-1">
+                    <span className="text-[10px] font-bold text-white leading-none">
+                      {cantidadPendientes + cantidadError}
+                    </span>
+                  </span>
+                </button>
+
+                {ventasOpen && (
+                  <div className="fixed sm:absolute inset-x-2 sm:inset-x-auto sm:right-0 top-15 sm:top-auto sm:mt-2 sm:w-80 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fade-in">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                      <span className="text-sm font-bold text-gray-900">
+                        Ventas pendientes
+                      </span>
+                      <button
+                        onClick={() => sincronizarAhora()}
+                        disabled={!isOnline || syncing}
+                        className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full disabled:opacity-40"
+                      >
+                        <RefreshCw
+                          className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`}
+                        />
+                        Sincronizar
+                      </button>
+                    </div>
+
+                    <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+                      {ventasPendientes.map((v) => (
+                        <li
+                          key={v.id}
+                          className={`flex items-start gap-3 px-4 py-3 ${
+                            v.estado === "error" ? "bg-red-50/40" : ""
+                          }`}
+                        >
+                          <div className="mt-0.5 p-1.5 bg-white rounded-lg border border-gray-100 shadow-sm shrink-0">
+                            {v.estado === "error" ? (
+                              <AlertCircle className="w-4 h-4 text-red-500" />
+                            ) : v.estado === "sincronizando" ? (
+                              <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
+                            ) : (
+                              <WifiOff className="w-4 h-4 text-amber-500" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {v.resumenTicket.clienteNombre}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {v.resumenTicket.moneda === "USD" ? "$" : "S/"}{" "}
+                              {v.resumenTicket.total.toFixed(2)} —{" "}
+                              {new Date(v.createdAt).toLocaleTimeString(
+                                "es-PE",
+                              )}
+                            </p>
+                            {v.estado === "error" && (
+                              <>
+                                <p className="text-[10px] text-red-500 font-medium mt-1 truncate">
+                                  {v.ultimoError}
+                                </p>
+                                <button
+                                  onClick={() => reintentarVenta(v.id)}
+                                  className="text-[10px] font-bold text-blue-600 mt-1"
+                                >
+                                  Reintentar
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                      {ventasPendientes.length === 0 && (
+                        <li className="px-4 py-6 text-center text-sm text-gray-400">
+                          Sin ventas pendientes
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Campana de notificaciones */}
             <div className="relative" ref={notifRef}>
@@ -621,6 +732,35 @@ export const Topbar = ({
                 No emitas comprobantes reales a SUNAT.
               </strong>{" "}
               Los documentos generados aquí no tienen validez tributaria.
+            </p>
+          </div>
+        )}
+
+        {!isOnline && (
+          <div className="bg-red-500 px-6 py-1.5 flex items-center gap-3">
+            <WifiOff className="w-3.5 h-3.5 text-white shrink-0" />
+            <p className="text-white text-xs font-medium">
+              Sin conexión — las ventas se guardan localmente y se enviarán a
+              SUNAT automáticamente al reconectar.
+            </p>
+          </div>
+        )}
+
+        {isOnline && syncing && (
+          <div className="bg-blue-500 px-6 py-1.5 flex items-center gap-3">
+            <RefreshCw className="w-3.5 h-3.5 text-white shrink-0 animate-spin" />
+            <p className="text-white text-xs font-medium">
+              Sincronizando {cantidadPendientes} venta(s) pendiente(s)...
+            </p>
+          </div>
+        )}
+
+        {isOnline && sesionExpirada && (
+          <div className="bg-amber-500 px-6 py-1.5 flex items-center gap-3">
+            <AlertTriangle className="w-3.5 h-3.5 text-white shrink-0" />
+            <p className="text-white text-xs font-medium">
+              Tu sesión expiró mientras estabas sin conexión. Vuelve a iniciar
+              sesión para sincronizar las ventas pendientes.
             </p>
           </div>
         )}

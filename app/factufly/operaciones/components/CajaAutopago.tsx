@@ -34,6 +34,7 @@ import {
   Check,
   CameraOff,
   ShoppingBag,
+  WifiOff,
 } from "lucide-react";
 
 import { scanImageData } from "@undecaf/zbar-wasm";
@@ -54,6 +55,14 @@ import { formatoFechaActual } from "@/app/components/ui/formatoFecha";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
 import { avisarStockBajoWhatsapp } from "@/app/factufly/productos/gestioProductos/stockAlerta";
 import { useToast } from "@/app/components/ui/Toast";
+import {
+  generarXml,
+  enviarASunatApi,
+  crearNotaVenta,
+  descontarStockApi,
+} from "@/app/factufly/operaciones/boleta/gestionBoletas/emitirBoletaApi";
+import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
+import { imprimirTicketProvisional } from "@/app/factufly/operaciones/components/TicketProvisional";
 
 interface MedioPagoOpcion {
   nombre: string;
@@ -232,10 +241,15 @@ export default function CajaAutopago() {
   const { showToast } = useToast();
 
   const sucursalId = user?.sucursalID ? parseInt(user.sucursalID) : null;
-  const { productosSucursal, loadingSucursal, setProductosSucursal, fetchProductosSucursal } = useProductosSucursal(sucursalId, !!sucursalId);
+  const { productosSucursal, loadingSucursal, setProductosSucursal, fetchProductosSucursal, descontarStockLocal } = useProductosSucursal(sucursalId, !!sucursalId);
   const { empresa } = useEmpresaEmisor();
   const { sucursal, fetchSucursal } = useSucursal();
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
+  const { enqueueVenta } = useOfflineSales();
+  const [offlineEncolada, setOfflineEncolada] = useState(false);
+  const [ultimoTicketOffline, setUltimoTicketOffline] = useState<
+    Parameters<typeof imprimirTicketProvisional>[0] | null
+  >(null);
 
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
@@ -1281,24 +1295,24 @@ export default function CajaAutopago() {
   };
 
   // ── Descontar stock (solo si config.isStock) ───────────────────
-  const descontarStockSiAplica = async (comprobanteId: number) => {
-    if (!config?.isStock) return;
+  const calcularStockItems = () => {
     const acumulado = new Map<number, number>();
     items.forEach((it) => {
       if (it.tipoProducto !== "BIEN" || !it.sucursalProductoId) return;
       acumulado.set(it.sucursalProductoId, (acumulado.get(it.sucursalProductoId) ?? 0) + it.cantidad);
     });
-    const payloadItems = Array.from(acumulado.entries()).map(([sucursalProductoId, cantidad]) => ({
+    return { acumulado, items: Array.from(acumulado.entries()).map(([sucursalProductoId, cantidad]) => ({
       sucursalProductoId,
       cantidad,
-    }));
+    })) };
+  };
+
+  const descontarStockSiAplica = async (comprobanteId: number) => {
+    if (!config?.isStock) return;
+    const { acumulado, items: payloadItems } = calcularStockItems();
     if (!payloadItems.length) return;
     try {
-      await axios.put(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/descontar-stock`,
-        payloadItems,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
+      await descontarStockApi(comprobanteId, payloadItems, accessToken);
       const productosActualizados = await fetchProductosSucursal();
       if (sucursal?.numeroStockBajo) {
         const umbral = config.umbralStockBajo ?? 10;
@@ -1486,6 +1500,59 @@ export default function CajaAutopago() {
     else setTipoConDocumento(t);
   };
 
+  // ── Venta sin conexión: se encola localmente ────────────────────
+  const manejarVentaSinConexion = async (
+    payload: Record<string, unknown>,
+    tipo: "comprobante" | "notaventa",
+  ) => {
+    const stockItems = config?.isStock ? calcularStockItems().items : [];
+
+    const resumenTicket = {
+      clienteNombre:
+        cliente?.razonSocial || (sinDocumento ? "Clientes Varios" : documentoTrim || "Cliente"),
+      items: items.map((it) => ({
+        descripcion: it.descripcion,
+        cantidad: it.cantidad,
+        precioVenta: it.precio,
+      })),
+      total: totales.total,
+      moneda: "PEN",
+      medioPago: esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago,
+    };
+
+    const ventaId = await enqueueVenta(payload, stockItems, resumenTicket, tipo);
+
+    if (stockItems.length) descontarStockLocal(stockItems);
+
+    const datosTicket = {
+      id: ventaId,
+      fecha: new Date(),
+      tamanoImpresion: config?.tamañoImpresion,
+      ...resumenTicket,
+    };
+    setUltimoTicketOffline(datosTicket);
+    // Mismo criterio que la impresión automática online (imprimirSiAplica):
+    // solo imprime solo si el negocio activó "Auto-imprimir" en Empresa.
+    // Si está apagado, el ticket queda disponible para reimprimir manual.
+    if (config?.isImprime) imprimirTicketProvisional(datosTicket);
+
+    showToast(
+      "Sin conexión: la venta se guardó localmente y se enviará al reconectar.",
+      "success",
+    );
+
+    // El serie-correlativo que se había "congelado" antes de intentar guardar
+    // es solo una previsualización optimista: como la venta no llegó al
+    // backend, ese número no está confirmado (y podría no ser el que se le
+    // asigne realmente al sincronizar). Se limpia para no mostrar un dato falso.
+    setSerieCorrelativoEmitido(null);
+    setComprobanteIdEmitido(null);
+    setMedioPagoEmitido(esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago);
+    setVueltoEmitido(esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto);
+    setOfflineEncolada(true);
+    setEmitido(true);
+  };
+
   const emitirVenta = async () => {
     if (!empresa) {
       showToast("No se pudo cargar la empresa emisora. Intenta de nuevo.", "error");
@@ -1497,6 +1564,7 @@ export default function CajaAutopago() {
     }
     setMostrarPago(false);
     setEmitiendo(true);
+    setOfflineEncolada(false);
     try {
       let comprobanteId: number;
 
@@ -1518,36 +1586,40 @@ export default function CajaAutopago() {
         setSerieCorrelativoEmitido(serie && correlativo ? `${serie}-${String(correlativo).padStart(8, "0")}` : null);
       }
 
-      if (tipoComprobante === "Nota de Venta") {
-        const res = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/NotaVenta`,
-          prepararNotaVenta(),
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        comprobanteId = res.data.comprobanteId ?? res.data.ComprobanteId;
-      } else {
-        const cod = tipoComprobante === "Factura" ? "01" : "03";
-        const res = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/GenerarXml`,
-          prepararComprobante(cod),
-          { headers: { Authorization: `Bearer ${accessToken}` } },
-        );
-        comprobanteId = res.data.comprobanteId;
+      const esNotaVenta = tipoComprobante === "Nota de Venta";
+      const payload = esNotaVenta
+        ? prepararNotaVenta()
+        : prepararComprobante(tipoComprobante === "Factura" ? "01" : "03");
 
+      try {
+        if (esNotaVenta) {
+          const res = await crearNotaVenta(payload, accessToken);
+          comprobanteId = (res.comprobanteId ?? res.ComprobanteId) as number;
+        } else {
+          const res = await generarXml(payload, accessToken);
+          comprobanteId = res.comprobanteId;
+        }
+      } catch (errGuardar: any) {
+        if (!errGuardar?.response) {
+          // Sin respuesta HTTP en absoluto: no hay forma de llegar al backend.
+          // Se guarda como venta pendiente en vez de perder la venta.
+          await manejarVentaSinConexion(payload, esNotaVenta ? "notaventa" : "comprobante");
+          return;
+        }
+        throw errGuardar;
+      }
+
+      if (!esNotaVenta) {
         // Envío a SUNAT: si SUNAT rechaza o no responde, el comprobante ya quedó
         // registrado en el sistema (igual que en Boleta/Factura), así que no
         // detenemos el flujo de caja — solo avisamos el resultado.
         try {
-          const resSunat = await axios.post(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/enviar-sunat`,
-            null,
-            { headers: { Authorization: `Bearer ${accessToken}` } },
-          );
+          const resSunat = await enviarASunatApi(comprobanteId, accessToken);
           showToast(
-            resSunat.data.exitoso
-              ? (resSunat.data.mensaje ?? `${tipoComprobante} emitida correctamente.`)
-              : (resSunat.data.mensaje ?? `${tipoComprobante} quedó pendiente/rechazada por SUNAT.`),
-            resSunat.data.exitoso ? "success" : "error",
+            resSunat.exitoso
+              ? (resSunat.mensaje ?? `${tipoComprobante} emitida correctamente.`)
+              : (resSunat.mensaje ?? `${tipoComprobante} quedó pendiente/rechazada por SUNAT.`),
+            resSunat.exitoso ? "success" : "error",
           );
         } catch (errSunat) {
           const errRes = errSunat as { response?: { data?: { mensaje?: string } } };
@@ -1592,6 +1664,8 @@ export default function CajaAutopago() {
     setTelWhatsapp("");
     setComprobanteIdEmitido(null);
     setSerieCorrelativoEmitido(null);
+    setOfflineEncolada(false);
+    setUltimoTicketOffline(null);
     setEmitido(false);
   };
 
@@ -1626,6 +1700,33 @@ export default function CajaAutopago() {
 
           {/* Acciones */}
           <div className="p-5 space-y-3">
+            {offlineEncolada && (
+              <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-3 text-amber-800 space-y-2">
+                <div className="flex items-start gap-2">
+                  <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
+                  <p className="text-xs leading-relaxed">
+                    Venta guardada sin conexión
+                    {config?.isImprime
+                      ? " — ya se imprimió un ticket provisional."
+                      : "."}{" "}
+                    El comprobante oficial (con su serie y correlativo SUNAT)
+                    se generará automáticamente cuando vuelva el internet.
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    ultimoTicketOffline &&
+                    imprimirTicketProvisional(ultimoTicketOffline)
+                  }
+                  className="w-full flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-white py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Imprimir ticket
+                  provisional
+                </button>
+              </div>
+            )}
+            {!offlineEncolada && (
+            <>
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => imprimirManual("80")}
@@ -1684,6 +1785,8 @@ export default function CajaAutopago() {
                 {enviandoWhatsapp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Enviar"}
               </button>
             </div>
+            </>
+            )}
 
             <button
               onClick={nuevaVenta}

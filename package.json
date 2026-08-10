@@ -15,6 +15,7 @@
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
     "html5-qrcode": "^2.3.8",
+    "idb": "^8.0.3",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "jszip": "^3.10.1",

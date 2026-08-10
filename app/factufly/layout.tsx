@@ -22,6 +22,7 @@ import {
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
 import { ToastProvider } from "../components/ui/Toast";
+import { OfflineSalesProvider } from "../components/offline/OfflineSalesProvider";
 import { MenuItem, View } from "../types";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
@@ -197,6 +198,7 @@ export default function DashboardLayout({
 
   return (
     <ToastProvider>
+      <OfflineSalesProvider>
       <div className="h-screen flex overflow-hidden" style={{ background: "#F5F8FD" }}>
         {/* Backdrop oscuro al abrir sidebar en pantallas < 1280px */}
         {isSidebarOpen && (
@@ -254,6 +256,7 @@ export default function DashboardLayout({
           </main>
         </div>
       </div>
+      </OfflineSalesProvider>
     </ToastProvider>
   );
 }

@@ -14,7 +14,6 @@ import {
   Globe,
   LifeBuoy,
   FileText,
-  ShieldAlert,
   Zap,
   BarChart3,
   ShieldCheck,
@@ -29,6 +28,7 @@ import {
 } from "lucide-react";
 
 import IncaPattern from "./IncaPattern";
+import { InstallAppButton } from "./InstallAppButton";
 
 // ─── Enums & Interfaces ────────────────────────────────────────────────────────
 
@@ -1149,22 +1149,8 @@ const LoginClient: React.FC = () => {
           </div>
         </section>
 
-        {/* Security Badge */}
-        <div className="fixed bottom-6 left-6 z-20 pointer-events-none">
-          <div className="bg-white/90 backdrop-blur shadow-xl border border-slate-200 p-2 rounded-xl flex items-center gap-3">
-            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-              <ShieldAlert size={16} />
-            </div>
-            <div>
-              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                Conexión Segura
-              </p>
-              <p className="text-[10px] font-semibold text-slate-700">
-                Encriptación SSL de 256 bits
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Install App Badge */}
+        <InstallAppButton />
       </div>
     </>
   );

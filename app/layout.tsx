@@ -1,9 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "@/app/globals.css";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { SessionProvider } from "@/app/components/SessionProvider";
 import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/app/components/ui/Toast";
+import { PwaRegister } from "@/app/components/PwaRegister";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,13 +50,38 @@ export const metadata: Metadata = {
   verification: {
     google: 'añadir-tu-codigo-verificacion-aqui',
   },
+  icons: {
+    icon: [
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png' }],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'FactuFly',
+  },
 };
 
-export default function RootLayout({
+export const viewport: Viewport = {
+  themeColor: '#0f2e64',
+};
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Se resuelve la sesión en el servidor (solo lee/verifica la cookie JWT
+  // firmada, sin llamar a ningún servicio externo) y se le pasa lista al
+  // cliente. Así, si la app se recarga sin internet, useSession() ya arranca
+  // "authenticated" en vez de necesitar un fetch en vivo a /api/auth/session
+  // que fallaría sin conexión.
+  const session = await getServerSession(authOptions);
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
@@ -82,7 +110,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased `}
       >
-        <SessionProvider>
+        <PwaRegister />
+        <SessionProvider session={session}>
           <AuthProvider>
             <ToastProvider>
               {children}
