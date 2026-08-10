@@ -11,9 +11,13 @@ export function useClienteBoleta() {
   const [errorCliente, setErrorCliente] = useState<string | null>(null)
 
   const buscarCliente = async (tipoDoc: string, numeroDoc: string) => {
-    if (!numeroDoc) return
+    if (!numeroDoc) {
+      setCliente(null)
+      return
+    }
     setLoadingCliente(true)
     setErrorCliente(null)
+    setCliente(null) // Limpiar estado anterior para evitar cruce de datos con documentos previos
 
     try {
       if (tipoDoc === '01') {
@@ -33,6 +37,7 @@ export function useClienteBoleta() {
           setCliente(clienteEncontrado)
           cacheCliente(tipoDoc, numeroDoc, clienteEncontrado).catch(() => {})
         } else {
+          setCliente(null)
           setErrorCliente('No se encontró el DNI.')
         }
       } else if (tipoDoc === '06') {
@@ -52,6 +57,7 @@ export function useClienteBoleta() {
           setCliente(clienteEncontrado)
           cacheCliente(tipoDoc, numeroDoc, clienteEncontrado).catch(() => {})
         } else {
+          setCliente(null)
           setErrorCliente('RUC no encontrado')
         }
       } else if (tipoDoc === '04') {
@@ -71,6 +77,7 @@ export function useClienteBoleta() {
           setCliente(clienteEncontrado)
           cacheCliente(tipoDoc, numeroDoc, clienteEncontrado).catch(() => {})
         } else {
+          setCliente(null)
           setErrorCliente('No se encontró el Carnet de Extranjería.')
         }
       }
@@ -82,6 +89,7 @@ export function useClienteBoleta() {
         setCliente(cache.cliente)
         setErrorCliente(null)
       } else {
+        setCliente(null)
         setErrorCliente(
           'Sin conexión: no se pudo consultar el documento. Ingresa los datos manualmente.',
         )
@@ -91,5 +99,5 @@ export function useClienteBoleta() {
     }
   }
 
-  return { cliente, loadingCliente, errorCliente, buscarCliente }
+  return { cliente, loadingCliente, errorCliente, buscarCliente, setCliente }
 }

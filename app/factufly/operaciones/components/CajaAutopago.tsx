@@ -1102,16 +1102,18 @@ export default function CajaAutopago() {
     }
     const len = documentoTrim.length;
     const tipoDocumento = len === 11 ? "06" : len === 9 ? "04" : "01";
+    // Solo se asocian los datos del cliente si el número consultado coincide exactamente con el documento actual
+    const coincide = cliente?.numeroDocumento === documentoTrim;
     return {
-      clienteId: cliente?.clienteId ?? null,
+      clienteId: coincide ? (cliente?.clienteId ?? null) : null,
       tipoDocumento,
       numeroDocumento: documentoTrim,
-      razonSocial: cliente?.razonSocial ?? "",
-      ubigeo: cliente?.ubigeo || "",
-      direccionLineal: cliente?.direccionLineal || "",
-      departamento: cliente?.departamento || "",
-      provincia: cliente?.provincia || "",
-      distrito: cliente?.distrito || "",
+      razonSocial: coincide ? (cliente?.razonSocial ?? "") : "",
+      ubigeo: coincide ? (cliente?.ubigeo || "") : "",
+      direccionLineal: coincide ? (cliente?.direccionLineal || "") : "",
+      departamento: coincide ? (cliente?.departamento || "") : "",
+      provincia: coincide ? (cliente?.provincia || "") : "",
+      distrito: coincide ? (cliente?.distrito || "") : "",
     };
   };
 

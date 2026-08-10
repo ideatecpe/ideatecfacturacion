@@ -19,7 +19,11 @@ import {
   enqueueVentaPendiente,
   updateVentaPendiente,
   deleteVentaPendiente,
+  cacheCliente,
 } from "@/lib/offline/offlineDb";
+import { consultaDni } from "@/app/components/apiConsultasJsonPe/consultaDni";
+import { consultaRuc } from "@/app/components/apiConsultasJsonPe/consultaRuc";
+import { consultaCe } from "@/app/components/apiConsultasJsonPe/consultaCe";
 import {
   generarXml,
   enviarASunatApi,
@@ -96,16 +100,61 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
         ),
       );
 
+      // Si la venta se guardó sin conexión y sólo con número de documento (DNI, RUC o CE)
+      // pero sin razón social (o vacía), al reconectar a internet consultamos los nombres a la API.
+      const payload = { ...venta.payload } as any;
+      if (payload?.cliente && payload.cliente.numeroDocumento) {
+        const cli = payload.cliente;
+        const numDoc = String(cli.numeroDocumento).trim();
+        const len = numDoc.length;
+        const razonActual = (cli.razonSocial || "").trim();
+
+        if (numDoc !== "0" && (!razonActual || razonActual === "Cliente" || razonActual === "Clientes Varios")) {
+          const tipoDoc = cli.tipoDocumento || (len === 11 ? "06" : len === 9 ? "04" : "01");
+          try {
+            if (len === 8 || tipoDoc === "01") {
+              const resDni = await consultaDni(numDoc);
+              if (resDni?.nombreCompleto) {
+                cli.razonSocial = resDni.nombreCompleto;
+                if (venta.resumenTicket) venta.resumenTicket.clienteNombre = resDni.nombreCompleto;
+                cacheCliente("01", numDoc, { razonSocial: resDni.nombreCompleto, tipoDocumento: "01", numeroDocumento: numDoc }).catch(() => {});
+              }
+            } else if (len === 11 || tipoDoc === "06" || tipoDoc === "6") {
+              const resRuc = await consultaRuc(numDoc);
+              if (resRuc?.razonSocial) {
+                cli.razonSocial = resRuc.razonSocial;
+                cli.direccionLineal = resRuc.direccionLineal || cli.direccionLineal;
+                cli.ubigeo = resRuc.ubigeo || cli.ubigeo;
+                cli.departamento = resRuc.departamento || cli.departamento;
+                cli.provincia = resRuc.provincia || cli.provincia;
+                cli.distrito = resRuc.distrito || cli.distrito;
+                if (venta.resumenTicket) venta.resumenTicket.clienteNombre = resRuc.razonSocial;
+                cacheCliente("06", numDoc, { ...resRuc, tipoDocumento: "06", numeroDocumento: numDoc }).catch(() => {});
+              }
+            } else if (len === 9 || tipoDoc === "04") {
+              const resCe = await consultaCe(numDoc);
+              if (resCe?.nombreCompleto) {
+                cli.razonSocial = resCe.nombreCompleto;
+                if (venta.resumenTicket) venta.resumenTicket.clienteNombre = resCe.nombreCompleto;
+                cacheCliente("04", numDoc, { razonSocial: resCe.nombreCompleto, tipoDocumento: "04", numeroDocumento: numDoc }).catch(() => {});
+              }
+            }
+          } catch {
+            // Silencioso
+          }
+        }
+      }
+
       try {
         let comprobanteId: number;
         let mensajeSunat: string;
 
         if (venta.tipo === "notaventa") {
-          const res = await crearNotaVenta(venta.payload, token);
+          const res = await crearNotaVenta(payload, token);
           comprobanteId = (res.comprobanteId ?? res.ComprobanteId) as number;
           mensajeSunat = "Nota de venta sincronizada correctamente.";
         } else {
-          const res = await generarXml(venta.payload, token);
+          const res = await generarXml(payload, token);
           comprobanteId = res.comprobanteId;
           try {
             const resSunat = await enviarASunatApi(comprobanteId, token);
