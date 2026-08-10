@@ -60,6 +60,7 @@ import {
   enviarASunatApi,
   crearNotaVenta,
   descontarStockApi,
+  esErrorTransitorio,
 } from "@/app/factufly/operaciones/boleta/gestionBoletas/emitirBoletaApi";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
 import { imprimirTicketProvisional } from "@/app/factufly/operaciones/components/TicketProvisional";
@@ -1600,9 +1601,10 @@ export default function CajaAutopago() {
           comprobanteId = res.comprobanteId;
         }
       } catch (errGuardar: any) {
-        if (!errGuardar?.response) {
-          // Sin respuesta HTTP en absoluto: no hay forma de llegar al backend.
-          // Se guarda como venta pendiente en vez de perder la venta.
+        if (esErrorTransitorio(errGuardar)) {
+          // Sin internet, o el backend respondió pero su propia infraestructura
+          // falló (ej. no pudo conectar a su base de datos): en ambos casos no
+          // es culpa de la venta, así que se guarda como pendiente en vez de perderla.
           await manejarVentaSinConexion(payload, esNotaVenta ? "notaventa" : "comprobante");
           return;
         }

@@ -25,6 +25,7 @@ import {
   enviarASunatApi,
   crearNotaVenta,
   descontarStockApi,
+  esErrorTransitorio,
 } from "@/app/factufly/operaciones/boleta/gestionBoletas/emitirBoletaApi";
 
 interface OfflineSalesContextValue {
@@ -140,8 +141,9 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
           break;
         }
 
-        if (!err?.response) {
-          // Se cayó la conexión de nuevo a mitad de la sincronización.
+        if (esErrorTransitorio(err)) {
+          // Se cayó la conexión, o el backend falló por su cuenta (ej. su base
+          // de datos), a mitad de la sincronización: se reintenta más tarde.
           await updateVentaPendiente(venta.id, { estado: "pendiente" });
           setVentasPendientes((prev) =>
             prev.map((v) =>

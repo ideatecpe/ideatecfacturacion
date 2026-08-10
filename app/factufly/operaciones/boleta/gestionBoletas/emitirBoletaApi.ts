@@ -2,6 +2,18 @@ import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+// Un error se considera "transitorio" (se debe encolar y reintentar después,
+// no mostrarse como fallo definitivo) cuando:
+// - No hubo respuesta HTTP en absoluto (sin internet, backend inalcanzable), o
+// - El backend respondió pero con un 5xx: su propia infraestructura falló
+//   (ej. "Unable to connect to any of the specified MySQL hosts"), no la venta.
+// Un 4xx (400, 401, 404...) sí es un error real de negocio/datos y se muestra tal cual.
+export function esErrorTransitorio(err: unknown): boolean {
+  const status = (err as { response?: { status?: number } })?.response?.status;
+  if (status === undefined) return true;
+  return status >= 500;
+}
+
 // Primera API: guarda el comprobante en BD y asigna serie/correlativo real.
 export async function generarXml(payload: Record<string, unknown>, token: string | null) {
   const res = await axios.post(

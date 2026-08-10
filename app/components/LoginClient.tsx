@@ -25,6 +25,7 @@ import {
   Clock,
   PlayCircle,
   ChevronRight,
+  FlaskConical,
 } from "lucide-react";
 
 import IncaPattern from "./IncaPattern";
@@ -1044,6 +1045,13 @@ const LoginClient: React.FC = () => {
               >
                 <Globe size={14} /> Privacidad
               </button>
+              <a
+                href={environment === "beta" ? "/" : "/beta"}
+                className="text-xs font-semibold text-slate-400 hover:text-blue-900 flex items-center gap-1 transition-colors"
+              >
+                <FlaskConical size={14} />
+                {environment === "beta" ? "Ir a Producción" : "Entorno Beta"}
+              </a>
             </footer>
           </div>
         </section>

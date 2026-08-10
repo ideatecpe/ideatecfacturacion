@@ -66,6 +66,7 @@ import {
   generarXml,
   enviarASunatApi,
   descontarStockApi,
+  esErrorTransitorio,
 } from "./gestionBoletas/emitirBoletaApi";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
 import { imprimirTicketProvisional } from "../components/TicketProvisional";
@@ -2228,9 +2229,10 @@ function BoletaContent() {
         const resBoleta = await generarXml(boletaFinal, accessToken);
         comprobanteId = resBoleta.comprobanteId;
       } catch (errGenerar: any) {
-        if (!errGenerar?.response) {
-          // Sin respuesta HTTP en absoluto: no hay forma de llegar al backend.
-          // Se guarda como venta pendiente en vez de perder la venta.
+        if (esErrorTransitorio(errGenerar)) {
+          // Sin internet, o el backend respondió pero su propia infraestructura
+          // falló (ej. no pudo conectar a su base de datos): en ambos casos no
+          // es culpa de la venta, así que se guarda como pendiente en vez de perderla.
           await manejarVentaSinConexion(boletaFinal);
           return;
         }
