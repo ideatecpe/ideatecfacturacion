@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { signIn, signOut } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Eye,
@@ -640,6 +640,15 @@ const PrivacyModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
 
 const LoginClient: React.FC = () => {
   const router = useRouter();
+  const { status: sessionStatus } = useSession();
+
+  // Si el usuario ya está autenticado, redirigir automáticamente al dashboard
+  useEffect(() => {
+    if (sessionStatus === "authenticated") {
+      router.replace("/factufly/dashboard");
+    }
+  }, [sessionStatus, router]);
+
   const [formData, setFormData] = useState<LoginFormData>({
     identifier: "",
     password: "",

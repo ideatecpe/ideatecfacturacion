@@ -1,46 +1,37 @@
-import { withAuth } from "next-auth/middleware";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    const { pathname } = req.nextUrl;
+export async function middleware(req: NextRequest) {
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+  const { pathname } = req.nextUrl;
 
-    // Redirigir usuarios autenticados fuera del login (que ahora es /)
-    if (token && pathname === "/") {
-      return NextResponse.redirect(
-        new URL("/factufly/dashboard", req.url),
-      );
-    }
-
+  // Rutas públicas que no deben ser filtradas por la redirección
+  if (
+    pathname.startsWith("/docs") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.includes("_next") ||
+    pathname.includes("favicon")
+  ) {
     return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        const { pathname } = req.nextUrl;
+  }
 
-        // Rutas públicas
-        if (pathname.startsWith("/docs")) {
-          return true;
-        }
+  // 1. Si el usuario ya tiene sesión activa e ingresa a la raíz / (el login), redirigir inmediatamente a dashboard
+  if (token && pathname === "/") {
+    return NextResponse.redirect(new URL("/factufly/dashboard", req.url));
+  }
 
-        if (pathname.startsWith("/factufly")) {
-          return !!token;
-        }
-        return true;
-      },
-    },
-    pages: {
-      signIn: "/", // ✅ Ahora la raíz es el login
-    },
-  },
-);
+  // 2. Si intenta ingresar a las rutas de la app /factufly y NO está autenticado, redirigir al login (/)
+  if (!token && pathname.startsWith("/factufly")) {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
-  matcher: [
-    "/factufly/:path*",
-    '/docs/:path*',
-    "/",
-  ],
+  matcher: ["/factufly/:path*", "/docs/:path*", "/"],
 };
