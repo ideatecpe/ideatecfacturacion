@@ -1853,7 +1853,7 @@ export default function CajaAutopago() {
           <div
             className="shrink-0 px-5 py-4 text-white flex items-center gap-3 relative overflow-hidden bg-cover bg-center"
             style={{
-              backgroundImage: "linear-gradient(rgba(15, 46, 100, 0.90), rgba(9, 26, 61, 0.20)), url('/banner.jpeg')",
+              backgroundImage: "linear-gradient(rgba(15, 46, 100, 0.90), rgba(9, 26, 61, 0.20)), url('/banner.webp')",
             }}
           >
             <div className="w-9 h-9 rounded-md bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20 shadow-sm z-10">
