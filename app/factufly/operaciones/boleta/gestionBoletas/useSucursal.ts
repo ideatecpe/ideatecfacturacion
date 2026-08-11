@@ -17,7 +17,9 @@ export function useSucursal() {
     if (!user?.sucursalID || user?.rol === 'superadmin') return
     const sucursalId = Number(user.sucursalID)
 
-    setLoadingSucursal(true)
+    if (!sucursal) {
+      setLoadingSucursal(true)
+    }
 
     // En paralelo al reintento por red: si hay una copia guardada del
     // dispositivo, se muestra de una vez en vez de dejar la pantalla en

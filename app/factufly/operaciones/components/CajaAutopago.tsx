@@ -1314,20 +1314,27 @@ export default function CajaAutopago() {
     if (!config?.isStock) return;
     const { acumulado, items: payloadItems } = calcularStockItems();
     if (!payloadItems.length) return;
+
+    // Descuento optimista inmediato: actualiza el stock en memoria sin
+    // recargar todos los productos del servidor (evita flash visual).
+    descontarStockLocal(payloadItems);
+
     try {
       await descontarStockApi(comprobanteId, payloadItems, accessToken);
-      const productosActualizados = await fetchProductosSucursal();
       if (sucursal?.numeroStockBajo) {
         const umbral = config.umbralStockBajo ?? 10;
-        const bajos = (productosActualizados ?? [])
+        const bajos = productosSucursal
           .filter((p) => {
             const vendida = acumulado.get(p.sucursalProducto.sucursalProductoId);
             if (vendida === undefined) return false;
-            const stockDespues = p.sucursalProducto.stock ?? 0;
-            const stockAntes = stockDespues + vendida;
-            return stockDespues <= umbral && stockAntes > umbral;
+            const stockActual = (p.sucursalProducto.stock ?? 0) - vendida;
+            const stockAntes = p.sucursalProducto.stock ?? 0;
+            return stockActual <= umbral && stockAntes > umbral;
           })
-          .map((p) => ({ nomProducto: p.nomProducto, stock: p.sucursalProducto.stock ?? 0 }));
+          .map((p) => {
+            const vendida = acumulado.get(p.sucursalProducto.sucursalProductoId) ?? 0;
+            return { nomProducto: p.nomProducto, stock: (p.sucursalProducto.stock ?? 0) - vendida };
+          });
         if (bajos.length) avisarStockBajoWhatsapp(bajos, sucursal.numeroStockBajo);
       }
     } catch (err) {
@@ -1674,145 +1681,27 @@ export default function CajaAutopago() {
     setSerieCorrelativoEmitido(null);
     setOfflineEncolada(false);
     setUltimoTicketOffline(null);
+    setMostrarPago(false);
+    setMostrarCarritoMobile(false);
+    setConfirmarLimpiarTodo(false);
+    setBusqueda("");
     setEmitido(false);
+    // Sincronización silenciosa: refresca el catálogo desde el servidor
+    // para reconciliar stock real. Como los productos ya están en pantalla
+    // el hook NO muestra skeletons, solo actualiza datos en segundo plano.
+    fetchProductosSucursal();
+    setTimeout(() => {
+      const isMobile = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
+      if (!isMobile) {
+        inputRef.current?.focus();
+      }
+    }, 50);
   };
-
-  // ── Pantalla de éxito tras emitir ───────────────────────────────
-  if (emitido) {
-    return (
-      <div className="h-[calc(100vh-140px)] w-full flex items-center justify-center animate-in fade-in duration-500">
-        <div className="w-full max-w-md rounded-md border border-gray-200 bg-white shadow-lg overflow-hidden max-h-full overflow-y-auto">
-          {/* Cabecera verde */}
-          <div className="bg-linear-to-br from-emerald-500 to-emerald-600 px-6 py-7 text-center text-white">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white/20 mb-3">
-              <CheckCircle2 className="w-9 h-9" />
-            </div>
-            <p className="text-3xl font-extrabold tabular-nums">S/ {totales.total.toFixed(2)}</p>
-            {(medioPagoEmitido === "Efectivo" || medioPagoEmitido === "Pago dividido") && vueltoEmitido > 0 && (
-              <p className="text-emerald-50 text-sm font-semibold mt-1">
-                Vuelto: S/ {vueltoEmitido.toFixed(2)}
-              </p>
-            )}
-            {serieCorrelativoEmitido && (
-              <p className="text-emerald-50 text-xs font-bold mt-2 tracking-wide">{serieCorrelativoEmitido}</p>
-            )}
-            <p className="text-emerald-100 text-xs mt-0.5">
-              {tipoComprobante} · {medioPagoEmitido}
-            </p>
-            {imprimiendo && (
-              <p className="text-white text-xs font-semibold flex items-center justify-center gap-1.5 mt-2">
-                <Printer className="w-3.5 h-3.5 animate-pulse" /> Enviando a imprimir...
-              </p>
-            )}
-          </div>
-
-          {/* Acciones */}
-          <div className="p-5 space-y-3">
-            {offlineEncolada && (
-              <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-3 text-amber-800 space-y-2">
-                <div className="flex items-start gap-2">
-                  <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-                  <p className="text-xs leading-relaxed">
-                    Venta guardada sin conexión
-                    {config?.isImprime
-                      ? " — ya se imprimió un ticket provisional."
-                      : "."}{" "}
-                    El comprobante oficial (con su serie y correlativo SUNAT)
-                    se generará automáticamente cuando vuelva el internet.
-                  </p>
-                </div>
-                <button
-                  onClick={() =>
-                    ultimoTicketOffline &&
-                    imprimirTicketProvisional(ultimoTicketOffline)
-                  }
-                  className="w-full flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-white py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-                >
-                  <Printer className="w-3.5 h-3.5" /> Imprimir ticket
-                  provisional
-                </button>
-              </div>
-            )}
-            {!offlineEncolada && (
-            <>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => imprimirManual("80")}
-                className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
-              >
-                <Printer className="w-4 h-4" />
-                <span className="text-[10px] font-semibold">80mm</span>
-              </button>
-              <button
-                onClick={() => imprimirManual("58")}
-                className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
-              >
-                <Printer className="w-4 h-4" />
-                <span className="text-[10px] font-semibold">58mm</span>
-              </button>
-              <button
-                onClick={() => imprimirManual("A4")}
-                className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
-              >
-                <Printer className="w-4 h-4" />
-                <span className="text-[10px] font-semibold">A4</span>
-              </button>
-            </div>
-
-            <button
-              onClick={descargarPDF}
-              className="w-full flex items-center justify-center gap-2 rounded-md border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors"
-            >
-              <Download className="w-4 h-4" /> Descargar PDF
-            </button>
-
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Send size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={telWhatsapp}
-                  onChange={(e) => setTelWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 9))}
-                  placeholder="WhatsApp del cliente"
-                  className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
-                />
-                {telWhatsapp && (
-                  <button
-                    type="button"
-                    onClick={() => setTelWhatsapp("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={13} />
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={enviarComprobantePorWhatsapp}
-                disabled={!telWhatsapp.trim() || enviandoWhatsapp}
-                className="h-8.5 px-3.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center justify-center"
-              >
-                {enviandoWhatsapp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Enviar"}
-              </button>
-            </div>
-            </>
-            )}
-
-            <button
-              onClick={nuevaVenta}
-              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-4 text-white text-lg font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all mt-2"
-            >
-              Nueva venta
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
     <>
-      <div className="w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:h-[calc(100vh-125px)] lg:overflow-hidden animate-in fade-in duration-500">
+      <div className="w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:h-[calc(100vh-125px)] lg:overflow-hidden">
         {/* ── Columna izquierda: buscador + grid de productos ── */}
         <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden">
           <div className="shrink-0 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
@@ -2949,6 +2838,136 @@ export default function CajaAutopago() {
             <div className="text-center">
               <p className="text-base font-bold text-gray-800">Emitiendo comprobante...</p>
               <p className="text-xs text-gray-400 mt-1">No cierres ni recargues la página</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal de éxito tras emitir ─────────────────────────────── */}
+      {emitido && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="w-full max-w-md my-auto rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200 shrink-0">
+            {/* Cabecera verde */}
+            <div className="bg-linear-to-br from-emerald-500 to-emerald-600 px-6 py-7 text-center text-white">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white/20 mb-3">
+                <CheckCircle2 className="w-9 h-9" />
+              </div>
+              <p className="text-3xl font-extrabold tabular-nums">S/ {totales.total.toFixed(2)}</p>
+              {(medioPagoEmitido === "Efectivo" || medioPagoEmitido === "Pago dividido") && vueltoEmitido > 0 && (
+                <p className="text-emerald-50 text-sm font-semibold mt-1">
+                  Vuelto: S/ {vueltoEmitido.toFixed(2)}
+                </p>
+              )}
+              {serieCorrelativoEmitido && (
+                <p className="text-emerald-50 text-xs font-bold mt-2 tracking-wide">{serieCorrelativoEmitido}</p>
+              )}
+              <p className="text-emerald-100 text-xs mt-0.5">
+                {tipoComprobante} · {medioPagoEmitido}
+              </p>
+              {imprimiendo && (
+                <p className="text-white text-xs font-semibold flex items-center justify-center gap-1.5 mt-2">
+                  <Printer className="w-3.5 h-3.5 animate-pulse" /> Enviando a imprimir...
+                </p>
+              )}
+            </div>
+
+            {/* Acciones */}
+            <div className="p-5 space-y-3">
+              {offlineEncolada && (
+                <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-3 text-amber-800 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
+                    <p className="text-xs leading-relaxed">
+                      Venta guardada sin conexión
+                      {config?.isImprime
+                        ? " — ya se imprimió un ticket provisional."
+                        : "."}{" "}
+                      El comprobante oficial (con su serie y correlativo SUNAT)
+                      se generará automáticamente cuando vuelva el internet.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() =>
+                      ultimoTicketOffline &&
+                      imprimirTicketProvisional(ultimoTicketOffline)
+                    }
+                    className="w-full flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-white py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Imprimir ticket
+                    provisional
+                  </button>
+                </div>
+              )}
+              {!offlineEncolada && (
+              <>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => imprimirManual("80")}
+                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span className="text-[10px] font-semibold">80mm</span>
+                </button>
+                <button
+                  onClick={() => imprimirManual("58")}
+                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span className="text-[10px] font-semibold">58mm</span>
+                </button>
+                <button
+                  onClick={() => imprimirManual("A4")}
+                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span className="text-[10px] font-semibold">A4</span>
+                </button>
+              </div>
+
+              <button
+                onClick={descargarPDF}
+                className="w-full flex items-center justify-center gap-2 rounded-md border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors cursor-pointer"
+              >
+                <Download className="w-4 h-4" /> Descargar PDF
+              </button>
+
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Send size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={telWhatsapp}
+                    onChange={(e) => setTelWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                    placeholder="WhatsApp del cliente"
+                    className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+                  />
+                  {telWhatsapp && (
+                    <button
+                      type="button"
+                      onClick={() => setTelWhatsapp("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={enviarComprobantePorWhatsapp}
+                  disabled={!telWhatsapp.trim() || enviandoWhatsapp}
+                  className="h-8.5 px-3.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center justify-center cursor-pointer"
+                >
+                  {enviandoWhatsapp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Enviar"}
+                </button>
+              </div>
+              </>
+              )}
+
+              <button
+                onClick={nuevaVenta}
+                className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-4 text-white text-lg font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all mt-2 cursor-pointer"
+              >
+                Nueva venta
+                <ArrowRight className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>

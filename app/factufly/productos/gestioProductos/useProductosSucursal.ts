@@ -16,7 +16,9 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
   const fetchProductosSucursal = async (id?: number | null): Promise<ProductoSucursal[]> => {
     const sucursalId = id ?? sucursalIdOverride ?? user?.sucursalID;
     if (!sucursalId) return [];
-    setLoadingSucursal(true)
+    if (productosSucursal.length === 0) {
+      setLoadingSucursal(true);
+    }
     try {
       const res = await axios.get<ProductoSucursal[]>(
         `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${sucursalId}`,
