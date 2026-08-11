@@ -1123,7 +1123,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
       {/* Barra de selección para promoción masiva */}
       {modoSeleccionPromo && (
-        <div className="flex items-center justify-between gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 animate-in fade-in duration-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 animate-in fade-in duration-200">
           <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
             {(() => {
               const elegibles = filtered.filter((p) => p.tipoProducto === "BIEN");
@@ -1149,11 +1149,11 @@ const [importFile, setImportFile] = useState<File | null>(null);
               {seleccionadosPromo.size > 0 ? `${seleccionadosPromo.size} seleccionado(s)` : "Seleccionar todos"}
             </span>
           </label>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               onClick={cancelarSeleccionPromo}
-              className="py-1.5 px-3 text-xs rounded-md h-auto"
+              className="py-1.5 px-3 text-xs rounded-md h-auto flex-1 sm:flex-none justify-center whitespace-nowrap"
             >
               Cancelar
             </Button>
@@ -1165,7 +1165,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 aplicandoPromoMasiva ||
                 !productos.some((p) => seleccionadosPromo.has(p.productoId) && !!p.sucursalProducto.enPromocion)
               }
-              className="py-1.5 px-3 text-xs rounded-md h-auto"
+              className="py-1.5 px-3 text-xs rounded-md h-auto flex-1 sm:flex-none justify-center whitespace-nowrap"
             >
               {aplicandoPromoMasiva && promoProgreso
                 ? `Quitando ${promoProgreso.actual} de ${promoProgreso.total}...`
@@ -1174,7 +1174,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
             <Button
               onClick={() => setIsPromoMasivaOpen(true)}
               disabled={seleccionadosPromo.size === 0}
-              className="py-1.5 px-3 text-xs rounded-md h-auto"
+              className="py-1.5 px-3 text-xs rounded-md h-auto flex-1 sm:flex-none justify-center whitespace-nowrap"
             >
               <Tag className="w-3.5 h-3.5" /> Aplicar % a seleccionados
             </Button>
@@ -1182,7 +1182,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
               variant="outline"
               onClick={() => abrirModalImprimir(productos.filter((p) => seleccionadosPromo.has(p.productoId)))}
               disabled={seleccionadosPromo.size === 0}
-              className="py-1.5 px-3 text-xs rounded-md h-auto"
+              className="py-1.5 px-3 text-xs rounded-md h-auto flex-1 sm:flex-none justify-center whitespace-nowrap"
             >
               <Printer className="w-3.5 h-3.5" /> Imprimir códigos
             </Button>

@@ -130,16 +130,20 @@ export default function StockValorizadoPage() {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <div className="inline-flex items-center h-9 gap-2 rounded-lg border border-gray-200 bg-white px-3">
-            <Boxes className="w-4 h-4 text-gray-400 shrink-0" />
-            <span className="text-[11px] font-medium text-gray-500">Productos con stock</span>
-            <span className="text-base font-bold text-gray-900 tabular-nums">{stockValorizado.length}</span>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:ml-auto">
+          <div className="flex-1 sm:flex-none inline-flex items-center justify-between sm:justify-start min-h-9 gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 whitespace-nowrap shadow-xs">
+            <div className="flex items-center gap-1.5">
+              <Boxes className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="text-[11px] font-medium text-gray-500">Productos con stock</span>
+            </div>
+            <span className="text-sm font-bold text-gray-900 tabular-nums">{stockValorizado.length}</span>
           </div>
-          <div className="inline-flex items-center h-9 gap-2 rounded-lg border border-brand-blue/20 bg-brand-blue/5 px-3">
-            <Wallet className="w-4 h-4 text-brand-blue/70 shrink-0" />
-            <span className="text-[11px] font-medium text-brand-blue/70">Valor del inventario</span>
-            <span className="text-base font-bold text-brand-blue tabular-nums">S/ {totalValor.toFixed(2)}</span>
+          <div className="flex-1 sm:flex-none inline-flex items-center justify-between sm:justify-start min-h-9 gap-2 rounded-lg border border-brand-blue/20 bg-brand-blue/5 px-3 py-1.5 whitespace-nowrap shadow-xs">
+            <div className="flex items-center gap-1.5">
+              <Wallet className="w-4 h-4 text-brand-blue/70 shrink-0" />
+              <span className="text-[11px] font-medium text-brand-blue/70">Valor del inventario</span>
+            </div>
+            <span className="text-sm font-bold text-brand-blue tabular-nums">S/ {totalValor.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -150,7 +154,7 @@ export default function StockValorizadoPage() {
       >
         <table className="w-full text-xs tabular-nums">
           <thead className="sticky top-0 bg-gray-50 border-b-2 border-gray-200 z-10">
-            <tr>
+            <tr className="whitespace-nowrap">
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Código</th>
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Producto</th>
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Stock</th>
@@ -229,11 +233,11 @@ export default function StockValorizadoPage() {
                             : "bg-white border-gray-100 hover:bg-blue-50/40"
                       }`}
                     >
-                      <td className="px-3 py-2.5 text-gray-500">{p.codigo ?? "—"}</td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{p.codigo ?? "—"}</td>
                       <td className="px-3 py-2.5 font-semibold text-gray-800">{p.nomProducto ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-right text-gray-700">{p.stockActual}</td>
-                      <td className="px-3 py-2.5 text-right text-gray-700">S/ {p.costoPromedioActual.toFixed(2)}</td>
-                      <td className="px-3 py-2.5 text-right font-bold text-brand-blue">S/ {p.valorTotal.toFixed(2)}</td>
+                      <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">{p.stockActual}</td>
+                      <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">S/ {p.costoPromedioActual.toFixed(2)}</td>
+                      <td className="px-3 py-2.5 text-right font-bold text-brand-blue whitespace-nowrap">S/ {p.valorTotal.toFixed(2)}</td>
                       <td className="px-3 py-2.5 text-center">
                         <div className={`inline-flex rounded-full p-1 transition-colors ${isOpen ? "text-brand-blue bg-blue-100" : "text-gray-400"}`}>
                           {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}

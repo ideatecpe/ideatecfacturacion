@@ -156,7 +156,7 @@ export default function RentabilidadPage() {
           />
         )}
 
-        <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 shadow-sm ml-auto">
+        <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 shadow-sm sm:ml-auto">
           <Calendar className="w-3.5 h-3.5 text-gray-400" />
           <input
             type="date"
@@ -190,20 +190,20 @@ export default function RentabilidadPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-px">
             <div className="bg-white px-3 py-2 flex flex-col">
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Ingreso</span>
-              <span className="text-base sm:text-lg font-bold text-gray-900 tabular-nums leading-tight">
+              <span className="text-base sm:text-lg font-bold text-gray-900 tabular-nums leading-tight whitespace-nowrap">
                 S/ {totales.ingreso.toFixed(2)}
               </span>
             </div>
             <div className="bg-white px-3 py-2 flex flex-col">
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Costo</span>
-              <span className="text-base sm:text-lg font-bold text-gray-600 tabular-nums leading-tight">
+              <span className="text-base sm:text-lg font-bold text-gray-600 tabular-nums leading-tight whitespace-nowrap">
                 S/ {totales.costo.toFixed(2)}
               </span>
             </div>
             <div className="bg-white px-3 py-2 flex flex-col">
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Utilidad</span>
               <span
-                className={`text-base sm:text-lg font-bold tabular-nums leading-tight ${
+                className={`text-base sm:text-lg font-bold tabular-nums leading-tight whitespace-nowrap ${
                   totales.utilidad >= 0 ? "text-emerald-600" : "text-rose-600"
                 }`}
               >
@@ -213,7 +213,7 @@ export default function RentabilidadPage() {
             <div className={`px-3 py-2 flex flex-col ${margenTotal >= 0 ? "bg-brand-blue/5" : "bg-rose-50"}`}>
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Margen</span>
               <span
-                className={`text-base sm:text-lg font-bold tabular-nums leading-tight ${
+                className={`text-base sm:text-lg font-bold tabular-nums leading-tight whitespace-nowrap ${
                   margenTotal >= 0 ? "text-brand-blue" : "text-rose-600"
                 }`}
               >
@@ -226,11 +226,11 @@ export default function RentabilidadPage() {
 
       <div
         className="overflow-y-auto rounded-xl border border-gray-200 bg-white"
-        style={{ maxHeight: "calc(100vh - 250px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
+        style={{ maxHeight: "calc(100vh - 260px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
       >
         <table className="w-full text-xs tabular-nums">
           <thead className="sticky top-0 bg-gray-50 border-b-2 border-gray-200 z-10">
-            <tr>
+            <tr className="whitespace-nowrap">
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Código</th>
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Producto</th>
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Cant. Vendida</th>
@@ -309,19 +309,19 @@ export default function RentabilidadPage() {
                             : "bg-white border-gray-100 hover:bg-blue-50/40"
                       }`}
                     >
-                      <td className="px-3 py-2.5 text-gray-500">{r.codigo ?? "—"}</td>
+                      <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.codigo ?? "—"}</td>
                       <td className="px-3 py-2.5 font-semibold text-gray-800">{r.nomProducto ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-right text-gray-700">{r.cantidadVendida}</td>
-                      <td className="px-3 py-2.5 text-right text-gray-700">S/ {r.ingresoVentas.toFixed(2)}</td>
-                      <td className="px-3 py-2.5 text-right text-gray-700">S/ {r.costoVentas.toFixed(2)}</td>
+                      <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">{r.cantidadVendida}</td>
+                      <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">S/ {r.ingresoVentas.toFixed(2)}</td>
+                      <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">S/ {r.costoVentas.toFixed(2)}</td>
                       <td
-                        className={`px-3 py-2.5 text-right font-bold ${
+                        className={`px-3 py-2.5 text-right font-bold whitespace-nowrap ${
                           r.utilidadBruta >= 0 ? "text-emerald-600" : "text-rose-500"
                         }`}
                       >
                         S/ {r.utilidadBruta.toFixed(2)}
                       </td>
-                      <td className="px-3 py-2.5 text-right text-gray-700">{r.margenPorcentaje.toFixed(1)}%</td>
+                      <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">{r.margenPorcentaje.toFixed(1)}%</td>
                       <td className="px-3 py-2.5 text-center">
                         <div className={`inline-flex rounded-full p-1 transition-colors ${isOpen ? "text-brand-blue bg-blue-100" : "text-gray-400"}`}>
                           {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}

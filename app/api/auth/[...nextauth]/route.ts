@@ -120,7 +120,10 @@ export const authOptions: AuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 horas
+    maxAge: 30 * 24 * 60 * 60, // 30 días: la sesión permanece activa al cerrar el navegador (estilo Facebook/Gmail)
+  },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 días
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

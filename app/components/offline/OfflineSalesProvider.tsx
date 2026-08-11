@@ -47,6 +47,7 @@ interface OfflineSalesContextValue {
   ) => Promise<string>;
   sincronizarAhora: () => void;
   reintentarVenta: (id: string) => void;
+  eliminarVenta: (id: string) => Promise<void>;
 }
 
 const OfflineSalesContext = createContext<OfflineSalesContextValue | null>(
@@ -72,21 +73,39 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
 
   // Carga inicial de la cola (sobrevive a recargas / cierres del navegador)
   useEffect(() => {
-    listVentasPendientes().then(setVentasPendientes).catch(() => {});
+    listVentasPendientes()
+      .then(async (list) => {
+        // Desatascar ventas que quedaron en "sincronizando" si el usuario recargó la página a mitad del proceso
+        const arregladas = await Promise.all(
+          list.map(async (v) => {
+            if (v.estado === "sincronizando") {
+              await updateVentaPendiente(v.id, { estado: "pendiente" });
+              return { ...v, estado: "pendiente" as const };
+            }
+            return v;
+          }),
+        );
+        setVentasPendientes(arregladas);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     if (accessToken) setSesionExpirada(false);
   }, [accessToken]);
 
-  const procesarCola = useCallback(async () => {
+  const procesarCola = useCallback(async (forzarTodo = false) => {
     if (syncingRef.current) return;
     if (!navigator.onLine) return;
     const token = accessTokenRef.current;
     if (!token) return;
 
     const pendientes = await listVentasPendientes();
-    const porSincronizar = pendientes.filter((v) => v.estado === "pendiente");
+    const porSincronizar = pendientes.filter((v) =>
+      forzarTodo
+        ? true
+        : v.estado === "pendiente" || v.estado === "sincronizando",
+    );
     if (!porSincronizar.length) return;
 
     syncingRef.current = true;
@@ -109,7 +128,16 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
         const len = numDoc.length;
         const razonActual = (cli.razonSocial || "").trim();
 
-        if (numDoc !== "0" && (!razonActual || razonActual === "Cliente" || razonActual === "Clientes Varios")) {
+        const esDocGenerico =
+          !numDoc ||
+          numDoc === "0" ||
+          numDoc === "00000000" ||
+          numDoc === "99999999" ||
+          numDoc === "99999999999" ||
+          numDoc === "00000000000" ||
+          numDoc === "11111111";
+
+        if (!esDocGenerico && (!razonActual || razonActual === "Cliente")) {
           const tipoDoc = cli.tipoDocumento || (len === 11 ? "06" : len === 9 ? "04" : "01");
           try {
             if (len === 8 || tipoDoc === "01") {
@@ -225,6 +253,10 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
     setSyncing(false);
   }, [showToast]);
 
+  const sincronizarAhora = useCallback(() => {
+    procesarCola(true);
+  }, [procesarCola]);
+
   // Dispara la sincronización: al montar, al volver la conexión, y cada 45s
   // como red de seguridad mientras haya pendientes (por si el evento "online"
   // del navegador no llega a disparar, ej. wifi con portal cautivo).
@@ -271,10 +303,19 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
         setVentasPendientes((prev) =>
           prev.map((v) => (v.id === id ? { ...v, estado: "pendiente" } : v)),
         );
-        procesarCola();
+        procesarCola(true);
       });
     },
     [procesarCola],
+  );
+
+  const eliminarVenta = useCallback(
+    async (id: string) => {
+      await deleteVentaPendiente(id);
+      setVentasPendientes((prev) => prev.filter((v) => v.id !== id));
+      showToast("Venta pendiente eliminada", "info");
+    },
+    [showToast],
   );
 
   const cantidadPendientes = ventasPendientes.filter(
@@ -294,8 +335,9 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
         syncing,
         sesionExpirada,
         enqueueVenta,
-        sincronizarAhora: procesarCola,
+        sincronizarAhora,
         reintentarVenta,
+        eliminarVenta,
       }}
     >
       {children}

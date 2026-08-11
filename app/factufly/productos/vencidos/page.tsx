@@ -208,27 +208,31 @@ export default function ProductosVencidosPage() {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <div className="inline-flex items-center h-9 gap-2 rounded-lg border border-gray-200 bg-white px-3">
-            <PackageX className="w-4 h-4 text-gray-400 shrink-0" />
-            <span className="text-[11px] font-medium text-gray-500">Productos vencidos</span>
-            <span className="text-base font-bold text-gray-900 tabular-nums">{grupos.length}</span>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:ml-auto mt-1 sm:mt-0">
+          <div className="flex-1 sm:flex-none inline-flex items-center justify-between sm:justify-start min-h-9 gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 whitespace-nowrap shadow-xs">
+            <div className="flex items-center gap-1.5">
+              <PackageX className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="text-[11px] font-medium text-gray-500">Productos vencidos</span>
+            </div>
+            <span className="text-sm font-bold text-gray-900 tabular-nums">{grupos.length}</span>
           </div>
-          <div className="inline-flex items-center h-9 gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3">
-            <Coins className="w-4 h-4 text-rose-500 shrink-0" />
-            <span className="text-[11px] font-medium text-rose-500/80">Costo total vencido</span>
-            <span className="text-base font-bold text-rose-700 tabular-nums">S/ {totalCostoVencido.toFixed(2)}</span>
+          <div className="flex-1 sm:flex-none inline-flex items-center justify-between sm:justify-start min-h-9 gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 whitespace-nowrap shadow-xs">
+            <div className="flex items-center gap-1.5">
+              <Coins className="w-4 h-4 text-rose-500 shrink-0" />
+              <span className="text-[11px] font-medium text-rose-500/80">Costo total vencido</span>
+            </div>
+            <span className="text-sm font-bold text-rose-700 tabular-nums">S/ {totalCostoVencido.toFixed(2)}</span>
           </div>
         </div>
       </div>
 
       <div
-        className="overflow-y-auto rounded-xl border border-gray-200 bg-white"
+        className="overflow-y-auto rounded-xl border border-gray-200 bg-white mt-2"
         style={{ maxHeight: "calc(100vh - 220px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
       >
         <table className="w-full text-xs tabular-nums">
           <thead className="sticky top-0 bg-gray-50 border-b-2 border-gray-200 z-10">
-            <tr>
+            <tr className="whitespace-nowrap">
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Código</th>
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Producto</th>
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Cantidad</th>
@@ -308,7 +312,7 @@ export default function ProductosVencidosPage() {
                       }`}
                     >
                       <td
-                        className="px-3 py-2.5 text-gray-500 cursor-pointer"
+                        className="px-3 py-2.5 text-gray-500 cursor-pointer whitespace-nowrap"
                         onClick={() => setExpandido(isOpen ? null : g.sucursalProductoId)}
                       >
                         {g.codigo ?? "—"}
@@ -320,13 +324,13 @@ export default function ProductosVencidosPage() {
                         {g.nomProducto ?? "—"}
                       </td>
                       <td
-                        className="px-3 py-2.5 text-right text-gray-700 cursor-pointer"
+                        className="px-3 py-2.5 text-right text-gray-700 cursor-pointer whitespace-nowrap"
                         onClick={() => setExpandido(isOpen ? null : g.sucursalProductoId)}
                       >
                         {g.totalCantidad}
                       </td>
                       <td
-                        className="px-3 py-2.5 text-right font-bold text-rose-700 cursor-pointer"
+                        className="px-3 py-2.5 text-right font-bold text-rose-700 cursor-pointer whitespace-nowrap"
                         onClick={() => setExpandido(isOpen ? null : g.sucursalProductoId)}
                       >
                         S/ {g.totalCosto.toFixed(2)}

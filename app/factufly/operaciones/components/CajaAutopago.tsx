@@ -1637,10 +1637,14 @@ export default function CajaAutopago() {
       setComprobanteIdEmitido(comprobanteId);
       setMedioPagoEmitido(esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago);
       setVueltoEmitido(esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto);
-      await descontarStockSiAplica(comprobanteId);
-      await imprimirSiAplica(comprobanteId);
-      fetchSucursal();
       setEmitido(true);
+      setEmitiendo(false);
+
+      // Tareas secundarias post-emisión (descuento de stock, impresión y actualización de correlativos)
+      // Se ejecutan en segundo plano para que el usuario vea la pantalla verde de éxito de inmediato.
+      descontarStockSiAplica(comprobanteId);
+      imprimirSiAplica(comprobanteId);
+      fetchSucursal();
     } catch (err) {
       const data = (err as { response?: { data?: { mensaje?: string; message?: string; detalle?: string } } })?.response?.data;
       const mensaje = data?.mensaje ?? data?.message ?? "Error al generar el comprobante";

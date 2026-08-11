@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   WifiOff,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { View } from "@/app/types";
 import { signOut } from "next-auth/react";
@@ -175,6 +176,7 @@ export const Topbar = ({
     sesionExpirada,
     sincronizarAhora,
     reintentarVenta,
+    eliminarVenta,
   } = useOfflineSales();
 
   const [lastSeenAt, setLastSeenAt] = useState<string>(
@@ -456,6 +458,13 @@ export const Topbar = ({
                               </>
                             )}
                           </div>
+                          <button
+                            onClick={() => eliminarVenta(v.id)}
+                            className="p-1 text-gray-300 hover:text-red-500 rounded-lg hover:bg-gray-50 transition-colors shrink-0"
+                            title="Descartar esta venta pendiente"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </li>
                       ))}
                       {ventasPendientes.length === 0 && (

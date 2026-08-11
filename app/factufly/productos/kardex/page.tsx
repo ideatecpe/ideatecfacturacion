@@ -198,7 +198,7 @@ export default function KardexPage() {
         </div>
 
         {sucursalProductoId > 0 && kardex.length > 0 && (
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-2.5 sm:ml-auto">
             <div className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 flex flex-col">
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Stock actual</span>
               <span className="text-sm font-bold text-gray-900 tabular-nums">{totalSaldo.cantidad} unid.</span>
