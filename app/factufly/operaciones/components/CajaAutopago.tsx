@@ -46,6 +46,7 @@ import { useProductosSucursal } from "@/app/factufly/productos/gestioProductos/u
 import { ProductoSucursal } from "@/app/factufly/productos/gestioProductos/Producto";
 import { abreviaturaUnidad, formatearCantidadUnidad } from "@/app/factufly/productos/gestioProductos/unidadMedida";
 import ImagenProductoCuadrada from "@/app/factufly/operaciones/components/ImagenProductoCuadrada";
+import { conVarianteImagen } from "@/app/utils/cloudflareImagen";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { Modal } from "@/app/components/ui/Modal";
 import { useClienteBoleta } from "@/app/factufly/operaciones/boleta/gestionBoletas/useClienteBoleta";
@@ -172,8 +173,10 @@ function ProductoGridCard({
       <div className="aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden relative p-2">
         {tieneImagen ? (
           <img
-            src={p.urlImagenProducto as string}
+            src={conVarianteImagen(p.urlImagenProducto as string, "thumbnail")}
             alt={p.nomProducto}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
             onError={() => setImgError(true)}
           />
@@ -674,8 +677,8 @@ export default function CajaAutopago() {
   const scannerBufferRef = useRef<{ text: string; lastTime: number }>({ text: "", lastTime: 0 });
 
   // ── Paginación y límite de renderizado inicial (36 ítems por página) ──
-  const [limiteVistaGrid, setLimiteVistaGrid] = useState(36);
-  useEffect(() => { setLimiteVistaGrid(36); }, [busqueda]);
+  const [limiteVistaGrid, setLimiteVistaGrid] = useState(24);
+  useEffect(() => { setLimiteVistaGrid(24); }, [busqueda]);
 
   const productosGridVisualizados = useMemo(() => {
     return productosGrid.slice(0, limiteVistaGrid);
@@ -1836,7 +1839,7 @@ export default function CajaAutopago() {
                   <div className="flex justify-center pt-2 pb-1">
                     <button
                       type="button"
-                      onClick={() => setLimiteVistaGrid((prev) => prev + 36)}
+                      onClick={() => setLimiteVistaGrid((prev) => prev + 24)}
                       className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-semibold transition-colors shadow-2xs"
                     >
                       Cargar más productos (mostrando {limiteVistaGrid} de {productosGrid.length})
