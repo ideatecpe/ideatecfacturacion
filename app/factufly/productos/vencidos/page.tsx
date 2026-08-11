@@ -176,7 +176,7 @@ export default function ProductosVencidosPage() {
   }
 
   return (
-    <div className="animate-in fade-in duration-500">
+    <div className="space-y-2 animate-in fade-in duration-500">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         {isSuperAdmin && (
           <DropdownFiltro
@@ -227,7 +227,7 @@ export default function ProductosVencidosPage() {
       </div>
 
       <div
-        className="overflow-y-auto rounded-xl border border-gray-200 bg-white mt-2"
+        className="overflow-y-auto rounded-xl border border-gray-200 bg-white"
         style={{ maxHeight: "calc(100vh - 220px)", scrollbarWidth: "thin", scrollbarColor: "#CBD5E1 transparent" }}
       >
         <table className="w-full text-xs tabular-nums">
