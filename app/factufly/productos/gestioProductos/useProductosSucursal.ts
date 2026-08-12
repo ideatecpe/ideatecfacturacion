@@ -16,9 +16,29 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
   const fetchProductosSucursal = async (id?: number | null): Promise<ProductoSucursal[]> => {
     const sucursalId = id ?? sucursalIdOverride ?? user?.sucursalID;
     if (!sucursalId) return [];
+
+    // ── Cache-first: mostrar productos al instante desde IndexedDB ──
+    // Si aún no hay productos en memoria, cargar el cache local primero
+    // para que la grilla aparezca de inmediato (stale-while-revalidate).
+    let mostróCache = false;
     if (productosSucursal.length === 0) {
+      try {
+        const cache = await getProductosCache(Number(sucursalId));
+        if (cache && cache.productos.length > 0) {
+          setProductosSucursal(cache.productos);
+          setProductosDesactualizados(true);
+          setFechaCache(cache.updatedAt);
+          mostróCache = true;
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Solo mostrar loading si no hay nada que mostrar (ni cache ni estado previo)
+    if (productosSucursal.length === 0 && !mostróCache) {
       setLoadingSucursal(true);
     }
+
+    // ── Revalidar desde el API en segundo plano ──
     try {
       const res = await axios.get<ProductoSucursal[]>(
         `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${sucursalId}`,
@@ -30,18 +50,21 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
       cacheProductos(Number(sucursalId), res.data).catch(() => {})
       return res.data
     } catch {
-      // Sin conexión con el backend: usar el último catálogo bueno guardado localmente.
-      try {
-        const cache = await getProductosCache(Number(sucursalId))
-        if (cache) {
-          setProductosSucursal(cache.productos)
-          setProductosDesactualizados(true)
-          setFechaCache(cache.updatedAt)
-          return cache.productos
-        }
-      } catch { /* ignore */ }
-      showToast("Error al cargar productos", "error");
-      return []
+      // Si ya mostramos cache, no es error: el usuario ya ve productos.
+      if (!mostróCache && productosSucursal.length === 0) {
+        // Sin conexión y sin cache previo: intentar IndexedDB como último recurso
+        try {
+          const cache = await getProductosCache(Number(sucursalId))
+          if (cache) {
+            setProductosSucursal(cache.productos)
+            setProductosDesactualizados(true)
+            setFechaCache(cache.updatedAt)
+            return cache.productos
+          }
+        } catch { /* ignore */ }
+        showToast("Error al cargar productos", "error");
+      }
+      return productosSucursal
     } finally {
       setLoadingSucursal(false)
     }
