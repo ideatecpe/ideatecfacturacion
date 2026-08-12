@@ -19,6 +19,7 @@ import {
   TrendingDown,
   TrendingUp,
   ArrowLeftRight,
+  CreditCard,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -429,6 +430,13 @@ export default function DashboardPage() {
       color: "text-blue-500",
       bar: "bg-blue-500",
     },
+    ...((dashboard?.totalComisionTarjetaDelDia ?? 0) > 0 ? [{
+      label: "Comisión POS",
+      value: formatMoneda(dashboard?.totalComisionTarjetaDelDia ?? 0),
+      icon: CreditCard,
+      color: "text-cyan-600",
+      bar: "bg-cyan-500",
+    }] : []),
     {
       label: "Facturas Emitidas",
       value: String(dashboard?.facturasEmitidas ?? 0),
@@ -535,10 +543,10 @@ export default function DashboardPage() {
 
       <div className="space-y-3 animate-in fade-in duration-500">
         {/* ─── KPI Grid ────────────────────────────────────────────────── */}
-        <div className={kpis.length >= 7 ? "grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3" : "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3"}>
+        <div className="flex flex-wrap gap-3">
           {isPageLoading
             ? Array.from({ length: 7 }).map((_, i) => (
-                <Card key={i} className="p-0">
+                <Card key={i} className="p-0 flex-1 min-w-[140px]">
                   <div className="p-3 flex items-center gap-3">
                     <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
                     <div className="min-w-0 flex-1 space-y-1.5">
@@ -551,7 +559,7 @@ export default function DashboardPage() {
             : kpis.map((kpi, i) => (
                 <div
                   key={i}
-                  className="bg-white rounded-xl border border-[#E2EAF6] overflow-hidden flex shadow-sm"
+                  className="bg-white rounded-xl border border-[#E2EAF6] overflow-hidden flex shadow-sm flex-1 min-w-[140px]"
                 >
                   <div className="flex-1 px-3 py-2.5 flex items-center gap-2.5 min-w-0">
                     <kpi.icon className={cn("w-4 h-4 shrink-0", kpi.color)} />

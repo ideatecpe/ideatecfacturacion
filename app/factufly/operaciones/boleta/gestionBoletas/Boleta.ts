@@ -118,6 +118,7 @@ export interface Boleta {
   subTotal: number
   importeTotal: number
   montoCredito: number
+  totalComisionPagoTarjeta?: number | null
   details: BoletaDetalle[]
   pagos: BoletaPago[]
   cuotas: BoletaCuota[]

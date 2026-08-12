@@ -1286,6 +1286,11 @@ export default function VerComprobantesPage() {
                           {doc.tipoMoneda === "USD" ? "$" : "S/"}{" "}
                           {fmtMonto(Number(doc.importeTotal ?? 0))}
                         </span>
+                        {(doc.totalComisionPagoTarjeta ?? 0) > 0 && (
+                          <span className="text-cyan-600 text-[11px] ml-1">
+                            + {doc.tipoMoneda === "USD" ? "$" : "S/"} {fmtMonto(doc.totalComisionPagoTarjeta!)}
+                          </span>
+                        )}
                       </p>
                     </td>
                     <td className="px-3 py-1 w-72">

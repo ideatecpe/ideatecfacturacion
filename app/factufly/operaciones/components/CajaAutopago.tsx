@@ -1169,6 +1169,25 @@ export default function CajaAutopago() {
         }))
       : [];
 
+  // ── Comisión por pago con tarjeta (POS) — control interno, informativo ──
+  // Se calcula solo sobre lo efectivamente pagado con "Tarjeta": el total (pago
+  // simple), el adelanto (al crédito), o la porción correspondiente (pago dividido).
+  // No afecta importeTotal ni ningún cálculo tributario del comprobante.
+  const comisionPagoTarjetaPct = config?.comisionPagoTarjeta
+    ? parseFloat(config.comisionPagoTarjeta)
+    : 0;
+  const montoPagadoConTarjeta = pagoDividido
+    ? pagosDivididos
+        .filter((p) => p.medioPago === "Tarjeta")
+        .reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0)
+    : esCredito
+      ? (medioPago === "Tarjeta" ? (parseFloat(adelantoCredito) || 0) : 0)
+      : (medioPago === "Tarjeta" ? totales.total : 0);
+  const totalComisionPagoTarjeta =
+    comisionPagoTarjetaPct > 0 && montoPagadoConTarjeta > 0
+      ? parseFloat(((montoPagadoConTarjeta * comisionPagoTarjetaPct) / 100).toFixed(2))
+      : 0;
+
   // Payload para POST /api/Comprobantes/GenerarXml (Boleta "03" / Factura "01").
   const prepararComprobante = (tipoComprobanteCod: "03" | "01") => {
     const { fechaHora, fecha } = obtenerFechaEmision();
@@ -1236,6 +1255,7 @@ export default function CajaAutopago() {
       subTotal: totales.total,
       importeTotal: totales.total,
       montoCredito: esCredito ? saldoPendienteCredito : 0,
+      totalComisionPagoTarjeta: totalComisionPagoTarjeta > 0 ? totalComisionPagoTarjeta : null,
       details: detalles,
       pagos: construirPagos(fechaHora),
       cuotas: construirCuotas(),
@@ -1276,6 +1296,7 @@ export default function CajaAutopago() {
       subTotal: totales.total,
       importeTotal: totales.total,
       montoCredito: esCredito ? saldoPendienteCredito : 0,
+      totalComisionPagoTarjeta: totalComisionPagoTarjeta > 0 ? totalComisionPagoTarjeta : null,
       detalles: items.map((it, idx) => ({
         trabajadorId: null,
         item: idx + 1,
@@ -2389,6 +2410,19 @@ export default function CajaAutopago() {
                 <span>Total</span>
                 <span className="tabular-nums">S/ {totales.total.toFixed(2)}</span>
               </div>
+              {totalComisionPagoTarjeta > 0 && (
+                <div className="pt-1.5 border-t border-gray-200 space-y-0.5">
+                  <div className="flex justify-between text-xs text-cyan-700">
+                    <span>Comisión POS ({comisionPagoTarjetaPct}%)</span>
+                    <span className="tabular-nums font-medium">+S/ {totalComisionPagoTarjeta.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold text-cyan-800">
+                    <span>Total + Comisión</span>
+                    <span className="tabular-nums">S/ {(totales.total + totalComisionPagoTarjeta).toFixed(2)}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400">Informativo — no afecta el comprobante</p>
+                </div>
+              )}
             </div>
           </div>
 

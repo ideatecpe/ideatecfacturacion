@@ -23,6 +23,7 @@ export interface Configuracion {
   useNotaVenta: boolean;
   isCajaAutopago: boolean;
   usaSire: boolean;
+  comisionPagoTarjeta?: string | null;
 }
 
 // Cache a nivel de módulo: evita que un remount (p.ej. cambiar Boleta <-> Factura)

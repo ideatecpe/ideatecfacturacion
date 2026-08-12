@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3, TrendingUp, Calendar, Download,
   PieChart as PieChartIcon, ArrowUpRight, ArrowDownRight, Loader2,
-  ChevronLeft, ChevronRight, FileSpreadsheet, Receipt
+  ChevronLeft, ChevronRight, FileSpreadsheet, Receipt, CreditCard
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -218,6 +218,7 @@ export default function ReportesPage() {
   const kpi = reportes?.kpi;
   const totalNV = reportes?.distribucion?.totalNotasVenta ?? 0;
   const countNV = reportes?.distribucion?.notasVenta ?? 0;
+  const totalComisionTarjeta = reportes?.kpi?.totalComisionTarjeta ?? 0;
   const stats = useMemo(() => [
     {
       label: 'Total Ventas (Inc. IGV)',
@@ -243,7 +244,13 @@ export default function ReportesPage() {
       trend: { pct: `${countNV} doc${countNV !== 1 ? 's' : ''}`, isUp: true },
       icon: Receipt, color: 'text-amber-600', bg: 'bg-amber-50',
     }] : []),
-  ], [kpi, totalNV, countNV]);
+    ...(totalComisionTarjeta > 0 ? [{
+      label: 'Comisión POS',
+      value: kpi ? formatNum(totalComisionTarjeta) : '—',
+      trend: { pct: 'Informativo', isUp: true },
+      icon: CreditCard, color: 'text-cyan-600', bg: 'bg-cyan-50',
+    }] : []),
+  ], [kpi, totalNV, countNV, totalComisionTarjeta]);
 
   // ── Export Excel desde modal ──────────────────────────────────────────────
   const getParamsBase = (sId: number | null = sucursalSeleccionada) => ({

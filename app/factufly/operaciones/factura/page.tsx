@@ -1331,6 +1331,20 @@ function FacturaContent() {
     detraccion.montoDetraccion,
   ]);
 
+  // ── Comisión por pago con tarjeta (POS) — control interno, informativo ──
+  // Se calcula solo sobre lo efectivamente pagado con "Tarjeta" (soporta pago
+  // dividido). No afecta importeTotal ni ningún cálculo tributario del comprobante.
+  const comisionPagoTarjetaPct = config?.comisionPagoTarjeta
+    ? parseFloat(config.comisionPagoTarjeta)
+    : 0;
+  const montoPagadoConTarjeta = pagos
+    .filter((p) => p.medioPago === "Tarjeta")
+    .reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0);
+  const totalComisionPagoTarjeta =
+    comisionPagoTarjetaPct > 0 && montoPagadoConTarjeta > 0
+      ? parseFloat(((montoPagadoConTarjeta * comisionPagoTarjetaPct) / 100).toFixed(2))
+      : 0;
+
   // ── Sincronizar totales en factura ───────────────────────────
   useEffect(() => {
     const moneda = factura.tipoMoneda === "USD" ? "DÓLARES" : "SOLES";
@@ -1375,6 +1389,7 @@ function FacturaContent() {
       importeTotal: totales.importeTotal,
       valorVenta: totales.valorVenta,
       montoCredito,
+      totalComisionPagoTarjeta: totalComisionPagoTarjeta > 0 ? totalComisionPagoTarjeta : null,
       legends,
       detracciones: aplicarDetraccion ? [detraccion] : [],
     }));
@@ -1388,6 +1403,7 @@ function FacturaContent() {
     totalPagado,
     aplicarDetraccion,
     detraccion,
+    totalComisionPagoTarjeta,
   ]);
 
   // ── Filtrar clientes ─────────────────────────────────────────
@@ -4984,6 +5000,23 @@ function FacturaContent() {
                       {simbolo} {fmtMonto(totales.importeTotal)}
                     </span>
                   </div>
+                  {totalComisionPagoTarjeta > 0 && (
+                    <div className="flex flex-col items-end gap-0.5">
+                      <div className="flex justify-end gap-4 text-xs text-cyan-700">
+                        <span>Comisión POS ({comisionPagoTarjetaPct}%):</span>
+                        <span className="font-medium w-24 text-right">
+                          +{simbolo} {fmtMonto(totalComisionPagoTarjeta)}
+                        </span>
+                      </div>
+                      <div className="flex justify-end gap-4 text-xs font-bold text-cyan-800">
+                        <span>Total + Comisión:</span>
+                        <span className="w-24 text-right">
+                          {simbolo} {fmtMonto(totales.importeTotal + totalComisionPagoTarjeta)}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-gray-400">Informativo — no afecta el comprobante</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </form>

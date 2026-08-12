@@ -89,6 +89,7 @@ interface Configuracion {
   useNotaVenta:      boolean;
   isCajaAutopago:    boolean;
   usaSire:           boolean;
+  comisionPagoTarjeta?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -868,7 +869,7 @@ export default function ConfiguracionPage() {
 
   const updConfig =
     (key: keyof Configuracion) =>
-    (val: boolean | string | number) => {
+    (val: boolean | string | number | null) => {
       if (!canEdit) return;
       setConfig((prev) => {
         if (!prev) return prev;
@@ -1299,6 +1300,51 @@ export default function ConfiguracionPage() {
                       <Toggle checked={!!config[key]} onChange={updConfig(key)} disabled={!canEdit} />
                     </div>
                   ))}
+                </div>
+
+                {/* Comisión por pago POS — control interno, no se envía a SUNAT */}
+                <div className="mt-3 rounded-xl border border-gray-100 overflow-hidden bg-gray-100 space-y-px">
+                  <div className="flex items-center gap-4 px-4 py-3 bg-white">
+                    <Toggle
+                      checked={config.comisionPagoTarjeta !== null && config.comisionPagoTarjeta !== undefined}
+                      onChange={(v) => updConfig("comisionPagoTarjeta")(v ? "" : null)}
+                      disabled={!canEdit}
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Comisión por pago POS</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Porcentaje de comisión aplicado cuando el cliente paga con tarjeta (control interno, no se envía a SUNAT)
+                      </p>
+                    </div>
+                  </div>
+                  {config.comisionPagoTarjeta !== null && config.comisionPagoTarjeta !== undefined && (
+                    <div className="px-4 py-3 bg-white flex flex-col sm:flex-row gap-3 items-start">
+                      <Input
+                        label="Porcentaje de comisión (%)"
+                        hint="Ej: 15 equivale a 15% de comisión sobre el monto pagado con tarjeta"
+                        hintClassName="text-xs text-gray-400"
+                        value={config.comisionPagoTarjeta ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/[^0-9.]/g, "").slice(0, 5);
+                          updConfig("comisionPagoTarjeta")(v);
+                        }}
+                        onBlur={() => {
+                          const raw = config.comisionPagoTarjeta ?? "";
+                          if (raw === "" || raw === ".") {
+                            updConfig("comisionPagoTarjeta")(null);
+                            return;
+                          }
+                          const num = Math.min(100, Math.max(0, parseFloat(raw)));
+                          updConfig("comisionPagoTarjeta")(
+                            Number.isFinite(num) ? String(num) : null,
+                          );
+                        }}
+                        disabled={!canEdit}
+                        placeholder="15"
+                        className="sm:w-40"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 

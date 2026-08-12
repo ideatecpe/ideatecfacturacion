@@ -126,6 +126,11 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
     const porcentajeIgv = comprobante.details?.find(d => d.tipoAfectacionIGV === '10')?.porcentajeIGV ?? 18;
     const detallesFiltrados = comprobante.details ?? [];
 
+    // Comisión por pago con tarjeta (POS) — control interno, solo informativo
+    const totalComisionPagoTarjeta = comprobante.totalComisionPagoTarjeta ?? 0;
+    const tieneComisionPos = totalComisionPagoTarjeta > 0;
+    const pagoTarjeta = comprobante.pagos?.find(p => (p.medioPago ?? '').toLowerCase().includes('tarjeta'));
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200 min-h-screen h-full">
 
@@ -317,6 +322,14 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                                 </div>
                             </div>
 
+                            {/* Comisión POS — informativo, solo cuando no hay pago con tarjeta registrado */}
+                            {tieneComisionPos && !pagoTarjeta && (
+                                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 px-4 py-2.5 flex justify-between items-center">
+                                    <span className="text-xs font-semibold text-cyan-700">Comisión POS <span className="font-normal text-cyan-500">(informativo)</span></span>
+                                    <span className="text-xs font-bold text-cyan-800 font-mono">{simboloMoneda} {totalComisionPagoTarjeta.toFixed(2)}</span>
+                                </div>
+                            )}
+
                             {/* Leyendas */}
                             {comprobante.legends?.length > 0 && (
                                 <div className="border border-gray-100 rounded-xl overflow-hidden">
@@ -355,16 +368,25 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                                                 <div className="px-4 py-2 bg-gray-50/50">
                                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Medios de pago</p>
                                                 </div>
-                                                {comprobante.pagos.map((p, i) => (
-                                                    <div key={i} className="px-4 py-2.5 flex justify-between items-center">
-                                                        <div>
-                                                            <p className="text-xs font-medium text-gray-800">{p.medioPago}</p>
-                                                            {p.entidadFinanciera && <p className="text-[10px] text-gray-400">{p.entidadFinanciera}</p>}
-                                                            {p.observaciones && <p className="text-[10px] text-gray-400">{p.observaciones}</p>}
+                                                {comprobante.pagos.map((p, i) => {
+                                                    const esTarjeta = (p.medioPago ?? '').toLowerCase().includes('tarjeta');
+                                                    return (
+                                                        <div key={i} className="px-4 py-2.5 flex justify-between items-center">
+                                                            <div>
+                                                                <p className="text-xs font-medium text-gray-800">{p.medioPago}</p>
+                                                                {p.entidadFinanciera && <p className="text-[10px] text-gray-400">{p.entidadFinanciera}</p>}
+                                                                {p.observaciones && <p className="text-[10px] text-gray-400">{p.observaciones}</p>}
+                                                                {esTarjeta && tieneComisionPos && (
+                                                                    <p className="text-[10px] text-cyan-600 mt-0.5">
+                                                                        {simboloMoneda} {p.monto.toFixed(2)} + Comisión POS {simboloMoneda} {totalComisionPagoTarjeta.toFixed(2)} = {simboloMoneda} {(p.monto + totalComisionPagoTarjeta).toFixed(2)}{' '}
+                                                                        <span className="text-gray-400">(informativo)</span>
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-xs font-semibold text-gray-800 font-mono">{simboloMoneda} {p.monto.toFixed(2)}</span>
                                                         </div>
-                                                        <span className="text-xs font-semibold text-gray-800 font-mono">{simboloMoneda} {p.monto.toFixed(2)}</span>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                         {tieneCuotas && (

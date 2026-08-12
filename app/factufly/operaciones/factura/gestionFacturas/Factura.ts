@@ -109,6 +109,7 @@ export interface Factura {
   subTotal: number
   importeTotal: number
   montoCredito: number
+  totalComisionPagoTarjeta?: number | null
   details: FacturaDetalle[]
   pagos: FacturaPago[]
   cuotas: FacturaCuota[]

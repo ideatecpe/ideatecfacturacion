@@ -136,8 +136,9 @@ export interface Comprobante {
   subTotal: number
   importeTotal: number
   montoCredito: number
-  tipDocAfectado: string | null     
-  numDocAfectado: string | null     
+  totalComisionPagoTarjeta?: number | null
+  tipDocAfectado: string | null
+  numDocAfectado: string | null
   tipoNotaCreditoDebito: string | null
   motivoNota: string | null
   details: ComprobanteDetalleItem[]
@@ -195,6 +196,7 @@ export interface ComprobanteListado {
   subTotal: number
   importeTotal: number
   montoCredito: number
+  totalComisionPagoTarjeta?: number | null
   comprobanteAfectadoId: number | null
   tipDocAfectado: string | null
   numDocAfectado: string | null

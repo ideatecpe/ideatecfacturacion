@@ -8,6 +8,7 @@ export interface KpiData {
   totalVentasAnterior: number
   totalIGVAnterior: number
   totalDocumentosAnterior: number
+  totalComisionTarjeta: number
 }
 
 // ── Gráfico ────────────────────────────────────────────────────────────────────
