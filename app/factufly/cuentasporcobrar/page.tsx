@@ -76,7 +76,7 @@ export default function CuentasPorCobrarPage() {
     if (!isSuperAdmin && !sucursal) return
     setHuboIntentoInicial(true)
     cargar()
-  }, [user, accessToken, sucursalFiltro, sucursal])
+  }, [user, accessToken, sucursalFiltro, sucursal?.codEstablecimiento])
 
   const verCuotas = async (c: CuentaPorCobrar) => {
     setComprobanteSeleccionado(c);
