@@ -1737,6 +1737,25 @@ export default function CajaAutopago() {
     }
   };
 
+  // Confirmación con la tecla Enter en el modal de pago
+  useEffect(() => {
+    if (!mostrarPago) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        if (
+          !emitiendo &&
+          !(pagoDividido && faltanteDividido > 0) &&
+          !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
+        ) {
+          e.preventDefault();
+          emitirVenta();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mostrarPago, emitiendo, pagoDividido, faltanteDividido, esCredito, cuotasCuadran, cuotasCredito]);
+
   const nuevaVenta = () => {
     setItems([]);
     setDocumento("");
@@ -1772,6 +1791,23 @@ export default function CajaAutopago() {
       }
     }, 50);
   };
+
+  // Enter para "Nueva venta" cuando se muestra la pantalla de éxito
+  useEffect(() => {
+    if (!emitido) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.tagName === "INPUT" && telWhatsapp.trim()) {
+          return;
+        }
+        e.preventDefault();
+        nuevaVenta();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [emitido, telWhatsapp]);
 
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
@@ -2497,6 +2533,18 @@ export default function CajaAutopago() {
                         e.currentTarget.selectionEnd === e.currentTarget.value.length
                       ) {
                         e.preventDefault();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (
+                          !emitiendo &&
+                          !(pagoDividido && faltanteDividido > 0) &&
+                          !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
+                        ) {
+                          emitirVenta();
+                        }
                       }
                     }}
                     inputMode="decimal"
