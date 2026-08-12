@@ -317,10 +317,17 @@ export default function CajaAutopago() {
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
+        // Re-adding a product already in cart: check stock before incrementing
+        if (disp !== null && disp < 1) {
+          showToast(`Stock insuficiente: solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${p.nomProducto}"`, "info");
+          return prev;
+        }
         const copia = [...prev];
         copia[idx] = { ...copia[idx], cantidad: copia[idx].cantidad + 1 };
         return copia;
       }
+      // New product: cap initial quantity at available stock if less than 1
+      const cantidadInicial = disp !== null && disp < 1 ? parseFloat(disp.toFixed(3)) : 1;
       return [
         ...prev,
         {
@@ -329,7 +336,7 @@ export default function CajaAutopago() {
           sucursalProductoId: p.sucursalProducto.sucursalProductoId,
           codigo: p.codigo,
           descripcion: p.nomProducto,
-          cantidad: 1,
+          cantidad: cantidadInicial,
           precio: precioConDescuento(p),
           tipoAfectacionIGV: p.tipoAfectacionIGV,
           urlImagen: p.urlImagenProducto ?? null,
@@ -653,6 +660,11 @@ export default function CajaAutopago() {
           const disp = calcularDisponible(prod, items, productosSucursal, config?.isStock ?? false);
           if (disp !== null && disp <= 0) {
             showToast(`Stock insuficiente: no hay más unidades disponibles de "${item.descripcion}"`, "info");
+            return;
+          }
+          // If incrementing by delta would exceed stock, cap delta at available
+          if (disp !== null && delta > disp) {
+            showToast(`Solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${item.descripcion}"`, "info");
             return;
           }
         }
