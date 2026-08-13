@@ -21,6 +21,10 @@ export interface SucursalProducto {
   ubicacionTienda?: string | null;
   /** Calculado por el backend: fecha de vencimiento más próxima entre los lotes con saldo. Solo lectura. */
   proximoVencimiento?: string | null;
+  /** Alertas configurables por producto. `null`/`undefined` = alerta activa (comportamiento por defecto). */
+  alertaVencimientoActiva?: boolean | null;
+  alertaStockBajoActiva?: boolean | null;
+  stockMinimoAlerta?: number | null;
 }
 
 // ─── Producto Base (sin datos de sucursal) ───────────────────
@@ -61,6 +65,10 @@ export interface NuevoProducto {
   sucursalId: number;
   precioUnitario: number;
   stock?: number | null;
+  /** Costo de compra del stock inicial: si se informa junto con `stock`, el backend
+   * registra un lote PEPS (SALDO_INICIAL) para que kardex/valorizado/rentabilidad lo reconozcan. */
+  costoUnitario?: number | null;
+  fechaVencimiento?: string | null;
   urlImagenProducto?: string | null;
   codigoBarras?: string | null;
   esPaquete?: boolean | null;
@@ -72,6 +80,9 @@ export interface NuevoProducto {
   porcentajeDescuento?: number | null;
   usuarioId?: number | null;
   ubicacionTienda?: string | null;
+  alertaVencimientoActiva?: boolean | null;
+  alertaStockBajoActiva?: boolean | null;
+  stockMinimoAlerta?: number | null;
 }
 
 // ─── Para editar producto (PUT) ───────────────────────────────
@@ -88,6 +99,8 @@ export interface EditProducto {
   sucursalProductoId: number;
   precioUnitario: number;
   stock?: number | null;
+  // Costo de compra a usar SOLO si `stock` sube respecto al valor actual (nuevo lote PEPS).
+  costoUnitario?: number | null;
   urlImagenProducto?: string | null;
   codigoBarras?: string | null;
   esPaquete?: boolean | null;
@@ -99,4 +112,7 @@ export interface EditProducto {
   porcentajeDescuento?: number | null;
   usuarioId?: number | null;
   ubicacionTienda?: string | null;
+  alertaVencimientoActiva?: boolean | null;
+  alertaStockBajoActiva?: boolean | null;
+  stockMinimoAlerta?: number | null;
 }

@@ -54,6 +54,8 @@ const emptyForm: NuevoProducto = {
   categoriaId: 0,
   sucursalId: 0,
   precioUnitario: 0,
+  stock: null,
+  costoUnitario: null,
   urlImagenProducto: null,
   codigoBarras: "",
   esPaquete: false,
@@ -65,6 +67,9 @@ const emptyForm: NuevoProducto = {
   porcentajeDescuento: null,
   usuarioId: null,
   ubicacionTienda: null,
+  alertaVencimientoActiva: true,
+  alertaStockBajoActiva: true,
+  stockMinimoAlerta: null,
 };
 
 // Incrementa el correlativo de un código tipo "COC-001" → "COC-002",
@@ -686,10 +691,18 @@ export default function AgregarProducto({
     const formConSucursal = {
       ...form,
       sucursalId: sucursalIdEfectivo,
-      // El stock siempre arranca en 0: solo se incrementa desde el módulo de Compras a Proveedor.
-      stock: config?.isStock && form.tipoProducto === "BIEN" ? 0 : null,
+      // Stock inicial opcional: si no se informa, arranca en 0 y se carga después
+      // desde el módulo de Compras a Proveedor.
+      stock: config?.isStock && form.tipoProducto === "BIEN" ? (form.stock ?? 0) : null,
+      costoUnitario: config?.isStock && form.tipoProducto === "BIEN" ? form.costoUnitario : null,
       // Campo informativo: solo aplica si la empresa maneja stock.
       ubicacionTienda: config?.isStock ? form.ubicacionTienda : null,
+      alertaVencimientoActiva:
+        config?.isStock && form.tipoProducto === "BIEN" ? form.alertaVencimientoActiva ?? true : null,
+      alertaStockBajoActiva:
+        config?.isStock && form.tipoProducto === "BIEN" ? form.alertaStockBajoActiva ?? true : null,
+      stockMinimoAlerta:
+        config?.isStock && form.tipoProducto === "BIEN" ? form.stockMinimoAlerta : null,
       usuarioId: user?.id ? parseInt(user.id) : null,
     };
 
@@ -807,8 +820,10 @@ export default function AgregarProducto({
         )}
 
         {/* ── Imagen del producto ── */}
-        {!soloSucursal && (
+        {(!soloSucursal || (config?.isStock && form.tipoProducto === "BIEN")) && (
           <div className="flex items-start gap-3">
+            {!soloSucursal && (
+            <>
             {/* Input oculto para subir desde galería/archivos */}
             <input
               ref={fileInputRef}
@@ -917,6 +932,63 @@ export default function AgregarProducto({
                 </button>
               </div>
             </div>
+            </>
+            )}
+
+            {config?.isStock && form.tipoProducto === "BIEN" && (
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+                  <input
+                    type="checkbox"
+                    checked={form.alertaVencimientoActiva ?? true}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, alertaVencimientoActiva: e.target.checked }))
+                    }
+                    className="w-4 h-4 accent-brand-blue"
+                  />
+                  <span className="text-xs font-semibold text-gray-600">
+                    Alertar por fecha de vencimiento
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+                  <input
+                    type="checkbox"
+                    checked={form.alertaStockBajoActiva ?? true}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, alertaStockBajoActiva: e.target.checked }))
+                    }
+                    className="w-4 h-4 accent-brand-blue"
+                  />
+                  <span className="text-xs font-semibold text-gray-600">
+                    Alertar por stock bajo
+                  </span>
+                </label>
+
+                {(form.alertaStockBajoActiva ?? true) && (
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1">
+                      Stock mínimo para alertar
+                      <span className="text-gray-400 normal-case font-normal">(opcional)</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={form.stockMinimoAlerta === null || form.stockMinimoAlerta === undefined ? "" : String(form.stockMinimoAlerta)}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          stockMinimoAlerta: e.target.value === "" ? null : Number(e.target.value),
+                        }))
+                      }
+                      placeholder={
+                        config?.umbralStockBajo ? `General: ${config.umbralStockBajo}` : "Ej: 5"
+                      }
+                      className="w-24 px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -938,7 +1010,7 @@ export default function AgregarProducto({
                 type="button"
                 onClick={startScanning}
                 title="Escanear código de barras con cámara"
-                className="h-[38px] w-[38px] flex items-center justify-center shrink-0 bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue rounded-xl transition-colors border border-brand-blue/20"
+                className="h-9.5 w-9.5 flex items-center justify-center shrink-0 bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue rounded-xl transition-colors border border-brand-blue/20"
               >
                 <ScanBarcode className="w-4 h-4" />
               </button>
@@ -986,7 +1058,7 @@ export default function AgregarProducto({
                   Cancelar
                 </button>
               </div>
-              <div className="relative w-full max-w-[260px] aspect-square mx-auto bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-xl flex items-center justify-center">
+              <div className="relative w-full max-w-65 aspect-square mx-auto bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-xl flex items-center justify-center">
                 <video
                   ref={videoRef}
                   className="absolute inset-0 w-full h-full object-cover"
@@ -1212,6 +1284,7 @@ export default function AgregarProducto({
           </>
         )}
 
+        {/* ── Precio de Venta y Costo de Compra (misma línea) ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-2">
             <InputBase
@@ -1243,7 +1316,26 @@ export default function AgregarProducto({
               </div>
             )}
           </div>
- 
+
+          {config?.isStock && form.tipoProducto === "BIEN" && (
+            <InputBase
+              compact
+              label="Costo Unitario de Compra"
+              labelOptional="(opcional)"
+              type="number"
+              value={form.costoUnitario === null || form.costoUnitario === undefined ? "" : String(form.costoUnitario)}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  costoUnitario: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder="Ej: 3.50"
+              step="0.01"
+              showError={false}
+            />
+          )}
+
           {/* Campo Código (auto) oculto/comentado porque se genera automáticamente */}
           {/* {!soloSucursal && (
             <InputBase
@@ -1257,9 +1349,28 @@ export default function AgregarProducto({
               className="bg-gray-100 text-gray-500 cursor-not-allowed"
             />
           )} */}
+        </div>
 
-          {/* ── Ubicación en tienda (solo informativo, opcional) ── */}
-          {config?.isStock && (
+        {/* ── Stock inicial y Ubicación en tienda (misma línea) ── */}
+        {config?.isStock && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {form.tipoProducto === "BIEN" && (
+              <InputBase
+                compact
+                label="Stock Inicial"
+                labelOptional="(opcional, si no lo sabes déjalo vacío)"
+                type="number"
+                value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    stock: e.target.value === "" ? null : Number(e.target.value),
+                  }))
+                }
+                placeholder="Ej: 50"
+                showError={false}
+              />
+            )}
             <InputBase
               compact
               label="Ubicación en Tienda"
@@ -1274,8 +1385,9 @@ export default function AgregarProducto({
               placeholder="Ej: Pasillo 3, Estante B"
               showError={false}
             />
-          )}
-        </div>
+          </div>
+        )}
+
 
         {/* ── Código SUNAT (UNSPSC) (Comentado temporalmente) ── */}
         {/* {!soloSucursal && (

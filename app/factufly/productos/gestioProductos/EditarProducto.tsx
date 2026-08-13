@@ -31,6 +31,7 @@ interface FormFieldsProps {
   onChange: (field: keyof NuevoProducto) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   categorias: Categoria[];
   isStock?: boolean;
+  umbralStockBajo?: number | null;
   productosEmpresa: ProductoSucursal[];
   productoActualId?: number;
   imgError: boolean;
@@ -55,6 +56,8 @@ const emptyForm: NuevoProducto = {
   categoriaId: 0,
   sucursalId: 1,
   precioUnitario: 0,
+  stock: null,
+  costoUnitario: null,
   urlImagenProducto: null,
   codigoBarras: "",
   esPaquete: false,
@@ -66,6 +69,9 @@ const emptyForm: NuevoProducto = {
   porcentajeDescuento: null,
   usuarioId: null,
   ubicacionTienda: null,
+  alertaVencimientoActiva: true,
+  alertaStockBajoActiva: true,
+  stockMinimoAlerta: null,
 };
 
 export default function EditarProducto({
@@ -112,6 +118,7 @@ export default function EditarProducto({
       sucursalId: 0,
       precioUnitario: producto.sucursalProducto.precioUnitario,
       stock: producto.sucursalProducto.stock ?? 0,
+      costoUnitario: null,
       urlImagenProducto: producto.urlImagenProducto ?? null,
       codigoBarras: producto.codigoBarras ?? "",
       codigoSunat: producto.codigoSunat ?? "",
@@ -123,6 +130,9 @@ export default function EditarProducto({
       enPromocion: producto.sucursalProducto.enPromocion ?? false,
       porcentajeDescuento: producto.sucursalProducto.porcentajeDescuento ?? null,
       ubicacionTienda: producto.sucursalProducto.ubicacionTienda ?? null,
+      alertaVencimientoActiva: producto.sucursalProducto.alertaVencimientoActiva ?? true,
+      alertaStockBajoActiva: producto.sucursalProducto.alertaStockBajoActiva ?? true,
+      stockMinimoAlerta: producto.sucursalProducto.stockMinimoAlerta ?? null,
     });
 
     setPrecioInput(producto.sucursalProducto.precioUnitario.toFixed(2));
@@ -217,6 +227,14 @@ export default function EditarProducto({
         config?.isStock && form.tipoProducto === "BIEN"
           ? form.stock ?? 0
           : null,
+      // Solo aplica si el stock sube: cuesta el nuevo lote PEPS que se crea por la diferencia.
+      costoUnitario: config?.isStock && form.tipoProducto === "BIEN" ? form.costoUnitario : null,
+      alertaVencimientoActiva:
+        config?.isStock && form.tipoProducto === "BIEN" ? form.alertaVencimientoActiva ?? true : null,
+      alertaStockBajoActiva:
+        config?.isStock && form.tipoProducto === "BIEN" ? form.alertaStockBajoActiva ?? true : null,
+      stockMinimoAlerta:
+        config?.isStock && form.tipoProducto === "BIEN" ? form.stockMinimoAlerta : null,
       codigoBarras: form.codigoBarras || null,
       codigoSunat: form.codigoSunat || undefined,
       esPaquete: form.esPaquete ?? false,
@@ -270,6 +288,9 @@ export default function EditarProducto({
           porcentajeDescuento: payload.porcentajeDescuento,
           ubicacionTienda: payload.ubicacionTienda,
           usuarioId: payload.usuarioId,
+          alertaVencimientoActiva: payload.alertaVencimientoActiva,
+          alertaStockBajoActiva: payload.alertaStockBajoActiva,
+          stockMinimoAlerta: payload.stockMinimoAlerta,
         },
       };
 
@@ -311,6 +332,7 @@ export default function EditarProducto({
           onChange={handleFormChange}
           categorias={categorias}
           isStock={config?.isStock}
+          umbralStockBajo={config?.umbralStockBajo}
           productosEmpresa={productosEmpresa}
           productoActualId={producto?.productoId}
           imgError={imgError}
@@ -337,7 +359,7 @@ export default function EditarProducto({
   );
 }
 
-function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias, isStock, productosEmpresa, productoActualId, imgError, setImgError, imgPreview, setImgPreview, subiendoImagen, setSubiendoImagen, confirmandoEliminarImagen, setConfirmandoEliminarImagen, onAbrirCatalogo }: FormFieldsProps) {
+function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias, isStock, umbralStockBajo, productosEmpresa, productoActualId, imgError, setImgError, imgPreview, setImgPreview, subiendoImagen, setSubiendoImagen, confirmandoEliminarImagen, setConfirmandoEliminarImagen, onAbrirCatalogo }: FormFieldsProps) {
   const { showToast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -488,6 +510,59 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             {subiendoImagen ? "Subiendo…" : form.urlImagenProducto ? "Cambiar imagen" : "Subir imagen"}
           </button>
         </div>
+
+        {isStock && form.tipoProducto === "BIEN" && (
+          <div className="flex-1 min-w-[160px] pt-1 space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+              <input
+                type="checkbox"
+                checked={form.alertaVencimientoActiva ?? true}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, alertaVencimientoActiva: e.target.checked }))
+                }
+                className="w-4 h-4 accent-brand-blue"
+              />
+              <span className="text-xs font-semibold text-gray-600">
+                Alertar por fecha de vencimiento
+              </span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+              <input
+                type="checkbox"
+                checked={form.alertaStockBajoActiva ?? true}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, alertaStockBajoActiva: e.target.checked }))
+                }
+                className="w-4 h-4 accent-brand-blue"
+              />
+              <span className="text-xs font-semibold text-gray-600">
+                Alertar por stock bajo
+              </span>
+            </label>
+
+            {(form.alertaStockBajoActiva ?? true) && (
+              <div className="space-y-0.5">
+                <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1">
+                  Stock mínimo para alertar
+                  <span className="text-gray-400 normal-case font-normal">(opcional)</span>
+                </label>
+                <input
+                  type="number"
+                  value={form.stockMinimoAlerta === null || form.stockMinimoAlerta === undefined ? "" : String(form.stockMinimoAlerta)}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      stockMinimoAlerta: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                  placeholder={umbralStockBajo ? `General: ${umbralStockBajo}` : "Ej: 5"}
+                  className="w-24 px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50"
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <InputBase
@@ -564,6 +639,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
         </div>
       </div>
 
+      {/* ── Precio de Venta y Costo de Compra (misma línea) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <InputBase
@@ -602,15 +678,67 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           )}
         </div>
 
+        {isStock && form.tipoProducto === "BIEN" && (
+          <InputBase
+            label="Costo Unitario de Compra"
+            labelOptional="(solo si el stock sube)"
+            type="number"
+            step="0.01"
+            value={form.costoUnitario === null || form.costoUnitario === undefined ? "" : String(form.costoUnitario)}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                costoUnitario: e.target.value === "" ? null : Number(e.target.value),
+              }))
+            }
+            placeholder="Ej: 3.50"
+          />
+        )}
+      </div>
+
+      {/* ── Stock y Ubicación en tienda (misma línea) ── */}
+      {isStock && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {form.tipoProducto === "BIEN" && (
+            <InputBase
+              label="Stock"
+              labelOptional="(unidades)"
+              type="number"
+              value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  stock: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder="Ej: 50"
+            />
+          )}
+          {form.tipoProducto === "BIEN" && (
+            <InputBase
+              label="Ubicación en Tienda"
+              labelOptional="(opcional)"
+              value={form.ubicacionTienda ?? ""}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  ubicacionTienda: e.target.value.trim() === "" ? null : e.target.value,
+                }))
+              }
+              placeholder="Ej: Pasillo 3, Estante B"
+            />
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InputBase
           label="Código"
           value={form.codigo}
           onChange={onChange("codigo")}
           placeholder="PROD-001"
         />
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Código de barras: solo unidades contables (Unidad / Caja) */}
         {esUnidadContable(form.unidadMedida) && (
           <div className="space-y-1.5">
@@ -636,21 +764,6 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           onChange={onChange("codigoSunat")}
           onAbrirCatalogo={onAbrirCatalogo}
         />
-
-        {isStock && form.tipoProducto === "BIEN" && (
-          <InputBase
-            label="Ubicación en Tienda"
-            labelOptional="(opcional)"
-            value={form.ubicacionTienda ?? ""}
-            onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                ubicacionTienda: e.target.value.trim() === "" ? null : e.target.value,
-              }))
-            }
-            placeholder="Ej: Pasillo 3, Estante B"
-          />
-        )}
 
         {isStock && (
           <div className="flex items-center gap-2 h-10 px-1 sm:col-span-2">

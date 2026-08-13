@@ -43,11 +43,15 @@ export const DropdownFiltro = ({
     }
   }, [open, searchable]);
 
+  // Dos productos/categorías distintos pueden compartir el mismo nombre visible;
+  // se deduplica aquí porque el texto se usa como key de React en la lista.
+  const opcionesUnicas = useMemo(() => Array.from(new Set(options)), [options]);
+
   const opcionesFiltradas = useMemo(() => {
-    if (!searchable || !busqueda.trim()) return options;
+    if (!searchable || !busqueda.trim()) return opcionesUnicas;
     const termino = busqueda.trim().toLowerCase();
-    return options.filter((opt) => opt.toLowerCase().includes(termino));
-  }, [options, busqueda, searchable]);
+    return opcionesUnicas.filter((opt) => opt.toLowerCase().includes(termino));
+  }, [opcionesUnicas, busqueda, searchable]);
 
   const active = value !== "Todos" && value !== "";
 

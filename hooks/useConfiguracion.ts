@@ -20,6 +20,7 @@ export interface Configuracion {
   descUnitario: boolean;
   isStock: boolean;
   umbralStockBajo?: number | null;
+  diasAlertaVencimiento?: number | null;
   useNotaVenta: boolean;
   isCajaAutopago: boolean;
   usaSire: boolean;
@@ -30,6 +31,16 @@ export interface Configuracion {
 // arranque con config=null y muestre valores por defecto (IGV 18%) mientras carga.
 const configCache = new Map<string, Configuracion>();
 
+// Notifica a todas las instancias de useConfiguracion ya montadas (p.ej. los modales
+// de productos abiertos en la misma sesión) que vuelvan a pedir la config al backend.
+// Sin esto, guardar en la página de Configuración no se reflejaba hasta recargar la
+// app, porque cada instancia del hook solo hacía fetch una vez al montarse.
+const configEmitter = new EventTarget();
+
+export function notificarConfiguracionActualizada() {
+  configEmitter.dispatchEvent(new Event("actualizada"));
+}
+
 export function useConfiguracion() {
   const { user, accessToken } = useAuth();
   const cached = user?.ruc ? configCache.get(user.ruc) ?? null : null;
@@ -39,38 +50,45 @@ export function useConfiguracion() {
   useEffect(() => {
     if (!user?.ruc || !accessToken) return;
     const ruc = user.ruc;
-    let usedNetwork = false;
 
-    if (!configCache.has(ruc)) {
-      setLoading(true);
-      // Mientras se confirma por red, muestra lo último bueno guardado en el
-      // dispositivo (sobrevive a un reload sin conexión, a diferencia del
-      // Map en memoria de arriba).
-      getConfigCache(ruc)
-        .then((entry) => {
-          if (entry && !usedNetwork) {
-            configCache.set(ruc, entry.config);
-            setConfig(entry.config);
+    function cargar() {
+      let usedNetwork = false;
+
+      if (!configCache.has(ruc)) {
+        setLoading(true);
+        // Mientras se confirma por red, muestra lo último bueno guardado en el
+        // dispositivo (sobrevive a un reload sin conexión, a diferencia del
+        // Map en memoria de arriba).
+        getConfigCache(ruc)
+          .then((entry) => {
+            if (entry && !usedNetwork) {
+              configCache.set(ruc, entry.config);
+              setConfig(entry.config);
+            }
+          })
+          .catch(() => {});
+      }
+
+      fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${ruc}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      )
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data) {
+            usedNetwork = true;
+            configCache.set(ruc, data);
+            setConfig(data);
+            cacheConfig(ruc, data).catch(() => {});
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setLoading(false));
     }
 
-    fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${ruc}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    )
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) {
-          usedNetwork = true;
-          configCache.set(ruc, data);
-          setConfig(data);
-          cacheConfig(ruc, data).catch(() => {});
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    cargar();
+    configEmitter.addEventListener("actualizada", cargar);
+    return () => configEmitter.removeEventListener("actualizada", cargar);
   }, [user?.ruc, accessToken]);
 
   return { config, loading };

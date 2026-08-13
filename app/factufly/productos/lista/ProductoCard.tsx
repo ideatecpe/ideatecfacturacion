@@ -11,15 +11,14 @@ import { formatoBarcodeSeguro } from "../gestioProductos/barcodeFormato";
 import { ProductoSucursal } from "../gestioProductos/Producto";
 import { abreviaturaUnidad, formatearCantidadUnidad } from "../gestioProductos/unidadMedida";
 
-// Umbral de alerta de vencimiento (días): a partir de aquí se marca el producto
-// como "próximo a vencer" en la tarjeta.
-const DIAS_ALERTA_VENCIMIENTO = 30;
+// Umbral de alerta de vencimiento (días) por defecto, si la empresa no configuró el suyo.
+const DIAS_ALERTA_VENCIMIENTO_DEFAULT = 30;
 
-function estaProximoAVencer(fechaISO: string): boolean {
+function estaProximoAVencer(fechaISO: string, diasAlerta: number): boolean {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   const diffDias = (new Date(fechaISO).getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
-  return diffDias <= DIAS_ALERTA_VENCIMIENTO;
+  return diffDias <= diasAlerta;
 }
 
 interface ProductoCardProps {
@@ -39,6 +38,8 @@ interface ProductoCardProps {
   onImgError: () => void;
   /** true cuando el filtro "Vence antes de" está aplicado — fuerza mostrar el badge aunque falten más de 30 días. */
   filtroVencimientoActivo?: boolean;
+  /** Días de anticipación configurados por la empresa (Configuración). Si no viene, usa el default. */
+  diasAlertaVencimiento?: number | null;
 }
 
 export default function ProductoCard({
@@ -57,6 +58,7 @@ export default function ProductoCard({
   imgError,
   onImgError,
   filtroVencimientoActivo,
+  diasAlertaVencimiento,
 }: ProductoCardProps) {
   // Intenta primero la variante liviana "thumbnail"; si no existe todavía en
   // Cloudflare (404), cae a la imagen original antes de rendirse a "sin imagen".
@@ -262,10 +264,15 @@ export default function ProductoCard({
         </div>
       )}
 
-      {/* ── Vencimiento: advertencia (<30 días) vs. dato informativo (solo por el filtro "Vence antes de") ── */}
+      {/* ── Vencimiento: advertencia (<N días) vs. dato informativo (solo por el filtro "Vence antes de") ── */}
       {isStock && prod.sucursalProducto.proximoVencimiento && (() => {
         const fecha = prod.sucursalProducto.proximoVencimiento;
-        const esUrgente = estaProximoAVencer(fecha);
+        // Este producto puede tener la alerta de vencimiento desactivada; en ese caso
+        // solo se muestra el dato neutral cuando el usuario lo pidió con el filtro.
+        const alertaActiva = prod.sucursalProducto.alertaVencimientoActiva !== false;
+        const esUrgente =
+          alertaActiva &&
+          estaProximoAVencer(fecha, diasAlertaVencimiento ?? DIAS_ALERTA_VENCIMIENTO_DEFAULT);
 
         if (!esUrgente && !filtroVencimientoActivo) return null;
 

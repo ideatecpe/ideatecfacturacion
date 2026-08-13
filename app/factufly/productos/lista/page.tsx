@@ -233,19 +233,25 @@ const [importFile, setImportFile] = useState<File | null>(null);
     return p.sucursalProducto.stock ?? null;
   };
 
-  // Estado de alerta de stock: "agotado" (0), "bajo" (por debajo del umbral estático), "normal".
+  // Estado de alerta de stock: "agotado" (0), "bajo" (por debajo del umbral), "normal".
   // Paquetes se comparan en paquetes equivalentes; productos normales, en unidades.
+  // Cada producto puede desactivar esta alerta y/o traer su propio umbral configurado;
+  // si no trae umbral propio, se usa el umbral general de la empresa (Configuración).
   const getEstadoStock = (p: ProductoSucursal): "agotado" | "bajo" | "normal" => {
+    if (p.sucursalProducto.alertaStockBajoActiva === false) return "normal";
+
     const stockEfectivo = getStockEfectivo(p);
     if (stockEfectivo == null) return "normal";
     if (stockEfectivo === 0) return "agotado";
 
     if (p.esPaquete && p.factorConversion) {
       const equivalente = stockEfectivo / p.factorConversion;
-      return equivalente < STOCK_MINIMO_PAQUETE ? "bajo" : "normal";
+      const umbral = p.sucursalProducto.stockMinimoAlerta ?? STOCK_MINIMO_PAQUETE;
+      return equivalente < umbral ? "bajo" : "normal";
     }
 
-    return stockEfectivo < STOCK_MINIMO_UNIDAD ? "bajo" : "normal";
+    const umbral = p.sucursalProducto.stockMinimoAlerta ?? config?.umbralStockBajo ?? STOCK_MINIMO_UNIDAD;
+    return stockEfectivo < umbral ? "bajo" : "normal";
   };
 
   const filtered = productos.filter((p) => {
@@ -1298,6 +1304,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                         }
                         getEstadoStock={getEstadoStock}
                         filtroVencimientoActivo={!!filtroVencimientoAntes}
+                        diasAlertaVencimiento={config?.diasAlertaVencimiento}
                         imgError={imgErrorIds.has(prod.sucursalProducto.sucursalProductoId)}
                         onImgError={() =>
                           setImgErrorIds((prev) => {

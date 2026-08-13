@@ -22,6 +22,7 @@ import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/utils/cn";
 import { useAuth } from "@/context/AuthContext";
+import { notificarConfiguracionActualizada } from "@/hooks/useConfiguracion";
 import { LogoCropper } from "@/app/components/ui/LogoCropper";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -86,6 +87,7 @@ interface Configuracion {
   descUnitario:      boolean;
   isStock:           boolean;
   umbralStockBajo?:  number | null;
+  diasAlertaVencimiento?: number | null;
   useNotaVenta:      boolean;
   isCajaAutopago:    boolean;
   usaSire:           boolean;
@@ -646,6 +648,8 @@ export default function ConfiguracionPage() {
   // Texto libre mientras se edita el umbral: permite dejarlo vacío momentáneamente
   // sin que se fuerce el valor por defecto (10) en cada tecla.
   const [umbralInput, setUmbralInput] = useState<string | null>(null);
+  // Igual, pero para los días de anticipación de la alerta de vencimiento (default 30).
+  const [diasVencInput, setDiasVencInput] = useState<string | null>(null);
 
   const [configExpandida,  setConfigExpandida]  = useState(false);
   const [seriesExpandidas, setSeriesExpandidas] = useState(false);
@@ -860,6 +864,9 @@ export default function ConfiguracionPage() {
         },
       });
       showToast("Configuración guardada correctamente", "success");
+      // Avisa a otras partes ya montadas de la app (p.ej. los modales de productos)
+      // para que vuelvan a pedir la config y dejen de mostrar el valor viejo en caché.
+      notificarConfiguracionActualizada();
     } catch {
       showToast("Error al guardar la configuración", "error");
     } finally {
@@ -1396,7 +1403,7 @@ export default function ConfiguracionPage() {
                     <div className="px-4 py-3 bg-white flex flex-col sm:flex-row gap-3 items-start">
                       <Input
                         label="Umbral de unidades para stock bajo"
-                        hint="El número de WhatsApp que recibe el aviso se configura por sucursal, en Sucursales → Editar"
+                        hint="Se usa cuando el producto no tiene su propio stock mínimo configurado"
                         hintClassName="text-xs text-gray-400"
                         value={umbralInput ?? String(config.umbralStockBajo ?? 10)}
                         onChange={(e) => {
@@ -1410,6 +1417,24 @@ export default function ConfiguracionPage() {
                         }}
                         disabled={!canEdit}
                         placeholder="10"
+                        className="sm:w-40"
+                      />
+                      <Input
+                        label="Días de anticipación para alertar vencimiento"
+                        hint="El número de WhatsApp que recibe el aviso se configura por sucursal, en Sucursales → Editar"
+                        hintClassName="text-xs text-gray-400"
+                        value={diasVencInput ?? String(config.diasAlertaVencimiento ?? 30)}
+                        onChange={(e) => {
+                          const n = e.target.value.replace(/\D/g, "").slice(0, 4);
+                          setDiasVencInput(n);
+                          if (n !== "") updConfig("diasAlertaVencimiento")(parseInt(n, 10));
+                        }}
+                        onBlur={() => {
+                          if (diasVencInput === "") updConfig("diasAlertaVencimiento")(30);
+                          setDiasVencInput(null);
+                        }}
+                        disabled={!canEdit}
+                        placeholder="30"
                         className="sm:w-40"
                       />
                     </div>
