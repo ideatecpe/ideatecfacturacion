@@ -317,6 +317,23 @@ export default function AgregarProducto({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    await uploadImageFile(file);
+  };
+
+  // Lógica compartida de subida de imagen (usada por file input, cámara y paste)
+  const uploadImageFile = async (file: File) => {
+    // Validar tipo de archivo
+    const tiposPermitidos = ["image/jpeg", "image/png", "image/webp"];
+    if (!tiposPermitidos.includes(file.type)) {
+      showToast("Solo se permiten imágenes JPG, PNG o WebP.", "error");
+      return;
+    }
+    // Validar tamaño (máx 2 MB)
+    if (file.size > 2 * 1024 * 1024) {
+      showToast("La imagen no debe superar 2 MB.", "error");
+      return;
+    }
+
     setImgError(false);
     setImgPreview(URL.createObjectURL(file));
     setSubiendoImagen(true);
@@ -346,6 +363,25 @@ export default function AgregarProducto({
       if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
   };
+
+  // ── Ctrl+V para pegar imagen del portapapeles ──
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+          if (file) uploadImageFile(file);
+          return;
+        }
+      }
+    };
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [isOpen, currentImageId]);
 
   const handleQuitarImagen = () => {
     const idAnterior = currentImageId;
@@ -646,21 +682,6 @@ export default function AgregarProducto({
     if (!validar()) return;
     if (isSubmitting) return;
 
-    // Validar código de barras duplicado antes de enviar
-    const barcode = form.codigoBarras?.trim();
-    if (barcode) {
-      const duplicado = productosEmpresa.find(
-        (p) => p.codigoBarras && p.codigoBarras === barcode,
-      );
-      if (duplicado) {
-        showToast(
-          `El código de barras ya está asignado a "${duplicado.nomProducto}".`,
-          "error",
-        );
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     const formConSucursal = {
       ...form,
@@ -700,10 +721,21 @@ export default function AgregarProducto({
           const mensaje = axios.isAxiosError(error)
             ? String(error.response?.data?.mensaje ?? "")
             : "";
-          const esConflictoCodigo =
-            status === 409 && /c[oó]digo/i.test(mensaje);
 
-          // Reintentar solo si el código es automático y aún quedan intentos.
+          // Diferenciar conflicto de CÓDIGO PRODUCTO vs CÓDIGO DE BARRAS.
+          // Si el 409 es por código de barras, NUNCA regenerar: el usuario
+          // eligió ese código y debe registrarse con él. Solo mostrar el error.
+          const esConflictoBarcode =
+            status === 409 && /c[oó]digo\s*de\s*barras/i.test(mensaje);
+          const esConflictoCodigo =
+            status === 409 && !esConflictoBarcode && /c[oó]digo/i.test(mensaje);
+
+          // Conflicto de código de barras → no reintentar, mostrar error directo.
+          if (esConflictoBarcode) {
+            throw error;
+          }
+
+          // Reintentar solo si el código de producto es automático y aún quedan intentos.
           if (
             esConflictoCodigo &&
             codigoEsAutomatico &&

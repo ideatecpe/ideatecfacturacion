@@ -58,9 +58,16 @@ export async function POST(req: NextRequest) {
         },
       },
     );
+    // Si Open Food Facts devuelve un error HTTP (502, 500, etc.), tratar como
+    // "producto no encontrado" en vez de fallar — así el usuario puede seguir
+    // registrando el producto manualmente con el código de barras que escribió.
+    if (!offRes.ok) {
+      return NextResponse.json({ ok: true, encontrado: false });
+    }
     off = await offRes.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "No se pudo consultar la base de datos de productos." }, { status: 502 });
+    // Error de red / timeout → tratar como "no encontrado" para no bloquear al usuario.
+    return NextResponse.json({ ok: true, encontrado: false });
   }
 
   // status !== 1 → producto no encontrado en la base
