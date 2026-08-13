@@ -12,6 +12,7 @@ import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas
 import { useLotesVencidosLista } from "../useLotesVencidosLista";
 import { useHistorialVencidosLista } from "../useHistorialVencidosLista";
 import { LoteVencido } from "../Inventario";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 
 interface ProductoVencidoGrupo {
   sucursalProductoId: number;
@@ -140,13 +141,8 @@ export default function ProductosVencidosPage() {
   );
 
   const gruposFiltrados = useMemo(() => {
-    const termino = busqueda.trim().toLowerCase();
-    if (!termino) return grupos;
-    return grupos.filter(
-      (g) =>
-        (g.nomProducto ?? "").toLowerCase().includes(termino) ||
-        (g.codigo ?? "").toLowerCase().includes(termino),
-    );
+    if (!busqueda.trim()) return grupos;
+    return grupos.filter((g) => coincideBusqueda(busqueda, g.nomProducto, g.codigo));
   }, [grupos, busqueda]);
 
   const handleOpenRetirar = (grupo: ProductoVencidoGrupo) => {

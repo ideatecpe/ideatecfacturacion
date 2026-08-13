@@ -56,6 +56,7 @@ import { formatoFechaActual } from "@/app/components/ui/formatoFecha";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
 import { avisarStockBajoWhatsapp } from "@/app/factufly/productos/gestioProductos/stockAlerta";
 import { useToast } from "@/app/components/ui/Toast";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 import {
   generarXml,
   enviarASunatApi,
@@ -641,14 +642,8 @@ export default function CajaAutopago() {
           return disp === null || disp > 0;
         })
       : productosSucursal;
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return conStock;
-    return conStock.filter(
-      (p) =>
-        p.nomProducto?.toLowerCase().includes(q) ||
-        p.codigo?.toLowerCase().includes(q) ||
-        p.codigoBarras?.toLowerCase().includes(q),
-    );
+    if (!busqueda.trim()) return conStock;
+    return conStock.filter((p) => coincideBusqueda(busqueda, p.nomProducto, p.codigo, p.codigoBarras));
   }, [busqueda, productosSucursal, config?.isStock, items]);
 
   const cambiarCantidad = (key: string, delta: number) => {
@@ -727,11 +722,8 @@ export default function CajaAutopago() {
     const q = busqueda.trim();
     if (q.length < 2) return;
 
-    const tieneCoincidenciaLocal = productosSucursal.some(
-      (p) =>
-        p.nomProducto?.toLowerCase().includes(q.toLowerCase()) ||
-        p.codigo?.toLowerCase().includes(q.toLowerCase()) ||
-        p.codigoBarras?.toLowerCase().includes(q.toLowerCase()),
+    const tieneCoincidenciaLocal = productosSucursal.some((p) =>
+      coincideBusqueda(q, p.nomProducto, p.codigo, p.codigoBarras),
     );
 
     if (!tieneCoincidenciaLocal) {

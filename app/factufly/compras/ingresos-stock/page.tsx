@@ -17,6 +17,7 @@ import { Button } from "@/app/components/ui/Button";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import { cn } from "@/app/utils/cn";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 
 import { CompraProveedor } from "../proveedores/gestionProveedorCompra/Proveedor";
 import { useProveedoresLista } from "../proveedores/gestionProveedorCompra/useProveedoresLista";
@@ -89,9 +90,7 @@ export default function OrdenesCompraPage() {
     return ordenes.filter((o) => {
       const matchSearch =
         !search ||
-        (o.nomProducto ?? "").toLowerCase().includes(search.toLowerCase()) ||
-        (o.razonSocialProveedor ?? "").toLowerCase().includes(search.toLowerCase()) ||
-        (o.docReferencia ?? "").toLowerCase().includes(search.toLowerCase());
+        coincideBusqueda(search, o.nomProducto, o.razonSocialProveedor, o.docReferencia);
 
       const fecha = o.fechaCreacion ? new Date(o.fechaCreacion) : null;
       const matchDesde = !fechaDesde || (fecha && fecha >= new Date(fechaDesde));

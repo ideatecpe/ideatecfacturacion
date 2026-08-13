@@ -9,6 +9,7 @@ import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { useStockValorizadoLista } from "../useStockValorizadoLista";
 import { useActualizarFechaVencimientoLote } from "../useActualizarFechaVencimientoLote";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 
 const ORIGEN_STYLE: Record<string, { label: string; className: string }> = {
   COMPRA: { label: "Compra", className: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200" },
@@ -86,13 +87,8 @@ export default function StockValorizadoPage() {
   );
 
   const stockFiltrado = useMemo(() => {
-    const termino = busqueda.trim().toLowerCase();
-    if (!termino) return stockValorizado;
-    return stockValorizado.filter(
-      (p) =>
-        (p.nomProducto ?? "").toLowerCase().includes(termino) ||
-        (p.codigo ?? "").toLowerCase().includes(termino),
-    );
+    if (!busqueda.trim()) return stockValorizado;
+    return stockValorizado.filter((p) => coincideBusqueda(busqueda, p.nomProducto, p.codigo));
   }, [stockValorizado, busqueda]);
 
   if (!loadingConfig && !config?.isStock) {

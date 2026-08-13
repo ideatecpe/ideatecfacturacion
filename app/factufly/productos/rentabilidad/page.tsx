@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { useRentabilidadLista } from "../useRentabilidadLista";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 
 export default function RentabilidadPage() {
   const { user } = useAuth();
@@ -89,13 +90,8 @@ export default function RentabilidadPage() {
   const margenTotal = totales.ingreso === 0 ? 0 : (totales.utilidad / totales.ingreso) * 100;
 
   const rentabilidadFiltrada = useMemo(() => {
-    const termino = busqueda.trim().toLowerCase();
-    if (!termino) return rentabilidad;
-    return rentabilidad.filter(
-      (r) =>
-        (r.nomProducto ?? "").toLowerCase().includes(termino) ||
-        (r.codigo ?? "").toLowerCase().includes(termino),
-    );
+    if (!busqueda.trim()) return rentabilidad;
+    return rentabilidad.filter((r) => coincideBusqueda(busqueda, r.nomProducto, r.codigo));
   }, [rentabilidad, busqueda]);
 
   const chartData = useMemo(

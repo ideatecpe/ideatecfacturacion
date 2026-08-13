@@ -14,6 +14,7 @@ import {
 import { Button } from "@/app/components/ui/Button";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
 import ImagenProductoCuadrada from "./ImagenProductoCuadrada";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 
 export interface DetalleVentaItem {
   _id?: string;
@@ -409,8 +410,7 @@ export default function DetalleVentaCarrito<T extends DetalleVentaItem>({
                           const filtrados = productosSucursal.filter((p: ProductoSucursal) =>
                             !(busquedaProducto[i] ?? "")
                               ? true
-                              : p.nomProducto.toLowerCase().includes((busquedaProducto[i] ?? "").toLowerCase()) ||
-                                p.codigo.includes(busquedaProducto[i] ?? "") ||
+                              : coincideBusqueda(busquedaProducto[i] ?? "", p.nomProducto, p.codigo) ||
                                 (!!p.codigoBarras && p.codigoBarras === (busquedaProducto[i] ?? "")),
                           );
                           if (!filtrados.length) return null;
