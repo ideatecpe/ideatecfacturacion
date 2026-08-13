@@ -41,6 +41,7 @@ export default function EditarCompraModal({
   const [loadingProductos, setLoadingProductos] = React.useState(false);
   const [guardando, setGuardando] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, boolean>>({});
+  const [avisoVentaParcial, setAvisoVentaParcial] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!isOpen || !compra) return;
@@ -56,6 +57,7 @@ export default function EditarCompraModal({
         : "",
     );
     setErrors({});
+    setAvisoVentaParcial(null);
 
     if (compra.sucursalId) {
       setLoadingProductos(true);
@@ -83,7 +85,16 @@ export default function EditarCompraModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!compra || !validar()) return;
+    if (!validar()) return;
+    await guardarCompra(false);
+  };
+
+  const handleConfirmarVentaParcial = () => {
+    guardarCompra(true);
+  };
+
+  const guardarCompra = async (confirmar: boolean) => {
+    if (!compra) return;
 
     setGuardando(true);
     try {
@@ -97,17 +108,26 @@ export default function EditarCompraModal({
           docReferencia: docReferencia.trim() || null,
           fechaVencimiento: fechaVencimiento || null,
           idUsuario: user?.id ? Number(user.id) : undefined,
+          confirmar,
         },
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       showToast("Compra actualizada correctamente", "success");
+      setAvisoVentaParcial(null);
       onGuardado(res.data);
       onClose();
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { mensaje?: string } } })?.response?.data
-          ?.mensaje ?? "Error al editar la compra";
-      showToast(msg, "error");
+      const data = (err as { response?: { status?: number; data?: {
+        mensaje?: string;
+        requiereConfirmacion?: boolean;
+      } } })?.response;
+
+      if (data?.status === 409 && data.data?.requiereConfirmacion) {
+        setAvisoVentaParcial(data.data.mensaje ?? "Parte de este lote ya fue vendida.");
+      } else {
+        const msg = data?.data?.mensaje ?? "Error al editar la compra";
+        showToast(msg, "error");
+      }
     } finally {
       setGuardando(false);
     }
@@ -252,6 +272,12 @@ export default function EditarCompraModal({
           </p>
         )}
 
+        {avisoVentaParcial && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-2 leading-snug">
+            {avisoVentaParcial}
+          </p>
+        )}
+
         <div className="pt-1 flex justify-end gap-3">
           <Button
             variant="outline"
@@ -261,15 +287,32 @@ export default function EditarCompraModal({
           >
             Cancelar
           </Button>
-          <Button type="submit" disabled={guardando}>
-            {guardando ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Guardando...
-              </>
-            ) : (
-              "Guardar cambios"
-            )}
-          </Button>
+          {avisoVentaParcial ? (
+            <Button
+              type="button"
+              onClick={handleConfirmarVentaParcial}
+              disabled={guardando}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {guardando ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Guardando...
+                </>
+              ) : (
+                "Sí, cambiar de todas formas"
+              )}
+            </Button>
+          ) : (
+            <Button type="submit" disabled={guardando}>
+              {guardando ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Guardando...
+                </>
+              ) : (
+                "Guardar cambios"
+              )}
+            </Button>
+          )}
         </div>
       </form>
     </Modal>

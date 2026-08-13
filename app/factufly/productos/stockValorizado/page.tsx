@@ -44,6 +44,10 @@ export default function StockValorizadoPage() {
   const [editandoLoteId, setEditandoLoteId] = useState<number | null>(null);
   const [valorEdicion, setValorEdicion] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [confirmacionPendiente, setConfirmacionPendiente] = useState<{
+    inventarioLoteId: number;
+    mensaje: string;
+  } | null>(null);
 
   const recargar = () => {
     if (sucursalId > 0) fetchStockValorizadoSucursal(sucursalId);
@@ -57,13 +61,22 @@ export default function StockValorizadoPage() {
   const handleIniciarEdicion = (l: { inventarioLoteId: number; fechaVencimiento: string | null }) => {
     setEditandoLoteId(l.inventarioLoteId);
     setValorEdicion(l.fechaVencimiento ? l.fechaVencimiento.slice(0, 10) : "");
+    setConfirmacionPendiente(null);
   };
 
-  const handleGuardarEdicion = async (inventarioLoteId: number) => {
-    const ok = await actualizarFechaVencimiento(inventarioLoteId, valorEdicion || null);
-    if (ok) {
+  const handleCancelarEdicion = () => {
+    setEditandoLoteId(null);
+    setConfirmacionPendiente(null);
+  };
+
+  const handleGuardarEdicion = async (inventarioLoteId: number, confirmar = false) => {
+    const resultado = await actualizarFechaVencimiento(inventarioLoteId, valorEdicion || null, confirmar);
+    if (resultado.status === "ok") {
       setEditandoLoteId(null);
+      setConfirmacionPendiente(null);
       recargar();
+    } else if (resultado.status === "requiere_confirmacion") {
+      setConfirmacionPendiente({ inventarioLoteId, mensaje: resultado.mensaje });
     }
   };
 
@@ -289,7 +302,30 @@ export default function StockValorizadoPage() {
                                         S/ {l.saldoValor.toFixed(2)}
                                       </td>
                                       <td className="px-3 py-1.5">
-                                        {editando ? (
+                                        {editando && confirmacionPendiente?.inventarioLoteId === l.inventarioLoteId ? (
+                                          <div className="flex flex-col gap-1 max-w-[220px]">
+                                            <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-1 leading-snug">
+                                              {confirmacionPendiente.mensaje}
+                                            </p>
+                                            <div className="flex items-center gap-1">
+                                              <button
+                                                onClick={() => handleGuardarEdicion(l.inventarioLoteId, true)}
+                                                disabled={guardando}
+                                                className="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded transition-colors disabled:opacity-50"
+                                              >
+                                                Sí, cambiar de todas formas
+                                              </button>
+                                              <button
+                                                onClick={handleCancelarEdicion}
+                                                disabled={guardando}
+                                                className="p-1 text-gray-400 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+                                                title="Cancelar"
+                                              >
+                                                <XIcon className="w-3 h-3" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : editando ? (
                                           <div className="flex items-center gap-1">
                                             <input
                                               type="date"
@@ -306,7 +342,7 @@ export default function StockValorizadoPage() {
                                               <Check className="w-3 h-3" />
                                             </button>
                                             <button
-                                              onClick={() => setEditandoLoteId(null)}
+                                              onClick={handleCancelarEdicion}
                                               disabled={guardando}
                                               className="p-1 text-gray-400 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
                                               title="Cancelar"
