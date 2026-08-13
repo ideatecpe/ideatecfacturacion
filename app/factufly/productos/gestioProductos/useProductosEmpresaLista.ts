@@ -23,7 +23,9 @@ export function useProductosEmpresaLista( enabled: boolean = true ) {
       )
       setProductosEmpresa(res.data)
     } catch (err) {
-      showToast("Error al cargar productos de la empresa", "error")
+      if (axios.isAxiosError(err) && err.response) {
+        showToast("Error al cargar productos de la empresa", "error")
+      }
     } finally {
       setLoadingEmpresa(false)
     }

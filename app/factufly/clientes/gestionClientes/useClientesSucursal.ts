@@ -25,8 +25,10 @@ export function useClientesSucursal(sucursalId?: number, enabled: boolean = true
       )
       setClientes(res.data)
       return res.data
-    } catch {
-      showToast("Error al cargar clientes", "error");
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        showToast("Error al cargar clientes", "error");
+      }
     } finally {
       setLoadingClientes(false)
     }

@@ -49,7 +49,7 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
       setFechaCache(null)
       cacheProductos(Number(sucursalId), res.data).catch(() => {})
       return res.data
-    } catch {
+    } catch (err) {
       // Si ya mostramos cache, no es error: el usuario ya ve productos.
       if (!mostróCache && productosSucursal.length === 0) {
         // Sin conexión y sin cache previo: intentar IndexedDB como último recurso
@@ -62,7 +62,9 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
             return cache.productos
           }
         } catch { /* ignore */ }
-        showToast("Error al cargar productos", "error");
+        if (axios.isAxiosError(err) && err.response) {
+          showToast("Error al cargar productos", "error");
+        }
       }
       return productosSucursal
     } finally {
