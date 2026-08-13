@@ -1082,7 +1082,7 @@ const LoginClient: React.FC = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
               {[
                 {
                   icon: <Zap size={20} />,
@@ -1105,23 +1105,23 @@ const LoginClient: React.FC = () => {
                 {
                   icon: <Globe size={20} />,
                   color: "bg-amber-500/20 text-amber-400",
-                  title: "Conectividad OSE/PSE",
+                  title: "Conectividad SUNAT",
                   desc: "Sincronización directa y masiva con los sistemas de validación de SUNAT.",
                 },
               ].map((card, i) => (
                 <div
                   key={i}
-                  className="bg-white/10 backdrop-blur-md border border-white/10 p-4 lg:p-5 rounded-2xl"
+                  className="bg-white/10 backdrop-blur-md border border-white/10 p-3.5 lg:p-4 rounded-xl hover:bg-white/15 transition-all"
                 >
                   <div
                     className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${card.color}`}
                   >
                     {card.icon}
                   </div>
-                  <h4 className="text-white font-bold mb-1 text-[14px]">
+                  <h4 className="text-white font-bold mb-1 text-[13px] lg:text-[14px]">
                     {card.title}
                   </h4>
-                  <p className="text-blue-200/70 text-xs lg:text-sm">
+                  <p className="text-blue-200/70 text-xs leading-snug">
                     {card.desc}
                   </p>
                 </div>

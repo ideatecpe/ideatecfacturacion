@@ -82,6 +82,31 @@ const MEDIOS_PAGO: MedioPagoOpcion[] = [
 ];
 
 const MONTOS_RAPIDOS = [5, 10, 20, 50, 100, 200];
+function obtenerMontosRapidos(total: number): number[] {
+  if (total <= 0) return [5, 10, 20, 50, 100, 200];
+  const billetes = [5, 10, 20, 30, 40, 50, 100, 200];
+  const opciones: number[] = [];
+
+  const enteroSup = Math.ceil(total);
+  if (enteroSup > total && enteroSup !== total) {
+    opciones.push(enteroSup);
+  }
+
+  for (const b of billetes) {
+    if (b > total && !opciones.includes(b)) {
+      opciones.push(b);
+    }
+  }
+
+  if (opciones.length < 3) {
+    const prox50 = Math.ceil((total + 1) / 50) * 50;
+    if (prox50 > total && !opciones.includes(prox50)) opciones.push(prox50);
+    const prox100 = Math.ceil((total + 1) / 100) * 100;
+    if (prox100 > total && !opciones.includes(prox100)) opciones.push(prox100);
+  }
+
+  return opciones.slice(0, 5);
+}
 const TAMANO_MAP: Record<"80" | "58" | "A4", string> = { "80": "Ticket80mm", "58": "Ticket58mm", A4: "A4" };
 
 interface ItemCarrito {
@@ -267,6 +292,7 @@ export default function CajaAutopago() {
   // Con DNI/CE (no RUC), el cajero puede pasar de Boleta a Nota de Venta; por defecto Boleta.
   const [tipoConDocumento, setTipoConDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   const inputRef = useRef<HTMLInputElement>(null);
+  const montoInputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
 
   // ── Cámara Escáner de Código de Barras (Móvil / Web) ───────────────
@@ -291,10 +317,17 @@ export default function CajaAutopago() {
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
+        // Re-adding a product already in cart: check stock before incrementing
+        if (disp !== null && disp < 1) {
+          showToast(`Stock insuficiente: solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${p.nomProducto}"`, "info");
+          return prev;
+        }
         const copia = [...prev];
         copia[idx] = { ...copia[idx], cantidad: copia[idx].cantidad + 1 };
         return copia;
       }
+      // New product: cap initial quantity at available stock if less than 1
+      const cantidadInicial = disp !== null && disp < 1 ? parseFloat(disp.toFixed(3)) : 1;
       return [
         ...prev,
         {
@@ -303,7 +336,7 @@ export default function CajaAutopago() {
           sucursalProductoId: p.sucursalProducto.sucursalProductoId,
           codigo: p.codigo,
           descripcion: p.nomProducto,
-          cantidad: 1,
+          cantidad: cantidadInicial,
           precio: precioConDescuento(p),
           tipoAfectacionIGV: p.tipoAfectacionIGV,
           urlImagen: p.urlImagenProducto ?? null,
@@ -629,6 +662,11 @@ export default function CajaAutopago() {
             showToast(`Stock insuficiente: no hay más unidades disponibles de "${item.descripcion}"`, "info");
             return;
           }
+          // If incrementing by delta would exceed stock, cap delta at available
+          if (disp !== null && delta > disp) {
+            showToast(`Solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${item.descripcion}"`, "info");
+            return;
+          }
         }
       }
     }
@@ -931,6 +969,19 @@ export default function CajaAutopago() {
   const [pagosDivididos, setPagosDivididos] = useState<
     { id: string; medioPago: string; monto: string }[]
   >([]);
+
+  // Focus y auto-selección del monto al abrir el modal de pago en efectivo
+  useEffect(() => {
+    if (mostrarPago && medioPago === "Efectivo" && !pagoDividido) {
+      const timer = setTimeout(() => {
+        if (montoInputRef.current) {
+          montoInputRef.current.focus();
+          montoInputRef.current.select();
+        }
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [mostrarPago, medioPago, pagoDividido]);
 
   const vuelto = Math.max(0, (parseFloat(montoRecibido) || 0) - totales.total);
   const faltante = Math.max(0, totales.total - (parseFloat(montoRecibido) || 0));
@@ -1686,6 +1737,25 @@ export default function CajaAutopago() {
     }
   };
 
+  // Confirmación con la tecla Enter en el modal de pago
+  useEffect(() => {
+    if (!mostrarPago) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        if (
+          !emitiendo &&
+          !(pagoDividido && faltanteDividido > 0) &&
+          !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
+        ) {
+          e.preventDefault();
+          emitirVenta();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mostrarPago, emitiendo, pagoDividido, faltanteDividido, esCredito, cuotasCuadran, cuotasCredito]);
+
   const nuevaVenta = () => {
     setItems([]);
     setDocumento("");
@@ -1721,6 +1791,23 @@ export default function CajaAutopago() {
       }
     }, 50);
   };
+
+  // Enter para "Nueva venta" cuando se muestra la pantalla de éxito
+  useEffect(() => {
+    if (!emitido) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.tagName === "INPUT" && telWhatsapp.trim()) {
+          return;
+        }
+        e.preventDefault();
+        nuevaVenta();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [emitido, telWhatsapp]);
 
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
@@ -2427,6 +2514,112 @@ export default function CajaAutopago() {
                 </div>
               )}
             </div>
+
+            {/* Monto recibido + vuelto (cuando es Efectivo y no es pago dividido ni crédito) */}
+            {!pagoDividido && !esCredito && medioPago === "Efectivo" && (
+              <div className="rounded-md border border-gray-200 bg-white p-3 space-y-2.5">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Monto recibido</p>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">S/</span>
+                  <input
+                    ref={montoInputRef}
+                    value={montoRecibido}
+                    onChange={(e) => setMontoRecibido(e.target.value.replace(/[^0-9.]/g, ""))}
+                    onFocus={(e) => e.target.select()}
+                    onMouseUp={(e) => {
+                      if (
+                        document.activeElement === e.currentTarget &&
+                        e.currentTarget.selectionStart === 0 &&
+                        e.currentTarget.selectionEnd === e.currentTarget.value.length
+                      ) {
+                        e.preventDefault();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (
+                          !emitiendo &&
+                          !(pagoDividido && faltanteDividido > 0) &&
+                          !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
+                        ) {
+                          emitirVenta();
+                        }
+                      }
+                    }}
+                    inputMode="decimal"
+                    className="w-full h-11 pl-8 pr-9 rounded-md border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  />
+                  {montoRecibido && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMontoRecibido("");
+                        montoInputRef.current?.focus();
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+                      title="Limpiar monto"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMontoRecibido(totales.total.toFixed(2));
+                      montoInputRef.current?.focus();
+                      montoInputRef.current?.select();
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                      parseFloat(montoRecibido) === totales.total
+                        ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                        : "border-gray-200 text-gray-500 hover:border-gray-300"
+                    }`}
+                  >
+                    Exacto (S/ {totales.total.toFixed(2)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMontoRecibido("");
+                      montoInputRef.current?.focus();
+                    }}
+                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold border border-gray-200 text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Limpiar
+                  </button>
+                  {obtenerMontosRapidos(totales.total).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setMontoRecibido(m.toFixed(2));
+                        montoInputRef.current?.focus();
+                        montoInputRef.current?.select();
+                      }}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                        parseFloat(montoRecibido) === m
+                          ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                          : "border-gray-200 text-gray-500 hover:border-gray-300"
+                      }`}
+                    >
+                      S/ {m}
+                    </button>
+                  ))}
+                </div>
+                <div
+                  className={`flex items-center justify-between rounded-md px-3 py-2 text-sm font-semibold ${
+                    faltante > 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  <span>{faltante > 0 ? "Falta" : "Vuelto"}</span>
+                  <span className="tabular-nums">S/ {(faltante > 0 ? faltante : vuelto).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── Derecha: comprobante + pago ── */}
@@ -2481,260 +2674,198 @@ export default function CajaAutopago() {
                   <span className="text-gray-400 flex items-center gap-1">
                     <Users className="w-3.5 h-3.5" /> Clientes varios
                   </span>
-                ) : loadingCliente ? (
-                  <span className="text-gray-400 flex items-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando cliente...
-                  </span>
-                ) : errorCliente ? (
-                  <span className="text-rose-500 flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5" /> {errorCliente}
-                  </span>
                 ) : (
-                  <span className="text-gray-600 font-medium">
-                    {cliente?.razonSocial ?? "—"} · {documentoTrim}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Emitir con otra fecha · Pago dividido */}
-            <div className="flex items-center justify-between text-xs">
-              <button
-                onClick={() => {
-                  setMostrarFechaManual((v) => !v);
-                  if (!fechaEmisionManual) setFechaEmisionManual(formatoFechaActual().fecha);
-                }}
-                className="flex items-center gap-1.5 font-semibold text-gray-500 hover:text-brand-blue transition-colors"
-              >
-                <CalendarClock className="w-3.5 h-3.5" /> Emitir con otra fecha
-              </button>
-              <button
-                onClick={togglePagoDividido}
-                className={`flex items-center gap-1.5 font-semibold transition-colors ${
-                  pagoDividido ? "text-brand-blue" : "text-gray-500 hover:text-brand-blue"
-                }`}
-              >
-                <Columns3 className="w-3.5 h-3.5" /> Pago dividido{pagoDividido ? " (activo)" : ""}
-              </button>
-            </div>
-
-            {mostrarFechaManual && (
-              <div className="rounded-md border border-gray-200 px-3 py-2.5 space-y-1.5">
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Fecha de emisión</p>
-                <input
-                  type="date"
-                  value={fechaEmisionManual}
-                  min={fechaMinimaEmision}
-                  max={formatoFechaActual().fecha}
-                  onChange={(e) => setFechaEmisionManual(e.target.value)}
-                  className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
-                />
-                {fechaEmisionManual && fechaEmisionManual < formatoFechaActual().fecha && (
-                  <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 shrink-0" /> Emitirás con fecha pasada. SUNAT permite hasta 3
-                    días atrás.
-                  </p>
-                )}
-                <button
-                  onClick={() => {
-                    setFechaEmisionManual(formatoFechaActual().fecha);
-                    setMostrarFechaManual(false);
-                  }}
-                  className="text-[11px] font-semibold text-brand-blue hover:underline"
-                >
-                  Usar fecha de hoy
-                </button>
-              </div>
-            )}
-
-            {!pagoDividido ? (
-              <>
-                {/* Medios de pago */}
-                <div>
-                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Medio de pago</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {MEDIOS_PAGO.map((m) => {
-                      const activo = medioPago === m.nombre;
-                      return (
-                        <button
-                          key={m.nombre}
-                          onClick={() => setMedioPago(m.nombre)}
-                          className={`flex flex-col items-center gap-1 rounded-md border-2 py-2.5 transition-colors ${
-                            activo ? m.activo : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
-                          }`}
-                        >
-                          <m.icon className="w-4.5 h-4.5" />
-                          <span className="text-[11px] font-semibold">{m.nombre}</span>
-                        </button>
-                      );
-                    })}
+                  <div className="flex items-center justify-between text-gray-700">
+                    <span className="font-semibold">{cliente?.razonSocial || "Cargando cliente..."}</span>
+                    <span className="text-gray-400">{documentoTrim}</span>
                   </div>
-                </div>
+                )}
+              </div>
 
-                {/* Al crédito: solo si hay documento y la config lo permite */}
-                {!sinDocumento && config?.isCredito && (
+              {/* Emitir con otra fecha */}
+              {!mostrarFechaManual ? (
+                <div className="mt-2 flex items-center justify-between">
                   <button
-                    onClick={toggleCredito}
-                    className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${
-                      esCredito ? "text-brand-blue" : "text-gray-500 hover:text-brand-blue"
+                    onClick={() => setMostrarFechaManual(true)}
+                    className="text-xs text-gray-500 hover:text-brand-blue flex items-center gap-1 font-medium transition-colors"
+                  >
+                    <CalendarClock className="w-3.5 h-3.5" /> Emitir con otra fecha
+                  </button>
+                  <button
+                    onClick={togglePagoDividido}
+                    className={`text-xs flex items-center gap-1 font-medium transition-colors ${
+                      pagoDividido ? "text-brand-blue" : "text-gray-500 hover:text-brand-blue"
                     }`}
                   >
-                    <HandCoins className="w-3.5 h-3.5" /> Al crédito{esCredito ? " (activo)" : ""}
+                    <Columns3 className="w-3.5 h-3.5" /> Pago dividido{pagoDividido ? " (activo)" : ""}
                   </button>
-                )}
+                </div>
+              ) : (
+                <div className="mt-2 rounded-md border border-gray-200 bg-gray-50/50 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-600">
+                    <span className="font-semibold flex items-center gap-1">
+                      <CalendarClock className="w-3.5 h-3.5 text-brand-blue" /> Fecha de emisión
+                    </span>
+                    <span className="text-[11px] text-gray-400">Min. {fechaMinimaEmision}</span>
+                  </div>
+                  <input
+                    type="date"
+                    value={fechaEmisionManual}
+                    min={fechaMinimaEmision}
+                    max={formatoFechaActual().fecha}
+                    onChange={(e) => setFechaEmisionManual(e.target.value)}
+                    className="w-full h-10 px-3 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                  />
+                  {fechaEmisionManual && fechaEmisionManual < formatoFechaActual().fecha && (
+                    <p className="text-[11px] font-semibold text-amber-600 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" /> Emitirás con fecha pasada. SUNAT permite hasta 3
+                      días atrás.
+                    </p>
+                  )}
+                  <button
+                    onClick={() => {
+                      setFechaEmisionManual(formatoFechaActual().fecha);
+                      setMostrarFechaManual(false);
+                    }}
+                    className="text-[11px] font-semibold text-brand-blue hover:underline"
+                  >
+                    Usar fecha de hoy
+                  </button>
+                </div>
+              )}
+            </div>
 
-                {esCredito ? (
-                  /* Crédito: adelanto opcional + cuotas del saldo pendiente */
-                  <div className="space-y-2.5">
-                    <div>
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
-                        Adelanto (opcional)
-                      </p>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">S/</span>
-                        <input
-                          value={adelantoCredito}
-                          onChange={(e) => setAdelantoCredito(e.target.value.replace(/[^0-9.]/g, ""))}
-                          inputMode="decimal"
-                          placeholder="0.00"
-                          className="w-full h-11 pl-8 pr-3 rounded-md border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
-                        ¿En cuántas cuotas?
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[1, 2, 3, 4, 6, 12].map((n) => (
+              {!pagoDividido ? (
+                <>
+                  {/* Medios de pago */}
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Medio de pago</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {MEDIOS_PAGO.map((m) => {
+                        const activo = medioPago === m.nombre;
+                        return (
                           <button
-                            key={n}
-                            onClick={() => setNumeroCuotasCredito(n)}
-                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
-                              numeroCuotasCredito === n
-                                ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
-                                : "border-gray-200 text-gray-500 hover:border-gray-300"
+                            key={m.nombre}
+                            onClick={() => setMedioPago(m.nombre)}
+                            className={`flex flex-col items-center gap-1 rounded-md border-2 py-2.5 transition-colors ${
+                              activo ? m.activo : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
                             }`}
                           >
-                            {n === 1 ? "1 (contado del saldo)" : `${n} cuotas`}
+                            <m.icon className="w-4.5 h-4.5" />
+                            <span className="text-[11px] font-semibold">{m.nombre}</span>
                           </button>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
+                  </div>
 
-                    <div className="space-y-2">
-                      {cuotasCredito.map((c, idx) => (
-                        <div key={c.numeroCuota} className="grid grid-cols-2 gap-2 items-end">
-                          <div>
-                            <p className="text-[10px] text-gray-400 mb-1">Monto {idx + 1}</p>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">S/</span>
+                  {/* Al crédito: solo si hay documento y la config lo permite */}
+                  {!sinDocumento && config?.isCredito && (
+                    <button
+                      onClick={toggleCredito}
+                      className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${
+                        esCredito ? "text-brand-blue" : "text-gray-500 hover:text-brand-blue"
+                      }`}
+                    >
+                      <HandCoins className="w-3.5 h-3.5" /> Al crédito{esCredito ? " (activo)" : ""}
+                    </button>
+                  )}
+
+                  {esCredito ? (
+                    /* Crédito: adelanto opcional + cuotas del saldo pendiente */
+                    <div className="space-y-2.5">
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
+                          Adelanto (opcional)
+                        </p>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">S/</span>
+                          <input
+                            value={adelantoCredito}
+                            onChange={(e) => setAdelantoCredito(e.target.value.replace(/[^0-9.]/g, ""))}
+                            inputMode="decimal"
+                            placeholder="0.00"
+                            className="w-full h-11 pl-8 pr-3 rounded-md border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
+                          ¿En cuántas cuotas?
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[1, 2, 3, 4, 6, 12].map((n) => (
+                            <button
+                              key={n}
+                              onClick={() => setNumeroCuotasCredito(n)}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
+                                numeroCuotasCredito === n
+                                  ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                                  : "border-gray-200 text-gray-500 hover:border-gray-300"
+                              }`}
+                            >
+                              {n === 1 ? "1 (contado del saldo)" : `${n} cuotas`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        {cuotasCredito.map((c, idx) => (
+                          <div key={c.numeroCuota} className="grid grid-cols-2 gap-2 items-end">
+                            <div>
+                              <p className="text-[10px] text-gray-400 mb-1">Monto {idx + 1}</p>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">S/</span>
+                                <input
+                                  value={c.monto}
+                                  onChange={(e) => actualizarMontoCuota(idx, e.target.value)}
+                                  inputMode="decimal"
+                                  className="w-full h-10 pl-8 pr-2 rounded-md border border-gray-200 text-right text-sm font-semibold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-gray-400 mb-1">Vence</p>
                               <input
-                                value={c.monto}
-                                onChange={(e) => actualizarMontoCuota(idx, e.target.value)}
-                                inputMode="decimal"
-                                className="w-full h-10 pl-8 pr-2 rounded-md border border-gray-200 text-right text-sm font-semibold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
+                                type="date"
+                                value={c.fechaVencimiento}
+                                min={idx > 0 ? cuotasCredito[idx - 1].fechaVencimiento : undefined}
+                                onChange={(e) =>
+                                  setCuotasCredito((prev) =>
+                                    prev.map((cc, i) => (i === idx ? { ...cc, fechaVencimiento: e.target.value } : cc)),
+                                  )
+                                }
+                                className="w-full h-10 px-2 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
                               />
                             </div>
                           </div>
-                          <div>
-                            <p className="text-[10px] text-gray-400 mb-1">Vence</p>
-                            <input
-                              type="date"
-                              value={c.fechaVencimiento}
-                              min={idx > 0 ? cuotasCredito[idx - 1].fechaVencimiento : undefined}
-                              onChange={(e) =>
-                                setCuotasCredito((prev) =>
-                                  prev.map((cc, i) => (i === idx ? { ...cc, fechaVencimiento: e.target.value } : cc)),
-                                )
-                              }
-                              className="w-full h-10 px-2 rounded-md border border-gray-200 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
 
-                    <div className="space-y-1.5">
-                      <span className="text-xs text-gray-500">
-                        Suma de cuotas: <span className="font-semibold text-gray-800">S/ {sumaCuotasCredito.toFixed(2)}</span>
-                      </span>
-                      {!cuotasCuadran && (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-semibold text-rose-600">No cuadra</span>
-                          <button
-                            onClick={cuadrarCuotasConSaldo}
-                            className="px-3 py-1.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors"
-                          >
-                            Cuadrar atuomáticamente
-                          </button>
-                        </div>
-                      )}
+                      <div className="space-y-1.5">
+                        <span className="text-xs text-gray-500">
+                          Suma de cuotas: <span className="font-semibold text-gray-800">S/ {sumaCuotasCredito.toFixed(2)}</span>
+                        </span>
+                        {!cuotasCuadran && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-rose-600">No cuadra</span>
+                            <button
+                              onClick={cuadrarCuotasConSaldo}
+                              className="px-3 py-1.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors"
+                            >
+                              Cuadrar atuomáticamente
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ) : medioPago === "Efectivo" ? (
-                  /* Monto recibido + vuelto (solo efectivo) */
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Monto recibido</p>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">S/</span>
-                      <input
-                        value={montoRecibido}
-                        onChange={(e) => setMontoRecibido(e.target.value.replace(/[^0-9.]/g, ""))}
-                        onFocus={(e) => e.target.select()}
-                        inputMode="decimal"
-                        className="w-full h-11 pl-8 pr-3 rounded-md border border-gray-200 text-right text-lg font-bold tabular-nums outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all"
-                      />
+                  ) : medioPago === "Tarjeta" ? (
+                    <div className="rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-500">
+                      El cobro se realiza en el POS físico. Se registrará como pago con Tarjeta.
                     </div>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      <button
-                        onClick={() => setMontoRecibido(totales.total.toFixed(2))}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors ${
-                          parseFloat(montoRecibido) === totales.total
-                            ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
-                            : "border-gray-200 text-gray-500 hover:border-gray-300"
-                        }`}
-                      >
-                        Exacto
-                      </button>
-                      {MONTOS_RAPIDOS.map((m) => (
-                        <button
-                          key={m}
-                          onClick={() => setMontoRecibido(m.toFixed(2))}
-                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold border border-gray-200 text-gray-500 hover:border-gray-300 transition-colors"
-                        >
-                          S/ {m}
-                        </button>
-                      ))}
-                    </div>
-                    <div
-                      className={`mt-2 flex items-center justify-between rounded-md px-3 py-2 text-sm font-semibold ${
-                        faltante > 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-700"
-                      }`}
-                    >
-                      <span>{faltante > 0 ? "Falta" : "Vuelto"}</span>
-                      <span className="tabular-nums">S/ {(faltante > 0 ? faltante : vuelto).toFixed(2)}</span>
-                    </div>
-                  </div>
-                ) : medioPago === "Tarjeta" ? (
-                  /* Tarjeta: se cobra en el POS físico, solo mostramos el monto */
-                  <div className="rounded-md border border-gray-200 px-3 py-3 space-y-2.5">
-                    <p className="text-xs text-gray-500">
-                      El cobro se realiza en el POS físico. Se registra como pago con tarjeta.
-                    </p>
-                    <div className="rounded-md bg-gray-50 px-3 py-2.5 text-center">
-                      <span className="text-lg font-bold text-gray-900 tabular-nums">S/ {totales.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                ) : (
-                  /* Yape / Plin / Transferencia / Otro: monto a cobrar + N° operación opcional */
-                  <div className="rounded-md border border-gray-200 px-3 py-3 space-y-2.5">
-                    <div className="rounded-md bg-gray-50 px-3 py-2.5 text-center">
-                      <span className="text-lg font-bold text-gray-900 tabular-nums">S/ {totales.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
+                  ) : null}
 
                 {/* Observaciones */}
                 <div>
