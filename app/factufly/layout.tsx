@@ -240,7 +240,7 @@ export default function DashboardLayout({
         icon: Boxes,
         children: [
           { id: "proveedores", label: "Proveedores" },
-          { id: "ordenes", label: "Órdenes" },
+          { id: "ingresos-stock", label: "Ingresos de Stock" },
         ],
       },
       { id: "reportes", label: "Reportes", icon: BarChart3 },

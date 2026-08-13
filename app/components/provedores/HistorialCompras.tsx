@@ -18,7 +18,7 @@ import {
 import { cn } from "@/app/utils/cn";
 import { Proveedor, CompraProveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/Proveedor";
 import { useComprasProveedorLista } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/useComprasProveedorLista";
-import { contarOrdenes, agruparPorDocumento } from "@/app/factufly/compras/ordenes/gestionOrdenes/agruparOrdenes";
+import { contarOrdenes, agruparPorDocumento } from "@/app/factufly/compras/ingresos-stock/gestionOrdenes/agruparOrdenes";
 
 interface Props {
   isOpen: boolean;

@@ -5,7 +5,7 @@ import { Truck, ClipboardList } from 'lucide-react';
 
 const opciones = [
   { title: 'Gestión de Proveedores', desc: 'Administra tu lista de proveedores: registro, edición y datos de contacto.', icon: Truck,         href: '/factufly/compras/proveedores' },
-  { title: 'Gestión de Órdenes',     desc: 'Administra tus órdenes de compra a proveedores y abastece tu stock.',      icon: ClipboardList, href: '/factufly/compras/ordenes' },
+  { title: 'Ingresos de Stock',       desc: 'Registra el ingreso de mercadería a tus almacenes y administra tus compras.', icon: ClipboardList, href: '/factufly/compras/ingresos-stock' },
 ];
 
 export default function ComprasPage() {

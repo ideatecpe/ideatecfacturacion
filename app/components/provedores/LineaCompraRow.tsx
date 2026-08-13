@@ -4,6 +4,7 @@ import React from "react";
 import { Trash2, Boxes, Check } from "lucide-react";
 import { Proveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/Proveedor";
 import { ProductoSucursal } from "@/app/factufly/productos/gestioProductos/Producto";
+import { SelectConBuscador } from "@/app/components/ui/SelectConBuscador";
 import { cn } from "@/app/utils/cn";
 
 /** Valor centinela usado en los <select> de proveedor para la opción "+ Agregar nuevo proveedor". */
@@ -167,26 +168,22 @@ export default function LineaCompraRow({
       )}
 
       <td className="px-1.5 py-1.5 align-top min-w-[220px]">
-        <select
-          value={linea.productoId}
-          onChange={(e) => {
-            const id = Number(e.target.value);
+        <SelectConBuscador
+          value={linea.productoId === 0 ? null : linea.productoId}
+          onChange={(val) => {
+            const id = val ?? 0;
             const seleccionado = productosSucursal.find((p) => p.productoId === id);
             onChange(linea.key, "productoId", id);
             onChange(linea.key, "unidadMedida", seleccionado?.unidadMedida ?? "");
           }}
           disabled={sucursalIdEfectiva === 0 || loadingSucursal || disabled}
-          className={`${inputCls} ${errors.productoId ? "border-rose-400" : "border-gray-200"}`}
-        >
-          <option value={0}>
-            {loadingSucursal ? "Cargando..." : "Seleccione un producto"}
-          </option>
-          {productosSucursal.map((p) => (
-            <option key={p.productoId} value={p.productoId}>
-              {p.nomProducto} ({p.codigo})
-            </option>
-          ))}
-        </select>
+          placeholder={loadingSucursal ? "Cargando..." : "Seleccione un producto"}
+          showError={!!errors.productoId}
+          opciones={productosSucursal.map((p) => ({
+            value: p.productoId,
+            label: `${p.nomProducto} (${p.codigo})`,
+          }))}
+        />
         {producto && (
           <p className="text-[9px] text-blue-600 mt-0.5 leading-tight">
             Stock: <strong>{producto.sucursalProducto.stock ?? 0}</strong> · Venta: S/{" "}

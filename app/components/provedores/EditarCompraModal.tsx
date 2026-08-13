@@ -12,6 +12,7 @@ import {
   CompraProveedor,
 } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/Proveedor";
 import { ProductoSucursal } from "@/app/factufly/productos/gestioProductos/Producto";
+import { SelectConBuscador } from "@/app/components/ui/SelectConBuscador";
 
 interface Props {
   isOpen: boolean;
@@ -171,23 +172,17 @@ export default function EditarCompraModal({
           <label className="text-[11px] font-bold text-gray-500 uppercase flex items-center gap-1">
             Producto <span className="text-rose-500">*</span>
           </label>
-          <select
-            value={productoId}
-            onChange={(e) => setProductoId(Number(e.target.value))}
+          <SelectConBuscador
+            value={productoId === 0 ? null : productoId}
+            onChange={(val) => setProductoId(val ?? 0)}
             disabled={guardando || loadingProductos}
-            className={`w-full h-8 px-2.5 text-sm bg-gray-50 border rounded-md outline-none focus:border-brand-blue/50 disabled:opacity-60 ${
-              errors.productoId ? "border-rose-400" : "border-gray-200"
-            }`}
-          >
-            <option value={0}>
-              {loadingProductos ? "Cargando..." : "Seleccione un producto"}
-            </option>
-            {productos.map((p) => (
-              <option key={p.productoId} value={p.productoId}>
-                {p.nomProducto}
-              </option>
-            ))}
-          </select>
+            placeholder={loadingProductos ? "Cargando..." : "Seleccione un producto"}
+            showError={!!errors.productoId}
+            opciones={productos.map((p) => ({
+              value: p.productoId,
+              label: p.nomProducto,
+            }))}
+          />
           {errors.productoId && (
             <p className="text-xs text-rose-500">Seleccione un producto</p>
           )}

@@ -27,6 +27,7 @@ import { useSearchProductosBaseDisponiblesLista } from "./useSearchProductosBase
 import ModalAgregarCategoria from "./ModalAgregarCategoria";
 import ModalCatalogoSunat from "./ModalCatalogoSunat";
 import { SelectConAgregar } from "@/app/components/ui/SelectConAgregar";
+import { SelectConBuscador } from "@/app/components/ui/SelectConBuscador";
 import { generarEAN13Interno, formatoBarcodeSeguro } from "./barcodeFormato";
 import { esUnidadContable } from "./unidadMedida";
 
@@ -67,7 +68,7 @@ const emptyForm: NuevoProducto = {
   porcentajeDescuento: null,
   usuarioId: null,
   ubicacionTienda: null,
-  alertaVencimientoActiva: true,
+  alertaVencimientoActiva: false,
   alertaStockBajoActiva: true,
   stockMinimoAlerta: null,
 };
@@ -698,7 +699,7 @@ export default function AgregarProducto({
       // Campo informativo: solo aplica si la empresa maneja stock.
       ubicacionTienda: config?.isStock ? form.ubicacionTienda : null,
       alertaVencimientoActiva:
-        config?.isStock && form.tipoProducto === "BIEN" ? form.alertaVencimientoActiva ?? true : null,
+        config?.isStock && form.tipoProducto === "BIEN" ? form.alertaVencimientoActiva ?? false : null,
       alertaStockBajoActiva:
         config?.isStock && form.tipoProducto === "BIEN" ? form.alertaStockBajoActiva ?? true : null,
       stockMinimoAlerta:
@@ -819,128 +820,128 @@ export default function AgregarProducto({
           </div>
         )}
 
-        {/* ── Imagen del producto ── */}
+        {/* ── Imagen del producto + Alertas ── */}
         {(!soloSucursal || (config?.isStock && form.tipoProducto === "BIEN")) && (
-          <div className="flex items-start gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
             {!soloSucursal && (
-            <>
-            {/* Input oculto para subir desde galería/archivos */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            {/* Input oculto con "capture": en celulares abre la cámara directamente */}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleFileChange}
-            />
+              <div className="flex items-start gap-3">
+                {/* Input oculto para subir desde galería/archivos */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                {/* Input oculto con "capture": en celulares abre la cámara directamente */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
 
-            {/* Thumbnail */}
-            <div className="relative shrink-0">
-              <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
-                {(imgPreview || form.urlImagenProducto) && !imgError ? (
-                  <img
-                    src={imgPreview ?? form.urlImagenProducto!}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                    onError={() => setImgError(true)}
-                  />
-                ) : imgError ? (
-                  <ImageOff className="w-6 h-6 text-gray-300" />
-                ) : (
-                  <Camera className="w-6 h-6 text-gray-300" />
-                )}
-              </div>
-              {form.urlImagenProducto && !confirmandoEliminarImagen && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmandoEliminarImagen(true)}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-sm transition-colors"
-                >
-                  <XIcon className="w-3 h-3" />
-                </button>
-              )}
-              {form.urlImagenProducto && confirmandoEliminarImagen && (
-                <div className="absolute -top-2 -right-2 flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => { handleQuitarImagen(); setConfirmandoEliminarImagen(false); }}
-                    className="text-[10px] font-bold bg-rose-500 hover:bg-rose-600 text-white px-1.5 py-0.5 rounded shadow-sm"
-                  >
-                    Quitar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmandoEliminarImagen(false)}
-                    className="text-[10px] font-bold bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded shadow-sm"
-                  >
-                    No
-                  </button>
+                {/* Thumbnail */}
+                <div className="relative shrink-0">
+                  <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+                    {(imgPreview || form.urlImagenProducto) && !imgError ? (
+                      <img
+                        src={imgPreview ?? form.urlImagenProducto!}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={() => setImgError(true)}
+                      />
+                    ) : imgError ? (
+                      <ImageOff className="w-6 h-6 text-gray-300" />
+                    ) : (
+                      <Camera className="w-6 h-6 text-gray-300" />
+                    )}
+                  </div>
+                  {form.urlImagenProducto && !confirmandoEliminarImagen && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmandoEliminarImagen(true)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-sm transition-colors"
+                    >
+                      <XIcon className="w-3 h-3" />
+                    </button>
+                  )}
+                  {form.urlImagenProducto && confirmandoEliminarImagen && (
+                    <div className="absolute -top-2 -right-2 flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => { handleQuitarImagen(); setConfirmandoEliminarImagen(false); }}
+                        className="text-[10px] font-bold bg-rose-500 hover:bg-rose-600 text-white px-1.5 py-0.5 rounded shadow-sm"
+                      >
+                        Quitar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmandoEliminarImagen(false)}
+                        className="text-[10px] font-bold bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded shadow-sm"
+                      >
+                        No
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Texto + botones */}
-            <div className="flex flex-col justify-center gap-1 min-w-0">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                Imagen del producto
-                <span className="ml-1 font-normal text-gray-400 normal-case">(opcional)</span>
-              </p>
-              {subiendoImagen ? (
-                <p className="text-[11px] text-blue-500 font-semibold animate-pulse">
-                  Subiendo imagen…
-                </p>
-              ) : form.urlImagenProducto && !imgError ? (
-                <p className="text-[11px] text-emerald-600 font-semibold">
-                  ✓ Imagen subida
-                </p>
-              ) : (
-                <p className="text-[11px] text-gray-400">
-                  JPG, PNG o WebP — máx. 2 MB
-                </p>
-              )}
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    stopScanning();
-                    cameraInputRef.current?.click();
-                  }}
-                  disabled={subiendoImagen}
-                  className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  Tomar foto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    stopScanning();
-                    handleSeleccionarImagen();
-                  }}
-                  disabled={subiendoImagen}
-                  className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
-                >
-                  {subiendoImagen ? "Subiendo…" : form.urlImagenProducto ? "Cambiar" : "Subir imagen"}
-                </button>
+                {/* Texto + botones */}
+                <div className="flex flex-col justify-center gap-1 min-w-0">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                    Imagen del producto
+                    <span className="ml-1 font-normal text-gray-400 normal-case">(opcional)</span>
+                  </p>
+                  {subiendoImagen ? (
+                    <p className="text-[11px] text-blue-500 font-semibold animate-pulse">
+                      Subiendo imagen…
+                    </p>
+                  ) : form.urlImagenProducto && !imgError ? (
+                    <p className="text-[11px] text-emerald-600 font-semibold">
+                      ✓ Imagen subida
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-gray-400">
+                      JPG, PNG o WebP — máx. 2 MB
+                    </p>
+                  )}
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        stopScanning();
+                        cameraInputRef.current?.click();
+                      }}
+                      disabled={subiendoImagen}
+                      className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      Tomar foto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        stopScanning();
+                        handleSeleccionarImagen();
+                      }}
+                      disabled={subiendoImagen}
+                      className="w-fit flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      {subiendoImagen ? "Subiendo…" : form.urlImagenProducto ? "Cambiar" : "Subir imagen"}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-            </>
             )}
 
             {config?.isStock && form.tipoProducto === "BIEN" && (
-              <div className="flex-1 min-w-0 space-y-1.5">
+              <div className="flex-1 min-w-0 space-y-1.5 border-t sm:border-t-0 border-gray-100 pt-2 sm:pt-0">
                 <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
                   <input
                     type="checkbox"
-                    checked={form.alertaVencimientoActiva ?? true}
+                    checked={form.alertaVencimientoActiva ?? false}
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, alertaVencimientoActiva: e.target.checked }))
                     }
@@ -951,42 +952,43 @@ export default function AgregarProducto({
                   </span>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
-                  <input
-                    type="checkbox"
-                    checked={form.alertaStockBajoActiva ?? true}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, alertaStockBajoActiva: e.target.checked }))
-                    }
-                    className="w-4 h-4 accent-brand-blue"
-                  />
-                  <span className="text-xs font-semibold text-gray-600">
-                    Alertar por stock bajo
-                  </span>
-                </label>
-
-                {(form.alertaStockBajoActiva ?? true) && (
-                  <div className="space-y-0.5">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1">
-                      Stock mínimo para alertar
-                      <span className="text-gray-400 normal-case font-normal">(opcional)</span>
-                    </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
                     <input
-                      type="number"
-                      value={form.stockMinimoAlerta === null || form.stockMinimoAlerta === undefined ? "" : String(form.stockMinimoAlerta)}
+                      type="checkbox"
+                      checked={form.alertaStockBajoActiva ?? true}
                       onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          stockMinimoAlerta: e.target.value === "" ? null : Number(e.target.value),
-                        }))
+                        setForm((prev) => ({ ...prev, alertaStockBajoActiva: e.target.checked }))
                       }
-                      placeholder={
-                        config?.umbralStockBajo ? `General: ${config.umbralStockBajo}` : "Ej: 5"
-                      }
-                      className="w-24 px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50"
+                      className="w-4 h-4 accent-brand-blue"
                     />
-                  </div>
-                )}
+                    <span className="text-xs font-semibold text-gray-600">
+                      Alertar por stock bajo
+                    </span>
+                  </label>
+
+                  {(form.alertaStockBajoActiva ?? true) && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">
+                        Stock mín:
+                      </span>
+                      <input
+                        type="number"
+                        value={form.stockMinimoAlerta === null || form.stockMinimoAlerta === undefined ? "" : String(form.stockMinimoAlerta)}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            stockMinimoAlerta: e.target.value === "" ? null : Number(e.target.value),
+                          }))
+                        }
+                        placeholder={
+                          config?.umbralStockBajo ? `General: ${config.umbralStockBajo}` : "Ej: 5"
+                        }
+                        className="w-24 px-2 py-0.5 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1289,7 +1291,7 @@ export default function AgregarProducto({
           <div className="space-y-2">
             <InputBase
               compact
-              label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio Venta Unitario"}
+              label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio de Venta"}
               type="number"
               value={String(form.precioUnitario)}
               onChange={(e) => {
@@ -1320,7 +1322,7 @@ export default function AgregarProducto({
           {config?.isStock && form.tipoProducto === "BIEN" && (
             <InputBase
               compact
-              label="Costo Unitario de Compra"
+              label="Precio de Compra"
               labelOptional="(opcional)"
               type="number"
               value={form.costoUnitario === null || form.costoUnitario === undefined ? "" : String(form.costoUnitario)}
@@ -1462,31 +1464,27 @@ export default function AgregarProducto({
                   <label className="text-xs font-bold text-gray-500 uppercase">
                     Producto Base (unidad)
                   </label>
-                  <select
-                    value={form.productoBaseId ?? 0}
-                    onChange={(e) =>
+                  <SelectConBuscador
+                    value={form.productoBaseId ?? null}
+                    onChange={(val) =>
                       setForm((prev) => ({
                         ...prev,
-                        productoBaseId: Number(e.target.value) || null,
+                        productoBaseId: val,
                       }))
                     }
-                    className="w-full px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
-                  >
-                    <option value={0}>Seleccione el producto unidad</option>
-                    {productosEmpresa
+                    placeholder="Seleccione el producto unidad"
+                    opciones={productosEmpresa
                       .filter((p) => !p.esPaquete)
-                      .map((p) => (
-                        <option key={p.productoId} value={p.productoId}>
-                          {p.nomProducto} ({p.codigo})
-                        </option>
-                      ))}
-                  </select>
+                      .map((p) => ({
+                        value: p.productoId,
+                        label: `${p.nomProducto} (${p.codigo})`,
+                      }))}
+                  />
                 </div>
 
                 <InputBase
                   compact
-                  label="Factor de Conversión"
-                  labelOptional="(unidades por paquete)"
+                  label="Unidades por paquete"
                   type="number"
                   value={String(form.factorConversion ?? "")}
                   onChange={(e) =>

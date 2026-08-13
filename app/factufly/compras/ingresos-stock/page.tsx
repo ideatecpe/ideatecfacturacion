@@ -248,7 +248,7 @@ export default function OrdenesCompraPage() {
               onClick={() => setIsCompraOpen(true)}
               className="h-9 px-3 text-xs rounded-md"
             >
-              <PackagePlus className="w-3.5 h-3.5" /> Registrar Compra
+              <PackagePlus className="w-3.5 h-3.5" /> Registrar Ingreso
             </Button>
           </div>
         </div>

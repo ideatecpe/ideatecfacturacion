@@ -638,7 +638,7 @@ export default function RegistrarCompra({
               {hayGuardados ? "Cerrar" : "Cancelar"}
             </Button>
             <Button type="submit" disabled={guardando || !hayPendientes} className="flex-1 sm:flex-none">
-              {guardando ? "Registrando..." : hayGuardados ? "Guardar faltantes" : "Registrar Compra"}
+              {guardando ? "Registrando..." : hayGuardados ? "Guardar faltantes" : "Registrar Ingreso"}
             </Button>
           </div>
         </div>
