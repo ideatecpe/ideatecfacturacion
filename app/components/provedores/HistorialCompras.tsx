@@ -16,6 +16,7 @@ import {
   List,
 } from "lucide-react";
 import { cn } from "@/app/utils/cn";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 import { Proveedor, CompraProveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/Proveedor";
 import { useComprasProveedorLista } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/useComprasProveedorLista";
 import { contarOrdenes, agruparPorDocumento } from "@/app/factufly/compras/ingresos-stock/gestionOrdenes/agruparOrdenes";
@@ -64,9 +65,7 @@ export default function HistorialCompras({ isOpen, proveedor, onClose }: Props) 
   const filtradas = React.useMemo(() => {
     return compras.filter((c) => {
       const matchSearch =
-        !search ||
-        (c.nomProducto ?? "").toLowerCase().includes(search.toLowerCase()) ||
-        (c.docReferencia ?? "").toLowerCase().includes(search.toLowerCase());
+        !search || coincideBusqueda(search, c.nomProducto, c.docReferencia);
 
       const matchSucursal = filtroSucursal === "Todas" || c.nomSucursal === filtroSucursal;
 

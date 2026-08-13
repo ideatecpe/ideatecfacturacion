@@ -31,6 +31,7 @@ import { Modal } from "@/app/components/ui/Modal";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { InputBase } from "@/app/components/ui/InputBase";
 import { cn } from "@/app/utils/cn";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 
 import { ProductoSucursal } from "../gestioProductos/Producto";
 import AgregarProducto from "../gestioProductos/AgregarProducto";
@@ -60,6 +61,7 @@ const STOCK_MINIMO_PAQUETE = 2;
 // Empresas cuyos facturadores solo pueden ver el catálogo (sin editar/eliminar).
 // TODO: idealmente esto debería venir de la config/permisos del backend, no quemado aquí.
 const RUCS_CATALOGO_SOLO_LECTURA = ["10073587382"];
+
 
 export default function ProductosPage() {
   const { showToast } = useToast();
@@ -255,11 +257,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
   };
 
   const filtered = productos.filter((p) => {
-    const termino = search.trim().toLowerCase();
-    const matchSearch =
-      p.nomProducto.toLowerCase().includes(termino) ||
-      p.codigo.toLowerCase().includes(termino) ||
-      (!!p.codigoBarras && p.codigoBarras.toLowerCase().includes(termino));
+    const matchSearch = coincideBusqueda(search, p.nomProducto, p.codigo, p.codigoBarras);
 
     const matchCategoria =
       filterCategoria === "Todos" ||
