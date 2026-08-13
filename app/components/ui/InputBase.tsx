@@ -49,6 +49,8 @@ export const InputBase: React.FC<InputBaseProps> = ({
         pattern={pattern}
         disabled={disabled}
         readOnly={readOnly}
+        // Evita que la rueda del mouse cambie el valor al pasar por encima de un input numérico.
+        onWheel={type === 'number' ? (e) => e.currentTarget.blur() : undefined}
         {...rest}
       />
 

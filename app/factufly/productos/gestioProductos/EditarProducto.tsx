@@ -593,6 +593,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
                         stockMinimoAlerta: e.target.value === "" ? null : Number(e.target.value),
                       }))
                     }
+                    onWheel={(e) => e.currentTarget.blur()}
                     placeholder={umbralStockBajo ? `General: ${umbralStockBajo}` : "Ej: 5"}
                     className="w-24 px-2 py-0.5 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50"
                   />
