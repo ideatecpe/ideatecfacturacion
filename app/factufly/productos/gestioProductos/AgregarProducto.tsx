@@ -1245,8 +1245,8 @@ export default function AgregarProducto({
           )}
         </div>
 
-        {/* ── Código SUNAT (UNSPSC) ── */}
-        {!soloSucursal && (
+        {/* ── Código SUNAT (UNSPSC) (Comentado temporalmente) ── */}
+        {/* {!soloSucursal && (
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-500 uppercase">
               Código SUNAT{" "}
@@ -1284,7 +1284,7 @@ export default function AgregarProducto({
               </button>
             </div>
           </div>
-        )}
+        )} */}
 
         {/* ¿Es un paquete/caja? — fila propia */}
         {!soloSucursal && config?.isStock && (
