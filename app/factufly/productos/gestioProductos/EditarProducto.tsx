@@ -119,7 +119,7 @@ export default function EditarProducto({
       sucursalId: 0,
       precioUnitario: producto.sucursalProducto.precioUnitario,
       stock: producto.sucursalProducto.stock ?? 0,
-      costoUnitario: null,
+      costoUnitario: producto.sucursalProducto.ultimoPrecioCompra ?? null,
       urlImagenProducto: producto.urlImagenProducto ?? null,
       codigoBarras: producto.codigoBarras ?? "",
       codigoSunat: producto.codigoSunat ?? "",
@@ -228,7 +228,8 @@ export default function EditarProducto({
         config?.isStock && form.tipoProducto === "BIEN"
           ? form.stock ?? 0
           : null,
-      // Solo aplica si el stock sube: cuesta el nuevo lote PEPS que se crea por la diferencia.
+      // Se persiste siempre como último precio de compra; si además el stock sube, este
+      // costo también se usa para el nuevo lote PEPS creado por la diferencia.
       costoUnitario: config?.isStock && form.tipoProducto === "BIEN" ? form.costoUnitario : null,
       alertaVencimientoActiva:
         config?.isStock && form.tipoProducto === "BIEN" ? form.alertaVencimientoActiva ?? true : null,
@@ -283,6 +284,14 @@ export default function EditarProducto({
             config?.isStock && form.tipoProducto === "BIEN"
               ? form.stock ?? 0
               : null,
+          // El backend persiste este costo como último precio de compra al guardar
+          // (ver EditarProductoAsync); se refleja aquí para no requerir un refresh.
+          ultimoPrecioCompra:
+            payload.costoUnitario ?? producto.sucursalProducto.ultimoPrecioCompra,
+          fechaUltimaCompra:
+            payload.costoUnitario !== null && payload.costoUnitario !== undefined
+              ? new Date().toISOString()
+              : producto.sucursalProducto.fechaUltimaCompra,
           precioMayorista: payload.precioMayorista,
           cantidadMinimaMayorista: payload.cantidadMinimaMayorista,
           enPromocion: payload.enPromocion,
@@ -710,7 +719,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
         {isStock && form.tipoProducto === "BIEN" && (
           <InputBase
             label="Precio de Compra"
-            labelOptional="(solo si el stock sube)"
+            labelOptional="(último costo registrado)"
             type="number"
             step="0.01"
             value={form.costoUnitario === null || form.costoUnitario === undefined ? "" : String(form.costoUnitario)}
