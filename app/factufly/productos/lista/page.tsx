@@ -23,11 +23,13 @@ import {
   AlertTriangle,
   Printer,
   CalendarClock,
+  ScanBarcode,
 } from "lucide-react";
 import axios from "axios";
 
 import { Button } from "@/app/components/ui/Button";
 import { Modal } from "@/app/components/ui/Modal";
+import EscanerCodigoBarras from "@/app/components/ui/EscanerCodigoBarras";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { InputBase } from "@/app/components/ui/InputBase";
 import { cn } from "@/app/utils/cn";
@@ -123,6 +125,7 @@ export default function ProductosPage() {
   const [filtroTipoProducto, setFiltroTipoProducto] = useState<string[]>([]);
 
   const [search, setSearch] = useState("");
+  const [escaneando, setEscaneando] = useState(false);
   const [filterCategoria, setFilterCategoria] = useState("Todos");
 
   const [isNewOpen, setIsNewOpen] = useState(false);
@@ -746,24 +749,35 @@ const [importFile, setImportFile] = useState<File | null>(null);
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {/* Buscador — izquierda */}
-          <div className="relative min-w-48 flex-1 max-w-md">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar productos por código o nombre..."
-              className="w-full pl-10 pr-8 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
-            />
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          <div className="flex items-center gap-2 min-w-48 flex-1 max-w-md">
+            <div className="relative flex-1 min-w-0">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar productos por código o nombre..."
+                className="w-full pl-10 pr-8 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+              />
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {/* Escanear con la cámara del celular para buscar por código de barras */}
+            <button
+              type="button"
+              onClick={() => setEscaneando(true)}
+              title="Escanear código de barras con la cámara"
+              className="h-9.5 w-9.5 shrink-0 flex items-center justify-center bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue rounded-md border border-brand-blue/20 transition-colors"
+            >
+              <ScanBarcode className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Filtros + acciones — derecha, bajan juntos */}
@@ -1321,6 +1335,12 @@ const [importFile, setImportFile] = useState<File | null>(null);
         )}
       </div>
 
+      <EscanerCodigoBarras
+        isOpen={escaneando}
+        onClose={() => setEscaneando(false)}
+        onDetectado={(codigo) => setSearch(codigo)}
+        titulo="Buscar producto por código de barras"
+      />
       <AgregarProducto
         isOpen={isNewOpen}
         onClose={() => setIsNewOpen(false)}
