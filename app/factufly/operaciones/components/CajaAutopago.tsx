@@ -61,7 +61,6 @@ import {
   generarXml,
   enviarASunatApi,
   crearNotaVenta,
-  descontarStockApi,
   esErrorTransitorio,
 } from "@/app/factufly/operaciones/boleta/gestionBoletas/emitirBoletaApi";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
@@ -210,19 +209,21 @@ function ProductoGridCard({
           <ImageOff className="w-5 h-5 text-gray-300" />
         )}
 
-        {/* Badge de seleccionado / Check + Cantidad (#008000) */}
-        {seleccionado && (
+        {/* Badge de Stock en la parte superior derecha */}
+        {stockDisp !== null && stockDisp !== undefined && (
           <span
-            className={`absolute top-1.5 right-1.5 flex items-center justify-center bg-[#008000] text-white shadow-md animate-in zoom-in-75 duration-200 z-10 ${
-              cantidadEnCarrito === 1
-                ? "w-6 h-6 rounded-full"
-                : "min-w-6 h-6 px-1.5 rounded-full gap-0.5 text-[10px] font-bold"
+            className={`absolute top-1 right-1 flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold text-white z-10 shadow-2xs tabular-nums ${
+              stockDisp <= 0
+                ? "bg-rose-600"
+                : stockDisp <= 5
+                  ? "bg-red-500"
+                  : stockDisp <= 10
+                    ? "bg-[#ca5310]"
+                    : "bg-[#007200]"
             }`}
+            title={`Stock disponible: ${formatearCantidadUnidad(stockDisp, p.unidadMedida)} ${abreviaturaUnidad(p.unidadMedida)}`}
           >
-            <Check className="w-3.5 h-3.5 stroke-3" />
-            {cantidadEnCarrito !== 1 && (
-              <span>{cantidadEnCarrito % 1 === 0 ? cantidadEnCarrito : parseFloat(cantidadEnCarrito.toFixed(3))}</span>
-            )}
+            {formatearCantidadUnidad(stockDisp, p.unidadMedida)} {abreviaturaUnidad(p.unidadMedida)}
           </span>
         )}
 
@@ -253,11 +254,6 @@ function ProductoGridCard({
         ) : (
           <p className="text-xs font-bold text-brand-blue mt-0.5 tabular-nums">
             S/ {(p.sucursalProducto.precioUnitario ?? 0).toFixed(2)}
-          </p>
-        )}
-        {stockDisp !== null && stockDisp <= 10 && (
-          <p className="text-[10px] font-extrabold text-red-600 leading-tight tabular-nums mt-0.5">
-            {formatearCantidadUnidad(stockDisp, p.unidadMedida)} {abreviaturaUnidad(p.unidadMedida)}
           </p>
         )}
       </div>
@@ -295,6 +291,8 @@ export default function CajaAutopago() {
   const inputRef = useRef<HTMLInputElement>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
+  const abrirPagoRef = useRef<() => void>(() => {});
+  const modalAbiertoAtRef = useRef<number>(0);
 
   // ── Cámara Escáner de Código de Barras (Móvil / Web) ───────────────
   const [isScanning, setIsScanning] = useState(false);
@@ -303,6 +301,7 @@ export default function CajaAutopago() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const lastScannedCodeRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
+
   // ── Agregar / quitar / cantidad ──────────────────────────────
   const agregarProducto = useCallback((p: ProductoSucursal) => {
     const hoy = new Date().toISOString().split("T")[0];
@@ -394,7 +393,13 @@ export default function CajaAutopago() {
         }
         return [];
       } catch (err) {
-        console.error("Error en búsqueda remota de productos:", err);
+        // Un 404 es esperado: el producto no existe en el servidor. No es un
+        // error real, así que no se registra (evita el overlay de Next.js y el
+        // "Issue"); la ausencia de resultados ya se avisa con la alerta propia.
+        const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+        if (status !== 404) {
+          console.warn("Búsqueda remota de productos falló:", err);
+        }
         return [];
       }
     },
@@ -440,7 +445,6 @@ export default function CajaAutopago() {
           }
         }
         agregarProducto(p);
-        showToast(`✓ Agregado: ${p.nomProducto}`, "success");
       } else {
         showToast(`No se encontró producto con código: ${decodedText}`, "error");
       }
@@ -709,6 +713,25 @@ export default function CajaAutopago() {
   // Captura de lecturas de código de barras por escáner físico (USB / Bluetooth)
   const scannerBufferRef = useRef<{ text: string; lastTime: number }>({ text: "", lastTime: 0 });
 
+  // Antiduplicado: una sola lectura de escáner dispara varias rutas casi a la vez
+  // (efecto de auto-adición + Enter del input + listener global). Colapsamos las
+  // que lleguen con el mismo código dentro de una ventana corta a una sola adición.
+  // No afecta a los clics manuales del grid, que no pasan por aquí.
+  const ultimaLecturaRef = useRef<{ q: string; time: number }>({ q: "", time: 0 });
+  const esLecturaDuplicada = useCallback((q: string) => {
+    const ahora = Date.now();
+    const clave = q.trim().toLowerCase();
+    if (
+      clave &&
+      ultimaLecturaRef.current.q === clave &&
+      ahora - ultimaLecturaRef.current.time < 700
+    ) {
+      return true;
+    }
+    ultimaLecturaRef.current = { q: clave, time: ahora };
+    return false;
+  }, []);
+
   // ── Paginación y límite de renderizado inicial (36 ítems por página) ──
   const [limiteVistaGrid, setLimiteVistaGrid] = useState(24);
   useEffect(() => { setLimiteVistaGrid(24); }, [busqueda]);
@@ -746,6 +769,10 @@ export default function CajaAutopago() {
     );
 
     if (exacto) {
+      if (esLecturaDuplicada(q)) {
+        setBusqueda("");
+        return;
+      }
       if (config?.isStock && exacto.tipoProducto === "BIEN") {
         const disp = calcularDisponible(exacto, itemsRef.current, productosSucursal, true);
         if (disp !== null && disp <= 0) {
@@ -755,18 +782,28 @@ export default function CajaAutopago() {
         }
       }
       agregarProducto(exacto);
-      showToast(`✓ Agregado: ${exacto.nomProducto}`, "success");
       setBusqueda("");
     }
-  }, [busqueda, productosSucursal, config?.isStock, showToast, agregarProducto]);
+  }, [busqueda, productosSucursal, config?.isStock, showToast, agregarProducto, esLecturaDuplicada]);
 
   // Enter en el buscador o escáner de código de barras físico:
   // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
   // limpiando siempre la búsqueda para la siguiente lectura.
   const onEnterBusqueda = useCallback(
-    async (overrideQuery?: string) => {
-      const q = (overrideQuery ?? busqueda).trim().toLowerCase();
-      if (!q) return;
+    async (queryOverride?: string) => {
+      const q = (queryOverride !== undefined ? queryOverride : busqueda).trim().toLowerCase();
+      if (!q) {
+        if (itemsRef.current.length > 0) {
+          abrirPagoRef.current?.();
+        }
+        return;
+      }
+
+      // Evitar lecturas duplicadas inmediatas (doble pitido del escáner en < 400ms)
+      if (esLecturaDuplicada(q)) {
+        setBusqueda("");
+        return;
+      }
 
       // 1. Buscar coincidencia exacta local por código de barras o código
       let exacto = productosSucursal.find(
@@ -794,7 +831,6 @@ export default function CajaAutopago() {
           return;
         }
         agregarProducto(exacto);
-        showToast(`✓ Agregado: ${exacto.nomProducto}`, "success");
         setBusqueda("");
         return;
       }
@@ -820,7 +856,7 @@ export default function CajaAutopago() {
         setBusqueda("");
       }
     },
-    [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor],
+    [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, esLecturaDuplicada],
   );
 
   // Foco inicial único al cargar la página (solo en computadoras/laptops)
@@ -878,6 +914,9 @@ export default function CajaAutopago() {
         if (queryToUse) {
           e.preventDefault();
           onEnterBusqueda(queryToUse);
+        } else if (itemsRef.current.length > 0) {
+          e.preventDefault();
+          abrirPagoRef.current?.();
         }
         return;
       }
@@ -1310,6 +1349,9 @@ export default function CajaAutopago() {
       detracciones: [],
       usuarioCreacion: user?.id ?? 0,
       enviadoEnResumen: false,
+      // El backend descuenta este stock DENTRO de la transacción que crea el
+      // comprobante: si no alcanza, la venta completa se rechaza (atómico).
+      stockItems: config?.isStock ? calcularStockItems().items : [],
     };
   };
 
@@ -1361,6 +1403,9 @@ export default function CajaAutopago() {
       })),
       pagos: construirPagos(fechaHora),
       cuotas: construirCuotas(),
+      // El backend descuenta este stock DENTRO de la transacción que crea la
+      // nota de venta: si no alcanza, la venta completa se rechaza (atómico).
+      stockItems: config?.isStock ? calcularStockItems().items : [],
     };
   };
 
@@ -1377,51 +1422,32 @@ export default function CajaAutopago() {
     })) };
   };
 
-  const descontarStockSiAplica = async (comprobanteId: number) => {
+  // El backend descuenta el stock ATÓMICAMENTE al crear la venta (ver StockItems
+  // en el payload). Aquí ya no se llama a la API: solo reflejamos el cambio en
+  // memoria para feedback inmediato (sin recargar) y disparamos la alerta de
+  // stock bajo. Si no hubiera habido stock, la venta ni se habría creado.
+  const actualizarStockLocalTrasVenta = () => {
     if (!config?.isStock) return;
     const { acumulado, items: payloadItems } = calcularStockItems();
     if (!payloadItems.length) return;
 
-    // Descuento optimista inmediato: actualiza el stock en memoria sin
-    // recargar todos los productos del servidor (evita flash visual).
     descontarStockLocal(payloadItems);
 
-    try {
-      await descontarStockApi(comprobanteId, payloadItems, accessToken);
-      if (sucursal?.numeroStockBajo) {
-        const umbral = config.umbralStockBajo ?? 10;
-        const bajos = productosSucursal
-          .filter((p) => {
-            const vendida = acumulado.get(p.sucursalProducto.sucursalProductoId);
-            if (vendida === undefined) return false;
-            const stockActual = (p.sucursalProducto.stock ?? 0) - vendida;
-            const stockAntes = p.sucursalProducto.stock ?? 0;
-            return stockActual <= umbral && stockAntes > umbral;
-          })
-          .map((p) => {
-            const vendida = acumulado.get(p.sucursalProducto.sucursalProductoId) ?? 0;
-            return { nomProducto: p.nomProducto, stock: (p.sucursalProducto.stock ?? 0) - vendida };
-          });
-        if (bajos.length) avisarStockBajoWhatsapp(bajos, sucursal.numeroStockBajo);
-      }
-    } catch (err) {
-      // La venta YA quedó registrada; lo que falló es solo el descuento de stock.
-      // Se avisa explícitamente para que el cajero sepa que debe ajustarlo a mano.
-      const axErr = err as {
-        response?: { status?: number; data?: { mensaje?: string; message?: string; detalle?: string } };
-      };
-      const data = axErr?.response?.data;
-      const motivo = data?.detalle ?? data?.mensaje ?? data?.message;
-      showToast(
-        motivo
-          ? `Venta registrada, pero no se descontó el stock: ${motivo}`
-          : "Venta registrada, pero no se pudo descontar el stock. Ajústalo manualmente.",
-        "error",
-      );
-      console.error(
-        "descontar-stock falló:",
-        { status: axErr?.response?.status, data: axErr?.response?.data, payloadItems },
-      );
+    if (sucursal?.numeroStockBajo) {
+      const umbral = config.umbralStockBajo ?? 10;
+      const bajos = productosSucursal
+        .filter((p) => {
+          const vendida = acumulado.get(p.sucursalProducto.sucursalProductoId);
+          if (vendida === undefined) return false;
+          const stockActual = (p.sucursalProducto.stock ?? 0) - vendida;
+          const stockAntes = p.sucursalProducto.stock ?? 0;
+          return stockActual <= umbral && stockAntes > umbral;
+        })
+        .map((p) => {
+          const vendida = acumulado.get(p.sucursalProducto.sucursalProductoId) ?? 0;
+          return { nomProducto: p.nomProducto, stock: (p.sucursalProducto.stock ?? 0) - vendida };
+        });
+      if (bajos.length) avisarStockBajoWhatsapp(bajos, sucursal.numeroStockBajo);
     }
   };
 
@@ -1558,6 +1584,7 @@ export default function CajaAutopago() {
     // El cliente ya se consultó al escribir el documento (efecto con debounce),
     // así que aquí no se vuelve a llamar a la API. Si el debounce aún no disparó
     // (clic muy rápido), el efecto pendiente lo resuelve una sola vez.
+    modalAbiertoAtRef.current = Date.now();
     setTipoConDocumento("Boleta");
     setMedioPago("Efectivo");
     setMontoRecibido(totales.total.toFixed(2));
@@ -1571,6 +1598,10 @@ export default function CajaAutopago() {
     setNumeroCuotasCredito(1);
     setMostrarPago(true);
   };
+
+  useEffect(() => {
+    abrirPagoRef.current = abrirPago;
+  }, [abrirPago]);
 
   const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta") => {
     if (sinDocumento) setTipoSinDocumento(t);
@@ -1714,9 +1745,10 @@ export default function CajaAutopago() {
       setEmitido(true);
       setEmitiendo(false);
 
-      // Tareas secundarias post-emisión (descuento de stock, impresión y actualización de correlativos)
-      // Se ejecutan en segundo plano para que el usuario vea la pantalla verde de éxito de inmediato.
-      descontarStockSiAplica(comprobanteId);
+      // Tareas secundarias post-emisión (reflejar stock en memoria, impresión y
+      // actualización de correlativos). El stock ya se descontó ATÓMICAMENTE en el
+      // backend al crear la venta; aquí solo se refleja en la UI.
+      actualizarStockLocalTrasVenta();
       imprimirSiAplica(comprobanteId);
       fetchSucursal();
     } catch (err) {
@@ -1724,6 +1756,13 @@ export default function CajaAutopago() {
       const mensaje = data?.mensaje ?? data?.message ?? "Error al generar el comprobante";
       const detalle = data?.detalle;
       showToast(detalle ? `${mensaje}: ${detalle}` : mensaje, "error");
+
+      // Si la venta se rechazó por stock insuficiente (el backend descuenta de forma
+      // atómica al crear, así que la venta NO quedó registrada), recargamos el stock
+      // real del servidor para que la caja muestre las unidades correctas.
+      if (/insuficiente|no encontrado|no existe|sin stock|stock/i.test(`${mensaje} ${detalle ?? ""}`)) {
+        fetchProductosSucursal().catch(() => {});
+      }
     } finally {
       setEmitiendo(false);
     }
@@ -1734,6 +1773,11 @@ export default function CajaAutopago() {
     if (!mostrarPago) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
+        // Ignorar si el modal se acaba de abrir (evita doble disparo por el Enter de la vista principal)
+        if (Date.now() - modalAbiertoAtRef.current < 400) {
+          e.preventDefault();
+          return;
+        }
         if (
           !emitiendo &&
           !(pagoDividido && faltanteDividido > 0) &&
@@ -2183,14 +2227,6 @@ export default function CajaAutopago() {
 
           {/* Footer con totales y cobrar — fijo en la parte inferior en desktop */}
           <div className="shrink-0 sticky bottom-0 lg:static border-t border-gray-200 bg-white px-4 py-4 space-y-3 z-10">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-700">
-                Total ({totales.unidades % 1 === 0 ? totales.unidades : parseFloat(totales.unidades.toFixed(3))} und.)
-              </span>
-              <span className="text-base font-bold text-brand-blue tabular-nums">
-                S/ {totales.total.toFixed(2)}
-              </span>
-            </div>
             <button
               onClick={abrirPago}
               disabled={items.length === 0}
@@ -2529,6 +2565,10 @@ export default function CajaAutopago() {
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
+                        if (Date.now() - modalAbiertoAtRef.current < 400) {
+                          e.preventDefault();
+                          return;
+                        }
                         e.preventDefault();
                         if (
                           !emitiendo &&

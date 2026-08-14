@@ -1,14 +1,16 @@
-// SelectConBuscador.tsx
 import { ChevronDown, Search, X } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 
-interface Opcion {
+export interface OpcionSelectConBuscador {
   value: number;
   label: string;
+  codigoBarras?: string;
+  sublabel?: string;
 }
 
 interface Props {
-  opciones: Opcion[];
+  opciones: OpcionSelectConBuscador[];
   value?: number | null;
   onChange: (value: number | null) => void;
   placeholder?: string;
@@ -97,9 +99,14 @@ export function SelectConBuscador({
     }
   }, [abierto, placement]);
 
-  const opcionesFiltradas = opciones.filter((o) =>
-    o.label.toLowerCase().includes(busqueda.trim().toLowerCase())
-  );
+  const opcionesFiltradas = opciones.filter((o) => {
+    const q = busqueda.trim();
+    if (!q) return true;
+    const qClean = q.replace(/\s+/g, "").toLowerCase();
+    const barcodeClean = (o.codigoBarras ?? "").replace(/\s+/g, "").toLowerCase();
+    if (barcodeClean && (barcodeClean === qClean || barcodeClean.includes(qClean))) return true;
+    return coincideBusqueda(q, o.label, o.codigoBarras, o.sublabel);
+  });
 
   return (
     <div ref={ref} className={`relative ${className ?? ""}`}>
@@ -107,15 +114,15 @@ export function SelectConBuscador({
         type="button"
         disabled={disabled}
         onClick={() => setAbierto(!abierto)}
-        className={`w-full ${compact ? "py-1.5" : "py-2"} px-4 bg-gray-50 border ${
+        className={`w-full ${compact ? "py-1.5" : "py-2"} px-3 bg-gray-50 border ${
           showError ? "border-rose-400" : "border-gray-200"
-        } rounded-xl text-sm text-left outline-none focus:border-brand-blue/50 flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed`}
+        } rounded-xl text-xs text-left outline-none focus:border-brand-blue/50 flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed`}
       >
-        <span className={seleccionada ? "text-gray-700 font-normal truncate" : "text-gray-400 truncate"}>
+        <span className={seleccionada ? "text-gray-800 font-medium truncate" : "text-gray-400 truncate"}>
           {seleccionada?.label ?? placeholder}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-gray-400 shrink-0 ml-1 transition-transform ${
+          className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform ${
             abierto ? "rotate-180" : ""
           }`}
         />
@@ -142,7 +149,7 @@ export function SelectConBuscador({
                 type="text"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre o código..."
+                placeholder="Buscar por nombre, código o código de barras..."
                 className="w-full pl-8 pr-7 py-1 text-xs bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue text-gray-700 placeholder:text-gray-400"
               />
               {busqueda && (
@@ -187,13 +194,23 @@ export function SelectConBuscador({
                     onChange(o.value);
                     setAbierto(false);
                   }}
-                  className={`w-full text-left px-3 py-1.5 text-xs transition-colors hover:bg-gray-50 ${
+                  className={`w-full text-left px-3 py-2 text-xs transition-colors hover:bg-blue-50/50 flex flex-col gap-0.5 border-b border-gray-50 last:border-0 ${
                     o.value === value
-                      ? "text-brand-blue font-semibold bg-blue-50/50"
+                      ? "text-brand-blue font-semibold bg-blue-50/60"
                       : "text-gray-700"
                   }`}
                 >
-                  {o.label}
+                  <div className="flex items-center justify-between gap-2 w-full">
+                    <span className="font-medium truncate">{o.label}</span>
+                    {o.codigoBarras && (
+                      <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200 shrink-0">
+                        🏷️ {o.codigoBarras}
+                      </span>
+                    )}
+                  </div>
+                  {o.sublabel && (
+                    <span className="text-[10px] text-gray-400 truncate">{o.sublabel}</span>
+                  )}
                 </button>
               ))
             )}

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
-import { Camera, X as XIcon, ImageOff } from "lucide-react";
+import { Camera, X as XIcon, ImageOff, ScanBarcode, CameraOff } from "lucide-react";
+import { scanImageData } from "@undecaf/zbar-wasm";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
@@ -14,7 +15,6 @@ import { useProductosEmpresaLista } from "./useProductosEmpresaLista";
 import ModalCatalogoSunat from "./ModalCatalogoSunat";
 import { SelectConBuscador } from "@/app/components/ui/SelectConBuscador";
 import { esUnidadContable } from "./unidadMedida";
-
 
 interface Props {
   isOpen: boolean;
@@ -44,6 +44,11 @@ interface FormFieldsProps {
   confirmandoEliminarImagen: boolean;
   setConfirmandoEliminarImagen: React.Dispatch<React.SetStateAction<boolean>>;
   onAbrirCatalogo: () => void;
+  isScanning: boolean;
+  startScanning: () => void;
+  stopScanning: () => void;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  cameraError: string | null;
 }
 
 const emptyForm: NuevoProducto = {
@@ -96,13 +101,199 @@ export default function EditarProducto({
   const [confirmandoEliminarImagen, setConfirmandoEliminarImagen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // ── Escáner de código de barras (Cámara + USB) ──
+  const [isScanning, setIsScanning] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const scannerBufferRef = useRef<{ text: string; lastTime: number }>({ text: "", lastTime: 0 });
+
+  const stopScanning = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setCameraError(null);
+    setIsScanning(false);
+  }, []);
+
+  const startScanning = async () => {
+    setCameraError(null);
+    setIsScanning(true);
+
+    setTimeout(async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setCameraError("Tu navegador no soporta el uso de la cámara.");
+          return;
+        }
+
+        const stream = await navigator.mediaDevices
+          .getUserMedia({
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1920, min: 1280 },
+              height: { ideal: 1080, min: 720 },
+              frameRate: { ideal: 60, min: 30 },
+              advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
+            },
+          })
+          .catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
+
+        mediaStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+        // 1. Detección nativa por GPU (Chrome / Android / Edge)
+        if ("BarcodeDetector" in window) {
+          try {
+            const BarcodeDetectorClass = (
+              window as unknown as {
+                BarcodeDetector: new (options?: { formats: string[] }) => {
+                  detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+                };
+              }
+            ).BarcodeDetector;
+
+            const detector = new BarcodeDetectorClass({
+              formats: ["ean_13", "code_128", "qr_code", "upc_a", "ean_8", "code_39", "upc_e", "itf", "codabar"],
+            });
+
+            let scanned = false;
+            const scanLoopNative = async () => {
+              if (scanned || !videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
+              try {
+                if (videoRef.current.readyState >= 2) {
+                  const barcodes = await detector.detect(videoRef.current);
+                  if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                    scanned = true;
+                    const decodedText = barcodes[0].rawValue;
+                    setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+                    showToast(`Código escaneado: ${decodedText}`, "success");
+                    stopScanning();
+                    return;
+                  }
+                }
+              } catch {
+                // Silencioso por fotograma
+              }
+              animFrameRef.current = requestAnimationFrame(scanLoopNative);
+            };
+            scanLoopNative();
+            return;
+          } catch (err) {
+            console.warn("Fallback a ZBar-WASM por falla en cámara nativa", err);
+          }
+        }
+
+        // 2. Detección C-WASM ultra-rápida con ZBar (Safari / Firefox)
+        let scannedZbar = false;
+        const scanLoopZbar = async () => {
+          if (scannedZbar || !videoRef.current || videoRef.current.paused || videoRef.current.ended || !ctx) return;
+          try {
+            if (videoRef.current.readyState >= 2) {
+              const vWidth = videoRef.current.videoWidth || 640;
+              const vHeight = videoRef.current.videoHeight || 480;
+              if (canvas.width !== vWidth || canvas.height !== vHeight) {
+                canvas.width = vWidth;
+                canvas.height = vHeight;
+              }
+              ctx.drawImage(videoRef.current, 0, 0, vWidth, vHeight);
+              const imgData = ctx.getImageData(0, 0, vWidth, vHeight);
+              const symbols = await scanImageData(imgData);
+              if (symbols && symbols.length > 0) {
+                const decodedText = symbols[0].decode();
+                if (decodedText) {
+                  scannedZbar = true;
+                  setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
+                  showToast(`Código escaneado: ${decodedText}`, "success");
+                  stopScanning();
+                  return;
+                }
+              }
+            }
+          } catch {
+            // Silencioso por fotograma
+          }
+          animFrameRef.current = requestAnimationFrame(scanLoopZbar);
+        };
+        scanLoopZbar();
+      } catch (err: unknown) {
+        const errorName = (err as { name?: string })?.name;
+        if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+          setCameraError("No se detectó ninguna cámara conectada en este equipo.");
+        } else if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+          setCameraError("Permiso de cámara denegado en tu navegador.");
+        } else {
+          setCameraError("No se pudo acceder a la cámara de este dispositivo.");
+        }
+      }
+    }, 50);
+  };
+
+  // Detener cámara al cerrar el modal o desmontar
+  useEffect(() => {
+    if (!isOpen) {
+      stopScanning();
+    }
+  }, [isOpen, stopScanning]);
+
+  useEffect(() => {
+    return () => {
+      stopScanning();
+    };
+  }, [stopScanning]);
+
+  // Soporte para pistola/lector de código de barras USB/Bluetooth en el modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const now = Date.now();
+      const timeDiff = now - scannerBufferRef.current.lastTime;
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (timeDiff < 45) {
+          scannerBufferRef.current.text += e.key;
+        } else {
+          scannerBufferRef.current.text = e.key;
+        }
+        scannerBufferRef.current.lastTime = now;
+      }
+
+      if (e.key === "Enter" && scannerBufferRef.current.text.length >= 3 && timeDiff < 100) {
+        const scanned = scannerBufferRef.current.text.trim();
+        if (scanned) {
+          e.preventDefault();
+          e.stopPropagation();
+          setForm((prev) => ({ ...prev, codigoBarras: scanned }));
+          showToast(`Código escaneado: ${scanned}`, "success");
+        }
+        scannerBufferRef.current = { text: "", lastTime: 0 };
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [isOpen, showToast]);
+
   // Refresca la lista de productos base cada vez que se abre el modal.
   React.useEffect(() => {
     if (isOpen) fetchProductosEmpresa();
   }, [isOpen]);
 
   React.useEffect(() => {
-    if (!producto) return;
+    if (!producto || !isOpen) return;
 
     setImgError(false);
     setImgPreview(null);
@@ -137,7 +328,7 @@ export default function EditarProducto({
     });
 
     setPrecioInput(producto.sucursalProducto.precioUnitario.toFixed(2));
-  }, [producto]);
+  }, [producto, isOpen]);
 
   const handleFormChange =
     (field: keyof NuevoProducto) =>
@@ -326,8 +517,8 @@ export default function EditarProducto({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Editar Producto">
-      <form className="space-y-4" onSubmit={handleEditar}>
+    <Modal isOpen={isOpen} onClose={onClose} title="Editar Producto" className="max-w-4xl">
+      <form className="space-y-3" onSubmit={handleEditar}>
         <ModalCatalogoSunat
           isOpen={modalCatalogoOpen}
           onClose={() => setModalCatalogoOpen(false)}
@@ -354,13 +545,18 @@ export default function EditarProducto({
           confirmandoEliminarImagen={confirmandoEliminarImagen}
           setConfirmandoEliminarImagen={setConfirmandoEliminarImagen}
           onAbrirCatalogo={() => setModalCatalogoOpen(true)}
+          isScanning={isScanning}
+          startScanning={startScanning}
+          stopScanning={stopScanning}
+          videoRef={videoRef}
+          cameraError={cameraError}
         />
 
-        <div className="pt-4 flex justify-end gap-3">
-          <Button variant="outline" type="button" onClick={onClose}>
+        <div className="pt-2 flex justify-end gap-2.5 border-t border-gray-100">
+          <Button variant="outline" type="button" onClick={onClose} className="py-1.5 px-4 text-xs">
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting || subiendoImagen}>
+          <Button type="submit" disabled={isSubmitting || subiendoImagen} className="py-1.5 px-5 text-xs">
             {subiendoImagen ? "Subiendo imagen..." : isSubmitting ? "Guardando..." : "Guardar Cambios"}
           </Button>
         </div>
@@ -369,7 +565,32 @@ export default function EditarProducto({
   );
 }
 
-function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChange, categorias, isStock, umbralStockBajo, productosEmpresa, productoActualId, imgError, setImgError, imgPreview, setImgPreview, subiendoImagen, setSubiendoImagen, confirmandoEliminarImagen, setConfirmandoEliminarImagen, onAbrirCatalogo }: FormFieldsProps) {
+function FormEditarProducto({
+  form,
+  setForm,
+  precioInput,
+  setPrecioInput,
+  onChange,
+  categorias,
+  isStock,
+  umbralStockBajo,
+  productosEmpresa,
+  productoActualId,
+  imgError,
+  setImgError,
+  imgPreview,
+  setImgPreview,
+  subiendoImagen,
+  setSubiendoImagen,
+  confirmandoEliminarImagen,
+  setConfirmandoEliminarImagen,
+  onAbrirCatalogo,
+  isScanning,
+  startScanning,
+  stopScanning,
+  videoRef,
+  cameraError,
+}: FormFieldsProps) {
   const { showToast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -465,19 +686,19 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
 
   return (
     <>
-      {/* ── Imagen del producto + Alertas ── */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
-        <div className="flex items-start gap-3 shrink-0">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileChange}
-          />
+      {/* ── 1. Imagen + Nombre + Alertas ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3.5 bg-gray-50/70 p-3 rounded-xl border border-gray-100">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
 
+        <div className="flex items-center gap-3.5 shrink-0">
           <div className="relative shrink-0">
-            <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+            <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-white overflow-hidden flex items-center justify-center shadow-xs">
               {(imgPreview || form.urlImagenProducto) && !imgError ? (
                 <img
                   src={imgPreview ?? form.urlImagenProducto!}
@@ -486,33 +707,33 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
                   onError={() => setImgError(true)}
                 />
               ) : imgError ? (
-                <ImageOff className="w-6 h-6 text-gray-300" />
+                <ImageOff className="w-7 h-7 text-gray-300" />
               ) : (
-                <Camera className="w-6 h-6 text-gray-300" />
+                <Camera className="w-7 h-7 text-gray-300" />
               )}
             </div>
             {form.urlImagenProducto && !confirmandoEliminarImagen && (
               <button
                 type="button"
                 onClick={() => setConfirmandoEliminarImagen(true)}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-sm transition-colors"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-xs transition-colors"
               >
                 <XIcon className="w-3 h-3" />
               </button>
             )}
             {form.urlImagenProducto && confirmandoEliminarImagen && (
-              <div className="absolute -top-2 -right-2 flex gap-1">
+              <div className="absolute -top-2 -right-2 flex gap-1 z-10">
                 <button
                   type="button"
                   onClick={() => { handleQuitarImagen(); setConfirmandoEliminarImagen(false); }}
-                  className="text-[10px] font-bold bg-rose-500 hover:bg-rose-600 text-white px-1.5 py-0.5 rounded shadow-sm"
+                  className="text-[10px] font-bold bg-rose-500 hover:bg-rose-600 text-white px-1.5 py-0.5 rounded shadow-xs"
                 >
                   Quitar
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmandoEliminarImagen(false)}
-                  className="text-[10px] font-bold bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded shadow-sm"
+                  className="text-[10px] font-bold bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-0.5 rounded shadow-xs"
                 >
                   No
                 </button>
@@ -520,117 +741,108 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             )}
           </div>
 
-          <div className="flex flex-col justify-center gap-1.5 min-w-0 pt-1">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-              Imagen del producto
-              <span className="ml-1 font-normal text-gray-400 normal-case">(opcional)</span>
-            </p>
-            {subiendoImagen ? (
-              <p className="text-[11px] text-blue-500 font-semibold animate-pulse">
-                Subiendo imagen…
-              </p>
-            ) : form.urlImagenProducto && !imgError ? (
-              <p className="text-[11px] text-emerald-600 font-semibold">
-                ✓ Imagen subida
-              </p>
-            ) : (
-              <p className="text-[11px] text-gray-400">JPG, PNG o WebP — máx. 2 MB</p>
-            )}
+          <div className="flex flex-col gap-1.5">
             <button
               type="button"
               onClick={handleSeleccionarImagen}
               disabled={subiendoImagen}
-              className="w-fit flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-blue bg-white hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors disabled:opacity-50 shadow-xs"
             >
               <Camera className="w-3.5 h-3.5" />
-              {subiendoImagen ? "Subiendo…" : form.urlImagenProducto ? "Cambiar imagen" : "Subir imagen"}
+              {subiendoImagen ? "Subiendo…" : form.urlImagenProducto ? "Cambiar foto" : "Subir foto"}
             </button>
+            {form.urlImagenProducto && !imgError && (
+              <span className="text-[11px] text-emerald-600 font-semibold pl-0.5">✓ Subida</span>
+            )}
           </div>
         </div>
 
-        {isStock && form.tipoProducto === "BIEN" && (
-          <div className="flex-1 min-w-0 space-y-1.5 border-t sm:border-t-0 border-gray-100 pt-2 sm:pt-0">
-            <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
-              <input
-                type="checkbox"
-                checked={form.alertaVencimientoActiva ?? true}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, alertaVencimientoActiva: e.target.checked }))
-                }
-                className="w-4 h-4 accent-brand-blue"
-              />
-              <span className="text-xs font-semibold text-gray-600">
-                Alertar por fecha de vencimiento
-              </span>
-            </label>
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <InputBase
+            compact
+            className="h-9"
+            label="Nombre del Producto"
+            value={form.nomProducto}
+            onChange={onChange("nomProducto")}
+            placeholder='Ej: Monitor LED 24"'
+            required
+          />
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
+          {isStock && form.tipoProducto === "BIEN" && (
+            <div className="flex items-center gap-4 flex-wrap text-xs pt-0.5">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={form.alertaStockBajoActiva ?? true}
+                  checked={form.alertaVencimientoActiva ?? true}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, alertaStockBajoActiva: e.target.checked }))
+                    setForm((prev) => ({ ...prev, alertaVencimientoActiva: e.target.checked }))
                   }
-                  className="w-4 h-4 accent-brand-blue"
+                  className="w-3.5 h-3.5 accent-brand-blue"
                 />
-                <span className="text-xs font-semibold text-gray-600">
-                  Alertar por stock bajo
+                <span className="text-[11px] font-medium text-gray-600">
+                  Alertar vencimiento
                 </span>
               </label>
 
-              {(form.alertaStockBajoActiva ?? true) && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">
-                    Stock mín:
-                  </span>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input
-                    type="number"
-                    value={form.stockMinimoAlerta === null || form.stockMinimoAlerta === undefined ? "" : String(form.stockMinimoAlerta)}
+                    type="checkbox"
+                    checked={form.alertaStockBajoActiva ?? true}
                     onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        stockMinimoAlerta: e.target.value === "" ? null : Number(e.target.value),
-                      }))
+                      setForm((prev) => ({ ...prev, alertaStockBajoActiva: e.target.checked }))
                     }
-                    onWheel={(e) => e.currentTarget.blur()}
-                    placeholder={umbralStockBajo ? `General: ${umbralStockBajo}` : "Ej: 5"}
-                    className="w-24 px-2 py-0.5 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50"
+                    className="w-3.5 h-3.5 accent-brand-blue"
                   />
-                </div>
-              )}
+                  <span className="text-[11px] font-medium text-gray-600">
+                    Stock bajo
+                  </span>
+                </label>
+
+                {(form.alertaStockBajoActiva ?? true) && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase">Mín:</span>
+                    <input
+                      type="number"
+                      value={form.stockMinimoAlerta === null || form.stockMinimoAlerta === undefined ? "" : String(form.stockMinimoAlerta)}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          stockMinimoAlerta: e.target.value === "" ? null : Number(e.target.value),
+                        }))
+                      }
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder={umbralStockBajo ? `${umbralStockBajo}` : "5"}
+                      className="w-16 px-1.5 py-0.5 text-xs bg-white border border-gray-200 rounded-md outline-none focus:border-brand-blue/50"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <InputBase
-        label="Nombre del Producto"
-        value={form.nomProducto}
-        onChange={onChange("nomProducto")}
-        placeholder='Ej: Monitor LED 24"'
-        required
-      />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-500 uppercase">Tipo Producto</label>
+      {/* ── 2. Clasificación (4 selects en 1 fila en Desktop) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-gray-500 uppercase">Tipo Producto</label>
           <select
             value={form.tipoProducto}
             onChange={onChange("tipoProducto")}
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+            className="w-full h-9 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
           >
             <option value="BIEN">Bien</option>
             <option value="SERVICIO">Servicio</option>
           </select>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-500 uppercase">Categoría</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-gray-500 uppercase">Categoría</label>
           <select
             value={form.categoriaId}
             onChange={onChange("categoriaId")}
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+            className="w-full h-9 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
           >
             <option value={0}>Seleccione categoría</option>
             {categorias.map((cat) => (
@@ -640,15 +852,13 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             ))}
           </select>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-500 uppercase">Tipo Afectación IGV</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-gray-500 uppercase">Tipo Afectación IGV</label>
           <select
             value={form.tipoAfectacionIGV}
             onChange={onChange("tipoAfectacionIGV")}
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+            className="w-full h-9 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
           >
             <option value="10">10 - Gravado</option>
             <option value="20">20 - Exonerado</option>
@@ -656,12 +866,12 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           </select>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-gray-500 uppercase">Unidad de Medida</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-gray-500 uppercase">Unidad de Medida</label>
           <select
             value={form.unidadMedida}
             onChange={onChange("unidadMedida")}
-            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
+            className="w-full h-9 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
           >
             <option value="NIU">NIU - Unidad</option>
             <option value="ZZ">ZZ - Servicio</option>
@@ -678,11 +888,13 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
         </div>
       </div>
 
-      {/* ── Precio de Venta y Costo de Compra (misma línea) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
+      {/* ── 3. Precios, Costo, Stock y Ubicación (4 columnas en Desktop) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 items-start">
+        <div className="space-y-1">
           <InputBase
-            label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio de Venta"}
+            compact
+            className="h-9"
+            label={form.esPaquete ? "Precio Paquete" : "Precio Venta"}
             type="text"
             value={precioInput}
             onChange={(e) => {
@@ -700,27 +912,29 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
               setPrecioInput(num.toFixed(2));
             }}
             placeholder="0.00"
+            required
           />
-
           {form.tipoAfectacionIGV === "10" && (
-            <div className="flex items-center gap-2 pl-1">
+            <label className="flex items-center gap-1.5 cursor-pointer pt-0.5">
               <input
                 type="checkbox"
                 checked={form.incluirIGV}
                 onChange={onChange("incluirIGV")}
-                className="w-4 h-4 accent-brand-blue"
+                className="w-3.5 h-3.5 accent-brand-blue"
               />
-              <label className="text-xs font-semibold text-gray-600">
+              <span className="text-[11px] font-medium text-gray-600">
                 Precio Incluye IGV
-              </label>
-            </div>
+              </span>
+            </label>
           )}
         </div>
 
-        {isStock && form.tipoProducto === "BIEN" && (
+        {isStock && form.tipoProducto === "BIEN" ? (
           <InputBase
-            label="Precio de Compra"
-            labelOptional="(último costo registrado)"
+            compact
+            className="h-9"
+            label="Precio Compra"
+            labelOptional="(costo)"
             type="number"
             step="0.01"
             value={form.costoUnitario === null || form.costoUnitario === undefined ? "" : String(form.costoUnitario)}
@@ -732,105 +946,170 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
             }
             placeholder="Ej: 3.50"
           />
-        )}
+        ) : <div />}
+
+        {isStock && form.tipoProducto === "BIEN" ? (
+          <InputBase
+            compact
+            className="h-9"
+            label="Stock"
+            labelOptional="(unidades)"
+            type="number"
+            value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                stock: e.target.value === "" ? null : Number(e.target.value),
+              }))
+            }
+            placeholder="Ej: 50"
+          />
+        ) : <div />}
+
+        {isStock && form.tipoProducto === "BIEN" ? (
+          <InputBase
+            compact
+            className="h-9"
+            label="Ubicación Tienda"
+            labelOptional="(opcional)"
+            value={form.ubicacionTienda ?? ""}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                ubicacionTienda: e.target.value.trim() === "" ? null : e.target.value,
+              }))
+            }
+            placeholder="Ej: Pasillo 3, Estante B"
+          />
+        ) : <div />}
       </div>
 
-      {/* ── Stock y Ubicación en tienda (misma línea) ── */}
-      {isStock && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {form.tipoProducto === "BIEN" && (
-            <InputBase
-              label="Stock"
-              labelOptional="(unidades)"
-              type="number"
-              value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  stock: e.target.value === "" ? null : Number(e.target.value),
-                }))
-              }
-              placeholder="Ej: 50"
-            />
-          )}
-          {form.tipoProducto === "BIEN" && (
-            <InputBase
-              label="Ubicación en Tienda"
-              labelOptional="(opcional)"
-              value={form.ubicacionTienda ?? ""}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  ubicacionTienda: e.target.value.trim() === "" ? null : e.target.value,
-                }))
-              }
-              placeholder="Ej: Pasillo 3, Estante B"
-            />
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* ── 4. Códigos (Interno y Barras) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
         <InputBase
+          compact
+          className="h-9"
           label="Código"
           value={form.codigo}
           onChange={onChange("codigo")}
           placeholder="PROD-001"
+          required
         />
 
-        {/* Código de barras: solo unidades contables (Unidad / Caja) */}
-        {esUnidadContable(form.unidadMedida) && (
-          <div className="space-y-1.5">
-            <InputBase
-              label="Código de Barras"
-              labelOptional="(opcional)"
-              value={form.codigoBarras ?? ""}
-              onChange={onChange("codigoBarras")}
-              placeholder="EAN13 / Code128"
-            />
-            <button
-              type="button"
-              disabled
-              className="text-[10px] font-semibold text-gray-300 cursor-not-allowed"
-            >
-              Generar código automático
-            </button>
-          </div>
-        )}
-
-        <CodigoSunatEditar
-          value={form.codigoSunat ?? ""}
-          onChange={onChange("codigoSunat")}
-          onAbrirCatalogo={onAbrirCatalogo}
-        />
-
-        {isStock && (
-          <div className="flex items-center gap-2 h-10 px-1 sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={!!form.esPaquete}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setForm((prev) => ({
-                  ...prev,
-                  esPaquete: checked,
-                  productoBaseId: checked ? prev.productoBaseId : null,
-                  factorConversion: checked ? prev.factorConversion : null,
-                }));
-              }}
-              className="w-4 h-4 accent-brand-blue"
-            />
-            <label className="text-xs font-semibold text-gray-600">
-              ¿Es un paquete/caja con unidades dentro?
+        {esUnidadContable(form.unidadMedida) ? (
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 uppercase flex items-center justify-between">
+              <span>
+                Código de Barras{" "}
+                <span className="text-gray-400 font-normal normal-case">(opcional)</span>
+              </span>
             </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1 min-w-0">
+                <input
+                  type="text"
+                  value={form.codigoBarras ?? ""}
+                  onChange={onChange("codigoBarras")}
+                  placeholder="EAN13 / Code128 o escanear..."
+                  className="w-full h-9 px-4 py-1.5 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 text-gray-800"
+                />
+                {form.codigoBarras && (
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
+                    title="Borrar código"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 transition-colors"
+                  >
+                    <XIcon className="w-2.5 h-2.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={isScanning ? stopScanning : startScanning}
+                className={`h-9 shrink-0 flex items-center gap-1.5 px-3.5 text-xs font-semibold rounded-xl transition-colors border ${
+                  isScanning
+                    ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
+                    : "bg-blue-50 border-blue-200 text-brand-blue hover:bg-blue-100"
+                }`}
+                title="Escanear código de barras con la cámara"
+              >
+                <ScanBarcode className="w-4 h-4" />
+                <span>{isScanning ? "Cerrar" : "Escanear"}</span>
+              </button>
+            </div>
           </div>
-        )}
+        ) : <div />}
       </div>
 
+      {/* Visor de Cámara si está activo */}
+      {isScanning && esUnidadContable(form.unidadMedida) && (
+        <div className="space-y-2 p-2.5 bg-gray-100/80 rounded-xl border border-gray-200 text-gray-800">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">
+              Buscando código de barras...
+            </span>
+            <button
+              type="button"
+              onClick={stopScanning}
+              className="text-xs font-semibold text-gray-600 hover:text-gray-900 transition-colors px-2 py-0.5 bg-gray-200/80 hover:bg-gray-300 rounded-lg"
+            >
+              Cancelar
+            </button>
+          </div>
+          <div className="relative w-full max-w-56 aspect-square mx-auto bg-black rounded-xl overflow-hidden border border-gray-200 shadow-md flex items-center justify-center">
+            <video
+              ref={videoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              autoPlay
+              playsInline
+              muted
+            />
+            {cameraError ? (
+              <div className="absolute inset-0 z-20 bg-gray-950/95 flex flex-col items-center justify-center text-center p-3 text-white">
+                <CameraOff className="w-8 h-8 text-gray-400 mb-1 animate-bounce" />
+                <p className="text-xs font-semibold text-gray-200">{cameraError}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  Puedes ingresar el código manualmente o con lector USB
+                </p>
+              </div>
+            ) : (
+              <div className="pointer-events-none absolute inset-2.5 border-2 border-white/20 rounded-lg flex items-center justify-center overflow-hidden z-10">
+                <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 5. Paquete / Caja (opcional) ── */}
+      {isStock && (
+        <div className="flex items-center gap-2 pt-0.5">
+          <input
+            type="checkbox"
+            id="checkbox-esPaquete"
+            checked={!!form.esPaquete}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setForm((prev) => ({
+                ...prev,
+                esPaquete: checked,
+                productoBaseId: checked ? prev.productoBaseId : null,
+                factorConversion: checked ? prev.factorConversion : null,
+              }));
+            }}
+            className="w-3.5 h-3.5 accent-brand-blue"
+          />
+          <label htmlFor="checkbox-esPaquete" className="text-xs font-semibold text-gray-600 cursor-pointer">
+            ¿Es un paquete/caja con unidades dentro?
+          </label>
+        </div>
+      )}
+
       {isStock && form.esPaquete && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-gray-500 uppercase">
               Producto Base (unidad)
             </label>
             <SelectConBuscador
@@ -852,6 +1131,7 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
           </div>
 
           <InputBase
+            compact
             label="Unidades por paquete"
             type="number"
             value={String(form.factorConversion ?? "")}
@@ -866,12 +1146,16 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
         </div>
       )}
 
+      {/* ── 6. Mayorista y Promoción (Compacto) ── */}
       {isStock && form.tipoProducto === "BIEN" && (
-        <div className="space-y-3 border-t border-gray-100 pt-2">
-          <p className="text-xs font-bold text-gray-500 uppercase">Mayorista y Promoción</p>
+        <div className="space-y-2 border-t border-gray-100 pt-2">
+          <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+            Mayorista y Promoción
+          </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 items-end">
             <InputBase
+              compact
               label="Precio Mayorista"
               labelOptional="(opcional)"
               type="number"
@@ -886,7 +1170,8 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
               placeholder="0.00"
             />
             <InputBase
-              label="Cantidad mínima para mayorista"
+              compact
+              label="Cant. Mínima Mayorista"
               labelOptional={form.esPaquete ? "(paquetes)" : "(unidades)"}
               type="number"
               value={String(form.cantidadMinimaMayorista ?? "")}
@@ -898,37 +1183,37 @@ function FormEditarProducto({ form, setForm, precioInput, setPrecioInput, onChan
               }
               placeholder="Ej: 12"
             />
+            <div className="flex items-center gap-2 h-8">
+              <input
+                type="checkbox"
+                id="checkbox-enPromocion"
+                checked={!!form.enPromocion}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, enPromocion: e.target.checked }))
+                }
+                className="w-3.5 h-3.5 accent-brand-blue"
+              />
+              <label htmlFor="checkbox-enPromocion" className="text-xs font-semibold text-gray-600 cursor-pointer">
+                ¿En promoción?
+              </label>
+            </div>
+            {form.enPromocion ? (
+              <InputBase
+                compact
+                label="% Descuento"
+                type="number"
+                step="0.01"
+                value={String(form.porcentajeDescuento ?? "")}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    porcentajeDescuento: e.target.value === "" ? null : Number(e.target.value),
+                  }))
+                }
+                placeholder="Ej: 50"
+              />
+            ) : <div />}
           </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={!!form.enPromocion}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, enPromocion: e.target.checked }))
-              }
-              className="w-4 h-4 accent-brand-blue"
-            />
-            <label className="text-xs font-semibold text-gray-600">
-              ¿Producto en promoción?
-            </label>
-          </div>
-
-          {form.enPromocion && (
-            <InputBase
-              label="% Descuento"
-              type="number"
-              step="0.01"
-              value={String(form.porcentajeDescuento ?? "")}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  porcentajeDescuento: e.target.value === "" ? null : Number(e.target.value),
-                }))
-              }
-              placeholder="Ej: 50"
-            />
-          )}
         </div>
       )}
 

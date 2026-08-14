@@ -28,7 +28,6 @@ import {
   generarXml,
   enviarASunatApi,
   crearNotaVenta,
-  descontarStockApi,
   esErrorTransitorio,
 } from "@/app/factufly/operaciones/boleta/gestionBoletas/emitirBoletaApi";
 
@@ -122,6 +121,10 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
       // Si la venta se guardó sin conexión y sólo con número de documento (DNI, RUC o CE)
       // pero sin razón social (o vacía), al reconectar a internet consultamos los nombres a la API.
       const payload = { ...venta.payload } as any;
+      // El backend descuenta el stock ATÓMICAMENTE al crear la venta. Fusionamos
+      // los stockItems guardados en la cola (cubre ventas viejas y nuevas) para
+      // que al sincronizar el descuento ocurra dentro de la misma transacción.
+      payload.stockItems = venta.stockItems ?? [];
       if (payload?.cliente && payload.cliente.numeroDocumento) {
         const cli = payload.cliente;
         const numDoc = String(cli.numeroDocumento).trim();
@@ -195,13 +198,8 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        if (venta.stockItems.length) {
-          try {
-            await descontarStockApi(comprobanteId, venta.stockItems, token);
-          } catch {
-            // El stock se puede reconciliar manualmente; no bloquea la sincronización.
-          }
-        }
+        // El stock ya se descontó atómicamente al crear la venta (payload.stockItems);
+        // no hay un paso de descuento separado.
 
         await deleteVentaPendiente(venta.id);
         setVentasPendientes((prev) => prev.filter((v) => v.id !== venta.id));

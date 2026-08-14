@@ -2,10 +2,12 @@
 
 import React from "react";
 import axios from "axios";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, ScanBarcode, CameraOff, Search, Sparkles } from "lucide-react";
+import { scanImageData } from "@undecaf/zbar-wasm";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/utils/cn";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { Proveedor, CompraProveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/Proveedor";
@@ -26,8 +28,10 @@ function useProductosPorSucursalCache() {
   const enVueloRef = React.useRef<Set<number>>(new Set());
 
   const ensureProductos = React.useCallback(
-    async (sucursalId: number) => {
-      if (!sucursalId || cache[sucursalId] || enVueloRef.current.has(sucursalId)) return;
+    async (sucursalId: number, force: boolean = false) => {
+      if (!sucursalId) return;
+      if (!force && cache[sucursalId]) return;
+      if (enVueloRef.current.has(sucursalId)) return;
       enVueloRef.current.add(sucursalId);
       setLoadingIds((prev) => new Set(prev).add(sucursalId));
       try {
@@ -155,7 +159,25 @@ export default function RegistrarCompra({
   const [isAgregarProveedorOpen, setIsAgregarProveedorOpen] = React.useState(false);
   const [lineaTargetNuevoProveedor, setLineaTargetNuevoProveedor] = React.useState<number | null>(null);
 
+  // Escáner de código de barras rápido y cámara
+  const [quickSearch, setQuickSearch] = React.useState("");
+  const [isScanning, setIsScanning] = React.useState(false);
+  const [cameraError, setCameraError] = React.useState<string | null>(null);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const mediaStreamRef = React.useRef<MediaStream | null>(null);
+  const animFrameRef = React.useRef<number | null>(null);
+  const scannerBufferRef = React.useRef<{ text: string; lastTime: number }>({ text: "", lastTime: 0 });
+  const quickInputRef = React.useRef<HTMLInputElement | null>(null);
+
   const modoSucursal: "fijo" | "porItem" = isSuperAdmin ? "porItem" : "fijo";
+
+  // Precalentar caché de productos fresca al abrir modal
+  React.useEffect(() => {
+    if (isOpen) {
+      const sId = sucursalFija?.id ?? sucursales[0]?.sucursalId ?? 1;
+      if (sId > 0) ensureProductos(sId, true);
+    }
+  }, [isOpen, sucursalFija?.id, sucursales, ensureProductos]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -168,8 +190,314 @@ export default function RegistrarCompra({
       setLineaErrors({});
       setGuardando(false);
       setProgreso(null);
+      setQuickSearch("");
+    } else {
+      stopScanning();
     }
   }, [isOpen, proveedorPreseleccionado]);
+
+  const handleScanOrSearchBarcode = React.useCallback(
+    (scannedText: string) => {
+      const raw = scannedText.trim();
+      if (!raw) return;
+      const text = raw.toLowerCase();
+      const cleanDigits = raw.replace(/\s+/g, "").toLowerCase();
+
+      const sucursalIdEfectiva =
+        modoSucursal === "porItem" ? lineas[0]?.sucursalId || sucursalFija?.id || 1 : sucursalFija?.id ?? 1;
+      const productosSucursal = productosCache[sucursalIdEfectiva] ?? [];
+
+      // Coincidencia por código de barras (limpiando espacios), código o nombre
+      const encontrado =
+        productosSucursal.find((p) => {
+          const pBarcode = (p.codigoBarras ?? "").replace(/\s+/g, "").toLowerCase();
+          const pCodigo = (p.codigo ?? "").trim().toLowerCase();
+          const pNombre = (p.nomProducto ?? "").trim().toLowerCase();
+          return (
+            (pBarcode && (pBarcode === cleanDigits || pBarcode.includes(cleanDigits))) ||
+            pCodigo === text ||
+            pNombre === text ||
+            coincideBusqueda(raw, p.nomProducto, p.codigo, p.codigoBarras)
+          );
+        });
+
+      if (!encontrado) {
+        showToast(`No se encontró producto con código "${raw}"`, "info");
+        return;
+      }
+
+      const ultimoCosto = encontrado.sucursalProducto?.ultimoPrecioCompra;
+      const precioCompraDefault =
+        ultimoCosto && ultimoCosto > 0 ? String(ultimoCosto) : "";
+
+      // 1. Si hay una línea vacía en la tabla, la usamos
+      const lineaVacia = lineas.find((l) => l.productoId === 0 && l.estado !== "guardado");
+      if (lineaVacia) {
+        setLineas((prev) =>
+          prev.map((l) =>
+            l.key === lineaVacia.key
+              ? {
+                  ...l,
+                  productoId: encontrado.productoId,
+                  unidadMedida: encontrado.unidadMedida,
+                  precioCompra: l.precioCompra || precioCompraDefault,
+                  cantidad: l.cantidad && Number(l.cantidad) > 0 ? l.cantidad : "1",
+                }
+              : l,
+          ),
+        );
+        setLineaErrors((prev) => ({ ...prev, [lineaVacia.key]: {} }));
+        showToast(
+          `✓ ${encontrado.nomProducto}${
+            ultimoCosto && ultimoCosto > 0
+              ? ` (Costo: S/ ${ultimoCosto.toFixed(2)})`
+              : ""
+          }`,
+          "success",
+        );
+        setQuickSearch("");
+        return;
+      }
+
+      // 2. Si el producto ya existe en la lista, aumentamos la cantidad + 1
+      const lineaExistente = lineas.find(
+        (l) => l.productoId === encontrado.productoId && l.estado !== "guardado",
+      );
+      if (lineaExistente) {
+        const nuevaCant = (Number(lineaExistente.cantidad) || 0) + 1;
+        setLineas((prev) =>
+          prev.map((l) =>
+            l.key === lineaExistente.key
+              ? {
+                  ...l,
+                  cantidad: String(nuevaCant),
+                  precioCompra: l.precioCompra || precioCompraDefault,
+                }
+              : l,
+          ),
+        );
+        showToast(`+1 ${encontrado.nomProducto} (Total: ${nuevaCant})`, "success");
+        setQuickSearch("");
+        return;
+      }
+
+      // 3. Si no, agregamos una nueva fila
+      const nueva = nuevaLinea(
+        modoProveedor === "unico" ? proveedorIdHeader : 0,
+        sucursalFija?.id ?? 0,
+      );
+      nueva.productoId = encontrado.productoId;
+      nueva.unidadMedida = encontrado.unidadMedida;
+      nueva.precioCompra = precioCompraDefault;
+      nueva.cantidad = "1";
+
+      setLineas((prev) => [...prev, nueva]);
+      showToast(
+        `✓ ${encontrado.nomProducto}${
+          ultimoCosto && ultimoCosto > 0
+            ? ` (Costo: S/ ${ultimoCosto.toFixed(2)})`
+            : ""
+        }`,
+        "success",
+      );
+      setQuickSearch("");
+    },
+    [
+      lineas,
+      modoSucursal,
+      sucursalFija?.id,
+      productosCache,
+      showToast,
+      modoProveedor,
+      proveedorIdHeader,
+    ],
+  );
+
+  const stopScanning = React.useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setCameraError(null);
+    setIsScanning(false);
+  }, []);
+
+  const startScanning = async () => {
+    setCameraError(null);
+    setIsScanning(true);
+
+    setTimeout(async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setCameraError("Tu navegador no soporta el uso de la cámara.");
+          return;
+        }
+
+        const stream = await navigator.mediaDevices
+          .getUserMedia({
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1920, min: 1280 },
+              height: { ideal: 1080, min: 720 },
+              frameRate: { ideal: 60, min: 30 },
+              advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
+            },
+          })
+          .catch(() => navigator.mediaDevices.getUserMedia({ video: true }));
+
+        mediaStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+        // 1. Detección nativa
+        if ("BarcodeDetector" in window) {
+          try {
+            const BarcodeDetectorClass = (
+              window as unknown as {
+                BarcodeDetector: new (options?: { formats: string[] }) => {
+                  detect: (src: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>;
+                };
+              }
+            ).BarcodeDetector;
+
+            const detector = new BarcodeDetectorClass({
+              formats: [
+                "ean_13",
+                "code_128",
+                "qr_code",
+                "upc_a",
+                "ean_8",
+                "code_39",
+                "upc_e",
+                "itf",
+                "codabar",
+              ],
+            });
+
+            let scanned = false;
+            const scanLoopNative = async () => {
+              if (scanned || !videoRef.current || videoRef.current.paused || videoRef.current.ended)
+                return;
+              try {
+                if (videoRef.current.readyState >= 2) {
+                  const barcodes = await detector.detect(videoRef.current);
+                  if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                    scanned = true;
+                    const decodedText = barcodes[0].rawValue;
+                    handleScanOrSearchBarcode(decodedText);
+                    stopScanning();
+                    return;
+                  }
+                }
+              } catch {}
+              animFrameRef.current = requestAnimationFrame(scanLoopNative);
+            };
+            scanLoopNative();
+            return;
+          } catch (err) {
+            console.warn("Fallback a ZBar-WASM por falla en cámara nativa", err);
+          }
+        }
+
+        // 2. Fallback ZBar WASM
+        let scannedZbar = false;
+        const scanLoopZbar = async () => {
+          if (
+            scannedZbar ||
+            !videoRef.current ||
+            videoRef.current.paused ||
+            videoRef.current.ended ||
+            !ctx
+          )
+            return;
+          try {
+            if (videoRef.current.readyState >= 2) {
+              const vWidth = videoRef.current.videoWidth || 640;
+              const vHeight = videoRef.current.videoHeight || 480;
+              if (canvas.width !== vWidth || canvas.height !== vHeight) {
+                canvas.width = vWidth;
+                canvas.height = vHeight;
+              }
+              ctx.drawImage(videoRef.current, 0, 0, vWidth, vHeight);
+              const imgData = ctx.getImageData(0, 0, vWidth, vHeight);
+              const symbols = await scanImageData(imgData);
+              if (symbols && symbols.length > 0) {
+                const decodedText = symbols[0].decode();
+                if (decodedText) {
+                  scannedZbar = true;
+                  handleScanOrSearchBarcode(decodedText);
+                  stopScanning();
+                  return;
+                }
+              }
+            }
+          } catch {}
+          animFrameRef.current = requestAnimationFrame(scanLoopZbar);
+        };
+        scanLoopZbar();
+      } catch (err: unknown) {
+        const errorName = (err as { name?: string })?.name;
+        if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
+          setCameraError("No se detectó ninguna cámara en este equipo.");
+        } else if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
+          setCameraError("Permiso de cámara denegado en tu navegador.");
+        } else {
+          setCameraError("No se pudo acceder a la cámara.");
+        }
+      }
+    }, 50);
+  };
+
+  // Escáner USB / Inalámbrico en el modal
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA") &&
+        target !== quickInputRef.current &&
+        target.getAttribute("type") !== "number"
+      ) {
+        // Si el usuario está escribiendo un texto largo como documento de referencia, no interceptar
+      }
+
+      const now = Date.now();
+      const timeDiff = now - scannerBufferRef.current.lastTime;
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (timeDiff < 45) {
+          scannerBufferRef.current.text += e.key;
+        } else {
+          scannerBufferRef.current.text = e.key;
+        }
+        scannerBufferRef.current.lastTime = now;
+      }
+
+      if (e.key === "Enter" && scannerBufferRef.current.text.length >= 3 && timeDiff < 100) {
+        const scanned = scannerBufferRef.current.text.trim();
+        if (scanned) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleScanOrSearchBarcode(scanned);
+        }
+        scannerBufferRef.current = { text: "", lastTime: 0 };
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [isOpen, handleScanOrSearchBarcode]);
 
   const handleCambiarModoProveedor = (modo: "unico" | "varios") => {
     setModoProveedor(modo);
@@ -495,6 +823,98 @@ export default function RegistrarCompra({
             )}
           </div>
         )}
+
+        {/* ── Barra de escaneo rápido y búsqueda para ingreso de mercadería ── */}
+        <div className="bg-blue-50/70 border border-blue-200/80 p-2.5 rounded-xl space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-brand-blue uppercase flex items-center gap-1.5">
+                <ScanBarcode className="w-4 h-4 text-brand-blue" />
+                Ingreso Rápido con Escáner / Código de Barras
+              </span>
+              <span className="hidden sm:inline-block text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded-full border border-blue-100 font-medium">
+                Pistola USB / Bluetooth lista
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={isScanning ? stopScanning : startScanning}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-colors border shadow-2xs self-start sm:self-auto ${
+                isScanning
+                  ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
+                  : "bg-white border-blue-200 text-brand-blue hover:bg-blue-50"
+              }`}
+            >
+              <ScanBarcode className="w-3.5 h-3.5" />
+              <span>{isScanning ? "Cerrar cámara" : "Escanear con cámara"}</span>
+            </button>
+          </div>
+
+          <div className="relative flex items-center">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" />
+            <input
+              ref={quickInputRef}
+              type="text"
+              value={quickSearch}
+              onChange={(e) => setQuickSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleScanOrSearchBarcode(quickSearch);
+                }
+              }}
+              placeholder="Escanea el código de barras con pistola o escribe aquí (EAN-13, código o nombre)..."
+              className="w-full h-8 pl-9 pr-24 bg-white border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue text-gray-800 placeholder:text-gray-400"
+            />
+            <button
+              type="button"
+              onClick={() => handleScanOrSearchBarcode(quickSearch)}
+              className="absolute right-1 px-2.5 py-1 text-[11px] font-bold text-white bg-brand-blue hover:bg-brand-blue/90 rounded-md transition-colors shadow-2xs"
+            >
+              Añadir
+            </button>
+          </div>
+
+          {/* Visor de cámara en vivo si está activo */}
+          {isScanning && (
+            <div className="space-y-2 p-2.5 bg-gray-100/90 rounded-xl border border-gray-200 text-gray-800">
+              <div className="flex justify-between items-center px-1">
+                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">
+                  Buscando código de barras con la cámara...
+                </span>
+                <button
+                  type="button"
+                  onClick={stopScanning}
+                  className="text-xs font-semibold text-gray-600 hover:text-gray-900 transition-colors px-2 py-0.5 bg-gray-200/80 hover:bg-gray-300 rounded-lg"
+                >
+                  Cerrar
+                </button>
+              </div>
+              <div className="relative w-full max-w-56 aspect-square mx-auto bg-black rounded-xl overflow-hidden border border-gray-200 shadow-md flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+                {cameraError ? (
+                  <div className="absolute inset-0 z-20 bg-gray-950/95 flex flex-col items-center justify-center text-center p-3 text-white">
+                    <CameraOff className="w-8 h-8 text-gray-400 mb-1 animate-bounce" />
+                    <p className="text-xs font-semibold text-gray-200">{cameraError}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      Puedes ingresar el código manualmente o con lector USB
+                    </p>
+                  </div>
+                ) : (
+                  <div className="pointer-events-none absolute inset-2.5 border-2 border-white/20 rounded-lg flex items-center justify-center overflow-hidden z-10">
+                    <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* ── Líneas de productos (tabla) ── */}
         <div className="space-y-1.5">

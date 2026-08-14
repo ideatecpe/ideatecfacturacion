@@ -3,6 +3,10 @@ import { useEffect, useRef } from "react";
 interface OpcionesEscaner {
   minLength?: number;
   maxGapMs?: number;
+  // Permite apagar el listener sin romper la regla de hooks (siempre se llama,
+  // pero no engancha el keydown). Útil cuando otra vista con su propio escáner
+  // ya está montada, para evitar que ambos capturen la misma lectura.
+  enabled?: boolean;
 }
 
 export function useEscanerGlobal(
@@ -11,6 +15,7 @@ export function useEscanerGlobal(
 ) {
   const minLength = opciones?.minLength ?? 4;
   const maxGap = opciones?.maxGapMs ?? 50;
+  const enabled = opciones?.enabled ?? true;
 
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
@@ -19,6 +24,8 @@ export function useEscanerGlobal(
   const ultimaTeclaRef = useRef(0);
 
   useEffect(() => {
+    if (!enabled) return;
+
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
@@ -59,5 +66,5 @@ export function useEscanerGlobal(
 
     document.addEventListener("keydown", handler, true);
     return () => document.removeEventListener("keydown", handler, true);
-  }, [maxGap, minLength]);
+  }, [maxGap, minLength, enabled]);
 }

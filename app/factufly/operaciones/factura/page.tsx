@@ -2133,6 +2133,22 @@ function FacturaContent() {
     }
   };
 
+  // Ítems de stock a descontar (solo bienes con stock). El backend los descuenta
+  // atómicamente al crear el comprobante (van dentro del payload).
+  const calcularStockItems = () => {
+    const acumulado = new Map<number, number>();
+    detalles
+      .filter((d) => !d._esIcbper && d._tipoProducto === "BIEN" && d._sucursalProductoId)
+      .forEach((d) => {
+        const id = d._sucursalProductoId as number;
+        const cantidad = Number(d.cantidad) || 0;
+        acumulado.set(id, (acumulado.get(id) ?? 0) + cantidad);
+      });
+    return { acumulado, items: Array.from(acumulado.entries()).map(
+      ([sucursalProductoId, cantidad]) => ({ sucursalProductoId, cantidad }),
+    ) };
+  };
+
   // ── Preparar y emitir ────────────────────────────────────────
   const prepararFactura = () => {
     if (enviarCorreo && !correoCliente.trim()) {
@@ -2190,36 +2206,26 @@ function FacturaContent() {
       usuarioCreacion: user?.id ?? 0,
       enviadoEnResumen: null,
       ...(valesSeleccionados.length > 0 && { vales: valesSeleccionados }),
+      // El backend descuenta este stock DENTRO de la transacción que crea el
+      // comprobante: si no alcanza, la venta completa se rechaza (atómico).
+      stockItems: config?.isStock ? calcularStockItems().items : [],
     };
   };
 
-  // ── Descontar stock (solo si config.isStock) ───────────────────
+  // ── Stock tras venta ───────────────────────────────────────────
+  // El backend descuenta el stock ATÓMICAMENTE al crear el comprobante (ver
+  // stockItems en el payload). Aquí ya no se llama a la API: solo refrescamos el
+  // stock real y avisamos si quedó bajo. Sin stock, la venta ni se habría creado.
   const stockDescontadoRef = useRef(false);
-  const descontarStockSiAplica = async (comprobanteId: number) => {
+  const descontarStockSiAplica = async (_comprobanteId: number) => {
     if (!config?.isStock) return;
     if (stockDescontadoRef.current) return;
     stockDescontadoRef.current = true;
 
-    const acumulado = new Map<number, number>();
-    detalles
-      .filter((d) => !d._esIcbper && d._tipoProducto === "BIEN" && d._sucursalProductoId)
-      .forEach((d) => {
-        const id = d._sucursalProductoId as number;
-        const cantidad = Number(d.cantidad) || 0;
-        acumulado.set(id, (acumulado.get(id) ?? 0) + cantidad);
-      });
-
-    const items = Array.from(acumulado.entries()).map(
-      ([sucursalProductoId, cantidad]) => ({ sucursalProductoId, cantidad }),
-    );
+    const { acumulado, items } = calcularStockItems();
     if (!items.length) return;
 
     try {
-      await axios.put(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/descontar-stock`,
-        items,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
       const productosActualizados = await fetchProductosSucursal();
       if (sucursal?.numeroStockBajo) {
         const umbral = config.umbralStockBajo ?? 10;
@@ -2235,7 +2241,7 @@ function FacturaContent() {
         if (bajos.length) avisarStockBajoWhatsapp(bajos, sucursal.numeroStockBajo);
       }
     } catch {
-      showToast("No se pudo actualizar el stock de los productos.", "error");
+      // Refrescar el stock no es crítico; el descuento ya ocurrió en el backend.
     }
   };
 

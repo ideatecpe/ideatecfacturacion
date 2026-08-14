@@ -65,7 +65,6 @@ import React from "react";
 import {
   generarXml,
   enviarASunatApi,
-  descontarStockApi,
   esErrorTransitorio,
 } from "./gestionBoletas/emitirBoletaApi";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
@@ -1545,7 +1544,12 @@ function BoletaContent() {
       agregarFila();
     }
   };
-  useEscanerGlobal(onScanCodigo);
+  // En modo Caja Autopago esta pantalla renderiza <CajaAutopago />, que tiene
+  // su propio escáner. Desactivamos el listener global de aquí para que una sola
+  // lectura no dispare dos toasts (y no sume cantidades por duplicado).
+  useEscanerGlobal(onScanCodigo, {
+    enabled: !(config?.isStock && config?.isCajaAutopago),
+  });
 
   // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
   const getStockEfectivo = (p: ProductoSucursal): number | null => {
@@ -2018,6 +2022,9 @@ function BoletaContent() {
     },
     usuarioCreacion: user?.id ?? 0,
     ...(valesSeleccionados.length > 0 && { vales: valesSeleccionados }),
+    // El backend descuenta este stock DENTRO de la transacción que crea el
+    // comprobante: si no alcanza, la venta completa se rechaza (atómico).
+    stockItems: config?.isStock ? calcularStockItems().items : [],
   });
 
   // ── Descontar stock (solo si config.isStock) ───────────────────
@@ -2037,7 +2044,11 @@ function BoletaContent() {
     ) };
   };
 
-  const descontarStockSiAplica = async (comprobanteId: number) => {
+  // El backend descuenta el stock ATÓMICAMENTE al crear el comprobante (ver
+  // stockItems en el payload). Aquí ya no se llama a la API: solo refrescamos el
+  // stock real desde el servidor y avisamos si quedó bajo. Si no hubiera habido
+  // stock, la venta ni se habría creado (el backend la rechaza entera).
+  const descontarStockSiAplica = async (_comprobanteId: number) => {
     if (!config?.isStock) return;
     if (stockDescontadoRef.current) return;
     stockDescontadoRef.current = true;
@@ -2046,7 +2057,6 @@ function BoletaContent() {
     if (!items.length) return;
 
     try {
-      await descontarStockApi(comprobanteId, items, accessToken);
       const productosActualizados = await fetchProductosSucursal();
       if (sucursal?.numeroStockBajo) {
         const umbral = config.umbralStockBajo ?? 10;
@@ -2062,7 +2072,7 @@ function BoletaContent() {
         if (bajos.length) avisarStockBajoWhatsapp(bajos, sucursal.numeroStockBajo);
       }
     } catch {
-      showToast("No se pudo actualizar el stock de los productos.", "error");
+      // Refrescar el stock no es crítico; el descuento ya ocurrió en el backend.
     }
   };
 

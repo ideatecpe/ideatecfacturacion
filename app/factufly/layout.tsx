@@ -156,8 +156,14 @@ export default function DashboardLayout({
     const responseInterceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (!error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED" || (typeof navigator !== "undefined" && !navigator.onLine)) {
-          window.dispatchEvent(new Event("offline"));
+        const cancelado = error.code === "ERR_CANCELED" || axios.isCancel?.(error);
+        if (
+          !cancelado &&
+          (!error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED" || (typeof navigator !== "undefined" && !navigator.onLine))
+        ) {
+          // No se asume "sin conexión" con un solo fallo (puede ser un 401, CORS,
+          // timeout del backend o una API de terceros caída): se verifica antes.
+          window.dispatchEvent(new Event("app:posible-sin-conexion"));
         }
         return Promise.reject(error);
       },
@@ -179,7 +185,7 @@ export default function DashboardLayout({
         const url = typeof args[0] === "string" ? args[0] : (args[0] as any).url;
         console.warn(`[FETCH FAIL] ${url}`);
         if (error?.name !== "AbortError") {
-          window.dispatchEvent(new Event("offline"));
+          window.dispatchEvent(new Event("app:posible-sin-conexion"));
         }
         throw error;
       }

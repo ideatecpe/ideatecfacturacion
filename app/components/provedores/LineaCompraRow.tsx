@@ -175,20 +175,34 @@ export default function LineaCompraRow({
             const seleccionado = productosSucursal.find((p) => p.productoId === id);
             onChange(linea.key, "productoId", id);
             onChange(linea.key, "unidadMedida", seleccionado?.unidadMedida ?? "");
+            if (seleccionado?.sucursalProducto?.ultimoPrecioCompra && seleccionado.sucursalProducto.ultimoPrecioCompra > 0) {
+              onChange(linea.key, "precioCompra", String(seleccionado.sucursalProducto.ultimoPrecioCompra));
+            }
           }}
           disabled={sucursalIdEfectiva === 0 || loadingSucursal || disabled}
-          placeholder={loadingSucursal ? "Cargando..." : "Seleccione un producto"}
+          placeholder={loadingSucursal ? "Cargando..." : "Seleccione o busque por código..."}
           showError={!!errors.productoId}
           opciones={productosSucursal.map((p) => ({
             value: p.productoId,
             label: `${p.nomProducto} (${p.codigo})`,
+            codigoBarras: p.codigoBarras ?? undefined,
+            sublabel: p.sucursalProducto?.ultimoPrecioCompra && p.sucursalProducto.ultimoPrecioCompra > 0
+              ? `Último costo: S/ ${p.sucursalProducto.ultimoPrecioCompra.toFixed(2)} · Stock: ${p.sucursalProducto.stock ?? 0}`
+              : `Stock: ${p.sucursalProducto?.stock ?? 0}`,
           }))}
         />
         {producto && (
-          <p className="text-[9px] text-blue-600 mt-0.5 leading-tight">
-            Stock: <strong>{producto.sucursalProducto.stock ?? 0}</strong> · Venta: S/{" "}
-            {producto.sucursalProducto.precioUnitario.toFixed(2)}
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <span className="text-[9px] text-blue-600 leading-tight">
+              Stock: <strong>{producto.sucursalProducto.stock ?? 0}</strong> · Venta: S/{" "}
+              {producto.sucursalProducto.precioUnitario.toFixed(2)}
+            </span>
+            {producto.codigoBarras && (
+              <span className="text-[9px] font-mono text-gray-500 bg-gray-100 px-1 py-0.2 rounded border border-gray-200">
+                🏷️ {producto.codigoBarras}
+              </span>
+            )}
+          </div>
         )}
         {esPaquete && (
           <p
@@ -241,6 +255,11 @@ export default function LineaCompraRow({
             className={`${inputCls} pl-6 ${errors.precioCompra ? "border-rose-400" : "border-gray-200"}`}
           />
         </div>
+        {producto?.sucursalProducto?.ultimoPrecioCompra && producto.sucursalProducto.ultimoPrecioCompra > 0 && (
+          <p className="text-[9px] text-gray-500 mt-0.5 leading-tight">
+            Últ. costo: <strong>S/ {producto.sucursalProducto.ultimoPrecioCompra.toFixed(2)}</strong>
+          </p>
+        )}
       </td>
 
       <td className="px-1.5 py-1.5 align-top w-[130px]">

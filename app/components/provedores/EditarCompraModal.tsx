@@ -174,13 +174,24 @@ export default function EditarCompraModal({
           </label>
           <SelectConBuscador
             value={productoId === 0 ? null : productoId}
-            onChange={(val) => setProductoId(val ?? 0)}
+            onChange={(val) => {
+              const pid = val ?? 0;
+              setProductoId(pid);
+              const p = productos.find((x) => x.productoId === pid);
+              if (p?.sucursalProducto?.ultimoPrecioCompra && p.sucursalProducto.ultimoPrecioCompra > 0 && !precioCompra) {
+                setPrecioCompra(String(p.sucursalProducto.ultimoPrecioCompra));
+              }
+            }}
             disabled={guardando || loadingProductos}
-            placeholder={loadingProductos ? "Cargando..." : "Seleccione un producto"}
+            placeholder={loadingProductos ? "Cargando..." : "Seleccione o busque por código..."}
             showError={!!errors.productoId}
             opciones={productos.map((p) => ({
               value: p.productoId,
-              label: p.nomProducto,
+              label: `${p.nomProducto} (${p.codigo})`,
+              codigoBarras: p.codigoBarras ?? undefined,
+              sublabel: p.sucursalProducto?.ultimoPrecioCompra && p.sucursalProducto.ultimoPrecioCompra > 0
+                ? `Último costo: S/ ${p.sucursalProducto.ultimoPrecioCompra.toFixed(2)} · Stock: ${p.sucursalProducto.stock ?? 0}`
+                : `Stock: ${p.sucursalProducto?.stock ?? 0}`,
             }))}
           />
           {errors.productoId && (
