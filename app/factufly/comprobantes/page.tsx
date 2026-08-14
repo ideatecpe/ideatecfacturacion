@@ -67,6 +67,7 @@ import {
   marcarComprobanteCargaEnviado,
 } from "@/app/utils/cargaComprobantesStore";
 import { CardTable } from "@/app/components/ui/CardTable";
+import { Modal } from "@/app/components/ui/Modal";
 
 // ─── Constantes filtros ───────────────────────────────────────────────────────
 const TIPOS_OPTS = ["Todos", "Factura", "Boleta", "N.Crédito", "N.Débito", "N. Venta"];
@@ -619,6 +620,34 @@ export default function VerComprobantesPage() {
   const anularComprobante = async (_c: ComprobanteListado) => {};
   const agregarResumen = async (_c: ComprobanteListado) => {};
 
+  // ── Anular Nota de Venta (devuelve stock y marca el comprobante como ANULADO) ──
+  const [confirmAnularNV, setConfirmAnularNV] = useState<ComprobanteListado | null>(null);
+  const [anulandoNV, setAnulandoNV] = useState(false);
+
+  const anularNotaVenta = async () => {
+    if (!confirmAnularNV) return;
+    setAnulandoNV(true);
+    try {
+      const usuarioId = user?.id ? Number(user.id) : undefined;
+      await axios.patch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/NotaVenta/${confirmAnularNV.comprobanteId}/anular`,
+        { usuarioId: Number.isFinite(usuarioId) ? usuarioId : null },
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      showToast("Nota de venta anulada correctamente", "success");
+      setConfirmAnularNV(null);
+      cargarComprobantes(offset);
+    } catch (err) {
+      const mensaje =
+        axios.isAxiosError(err) && err.response?.data?.mensaje
+          ? err.response.data.mensaje
+          : "Error al anular la nota de venta";
+      showToast(mensaje, "error");
+    } finally {
+      setAnulandoNV(false);
+    }
+  };
+
   // ── Detalles Adicionales (RUC 20512134832, solo factura) ──
   const RUC_DETALLES_ADICIONALES = "20512134832";
   const esRucDetallesAdicionales = rucEmpresa === RUC_DETALLES_ADICIONALES;
@@ -902,6 +931,43 @@ export default function VerComprobantesPage() {
           }}
         />
       )}
+
+      <Modal
+        isOpen={!!confirmAnularNV}
+        onClose={() => !anulandoNV && setConfirmAnularNV(null)}
+        title="Anular nota de venta"
+      >
+        <div className="space-y-4">
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3">
+            <Ban size={18} className="text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-rose-800">¿Estás seguro?</p>
+              <p className="text-xs text-rose-600 mt-0.5">
+                Se anulará la nota de venta{" "}
+                <strong>{confirmAnularNV?.numeroCompleto}</strong>, se devolverá el
+                stock de los productos vendidos y quedará marcada como
+                &quot;Anulado&quot;. Esta acción no se puede deshacer.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmAnularNV(null)}
+              disabled={anulandoNV}
+            >
+              Cancelar
+            </Button>
+            <button
+              onClick={anularNotaVenta}
+              disabled={anulandoNV}
+              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+            >
+              {anulandoNV ? "Anulando..." : "Anular venta"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <div className="sticky top-0 z-20">
         <div className="space-y-2">
@@ -1420,25 +1486,20 @@ export default function VerComprobantesPage() {
                     </td>
                     <td className="px-2 py-1 text-center w-20">
                       <div className="flex justify-center">
-                        {doc.tipoComprobante === "NV" ? (
-                          <span className="p-2 text-gray-300 cursor-not-allowed">
-                            <MoreHorizontal size={16} />
-                          </span>
-                        ) : (
-                          <DropdownOpciones
-                            comprobante={doc}
-                            onEnviarSunat={() => enviarSunat(doc)}
-                            onEditarEnviarSunat={() => editarenviarSunat(doc)}
-                            onResumen={() => agregarResumen(doc)}
-                            onAnular={() => anularComprobante(doc)}
-                            onGenerarNotaCredito={() => generarNotaCredito(doc)}
-                            onGenerarNotaDebito={() => generarNotaDebito(doc)}
-                            mostrarDetallesAdicionales={esRucDetallesAdicionales}
-                            onDetallesAdicionales={() =>
-                              abrirDetallesAdicionales(doc)
-                            }
-                          />
-                        )}
+                        <DropdownOpciones
+                          comprobante={doc}
+                          onEnviarSunat={() => enviarSunat(doc)}
+                          onEditarEnviarSunat={() => editarenviarSunat(doc)}
+                          onResumen={() => agregarResumen(doc)}
+                          onAnular={() => anularComprobante(doc)}
+                          onAnularNotaVenta={() => setConfirmAnularNV(doc)}
+                          onGenerarNotaCredito={() => generarNotaCredito(doc)}
+                          onGenerarNotaDebito={() => generarNotaDebito(doc)}
+                          mostrarDetallesAdicionales={esRucDetallesAdicionales}
+                          onDetallesAdicionales={() =>
+                            abrirDetallesAdicionales(doc)
+                          }
+                        />
                       </div>
                     </td>
                   </tr>
@@ -1680,6 +1741,7 @@ interface DropdownOpcionesProps {
   onEditarEnviarSunat: () => void;
   onResumen: () => void;
   onAnular: () => void;
+  onAnularNotaVenta: () => void;
   onGenerarNotaCredito: () => void;
   onGenerarNotaDebito: () => void;
   mostrarDetallesAdicionales?: boolean;
@@ -1692,6 +1754,7 @@ const DropdownOpciones = ({
   onEditarEnviarSunat,
   onResumen,
   onAnular,
+  onAnularNotaVenta,
   onGenerarNotaCredito,
   onGenerarNotaDebito,
   mostrarDetallesAdicionales = false,
@@ -1707,6 +1770,8 @@ const DropdownOpciones = ({
   const esFacturaOBoleta =
     comprobante.tipoComprobante === "01" ||
     comprobante.tipoComprobante === "03";
+  const esNotaVenta = comprobante.tipoComprobante === "NV";
+  const estaAnulada = comprobante.estadoSunat === "ANULADO";
 
   const handleOpen = () => {
     if (btnRef.current) {
@@ -1734,6 +1799,14 @@ const DropdownOpciones = ({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  if (esNotaVenta && estaAnulada) {
+    return (
+      <span className="p-2 text-gray-300 cursor-not-allowed">
+        <MoreHorizontal size={16} />
+      </span>
+    );
+  }
 
   return (
     <>
@@ -1826,6 +1899,17 @@ const DropdownOpciones = ({
                   <Ban size={14} className="text-red-500" /> Anular
                 </button>
               </>
+            )}
+            {esNotaVenta && !estaAnulada && (
+              <button
+                onClick={() => {
+                  onAnularNotaVenta();
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left text-red-600 hover:bg-red-50"
+              >
+                <Ban size={14} className="text-red-500" /> Anular venta
+              </button>
             )}
           </div>,
           document.body,

@@ -123,7 +123,7 @@ export default function RentabilidadPage() {
     <div className="space-y-2 animate-in fade-in duration-500">
 
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="relative flex-1 min-w-50 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input
             type="text"
@@ -159,7 +159,7 @@ export default function RentabilidadPage() {
             value={fechaDesde}
             max={fechaHasta || undefined}
             onChange={(e) => setFechaDesde(e.target.value)}
-            className="text-xs outline-none w-[105px] h-full"
+            className="text-xs outline-none w-26.25 h-full"
           />
           <span className="text-gray-300">–</span>
           <input
@@ -167,7 +167,7 @@ export default function RentabilidadPage() {
             value={fechaHasta}
             min={fechaDesde || undefined}
             onChange={(e) => setFechaHasta(e.target.value)}
-            className="text-xs outline-none w-[105px] h-full"
+            className="text-xs outline-none w-26.25 h-full"
           />
         </div>
 
@@ -361,6 +361,7 @@ export default function RentabilidadPage() {
                                         tickLine={false}
                                         tick={{ fontSize: 11, fill: "#94a3b8" }}
                                         width={48}
+                                        domain={[0, (max: number) => Math.ceil(max * 1.15)]}
                                       />
                                       <Tooltip
                                         contentStyle={{

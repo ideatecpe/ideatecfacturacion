@@ -434,11 +434,13 @@ export default function SunatPage() {
             clientId: config.clientId || null,
             clientSecret: config.clientSecret || null,
             logoBase64: user?.logoBase64 ?? null,
+            logoPdfBase64: user?.logoPdfBase64 ?? null,
             igv: igv,
           }
         : {
             environment: config.environment,
             logoBase64: user?.logoBase64 ?? null,
+            logoPdfBase64: user?.logoPdfBase64 ?? null,
             igv: igv,
           };
 
@@ -472,6 +474,7 @@ export default function SunatPage() {
             initialData={companyData}
             loadingInitial={loadingCompany}
             logoBase64={user?.logoBase64 ?? null}
+            logoPdfBase64={user?.logoPdfBase64 ?? null}
           />
         </div>
 

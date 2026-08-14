@@ -236,6 +236,7 @@ interface LogoUploaderProps {
   onFileSelected: (file: File, previewDataUrl: string) => void;
   onLogoRemove: () => void;
   onError: (msg: string) => void;
+  helpText?: string;
 }
 function LogoUploader({
   logoDataUrl,
@@ -244,6 +245,7 @@ function LogoUploader({
   onFileSelected,
   onLogoRemove,
   onError,
+  helpText = "Se mostrará en tus comprobantes electrónicos.",
 }: LogoUploaderProps) {
   const ref = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -359,7 +361,7 @@ function LogoUploader({
         <p className="text-[10px] text-gray-400">
           JPG, PNG, SVG o WEBP. Máximo 2MB.
           <br />
-          Se mostrará en tus comprobantes electrónicos.
+          {helpText}
         </p>
       </div>
     </div>
@@ -656,9 +658,15 @@ export default function ConfiguracionPage() {
 
   const [logoDataUrl, setLogoDataUrl] = useState("");
   const [logoBase64Pure, setLogoBase64Pure] = useState<string | null>(null);
+  const [logoPdfDataUrl, setLogoPdfDataUrl] = useState("");
+  const [logoPdfBase64Pure, setLogoPdfBase64Pure] = useState<string | null>(null);
+  const [uploadingLogoPdf, setUploadingLogoPdf] = useState(false);
 
-  // Cropper state
-  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  // Cropper state — recuerda a cuál de los dos logos pertenece la imagen en edición.
+  const [imageToCrop, setImageToCrop] = useState<{
+    tipo: "comprobante" | "pdf";
+    dataUrl: string;
+  } | null>(null);
 
   const { accessToken, user, refreshLogo } = useAuth();
 
@@ -742,6 +750,26 @@ export default function ConfiguracionPage() {
         setLogoBase64Pure(null);
         setLogoDataUrl("");
       });
+
+    // Logo específico para documentos PDF (respaldo automático al de comprobantes si no está configurado)
+    axios
+      .get(`${BASE_URL}/api/companies/logo?ruc=${ruc}&tipo=pdf`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      .then((res) => {
+        const data = res.data;
+        if (data.success && data.logoBase64) {
+          setLogoPdfBase64Pure(data.logoBase64);
+          setLogoPdfDataUrl(toDataUrl(data.logoBase64));
+        } else {
+          setLogoPdfBase64Pure(null);
+          setLogoPdfDataUrl("");
+        }
+      })
+      .catch(() => {
+        setLogoPdfBase64Pure(null);
+        setLogoPdfDataUrl("");
+      });
   }, [user?.ruc, accessToken]);
 
   // ── GET sucursales ────────────────────────────────────────────────────────
@@ -783,20 +811,26 @@ export default function ConfiguracionPage() {
     }
   }, [user?.ruc, user?.sucursalID, isSuperAdmin, accessToken]);
 
-  // ── Subir logo ────────────────────────────────────────────────────────────
-  const handleFileSelected = (file: File, previewDataUrl: string) => {
-    if (!canEdit) return;
-    setImageToCrop(previewDataUrl);
-  };
+  // ── Subir logo (comprobantes o PDF) ─────────────────────────────────────────
+  const handleFileSelected =
+    (tipo: "comprobante" | "pdf") => (file: File, previewDataUrl: string) => {
+      if (!canEdit) return;
+      setImageToCrop({ tipo, dataUrl: previewDataUrl });
+    };
 
   const handleCropComplete = async (
     croppedDataUrl: string,
     croppedFile: File,
   ) => {
+    const tipo = imageToCrop?.tipo ?? "comprobante";
     setImageToCrop(null);
-    setLogoDataUrl(croppedDataUrl);
-    setLogoBase64Pure(stripDataUrlPrefix(croppedDataUrl));
-    setUploadingLogo(true);
+    const setDataUrl = tipo === "pdf" ? setLogoPdfDataUrl : setLogoDataUrl;
+    const setBase64Pure = tipo === "pdf" ? setLogoPdfBase64Pure : setLogoBase64Pure;
+    const setUploading = tipo === "pdf" ? setUploadingLogoPdf : setUploadingLogo;
+
+    setDataUrl(croppedDataUrl);
+    setBase64Pure(stripDataUrlPrefix(croppedDataUrl));
+    setUploading(true);
     try {
       const formData = new FormData();
       formData.append("File", croppedFile);
@@ -808,18 +842,23 @@ export default function ConfiguracionPage() {
       });
       showToast("Logo subido y procesado correctamente", "success");
     } catch {
-      setLogoDataUrl("");
-      setLogoBase64Pure(null);
+      setDataUrl("");
+      setBase64Pure(null);
       showToast("Error al subir el logo. Inténtalo de nuevo.", "error");
     } finally {
-      setUploadingLogo(false);
+      setUploading(false);
     }
   };
 
-  const handleLogoRemove = () => {
+  const handleLogoRemove = (tipo: "comprobante" | "pdf") => () => {
     if (!canEdit) return;
-    setLogoDataUrl("");
-    setLogoBase64Pure(null);
+    if (tipo === "pdf") {
+      setLogoPdfDataUrl("");
+      setLogoPdfBase64Pure(null);
+    } else {
+      setLogoDataUrl("");
+      setLogoBase64Pure(null);
+    }
   };
 
   const upd =
@@ -920,6 +959,7 @@ export default function ConfiguracionPage() {
         telefono: form.telefono || null,
         email: form.email,
         logoBase64: logoBase64Pure,
+        logoPdfBase64: logoPdfBase64Pure,
       };
       await axios.put(`${BASE_URL}/api/companies/${form.ruc}`, payload, {
         headers: {
@@ -1017,9 +1057,19 @@ export default function ConfiguracionPage() {
                   logoDataUrl={logoDataUrl}
                   uploading={uploadingLogo}
                   canEdit={canEdit}
-                  onFileSelected={handleFileSelected}
-                  onLogoRemove={handleLogoRemove}
+                  onFileSelected={handleFileSelected("comprobante")}
+                  onLogoRemove={handleLogoRemove("comprobante")}
                   onError={(msg) => showToast(msg, "error")}
+                  helpText="Se mostrará en tus comprobantes electrónicos (ticket/HTML)."
+                />
+                <LogoUploader
+                  logoDataUrl={logoPdfDataUrl}
+                  uploading={uploadingLogoPdf}
+                  canEdit={canEdit}
+                  onFileSelected={handleFileSelected("pdf")}
+                  onLogoRemove={handleLogoRemove("pdf")}
+                  onError={(msg) => showToast(msg, "error")}
+                  helpText="Se usará en los documentos PDF descargables. Si no lo configuras, se usa el logo de comprobantes."
                 />
 
                 <div className="md:col-span-2 mt-3 mx-3">
@@ -1522,7 +1572,7 @@ export default function ConfiguracionPage() {
       </form>
       {imageToCrop && (
         <LogoCropper
-          image={imageToCrop}
+          image={imageToCrop.dataUrl}
           onCropComplete={handleCropComplete}
           onCancel={() => setImageToCrop(null)}
         />

@@ -21,6 +21,7 @@ export interface AuthUser {
   nombreEmpresa: string | null;
   environment: string | null;
   logoBase64: string | null;
+  logoPdfBase64: string | null;
   igv: number;
   tipoEmision: boolean;
 }
@@ -47,6 +48,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     null,
   );
   const [logoOverride, setLogoOverride] = useState<string | null>(null);
+  const [logoPdfOverride, setLogoPdfOverride] = useState<string | null>(null);
   const [tipoEmisionOverride, setTipoEmisionOverride] = useState<boolean | null>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("AuthContext_tipoEmision");
@@ -105,6 +107,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         } catch (logoErr) {
           setLogoOverride(null);
         }
+
+        try {
+          const logoPdfRes = await fetch(`${apiUrl}/api/companies/logo?ruc=${ruc}&tipo=pdf`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (logoPdfRes.ok) {
+            const logoPdfData = await logoPdfRes.json();
+            if (logoPdfData.success && logoPdfData.logoBase64) {
+              setLogoPdfOverride(logoPdfData.logoBase64);
+            } else {
+              setLogoPdfOverride(null);
+            }
+          } else {
+            setLogoPdfOverride(null);
+          }
+        } catch (logoPdfErr) {
+          setLogoPdfOverride(null);
+        }
       } catch (error) {
         console.error("Error fetching company data:", error);
       }
@@ -139,6 +159,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       nombreEmpresa: session.user.nombreEmpresa ?? null,
       environment: environmentOverride ?? session.user.environment ?? null,
       logoBase64: logoOverride,
+      logoPdfBase64: logoPdfOverride,
       igv: igvOverride ?? session.user.igv ?? 18,
       tipoEmision: tipoEmisionOverride ?? session.user.tipoEmision ?? true,
     };
@@ -152,6 +173,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     session?.user?.environment,
     environmentOverride,
     logoOverride,
+    logoPdfOverride,
     igvOverride,
     tipoEmisionOverride,
   ]);
@@ -161,8 +183,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setEnvironmentOverride(null);
     setIgvOverride(null);
     setLogoOverride(null);
+    setLogoPdfOverride(null);
     setTipoEmisionOverride(null);
-    
+
     // 2. Limpiar localStorage relacionado con Auth
     if (typeof window !== "undefined") {
       localStorage.removeItem("AuthContext_tipoEmision");
@@ -178,6 +201,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setEnvironmentOverride(null);
       setIgvOverride(null);
       setLogoOverride(null);
+      setLogoPdfOverride(null);
       setTipoEmisionOverride(null);
     }
   }, [status]);
