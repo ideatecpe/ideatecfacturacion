@@ -35,6 +35,7 @@ import {
   CameraOff,
   ShoppingBag,
   WifiOff,
+  PackagePlus,
 } from "lucide-react";
 
 import { scanImageData } from "@undecaf/zbar-wasm";
@@ -43,6 +44,7 @@ import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useProductosSucursal } from "@/app/factufly/productos/gestioProductos/useProductosSucursal";
+import { useCategoriasLista } from "@/app/factufly/productos/gestioProductos/useCategoriasLista";
 import { ProductoSucursal } from "@/app/factufly/productos/gestioProductos/Producto";
 import { abreviaturaUnidad, formatearCantidadUnidad } from "@/app/factufly/productos/gestioProductos/unidadMedida";
 import ImagenProductoCuadrada from "@/app/factufly/operaciones/components/ImagenProductoCuadrada";
@@ -65,6 +67,9 @@ import {
 } from "@/app/factufly/operaciones/boleta/gestionBoletas/emitirBoletaApi";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
 import { imprimirTicketProvisional } from "@/app/factufly/operaciones/components/TicketProvisional";
+import { cacheProductos } from "@/lib/offline/offlineDb";
+import ModalAjustarStockRapido from "@/app/factufly/operaciones/components/ModalAjustarStockRapido";
+import ModalCrearProductoRapido from "@/app/factufly/operaciones/components/ModalCrearProductoRapido";
 
 interface MedioPagoOpcion {
   nombre: string;
@@ -271,11 +276,18 @@ export default function CajaAutopago() {
   const { empresa } = useEmpresaEmisor();
   const { sucursal, fetchSucursal } = useSucursal();
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
+  const { categorias, fetchCategorias } = useCategoriasLista();
   const { enqueueVenta } = useOfflineSales();
   const [offlineEncolada, setOfflineEncolada] = useState(false);
   const [ultimoTicketOffline, setUltimoTicketOffline] = useState<
     Parameters<typeof imprimirTicketProvisional>[0] | null
   >(null);
+
+  useEffect(() => {
+    if (user?.ruc) {
+      fetchCategorias(user.ruc);
+    }
+  }, [user?.ruc, fetchCategorias]);
 
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
@@ -288,11 +300,41 @@ export default function CajaAutopago() {
   const [tipoSinDocumento, setTipoSinDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   // Con DNI/CE (no RUC), el cajero puede pasar de Boleta a Nota de Venta; por defecto Boleta.
   const [tipoConDocumento, setTipoConDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
+  const [productoSinStock, setProductoSinStock] = useState<ProductoSucursal | null>(null);
+  const [modalCrearRapidoAbierto, setModalCrearRapidoAbierto] = useState(false);
+  const [codigoBarrasNuevoProducto, setCodigoBarrasNuevoProducto] = useState("");
+  const [nombreNuevoProducto, setNombreNuevoProducto] = useState("");
+  const [historialVentasVersion, setHistorialVentasVersion] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
   const abrirPagoRef = useRef<() => void>(() => {});
   const modalAbiertoAtRef = useRef<number>(0);
+
+  const registrarVentaReciente = useCallback(
+    (soldItems: { productoId: number }[]) => {
+      if (!soldItems || soldItems.length === 0) return;
+      try {
+        const key = `factufly_recientes_venta_${sucursalId || "default"}`;
+        const raw = localStorage.getItem(key);
+        const data: Record<number, { timestamp: number; count: number }> = raw ? JSON.parse(raw) : {};
+        const now = Date.now();
+        for (const item of soldItems) {
+          if (!item.productoId) continue;
+          const prev = data[item.productoId] || { timestamp: 0, count: 0 };
+          data[item.productoId] = {
+            timestamp: now,
+            count: (prev.count || 0) + 1,
+          };
+        }
+        localStorage.setItem(key, JSON.stringify(data));
+        setHistorialVentasVersion((v) => v + 1);
+      } catch {
+        // ignore
+      }
+    },
+    [sucursalId],
+  );
 
   // ── Cámara Escáner de Código de Barras (Móvil / Web) ───────────────
   const [isScanning, setIsScanning] = useState(false);
@@ -311,7 +353,7 @@ export default function CajaAutopago() {
     }
     const disp = calcularDisponible(p, itemsRef.current, productosSucursal, config?.isStock ?? false);
     if (disp !== null && disp <= 0) {
-      showToast(`Stock insuficiente: no hay unidades disponibles de "${p.nomProducto}"`, "error");
+      setProductoSinStock(p);
       return;
     }
     setItems((prev) => {
@@ -346,6 +388,7 @@ export default function CajaAutopago() {
         },
       ];
     });
+    registrarVentaReciente([{ productoId: p.productoId }]);
     setBusqueda("");
     const active = document.activeElement;
     const isEditingOtherInput =
@@ -359,7 +402,37 @@ export default function CajaAutopago() {
     if (!isEditingOtherInput && !isMobileDevice) {
       inputRef.current?.focus();
     }
-  }, [showToast, config?.isStock, productosSucursal]);
+  }, [showToast, config?.isStock, productosSucursal, registrarVentaReciente]);
+
+  const handleStockGuardado = useCallback(
+    (productoActualizado: ProductoSucursal, autoAgregar: boolean) => {
+      setProductosSucursal((prev) => {
+        const next = prev.map((p) =>
+          p.productoId === productoActualizado.productoId ? productoActualizado : p,
+        );
+        if (sucursalId) cacheProductos(Number(sucursalId), next).catch(() => {});
+        return next;
+      });
+      if (autoAgregar) {
+        agregarProducto(productoActualizado);
+      }
+      fetchProductosSucursal().catch(() => {});
+    },
+    [agregarProducto, setProductosSucursal, sucursalId, fetchProductosSucursal],
+  );
+
+  const handleProductoCreado = useCallback(
+    (nuevoProducto: ProductoSucursal) => {
+      setProductosSucursal((prev) => {
+        const next = [nuevoProducto, ...prev.filter((p) => p.productoId !== nuevoProducto.productoId)];
+        if (sucursalId) cacheProductos(Number(sucursalId), next).catch(() => {});
+        return next;
+      });
+      agregarProducto(nuevoProducto);
+      fetchProductosSucursal().catch(() => {});
+    },
+    [agregarProducto, setProductosSucursal, sucursalId, fetchProductosSucursal],
+  );
 
   const stopScanning = useCallback(async () => {
     if (animFrameRef.current) {
@@ -440,13 +513,16 @@ export default function CajaAutopago() {
         if (config?.isStock && p.tipoProducto === "BIEN") {
           const disp = calcularDisponible(p, itemsRef.current, productosSucursal, true);
           if (disp !== null && disp <= 0) {
-            showToast(`"${p.nomProducto}" sin stock — registra una compra primero`, "error");
+            setProductoSinStock(p);
             return;
           }
         }
         agregarProducto(p);
       } else {
-        showToast(`No se encontró producto con código: ${decodedText}`, "error");
+        const raw = decodedText.trim();
+        setCodigoBarrasNuevoProducto(raw);
+        setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
+        setModalCrearRapidoAbierto(true);
       }
     },
     [productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor],
@@ -632,23 +708,51 @@ export default function CajaAutopago() {
     return null;
   })();
 
-  // ── Grid de productos (filtrado en vivo por el buscador) ───────
+  // ── Grid de productos (ordenados por más recientes / más vendidos por defecto) ──
   const productosGrid = useMemo(() => {
-    // Con control de stock activo, solo se muestran los bienes que tienen al menos
-    // 1 unidad disponible en el pool compartido (desconta lo comprometido en el carrito).
-    // Los servicios no manejan stock y siempre se muestran.
-    const conStock = config?.isStock
-      ? productosSucursal.filter((p) => {
-          if (p.tipoProducto !== "BIEN") return true;
-          // Si ya está en el carrito siempre se muestra (aunque su pool esté agotado).
-          if (items.some((i) => i.productoId === p.productoId)) return true;
-          const disp = calcularDisponible(p, items, productosSucursal, true);
-          return disp === null || disp > 0;
-        })
-      : productosSucursal;
-    if (!busqueda.trim()) return conStock;
-    return conStock.filter((p) => coincideBusqueda(busqueda, p.nomProducto, p.codigo, p.codigoBarras));
-  }, [busqueda, productosSucursal, config?.isStock, items]);
+    if (busqueda.trim()) {
+      return productosSucursal.filter((p) =>
+        coincideBusqueda(busqueda, p.nomProducto, p.codigo, p.codigoBarras),
+      );
+    }
+
+    // Sin búsqueda: ordenar para que aparezcan primero los productos más recientes/vendidos
+    let stats: Record<number, { timestamp: number; count: number }> = {};
+    try {
+      const key = `factufly_recientes_venta_${sucursalId || "default"}`;
+      const raw = typeof window !== "undefined" ? localStorage.getItem(key) : null;
+      if (raw) stats = JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+
+    const itemsEnCarritoSet = new Set(items.map((i) => i.productoId));
+
+    const copia = [...productosSucursal];
+    copia.sort((a, b) => {
+      // 1. Productos actualmente en el carrito siempre al frente
+      const aEnCarrito = itemsEnCarritoSet.has(a.productoId) ? 1 : 0;
+      const bEnCarrito = itemsEnCarritoSet.has(b.productoId) ? 1 : 0;
+      if (aEnCarrito !== bEnCarrito) return bEnCarrito - aEnCarrito;
+
+      // 2. Por actividad reciente de venta (timestamp más reciente primero)
+      const statA = stats[a.productoId];
+      const statB = stats[b.productoId];
+      const timeA = statA?.timestamp ?? 0;
+      const timeB = statB?.timestamp ?? 0;
+      if (timeA !== timeB) return timeB - timeA;
+
+      // 3. Por frecuencia de venta (más vendidos primero)
+      const countA = statA?.count ?? 0;
+      const countB = statB?.count ?? 0;
+      if (countA !== countB) return countB - countA;
+
+      // 4. Por defecto los creados más recientemente (id descendente)
+      return b.productoId - a.productoId;
+    });
+
+    return copia;
+  }, [busqueda, productosSucursal, items, sucursalId, historialVentasVersion]);
 
   const cambiarCantidad = (key: string, delta: number) => {
     if (delta > 0) {
@@ -732,9 +836,9 @@ export default function CajaAutopago() {
     return false;
   }, []);
 
-  // ── Paginación y límite de renderizado inicial (36 ítems por página) ──
-  const [limiteVistaGrid, setLimiteVistaGrid] = useState(24);
-  useEffect(() => { setLimiteVistaGrid(24); }, [busqueda]);
+  // ── Paginación y límite de renderizado inicial (32 productos más recientes/vendidos) ──
+  const [limiteVistaGrid, setLimiteVistaGrid] = useState(32);
+  useEffect(() => { setLimiteVistaGrid(32); }, [busqueda]);
 
   const productosGridVisualizados = useMemo(() => {
     return productosGrid.slice(0, limiteVistaGrid);
@@ -776,7 +880,7 @@ export default function CajaAutopago() {
       if (config?.isStock && exacto.tipoProducto === "BIEN") {
         const disp = calcularDisponible(exacto, itemsRef.current, productosSucursal, true);
         if (disp !== null && disp <= 0) {
-          showToast(`"${exacto.nomProducto}" sin stock — registra una compra primero`, "error");
+          setProductoSinStock(exacto);
           setBusqueda("");
           return;
         }
@@ -826,7 +930,7 @@ export default function CajaAutopago() {
 
       if (exacto) {
         if (config?.isStock && exacto.tipoProducto === "BIEN" && (exacto.sucursalProducto.stock ?? 0) <= 0) {
-          showToast(`El producto "${exacto.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+          setProductoSinStock(exacto);
           setBusqueda("");
           return;
         }
@@ -844,7 +948,7 @@ export default function CajaAutopago() {
         ) ?? productosGrid[0];
 
         if (config?.isStock && matchGrid.tipoProducto === "BIEN" && (matchGrid.sucursalProducto.stock ?? 0) <= 0) {
-          showToast(`El producto "${matchGrid.nomProducto}" no tiene stock disponible (0 unidades).`, "error");
+          setProductoSinStock(matchGrid);
           setBusqueda("");
           return;
         }
@@ -852,7 +956,10 @@ export default function CajaAutopago() {
         agregarProducto(matchGrid);
         setBusqueda("");
       } else {
-        showToast(`No se encontró producto con el código o nombre: "${q}"`, "error");
+        const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
+        setCodigoBarrasNuevoProducto(raw);
+        setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
+        setModalCrearRapidoAbierto(true);
         setBusqueda("");
       }
     },
@@ -1657,6 +1764,7 @@ export default function CajaAutopago() {
     setComprobanteIdEmitido(null);
     setMedioPagoEmitido(esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago);
     setVueltoEmitido(esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto);
+    registrarVentaReciente(itemsRef.current);
     setOfflineEncolada(true);
     setEmitido(true);
   };
@@ -1742,6 +1850,7 @@ export default function CajaAutopago() {
       setComprobanteIdEmitido(comprobanteId);
       setMedioPagoEmitido(esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago);
       setVueltoEmitido(esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto);
+      registrarVentaReciente(itemsRef.current);
       setEmitido(true);
       setEmitiendo(false);
 
@@ -1878,11 +1987,26 @@ export default function CajaAutopago() {
               )}
             </div>
 
+            <button
+              type="button"
+              onClick={() => {
+                const raw = busqueda.trim();
+                setCodigoBarrasNuevoProducto(raw);
+                setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
+                setModalCrearRapidoAbierto(true);
+              }}
+              className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-emerald-600 text-white rounded-md text-xs font-semibold hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
+              title="Registrar producto nuevo rápidamente"
+            >
+              <PackagePlus size={14} />
+              <span className="hidden sm:inline">+ Producto</span>
+            </button>
+
             {!isScanning ? (
               <button
                 type="button"
                 onClick={startScanning}
-                className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0"
+                className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
               >
                 <ScanBarcode size={14} />
                 <span className="hidden sm:inline">Cámara</span>
@@ -1891,7 +2015,7 @@ export default function CajaAutopago() {
               <button
                 type="button"
                 onClick={stopScanning}
-                className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-rose-500 text-white rounded-md text-xs font-semibold hover:bg-rose-600 active:scale-[0.98] transition-all shadow-sm shrink-0"
+                className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-rose-500 text-white rounded-md text-xs font-semibold hover:bg-rose-600 active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
               >
                 <X size={14} />
                 <span>Cerrar</span>
@@ -1952,12 +2076,27 @@ export default function CajaAutopago() {
                 ))}
               </div>
             ) : productosGrid.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center">
+              <div className="h-full flex flex-col items-center justify-center text-center py-8">
                 <div className="bg-gray-100 rounded-full p-5 mb-4">
                   <PackageSearch className="w-10 h-10 text-gray-300" />
                 </div>
                 <p className="text-gray-500 font-semibold">Sin resultados</p>
                 <p className="text-gray-400 text-sm mt-1">Prueba con otro nombre o código</p>
+                {busqueda.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const raw = busqueda.trim();
+                      setCodigoBarrasNuevoProducto(raw);
+                      setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
+                      setModalCrearRapidoAbierto(true);
+                    }}
+                    className="mt-3 px-4 py-2 bg-brand-blue hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <PackagePlus size={14} />
+                    Registrar &quot;{busqueda}&quot; como nuevo producto
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -1983,8 +2122,8 @@ export default function CajaAutopago() {
                   <div className="flex justify-center pt-2 pb-1">
                     <button
                       type="button"
-                      onClick={() => setLimiteVistaGrid((prev) => prev + 24)}
-                      className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-semibold transition-colors shadow-2xs"
+                      onClick={() => setLimiteVistaGrid((prev) => prev + 32)}
+                      className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
                     >
                       Cargar más productos (mostrando {limiteVistaGrid} de {productosGrid.length})
                     </button>
@@ -3172,6 +3311,26 @@ export default function CajaAutopago() {
           </div>
         </div>
       )}
+
+      {/* Modal de Ajuste Rápido de Stock cuando un producto no tiene unidades disponibles */}
+      <ModalAjustarStockRapido
+        isOpen={!!productoSinStock}
+        onClose={() => setProductoSinStock(null)}
+        producto={productoSinStock}
+        onStockGuardado={handleStockGuardado}
+      />
+
+      {/* Modal de Registro Rápido de Producto cuando un producto no existe en el catálogo */}
+      <ModalCrearProductoRapido
+        isOpen={modalCrearRapidoAbierto}
+        onClose={() => setModalCrearRapidoAbierto(false)}
+        codigoBarrasInicial={codigoBarrasNuevoProducto}
+        nombreInicial={nombreNuevoProducto}
+        categorias={categorias}
+        totalProductos={productosSucursal.length}
+        sucursalId={sucursalId || 1}
+        onProductoCreado={handleProductoCreado}
+      />
     </>
   );
 }
