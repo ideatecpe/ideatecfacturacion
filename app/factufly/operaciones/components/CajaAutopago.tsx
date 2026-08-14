@@ -388,7 +388,6 @@ export default function CajaAutopago() {
         },
       ];
     });
-    registrarVentaReciente([{ productoId: p.productoId }]);
     setBusqueda("");
     const active = document.activeElement;
     const isEditingOtherInput =
@@ -402,7 +401,7 @@ export default function CajaAutopago() {
     if (!isEditingOtherInput && !isMobileDevice) {
       inputRef.current?.focus();
     }
-  }, [showToast, config?.isStock, productosSucursal, registrarVentaReciente]);
+  }, [showToast, config?.isStock, productosSucursal]);
 
   const handleStockGuardado = useCallback(
     (productoActualizado: ProductoSucursal, autoAgregar: boolean) => {
@@ -716,7 +715,7 @@ export default function CajaAutopago() {
       );
     }
 
-    // Sin búsqueda: ordenar para que aparezcan primero los productos más recientes/vendidos
+    // Sin búsqueda: ordenar para que aparezcan primero los productos más vendidos/recientes de ventas finalizadas
     let stats: Record<number, { timestamp: number; count: number }> = {};
     try {
       const key = `factufly_recientes_venta_${sucursalId || "default"}`;
@@ -726,33 +725,26 @@ export default function CajaAutopago() {
       // ignore
     }
 
-    const itemsEnCarritoSet = new Set(items.map((i) => i.productoId));
-
     const copia = [...productosSucursal];
     copia.sort((a, b) => {
-      // 1. Productos actualmente en el carrito siempre al frente
-      const aEnCarrito = itemsEnCarritoSet.has(a.productoId) ? 1 : 0;
-      const bEnCarrito = itemsEnCarritoSet.has(b.productoId) ? 1 : 0;
-      if (aEnCarrito !== bEnCarrito) return bEnCarrito - aEnCarrito;
-
-      // 2. Por actividad reciente de venta (timestamp más reciente primero)
+      // 1. Por actividad de venta finalizada (timestamp más reciente primero)
       const statA = stats[a.productoId];
       const statB = stats[b.productoId];
       const timeA = statA?.timestamp ?? 0;
       const timeB = statB?.timestamp ?? 0;
       if (timeA !== timeB) return timeB - timeA;
 
-      // 3. Por frecuencia de venta (más vendidos primero)
+      // 2. Por frecuencia de venta (más vendidos primero)
       const countA = statA?.count ?? 0;
       const countB = statB?.count ?? 0;
       if (countA !== countB) return countB - countA;
 
-      // 4. Por defecto los creados más recientemente (id descendente)
+      // 3. Por defecto los creados más recientemente (id descendente)
       return b.productoId - a.productoId;
     });
 
     return copia;
-  }, [busqueda, productosSucursal, items, sucursalId, historialVentasVersion]);
+  }, [busqueda, productosSucursal, sucursalId, historialVentasVersion]);
 
   const cambiarCantidad = (key: string, delta: number) => {
     if (delta > 0) {

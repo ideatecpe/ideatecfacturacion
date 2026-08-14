@@ -306,6 +306,32 @@ export default function AgregarProducto({
     };
   }, [isOpen, stopScanning]);
 
+  // Al abrir el modal: en COMPUTADORA enfoca el input "Nombre del producto";
+  // en CELULAR abre directamente la cámara para escanear el código de barras.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const esMovil =
+      typeof window !== "undefined" &&
+      ("ontouchstart" in window ||
+        navigator.maxTouchPoints > 0 ||
+        window.innerWidth < 1024);
+    const puedeEscanear =
+      !productoExistente && esUnidadContable(form.unidadMedida);
+
+    const t = setTimeout(() => {
+      if (esMovil && puedeEscanear) {
+        startScanning();
+      } else {
+        document
+          .getElementById("agregar-producto-nombre")
+          ?.focus();
+      }
+    }, 150);
+    return () => clearTimeout(t);
+    // Solo debe dispararse al abrir/cerrar el modal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
   const eliminarImagenCloudflare = async (imageId: string) => {
     try {
       await fetch("/api/upload-imagen", {
@@ -1004,6 +1030,7 @@ export default function AgregarProducto({
           <div className="flex items-end gap-2">
             <div className="flex-1 min-w-0">
               <InputBase
+                id="agregar-producto-nombre"
                 compact
                 label="Nombre del Producto"
                 value={form.nomProducto}
