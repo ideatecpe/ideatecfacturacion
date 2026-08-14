@@ -715,7 +715,16 @@ export default function CajaAutopago() {
       );
     }
 
-    // Sin búsqueda: ordenar para que aparezcan primero los productos más vendidos/recientes de ventas finalizadas
+    // Sin búsqueda: solo mostrar productos disponibles con stock mayor a 0 (o servicios)
+    const baseProductos = (config?.isStock ?? true)
+      ? productosSucursal.filter((p) => {
+          if (p.tipoProducto !== "BIEN") return true;
+          const disp = calcularDisponible(p, [], productosSucursal, true);
+          return disp === null || disp > 0;
+        })
+      : productosSucursal;
+
+    // Ordenar para que aparezcan primero los productos más vendidos/recientes de ventas finalizadas
     let stats: Record<number, { timestamp: number; count: number }> = {};
     try {
       const key = `factufly_recientes_venta_${sucursalId || "default"}`;
@@ -725,7 +734,7 @@ export default function CajaAutopago() {
       // ignore
     }
 
-    const copia = [...productosSucursal];
+    const copia = [...baseProductos];
     copia.sort((a, b) => {
       // 1. Por actividad de venta finalizada (timestamp más reciente primero)
       const statA = stats[a.productoId];
@@ -744,7 +753,7 @@ export default function CajaAutopago() {
     });
 
     return copia;
-  }, [busqueda, productosSucursal, sucursalId, historialVentasVersion]);
+  }, [busqueda, productosSucursal, sucursalId, historialVentasVersion, config?.isStock]);
 
   const cambiarCantidad = (key: string, delta: number) => {
     if (delta > 0) {

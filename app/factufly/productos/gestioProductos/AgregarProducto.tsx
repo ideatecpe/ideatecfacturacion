@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { scanImageData } from "@undecaf/zbar-wasm";
 import dynamic from "next/dynamic";
 import axios from "axios";
-import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, Loader2, CameraOff } from "lucide-react";
+import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, CameraOff } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 
 const BarcodePreview = dynamic(() => import("react-barcode"), { ssr: false });
@@ -125,7 +125,6 @@ export default function AgregarProducto({
   const [confirmandoEliminarImagen, setConfirmandoEliminarImagen] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
-  const [buscandoInternet, setBuscandoInternet] = useState(false);
   const [modalCatalogoOpen, setModalCatalogoOpen] = useState(false);
   const [codigoSunatLabel, setCodigoSunatLabel] = useState("");
 
@@ -231,9 +230,6 @@ export default function AgregarProducto({
                     setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
                     showToast(`Código escaneado: ${decodedText}`, "success");
                     stopScanning();
-                    if (decodedText.trim().length >= 8) {
-                      buscarProductoPorInternet(decodedText.trim());
-                    }
                     return;
                   }
                 }
@@ -271,9 +267,6 @@ export default function AgregarProducto({
                   setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
                   showToast(`Código escaneado: ${decodedText}`, "success");
                   stopScanning();
-                  if (decodedText.trim().length >= 8) {
-                    buscarProductoPorInternet(decodedText.trim());
-                  }
                   return;
                 }
               }
@@ -429,84 +422,6 @@ export default function AgregarProducto({
 
   // Busca datos del producto por su código de barras en internet (Open Food Facts)
   // y autocompleta el nombre (si está vacío) y la imagen (si no hay una).
-  const buscarProductoPorInternet = async (barcodeOverride?: string) => {
-    const barcode = barcodeOverride || form.codigoBarras?.trim();
-    if (!barcode) return;
-    setBuscandoInternet(true);
-    try {
-      const res = await fetch("/api/buscar-producto-barcode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ barcode }),
-      });
-      const data = await res.json();
-
-      if (!data.ok) {
-        showToast(data.error ?? "No se pudo buscar el producto.", "error");
-        return;
-      }
-      if (!data.encontrado) {
-        // El producto no está en la base de datos (típico de productos nuevos del
-        // país). Igual conservamos el código que se tecleó como código de barras
-        // real del producto —para que al escanearlo después coincida—, en vez de
-        // dejar solo la opción de generar uno distinto. Solo falta el nombre.
-        setPalabraBusqueda("");
-        setShowSugerencias(false);
-        setForm((prev) => {
-          const nombreEraSoloElCodigo = prev.nomProducto.trim() === barcode;
-          return {
-            ...prev,
-            codigoBarras: esUnidadContable(prev.unidadMedida) ? barcode : prev.codigoBarras,
-            // Si el nombre quedó con los puros dígitos, se limpia para escribir el real.
-            nomProducto: nombreEraSoloElCodigo ? "" : prev.nomProducto,
-            codigo: nombreEraSoloElCodigo ? "" : prev.codigo,
-          };
-        });
-        showToast(
-          `No está en la base de datos. Escribe el nombre — el código ${barcode} quedó guardado.`,
-          "info",
-        );
-        return;
-      }
-
-      // Nombre: actualizar siempre con el producto escaneado
-      if (data.nombre) {
-        const nombre: string = data.nombre;
-        setPalabraBusqueda("");
-        setShowSugerencias(false);
-        setForm((prev) => ({
-          ...prev,
-          nomProducto: nombre,
-          codigo: generarCodigoProducto(
-            nombre,
-            productosEmpresa.length === 0 ? 0 : productosEmpresa.length,
-          ),
-          // Guarda el código buscado (solo si la unidad admite código de barras),
-          // para que quede registrado e imprimible sin re-teclearlo.
-          codigoBarras: esUnidadContable(prev.unidadMedida) ? barcode : prev.codigoBarras,
-        }));
-        if (errors.nomProducto) setErrors((prev) => ({ ...prev, nomProducto: false }));
-      }
-
-      // Imagen: actualizar siempre con la imagen del producto escaneado
-      if (data.url) {
-        // Si había una imagen previa subida sin guardar, liberarla.
-        if (currentImageId) eliminarImagenCloudflare(currentImageId);
-        setImgError(false);
-        setImgPreview(data.url);
-        setForm((prev) => ({ ...prev, urlImagenProducto: data.url }));
-        setCurrentImageId(data.imageId ?? null);
-      }
-
-      const partes = [data.nombre, data.marca].filter(Boolean).join(" · ");
-      showToast(`Producto encontrado: ${partes || barcode}`, "success");
-    } catch {
-      showToast("Error de conexión al buscar el producto.", "error");
-    } finally {
-      setBuscandoInternet(false);
-    }
-  };
-
   //seleccionar sucursal para agregar si es superadmin
   const { sucursales } = useSucursalRuc(isSuperAdmin);
   const [sucursalSeleccionada, setSucursalSeleccionada] =
@@ -613,11 +528,18 @@ export default function AgregarProducto({
     }
 
     if (esCodigoBarras) {
-      // Sin sugerencias de nombres mientras se resuelve el código.
+      // El valor tecleado/pegado es un código de barras: lo guardamos como tal
+      // (sin buscar nada en internet) y dejamos el nombre en blanco para que el
+      // usuario lo escriba y ponga la foto manualmente.
       setShowSugerencias(false);
       const codigo = value.trim();
       busquedaBarcodeTimerRef.current = setTimeout(() => {
-        buscarProductoPorInternet(codigo);
+        setForm((prev) => ({
+          ...prev,
+          codigoBarras: esUnidadContable(prev.unidadMedida) ? codigo : prev.codigoBarras,
+          nomProducto: prev.nomProducto.trim() === codigo ? "" : prev.nomProducto,
+          codigo: prev.nomProducto.trim() === codigo ? "" : prev.codigo,
+        }));
       }, 600);
     }
   };
@@ -1067,11 +989,6 @@ export default function AgregarProducto({
           {productoExistente && (
             <p className="text-xs text-green-600 font-semibold pl-1">
               ✓ Producto encontrado — completa precio para esta sucursal
-            </p>
-          )}
-          {buscandoInternet && (
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue pl-1">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando por código de barras…
             </p>
           )}
         </div>
