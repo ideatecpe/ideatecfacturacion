@@ -28,6 +28,11 @@ import { MenuItem, View } from "../types";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
+import {
+  avisarConexionViva,
+  marcarPeticionIniciada,
+  marcarPeticionTerminada,
+} from "@/lib/offline/senalRed";
 
 // Única sección preparada para funcionar sin conexión: mientras no haya
 // internet, la navegación a cualquier otra pantalla se bloquea (en vez de
@@ -154,9 +159,15 @@ export default function DashboardLayout({
     }
 
     const responseInterceptor = axios.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // Respondió el backend: hay internet, sin necesidad de ping.
+        avisarConexionViva();
+        return response;
+      },
       (error) => {
         const cancelado = error.code === "ERR_CANCELED" || axios.isCancel?.(error);
+        // Si el servidor contestó (aunque sea un 4xx/5xx), la red funciona.
+        if (error.response) avisarConexionViva();
         if (
           !cancelado &&
           (!error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED" || (typeof navigator !== "undefined" && !navigator.onLine))
@@ -171,8 +182,15 @@ export default function DashboardLayout({
 
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
+      const urlInicial = typeof args[0] === "string" ? args[0] : (args[0] as any)?.url;
+      // El ping del detector no cuenta como tráfico propio: si se contara a sí
+      // mismo, se daría por vivo solo, y nunca detectaría un corte real.
+      const esPing = String(urlInicial).includes("_ping=");
+      if (!esPing) marcarPeticionIniciada();
       try {
         const response = await originalFetch(...args);
+        // Llegó una respuesta del servidor: prueba directa de que hay conexión.
+        if (!esPing) avisarConexionViva();
         // Solo registra fallos (sin body ni objetos pesados) para no saturar
         // la consola ni retener memoria durante sesiones largas.
         if (!response.ok) {
@@ -188,6 +206,8 @@ export default function DashboardLayout({
           window.dispatchEvent(new Event("app:posible-sin-conexion"));
         }
         throw error;
+      } finally {
+        if (!esPing) marcarPeticionTerminada();
       }
     };
 
