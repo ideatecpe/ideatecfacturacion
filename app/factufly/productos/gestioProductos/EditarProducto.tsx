@@ -814,7 +814,7 @@ function FormEditarProducto({
                       onFocus={(e) => e.currentTarget.select()}
                       onClick={(e) => e.currentTarget.select()}
                       onWheel={(e) => e.currentTarget.blur()}
-                      placeholder={umbralStockBajo ? `${umbralStockBajo}` : "5"}
+                      placeholder={umbralStockBajo != null ? `${umbralStockBajo}` : "5"}
                       className="w-16 px-1.5 py-0.5 text-xs bg-white border border-gray-200 rounded-md outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>

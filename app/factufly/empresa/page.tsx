@@ -237,6 +237,7 @@ interface LogoUploaderProps {
   onLogoRemove: () => void;
   onError: (msg: string) => void;
   helpText?: string;
+  title?: string;
 }
 function LogoUploader({
   logoDataUrl,
@@ -246,6 +247,7 @@ function LogoUploader({
   onLogoRemove,
   onError,
   helpText = "Se mostrará en tus comprobantes electrónicos.",
+  title,
 }: LogoUploaderProps) {
   const ref = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -281,7 +283,13 @@ function LogoUploader({
   };
 
   return (
-    <div className="md:col-span-2 flex items-center gap-6 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+    <div className="flex flex-col gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+      {title && (
+        <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">
+          {title}
+        </p>
+      )}
+      <div className="flex items-center gap-4">
       <div
         className={cn(
           "h-24 bg-white rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all duration-300",
@@ -363,6 +371,7 @@ function LogoUploader({
           <br />
           {helpText}
         </p>
+      </div>
       </div>
     </div>
   );
@@ -1054,6 +1063,7 @@ export default function ConfiguracionPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <LogoUploader
+                  title="Logo de comprobantes"
                   logoDataUrl={logoDataUrl}
                   uploading={uploadingLogo}
                   canEdit={canEdit}
@@ -1063,13 +1073,14 @@ export default function ConfiguracionPage() {
                   helpText="Se mostrará en tus comprobantes electrónicos (ticket/HTML)."
                 />
                 <LogoUploader
+                  title="Logo de documentos PDF"
                   logoDataUrl={logoPdfDataUrl}
                   uploading={uploadingLogoPdf}
                   canEdit={canEdit}
                   onFileSelected={handleFileSelected("pdf")}
                   onLogoRemove={handleLogoRemove("pdf")}
                   onError={(msg) => showToast(msg, "error")}
-                  helpText="Se usará en los documentos PDF descargables. Si no lo configuras, se usa el logo de comprobantes."
+                  helpText="Se usará en los PDF descargables. Si no lo configuras, se usa el logo de comprobantes."
                 />
 
                 <div className="md:col-span-2 mt-3 mx-3">
