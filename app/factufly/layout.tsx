@@ -184,7 +184,7 @@ export default function DashboardLayout({
       } catch (error: any) {
         const url = typeof args[0] === "string" ? args[0] : (args[0] as any).url;
         console.warn(`[FETCH FAIL] ${url}`);
-        if (error?.name !== "AbortError") {
+        if (error?.name !== "AbortError" && !String(url).includes("_ping=")) {
           window.dispatchEvent(new Event("app:posible-sin-conexion"));
         }
         throw error;

@@ -334,9 +334,9 @@ export default function AgregarProducto({
       showToast("Solo se permiten imágenes JPG, PNG o WebP.", "error");
       return;
     }
-    // Validar tamaño (máx 2 MB)
-    if (file.size > 2 * 1024 * 1024) {
-      showToast("La imagen no debe superar 2 MB.", "error");
+    // Validar tamaño (máx 4 MB)
+    if (file.size > 4 * 1024 * 1024) {
+      showToast("La imagen no debe superar 4 MB.", "error");
       return;
     }
 
@@ -904,7 +904,7 @@ export default function AgregarProducto({
                     </p>
                   ) : (
                     <p className="text-[11px] text-gray-400">
-                      JPG, PNG o WebP — máx. 2 MB
+                      JPG, PNG o WebP — máx. 4 MB
                     </p>
                   )}
                   <div className="flex gap-1.5">
@@ -981,10 +981,13 @@ export default function AgregarProducto({
                             stockMinimoAlerta: e.target.value === "" ? null : Number(e.target.value),
                           }))
                         }
+                        onFocus={(e) => e.currentTarget.select()}
+                        onClick={(e) => e.currentTarget.select()}
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder={
                           config?.umbralStockBajo ? `General: ${config.umbralStockBajo}` : "Ej: 5"
                         }
-                        className="w-24 px-2 py-0.5 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50"
+                        className="w-24 px-2 py-0.5 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   )}
