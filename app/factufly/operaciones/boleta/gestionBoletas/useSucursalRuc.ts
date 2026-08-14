@@ -3,6 +3,7 @@ import axios from 'axios'
 import { Sucursal } from './Boleta'
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/app/components/ui/Toast';
+import { esFalloDeRed } from '@/lib/offline/senalRed';
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms))
 
@@ -26,12 +27,15 @@ export function useSucursalRuc(enabled: boolean = true) {
         setSucursales(res.data)
         setLoadingSucursales(false)
         return // ✅ éxito, salimos
-      } catch {
+      } catch (err) {
         if (i < intentos - 1) {
           await sleep(1000 * (i + 1)) // espera 1s, 2s antes de reintentar
         } else {
-          // último intento fallido → muestra error
-          showToast("Error al obtener las sucursales", "error")
+          // último intento fallido → muestra error, salvo que sea por falta de
+          // internet: eso ya lo comunica la franja de "Sin conexión".
+          if (!esFalloDeRed(err)) {
+            showToast("Error al obtener las sucursales", "error")
+          }
           setLoadingSucursales(false)
         }
       }

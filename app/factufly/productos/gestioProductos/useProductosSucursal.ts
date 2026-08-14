@@ -4,6 +4,7 @@ import { ProductoSucursal } from './Producto'
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/app/components/ui/Toast';
 import { cacheProductos, getProductosCache } from '@/lib/offline/offlineDb';
+import { esFalloDeRed } from '@/lib/offline/senalRed';
 
 export function useProductosSucursal(sucursalIdOverride?: number | null, enabled: boolean = true) {
   const { showToast } = useToast();
@@ -62,7 +63,7 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
             return cache.productos
           }
         } catch { /* ignore */ }
-        if (axios.isAxiosError(err) && err.response) {
+        if (!esFalloDeRed(err)) {
           showToast("Error al cargar productos", "error");
         }
       }
