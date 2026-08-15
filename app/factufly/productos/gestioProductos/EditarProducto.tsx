@@ -401,18 +401,19 @@ export default function EditarProducto({
       return;
     }
 
-    // Si el stock sube sin costo, el backend genera un lote PEPS con costo 0 que luego se
-    // arrastra en kardex/valorizado/rentabilidad hasta corregirlo a mano.
+    // Cualquier cambio de stock (subir o bajar) exige tener costo registrado: subir sin costo
+    // genera un lote PEPS a costo 0, y bajar sin costo indica que el producto todavía no tiene
+    // su costo corregido (arrastraría movimientos de Kardex a costo 0 desde los lotes existentes).
     const stockActual = producto.sucursalProducto.stock ?? 0;
     if (
       config?.isStock &&
       form.tipoProducto === "BIEN" &&
       form.stock !== null &&
       form.stock !== undefined &&
-      form.stock > stockActual &&
+      form.stock !== stockActual &&
       (!form.costoUnitario || form.costoUnitario <= 0)
     ) {
-      showToast("Debes registrar el costo de compra cuando aumentas el stock del producto.", "info");
+      showToast("Debes registrar el costo de compra para modificar el stock del producto.", "info");
       return;
     }
 
