@@ -312,14 +312,21 @@ function BoletaContent() {
     setCodigoTipoDescGlobal(comprobante.codigoTipoDescGlobal ?? "02");
   }, [comprobante]);
 
-  // Productos según sucursal
+  // Productos según sucursal.
+  // En modo Caja Autopago esta pantalla renderiza <CajaAutopago />, que tiene su
+  // propio useProductosSucursal. Sin la guarda `enabled` quedaban DOS instancias
+  // vivas pidiendo y escribiendo el mismo cache de IndexedDB a la vez, y la copia
+  // invisible (que nunca ve las ventas del carrito) podía dejar stock viejo.
   const {
     productosSucursal,
     fetchProductosSucursal,
     descontarStockLocal,
     productosDesactualizados,
     fechaCache,
-  } = useProductosSucursal(isSuperAdmin ? sucursal?.sucursalId : undefined);
+  } = useProductosSucursal(
+    isSuperAdmin ? sucursal?.sucursalId : undefined,
+    !(config?.isStock && config?.isCajaAutopago),
+  );
 
   const sinSucursal = isSuperAdmin && !sucursal;
   const { fecha, fechaHora } = formatoFechaActual();
