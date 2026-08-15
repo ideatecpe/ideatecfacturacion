@@ -401,6 +401,21 @@ export default function EditarProducto({
       return;
     }
 
+    // Si el stock sube sin costo, el backend genera un lote PEPS con costo 0 que luego se
+    // arrastra en kardex/valorizado/rentabilidad hasta corregirlo a mano.
+    const stockActual = producto.sucursalProducto.stock ?? 0;
+    if (
+      config?.isStock &&
+      form.tipoProducto === "BIEN" &&
+      form.stock !== null &&
+      form.stock !== undefined &&
+      form.stock > stockActual &&
+      (!form.costoUnitario || form.costoUnitario <= 0)
+    ) {
+      showToast("Debes registrar el costo de compra cuando aumentas el stock del producto.", "info");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload: EditProducto = {
@@ -504,7 +519,10 @@ export default function EditarProducto({
         if (status === 404) {
           showToast("No se encontró el producto a actualizar.", "error");
         } else if (status === 400) {
-          showToast("Los datos ingresados no son válidos.", "error");
+          showToast(
+            String(error.response?.data?.mensaje ?? "Los datos ingresados no son válidos."),
+            "error",
+          );
         } else {
           showToast("No se pudo actualizar el producto. Intenta nuevamente.", "error");
         }

@@ -626,6 +626,17 @@ export default function AgregarProducto({
       newErrors.porcentajeDescuento = true;
     }
 
+    // Sin costo, el stock inicial genera un lote PEPS con costo 0 que luego se arrastra en
+    // kardex/valorizado/rentabilidad hasta corregirlo a mano.
+    if (
+      config?.isStock &&
+      form.tipoProducto === "BIEN" &&
+      (form.stock ?? 0) > 0 &&
+      (!form.costoUnitario || form.costoUnitario <= 0)
+    ) {
+      newErrors.costoUnitario = true;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -715,7 +726,10 @@ export default function AgregarProducto({
         if (status === 409) {
           showToast(error.response?.data?.mensaje, "info");
         } else if (status === 400) {
-          showToast("Los datos ingresados no son válidos.", "error");
+          showToast(
+            String(error.response?.data?.mensaje ?? "Los datos ingresados no son válidos."),
+            "error",
+          );
         } else {
           showToast(
             "No se pudo registrar el producto. Intenta nuevamente.",
@@ -1259,18 +1273,20 @@ export default function AgregarProducto({
             <InputBase
               compact
               label="Precio de Compra"
-              labelOptional="(opcional)"
+              labelOptional={(form.stock ?? 0) > 0 ? undefined : "(opcional)"}
               type="number"
               value={form.costoUnitario === null || form.costoUnitario === undefined ? "" : String(form.costoUnitario)}
-              onChange={(e) =>
+              onChange={(e) => {
+                if (errors.costoUnitario) setErrors((prev) => ({ ...prev, costoUnitario: false }));
                 setForm((prev) => ({
                   ...prev,
                   costoUnitario: e.target.value === "" ? null : Number(e.target.value),
-                }))
-              }
+                }));
+              }}
               placeholder="Ej: 3.50"
               step="0.01"
-              showError={false}
+              showError={!!errors.costoUnitario}
+              errorMessage="Obligatorio cuando registras stock inicial"
             />
           )}
 
@@ -1281,12 +1297,12 @@ export default function AgregarProducto({
               labelOptional="(opcional)"
               type="number"
               value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  stock: e.target.value === "" ? null : Number(e.target.value),
-                }))
-              }
+              onChange={(e) => {
+                const nuevoStock = e.target.value === "" ? null : Number(e.target.value);
+                if (errors.costoUnitario && (nuevoStock ?? 0) <= 0)
+                  setErrors((prev) => ({ ...prev, costoUnitario: false }));
+                setForm((prev) => ({ ...prev, stock: nuevoStock }));
+              }}
               placeholder="Ej: 50"
               showError={false}
             />
