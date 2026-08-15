@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { scanImageData } from "@undecaf/zbar-wasm";
 import dynamic from "next/dynamic";
 import axios from "axios";
-import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, RotateCcw, CameraOff } from "lucide-react";
+import { ChevronDown, Camera, X as XIcon, ImageOff, ScanBarcode, CameraOff, Bell, CalendarClock, PackageX } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 
 const BarcodePreview = dynamic(() => import("react-barcode"), { ssr: false });
@@ -885,7 +885,12 @@ export default function AgregarProducto({
             )}
 
             {config?.isStock && form.tipoProducto === "BIEN" && (
-              <div className="flex-1 min-w-0 space-y-1.5 border-t sm:border-t-0 border-gray-100 pt-2 sm:pt-0">
+              <div className="flex-1 min-w-0 space-y-2.5 border-t sm:border-t-0 sm:border-l border-gray-100 pt-2.5 sm:pt-0 sm:pl-4">
+                <p className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                  <Bell className="w-3.5 h-3.5" />
+                  Alertas de inventario
+                </p>
+
                 <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
                   <input
                     type="checkbox"
@@ -895,12 +900,13 @@ export default function AgregarProducto({
                     }
                     className="w-4 h-4 accent-brand-blue"
                   />
+                  <CalendarClock className="w-3.5 h-3.5 text-gray-400" />
                   <span className="text-xs font-semibold text-gray-600">
                     Alertar por fecha de vencimiento
                   </span>
                 </label>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="space-y-1.5">
                   <label className="flex items-center gap-2 cursor-pointer select-none w-fit">
                     <input
                       type="checkbox"
@@ -910,15 +916,16 @@ export default function AgregarProducto({
                       }
                       className="w-4 h-4 accent-brand-blue"
                     />
+                    <PackageX className="w-3.5 h-3.5 text-gray-400" />
                     <span className="text-xs font-semibold text-gray-600">
                       Alertar por stock bajo
                     </span>
                   </label>
 
                   {(form.alertaStockBajoActiva ?? true) && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-gray-500 uppercase">
-                        Stock mín:
+                    <div className="ml-6 flex items-center gap-1.5 pl-2.5 border-l-2 border-amber-200/70">
+                      <span className="text-[10px] font-semibold text-gray-500 whitespace-nowrap">
+                        Mínimo:
                       </span>
                       <input
                         type="number"
@@ -934,11 +941,18 @@ export default function AgregarProducto({
                         onWheel={(e) => e.currentTarget.blur()}
                         placeholder={
                           config?.umbralStockBajo != null
-                            ? `General: ${config.umbralStockBajo}`
-                            : "Ej: 5"
+                            ? String(config.umbralStockBajo)
+                            : "5"
                         }
-                        className="w-24 px-2 py-0.5 text-xs bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-11 px-1.5 py-1 text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
+                      <span className="text-[10px] text-gray-400 leading-tight whitespace-nowrap">
+                        {form.stockMinimoAlerta === null || form.stockMinimoAlerta === undefined
+                          ? config?.umbralStockBajo != null
+                            ? `usa el general (${config.umbralStockBajo})`
+                            : "sin definir"
+                          : "unidades"}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -1044,7 +1058,7 @@ export default function AgregarProducto({
         {/* ── Campos base ── */}
         {!soloSucursal && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* ── Tipo de producto ── */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">
@@ -1127,24 +1141,8 @@ export default function AgregarProducto({
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-500 uppercase">
-                  Tipo Afectación IGV
-                </label>
-                <select
-                  value={form.tipoAfectacionIGV}
-                  onChange={handleFormChange("tipoAfectacionIGV")}
-                  className="w-full px-4 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50"
-                >
-                  <option value="10">10 - Gravado</option>
-                  <option value="20">20 - Exonerado</option>
-                  <option value="30">30 - Inafecto</option>
-                </select>
-              </div>
-
+              {/* ── Unidad de Medida (Tipo Afectación IGV oculto temporalmente: siempre "10 - Gravado") ── */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">
                   Unidad de Medida
@@ -1175,59 +1173,62 @@ export default function AgregarProducto({
                 <label className="text-xs font-bold text-gray-500 uppercase">
                   Código de Barras
                 </label>
-                <div className="w-full rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2 flex items-center justify-center min-h-16">
-                  {form.codigoBarras ? (
-                    <div className="flex items-center justify-center gap-4 w-full">
-                      <div className="bg-white rounded-lg px-3 py-1.5 border border-gray-100">
-                        <BarcodePreview
-                          value={form.codigoBarras}
-                          format={formatoBarcodeSeguro(form.codigoBarras)}
-                          width={1.5}
-                          height={38}
-                          fontSize={12}
-                          margin={0}
-                          displayValue
-                          background="transparent"
-                          lineColor="#1e293b"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
-                          }
-                          className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:underline"
-                        >
-                          <RotateCcw className="w-3 h-3" /> Regenerar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-rose-500 hover:underline"
-                        >
-                          <XIcon className="w-3 h-3" /> Quitar código
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
+                <div className="w-full rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 px-3 py-2.5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={form.codigoBarras ?? ""}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          codigoBarras: e.target.value.replace(/\s/g, ""),
+                        }))
+                      }
+                      placeholder="Escribe o pega el código…"
+                      className="flex-1 min-w-0 px-3 py-1.5 text-sm font-mono bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50"
+                    />
                     <button
                       type="button"
                       onClick={() =>
                         setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
                       }
-                      className="w-full flex items-center justify-center gap-3 py-1 group"
+                      title={form.codigoBarras ? "Regenerar código automático" : "Generar código automático"}
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-brand-blue bg-white hover:bg-blue-50 border border-brand-blue/30 rounded-lg transition-colors"
                     >
-                      <ScanBarcode className="w-8 h-8 text-brand-blue shrink-0 group-hover:scale-110 transition-transform" />
-                      <div className="text-left">
-                        <span className="block text-xs font-bold text-brand-blue">
-                          Generar código automático
-                        </span>
-                        <span className="block text-[10px] text-gray-400">
-                          EAN-13 interno válido para imprimir y escanear
-                        </span>
-                      </div>
+                      <ScanBarcode className="w-3.5 h-3.5" />
+                      {form.codigoBarras ? "Regenerar" : "Generar"}
                     </button>
+                    {form.codigoBarras && (
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
+                        title="Quitar código"
+                        className="shrink-0 flex items-center justify-center w-8 h-8 text-rose-500 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors"
+                      >
+                        <XIcon className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {form.codigoBarras ? (
+                    <div className="flex items-center justify-center bg-white rounded-lg px-3 py-1.5 border border-gray-100">
+                      <BarcodePreview
+                        value={form.codigoBarras}
+                        format={formatoBarcodeSeguro(form.codigoBarras)}
+                        width={1.5}
+                        height={38}
+                        fontSize={12}
+                        margin={0}
+                        displayValue
+                        background="transparent"
+                        lineColor="#1e293b"
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-gray-400 text-center">
+                      Escribe tu propio código, escanéalo o genera uno EAN-13 automático
+                    </p>
                   )}
                 </div>
               </div>
@@ -1235,38 +1236,24 @@ export default function AgregarProducto({
           </>
         )}
 
-        {/* ── Precio de Venta y Costo de Compra (misma línea) ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <InputBase
-              compact
-              label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio de Venta"}
-              type="number"
-              value={String(form.precioUnitario)}
-              onChange={(e) => {
-                handleFormChange("precioUnitario")(e);
-                if (errors.precioUnitario)
-                  setErrors((prev) => ({ ...prev, precioUnitario: false }));
-              }}
-              placeholder="0.00"
-              step="0.01"
-              showError={!!errors.precioUnitario}
-              errorMessage="Debe ser mayor a 0"
-            />
-            {form.tipoAfectacionIGV === "10" && (
-              <div className="flex items-center gap-2 pl-1">
-                <input
-                  type="checkbox"
-                  checked={form.incluirIGV}
-                  onChange={handleFormChange("incluirIGV")}
-                  className="w-4 h-4 accent-brand-blue"
-                />
-                <label className="text-xs font-semibold text-gray-600">
-                  Precio Incluye IGV
-                </label>
-              </div>
-            )}
-          </div>
+        {/* ── Precio de Venta, Precio de Compra y Stock Inicial (misma línea) ── */}
+        {/* Precio Incluye IGV oculto: todos los productos se registran con el precio incluyendo IGV (form.incluirIGV = true por defecto). */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <InputBase
+            compact
+            label={form.esPaquete ? "Precio del Paquete/Caja" : "Precio de Venta"}
+            type="number"
+            value={String(form.precioUnitario)}
+            onChange={(e) => {
+              handleFormChange("precioUnitario")(e);
+              if (errors.precioUnitario)
+                setErrors((prev) => ({ ...prev, precioUnitario: false }));
+            }}
+            placeholder="0.00"
+            step="0.01"
+            showError={!!errors.precioUnitario}
+            errorMessage="Debe ser mayor a 0"
+          />
 
           {config?.isStock && form.tipoProducto === "BIEN" && (
             <InputBase
@@ -1287,6 +1274,24 @@ export default function AgregarProducto({
             />
           )}
 
+          {config?.isStock && form.tipoProducto === "BIEN" && (
+            <InputBase
+              compact
+              label="Stock Inicial"
+              labelOptional="(opcional)"
+              type="number"
+              value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  stock: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder="Ej: 50"
+              showError={false}
+            />
+          )}
+
           {/* Campo Código (auto) oculto/comentado porque se genera automáticamente */}
           {/* {!soloSucursal && (
             <InputBase
@@ -1301,43 +1306,6 @@ export default function AgregarProducto({
             />
           )} */}
         </div>
-
-        {/* ── Stock inicial y Ubicación en tienda (misma línea) ── */}
-        {config?.isStock && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {form.tipoProducto === "BIEN" && (
-              <InputBase
-                compact
-                label="Stock Inicial"
-                labelOptional="(opcional, si no lo sabes déjalo vacío)"
-                type="number"
-                value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    stock: e.target.value === "" ? null : Number(e.target.value),
-                  }))
-                }
-                placeholder="Ej: 50"
-                showError={false}
-              />
-            )}
-            <InputBase
-              compact
-              label="Ubicación en Tienda"
-              labelOptional="(opcional)"
-              value={form.ubicacionTienda ?? ""}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  ubicacionTienda: e.target.value.trim() === "" ? null : e.target.value,
-                }))
-              }
-              placeholder="Ej: Pasillo 3, Estante B"
-              showError={false}
-            />
-          </div>
-        )}
 
 
         {/* ── Código SUNAT (UNSPSC) (Comentado temporalmente) ── */}

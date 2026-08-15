@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
-import { Camera, X as XIcon, ImageOff, ScanBarcode, CameraOff } from "lucide-react";
+import { Camera, X as XIcon, ImageOff, ScanBarcode, CameraOff, CalendarClock, PackageX } from "lucide-react";
 import { scanImageData } from "@undecaf/zbar-wasm";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
@@ -779,12 +779,13 @@ function FormEditarProducto({
                   }
                   className="w-3.5 h-3.5 accent-brand-blue"
                 />
+                <CalendarClock className="w-3 h-3 text-gray-400" />
                 <span className="text-[11px] font-medium text-gray-600">
                   Alertar vencimiento
                 </span>
               </label>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -794,14 +795,14 @@ function FormEditarProducto({
                     }
                     className="w-3.5 h-3.5 accent-brand-blue"
                   />
+                  <PackageX className="w-3 h-3 text-gray-400" />
                   <span className="text-[11px] font-medium text-gray-600">
                     Stock bajo
                   </span>
                 </label>
 
                 {(form.alertaStockBajoActiva ?? true) && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase">Mín:</span>
+                  <div className="flex items-center gap-1.5 pl-2 border-l border-amber-200/70">
                     <input
                       type="number"
                       value={form.stockMinimoAlerta === null || form.stockMinimoAlerta === undefined ? "" : String(form.stockMinimoAlerta)}
@@ -814,9 +815,16 @@ function FormEditarProducto({
                       onFocus={(e) => e.currentTarget.select()}
                       onClick={(e) => e.currentTarget.select()}
                       onWheel={(e) => e.currentTarget.blur()}
-                      placeholder={umbralStockBajo != null ? `${umbralStockBajo}` : "5"}
-                      className="w-16 px-1.5 py-0.5 text-xs bg-white border border-gray-200 rounded-md outline-none focus:border-brand-blue/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      placeholder={umbralStockBajo != null ? String(umbralStockBajo) : "5"}
+                      className="w-11 px-1.5 py-0.5 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-md outline-none focus:border-brand-blue/50 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
+                    <span className="text-[10px] text-gray-400 leading-tight whitespace-nowrap">
+                      {form.stockMinimoAlerta === null || form.stockMinimoAlerta === undefined
+                        ? umbralStockBajo != null
+                          ? `mín. sin definir · usa el general (${umbralStockBajo})`
+                          : "mín. sin definir · usa el general"
+                        : "unidades mínimas"}
+                    </span>
                   </div>
                 )}
               </div>

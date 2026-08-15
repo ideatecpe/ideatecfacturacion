@@ -282,7 +282,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
       !config?.isStock ||
       !filtroVencimientoAntes ||
       (!!p.sucursalProducto.proximoVencimiento &&
-        new Date(p.sucursalProducto.proximoVencimiento) <= new Date(filtroVencimientoAntes));
+        p.sucursalProducto.proximoVencimiento.slice(0, 10) <= filtroVencimientoAntes);
 
     const matchAfectacion =
       filtroAfectacion.length === 0 ||
@@ -329,7 +329,10 @@ const [importFile, setImportFile] = useState<File | null>(null);
   const handleProductoEditado = (productoEditado: ProductoSucursal) => {
     setProductos((prev) =>
       prev.map((p) =>
-        p.productoId === productoEditado.productoId ? productoEditado : p,
+        p.sucursalProducto.sucursalProductoId ===
+        productoEditado.sucursalProducto.sucursalProductoId
+          ? productoEditado
+          : p,
       ),
     );
   };
@@ -399,11 +402,29 @@ const [importFile, setImportFile] = useState<File | null>(null);
       categoriaId: p.categoria?.categoriaId ?? 0,
       sucursalProductoId: p.sucursalProducto.sucursalProductoId,
       precioUnitario: p.sucursalProducto.precioUnitario,
+      urlImagenProducto: p.urlImagenProducto ?? null,
       stock:
         config?.isStock && p.tipoProducto === "BIEN"
           ? p.sucursalProducto.stock ?? 0
           : null,
+      costoUnitario:
+        config?.isStock && p.tipoProducto === "BIEN"
+          ? p.sucursalProducto.ultimoPrecioCompra ?? null
+          : null,
+      alertaVencimientoActiva:
+        config?.isStock && p.tipoProducto === "BIEN"
+          ? p.sucursalProducto.alertaVencimientoActiva ?? true
+          : null,
+      alertaStockBajoActiva:
+        config?.isStock && p.tipoProducto === "BIEN"
+          ? p.sucursalProducto.alertaStockBajoActiva ?? true
+          : null,
+      stockMinimoAlerta:
+        config?.isStock && p.tipoProducto === "BIEN"
+          ? p.sucursalProducto.stockMinimoAlerta ?? null
+          : null,
       codigoBarras: p.codigoBarras || null,
+      codigoSunat: p.codigoSunat || undefined,
       esPaquete: p.esPaquete ?? false,
       productoBaseId: p.esPaquete ? p.productoBaseId ?? null : null,
       factorConversion: p.esPaquete ? p.factorConversion ?? null : null,
@@ -411,6 +432,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
       cantidadMinimaMayorista: p.sucursalProducto.cantidadMinimaMayorista ?? null,
       enPromocion,
       porcentajeDescuento: porcentaje,
+      ubicacionTienda: config?.isStock ? p.sucursalProducto.ubicacionTienda ?? null : null,
+      usuarioId: user?.id ? parseInt(user.id) : null,
     });
 
     const procesarUno = async (p: ProductoSucursal) => {
@@ -422,7 +445,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
         );
         setProductos((prev) =>
           prev.map((x) =>
-            x.productoId === p.productoId
+            x.sucursalProducto.sucursalProductoId ===
+            p.sucursalProducto.sucursalProductoId
               ? {
                   ...x,
                   sucursalProducto: {
@@ -516,7 +540,11 @@ const [importFile, setImportFile] = useState<File | null>(null);
       }
       showToast("Producto eliminado correctamente.", "success");
       setProductos((prev) =>
-        prev.filter((p) => p.productoId !== deleteTarget.productoId),
+        prev.filter(
+          (p) =>
+            p.sucursalProducto.sucursalProductoId !==
+            deleteTarget.sucursalProducto.sucursalProductoId,
+        ),
       );
       setDeleteTarget(null);
       setIsDeleteOpen(false);
@@ -675,7 +703,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
           )?.categoriaId ?? 0;
 
         const codigoFinal = f.codigo ||
-          generarCodigoProducto(f.nomProducto, productosEmpresa.length + i);
+          generarCodigoProducto(f.nomProducto, productos.length + i);
 
         const payload = {
           nomProducto: f.nomProducto,
@@ -1212,11 +1240,9 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
       <div
         ref={gridScrollRef}
-        className="overflow-y-auto rounded-xl "
+        className="overflow-y-auto rounded-xl"
         style={{
-          maxHeight: showFiltrosAvanzados
-            ? "calc(100vh - 275px)"
-            : "calc(100vh - 170px)",
+          maxHeight: `calc(100vh - ${170 + (showFiltrosAvanzados ? 55 : 0) + (modoSeleccionPromo ? 55 : 0)}px)`,
           scrollbarWidth: "thin",
           scrollbarColor: "#CBD5E1 transparent",
         }}

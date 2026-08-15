@@ -297,6 +297,8 @@ export default function CajaAutopago() {
   const [mostrarPago, setMostrarPago] = useState(false);
   const [mostrarCarritoMobile, setMostrarCarritoMobile] = useState(false);
   const [documento, setDocumento] = useState("");
+  const [nombreManualCliente, setNombreManualCliente] = useState("");
+  const [direccionManualCliente, setDireccionManualCliente] = useState("");
   const [tipoSinDocumento, setTipoSinDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
   // Con DNI/CE (no RUC), el cajero puede pasar de Boleta a Nota de Venta; por defecto Boleta.
   const [tipoConDocumento, setTipoConDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
@@ -444,6 +446,20 @@ export default function CajaAutopago() {
     }
     setCameraError(null);
     setIsScanning(false);
+  }, []);
+
+  // Limpieza al desmontar el componente: apagar la cámara y detener el loop de escaneo
+  useEffect(() => {
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+      }
+    };
   }, []);
 
   const buscarEnServidor = useCallback(
@@ -673,6 +689,21 @@ export default function CajaAutopago() {
       buscarClienteRef.current(len === 11 ? "06" : len === 9 ? "04" : "01", documentoTrim);
     }, 500);
     return () => clearTimeout(timer);
+  }, [documentoTrim]);
+
+  // Sincronizar automáticamente datos consultados hacia los estados editables
+  useEffect(() => {
+    if (cliente?.numeroDocumento === documentoTrim && cliente?.razonSocial) {
+      setNombreManualCliente(cliente.razonSocial);
+      setDireccionManualCliente(cliente.direccionLineal || "");
+    }
+  }, [cliente, documentoTrim]);
+
+  useEffect(() => {
+    if (!documentoTrim) {
+      setNombreManualCliente("");
+      setDireccionManualCliente("");
+    }
   }, [documentoTrim]);
 
   // Línea de estado del cliente bajo el input de documento (nombre confirmable
@@ -979,7 +1010,8 @@ export default function CajaAutopago() {
   // incluso si el usuario hace clic afuera del input.
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (mostrarPago) return;
+      // No capturar si hay cualquier modal abierto
+      if (mostrarPago || modalCrearRapidoAbierto || !!productoSinStock || confirmarLimpiarTodo) return;
 
       const target = e.target as HTMLElement | null;
       const active = document.activeElement;
@@ -1039,7 +1071,7 @@ export default function CajaAutopago() {
 
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [onEnterBusqueda, mostrarPago, busqueda]);
+  }, [onEnterBusqueda, mostrarPago, modalCrearRapidoAbierto, productoSinStock, confirmarLimpiarTodo, busqueda]);
 
   // ── Totales (con desglose por afectación de IGV, para el payload real) ──
   const totales = useMemo(() => {
@@ -1278,7 +1310,7 @@ export default function CajaAutopago() {
   };
 
   // Cliente para el payload: "Clientes Varios" (sin documento) o el documento + datos
-  // ya traídos por useClienteBoleta (buscarCliente, disparado al abrir el pago).
+  // ya traídos por useClienteBoleta o ingresados manualmente por el usuario.
   const construirCliente = () => {
     if (sinDocumento) {
       return {
@@ -1297,13 +1329,15 @@ export default function CajaAutopago() {
     const tipoDocumento = len === 11 ? "06" : len === 9 ? "04" : "01";
     // Solo se asocian los datos del cliente si el número consultado coincide exactamente con el documento actual
     const coincide = cliente?.numeroDocumento === documentoTrim;
+    const razonSocialFinal = (nombreManualCliente.trim() || (coincide ? (cliente?.razonSocial || "") : "")).trim();
+    const direccionFinal = (direccionManualCliente.trim() || (coincide ? (cliente?.direccionLineal || "") : "")).trim();
     return {
       clienteId: coincide ? (cliente?.clienteId ?? null) : null,
       tipoDocumento,
       numeroDocumento: documentoTrim,
-      razonSocial: coincide ? (cliente?.razonSocial ?? "") : "",
+      razonSocial: razonSocialFinal || (len === 11 ? "CLIENTE CON RUC" : "CLIENTE"),
       ubigeo: coincide ? (cliente?.ubigeo || "") : "",
-      direccionLineal: coincide ? (cliente?.direccionLineal || "") : "",
+      direccionLineal: direccionFinal,
       departamento: coincide ? (cliente?.departamento || "") : "",
       provincia: coincide ? (cliente?.provincia || "") : "",
       distrito: coincide ? (cliente?.distrito || "") : "",
@@ -1591,10 +1625,28 @@ export default function CajaAutopago() {
     iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
     iframe.src = blobUrl;
     document.body.appendChild(iframe);
+
+    const cleanup = () => {
+      try {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      } catch {
+        // ignore
+      }
+      URL.revokeObjectURL(blobUrl);
+    };
+
     iframe.onload = () => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 2000);
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.warn("Error al abrir diálogo de impresión:", err);
+      }
+      // Se concede 60s antes de destruir el iframe para que las impresoras térmicas
+      // con spooling en cola reciban todo el documento sin truncarlo, y se revoca la URL blob.
+      setTimeout(cleanup, 60000);
     };
   };
 
@@ -1689,6 +1741,9 @@ export default function CajaAutopago() {
       showToast("El documento debe tener 8 (DNI), 9 (CE) u 11 (RUC) dígitos, o déjalo vacío", "error");
       return;
     }
+    if (tipoComprobante === "Boleta" && totales.total >= 700 && sinDocumento) {
+      showToast("Aviso: SUNAT exige registrar DNI o CE del cliente para Boletas a partir de S/ 700.00", "info");
+    }
     // El cliente ya se consultó al escribir el documento (efecto con debounce),
     // así que aquí no se vuelve a llamar a la API. Si el debounce aún no disparó
     // (clic muy rápido), el efecto pendiente lo resuelve una sola vez.
@@ -1778,6 +1833,20 @@ export default function CajaAutopago() {
     if (tipoComprobante !== "Nota de Venta" && !sucursal) {
       showToast("No se pudo cargar la sucursal (serie/correlativo). Intenta de nuevo.", "error");
       return;
+    }
+    if (tipoComprobante === "Boleta" && totales.total >= 700 && sinDocumento) {
+      showToast(
+        "Por normativa de SUNAT, las Boletas a partir de S/ 700.00 requieren identificar obligatoriamente al cliente con su DNI/CE.",
+        "error",
+      );
+      return;
+    }
+    if (tipoComprobante === "Factura") {
+      const clienteCheck = construirCliente();
+      if (!clienteCheck.razonSocial || clienteCheck.razonSocial === "CLIENTE CON RUC" || clienteCheck.razonSocial === "Clientes Varios") {
+        showToast("Ingresa la Razón Social de la empresa para emitir la Factura", "error");
+        return;
+      }
     }
     setMostrarPago(false);
     setEmitiendo(true);
@@ -1878,6 +1947,17 @@ export default function CajaAutopago() {
     }
   };
 
+  // Validación de si se puede emitir el comprobante actual
+  const boletaMayor700SinDoc = tipoComprobante === "Boleta" && totales.total >= 700 && (!documentoTrim || documentoTrim.length < 8);
+  const facturaSinRazonSocial = tipoComprobante === "Factura" && (!nombreManualCliente.trim() && !cliente?.razonSocial);
+
+  const puedeEmitir =
+    !emitiendo &&
+    !(pagoDividido && faltanteDividido > 0) &&
+    !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0))) &&
+    !boletaMayor700SinDoc &&
+    !facturaSinRazonSocial;
+
   // Confirmación con la tecla Enter en el modal de pago
   useEffect(() => {
     if (!mostrarPago) return;
@@ -1888,23 +1968,27 @@ export default function CajaAutopago() {
           e.preventDefault();
           return;
         }
-        if (
-          !emitiendo &&
-          !(pagoDividido && faltanteDividido > 0) &&
-          !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
-        ) {
+        if (puedeEmitir) {
           e.preventDefault();
           emitirVenta();
+        } else if (boletaMayor700SinDoc) {
+          e.preventDefault();
+          showToast("SUNAT exige registrar el DNI del cliente para Boletas a partir de S/ 700.00", "error");
+        } else if (facturaSinRazonSocial) {
+          e.preventDefault();
+          showToast("Ingresa la Razón Social de la empresa para la Factura", "error");
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mostrarPago, emitiendo, pagoDividido, faltanteDividido, esCredito, cuotasCuadran, cuotasCredito]);
+  }, [mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRazonSocial]);
 
   const nuevaVenta = () => {
     setItems([]);
     setDocumento("");
+    setNombreManualCliente("");
+    setDireccionManualCliente("");
     setTipoConDocumento("Boleta");
     setMedioPago("Efectivo");
     setMontoRecibido("");
@@ -2840,18 +2924,96 @@ export default function CajaAutopago() {
                 </button>
               </div>
 
-              {/* Cliente */}
-              <div className="mt-2 text-xs">
-                {sinDocumento ? (
-                  <span className="text-gray-400 flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" /> Clientes varios
-                  </span>
-                ) : (
-                  <div className="flex items-center justify-between text-gray-700">
-                    <span className="font-semibold">{cliente?.razonSocial || "Cargando cliente..."}</span>
-                    <span className="text-gray-400">{documentoTrim}</span>
+              {/* Alerta SUNAT Boleta >= S/ 700 sin DNI */}
+              {tipoComprobante === "Boleta" && totales.total >= 700 && (!documentoTrim || documentoTrim.length < 8) && (
+                <div className="mt-2 rounded-md border border-rose-300 bg-rose-50 p-2.5 text-xs text-rose-800 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="leading-tight">
+                    <p className="font-bold text-rose-900">Normativa SUNAT obligatoria (≥ S/ 700.00)</p>
+                    <p className="text-[11px] text-rose-700 mt-0.5">
+                      Debes registrar el <strong>DNI o CE</strong> del cliente para poder emitir esta boleta.
+                    </p>
                   </div>
-                )}
+                </div>
+              )}
+
+              {/* Cliente en el modal de cobro */}
+              <div className="mt-2 text-xs">
+                <div className="rounded-md border border-gray-200 bg-gray-50/70 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between text-gray-700">
+                    <span className="font-bold text-[11px] text-gray-600 uppercase tracking-wide flex items-center gap-1">
+                      <UserRound className="w-3.5 h-3.5 text-brand-blue" />
+                      {documentoTrim.length === 11 ? "RUC / Empresa *" : "Cliente (DNI / RUC)"}
+                    </span>
+                    {sinDocumento && (
+                      <span className="text-[11px] text-gray-400 font-medium">Clientes varios (opcional)</span>
+                    )}
+                  </div>
+
+                  {/* Input de Documento en el Modal */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={documento}
+                      onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                      placeholder={
+                        totales.total >= 700 && tipoComprobante === "Boleta"
+                          ? "Ingresa DNI (8 dígitos) - Requerido por SUNAT"
+                          : "DNI o RUC del cliente (opcional)"
+                      }
+                      className={`w-full h-8.5 pl-3 pr-7 bg-white rounded border text-xs font-semibold outline-none transition-all ${
+                        totales.total >= 700 && tipoComprobante === "Boleta" && (!documentoTrim || documentoTrim.length < 8)
+                          ? "border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-200"
+                          : "border-gray-200 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                      }`}
+                    />
+                    {documento && (
+                      <button
+                        type="button"
+                        onClick={() => setDocumento("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Estado o Nombre del cliente */}
+                  {documentoTrim && (
+                    <>
+                      {loadingCliente && !nombreManualCliente ? (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 py-0.5">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-blue" />
+                          <span>Buscando en RENIEC/SUNAT...</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <input
+                            type="text"
+                            value={nombreManualCliente}
+                            onChange={(e) => setNombreManualCliente(e.target.value)}
+                            placeholder={
+                              documentoTrim.length === 11
+                                ? "Razón Social (obligatoria para Factura)"
+                                : "Nombre del cliente (opcional)"
+                            }
+                            className="w-full h-8 px-2.5 bg-white rounded border border-gray-200 text-xs font-semibold text-gray-800 outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                          />
+                          {documentoTrim.length === 11 && (
+                            <input
+                              type="text"
+                              value={direccionManualCliente}
+                              onChange={(e) => setDireccionManualCliente(e.target.value)}
+                              placeholder="Dirección fiscal (opcional)"
+                              className="w-full h-7.5 px-2.5 bg-white rounded border border-gray-200 text-[11px] text-gray-600 outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                            />
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Emitir con otra fecha */}
@@ -3149,12 +3311,8 @@ export default function CajaAutopago() {
             {/* Confirmar */}
             <button
               onClick={emitirVenta}
-              disabled={
-                emitiendo ||
-                (pagoDividido && faltanteDividido > 0) ||
-                (esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
-              }
-              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!puedeEmitir}
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               {emitiendo ? (
                 <>
@@ -3162,6 +3320,10 @@ export default function CajaAutopago() {
                 </>
               ) : esCredito ? (
                 "Registrar venta al crédito"
+              ) : boletaMayor700SinDoc ? (
+                "Ingresa DNI (Boleta ≥ S/ 700)"
+              ) : facturaSinRazonSocial ? (
+                "Ingresa Razón Social"
               ) : (
                 `Confirmar S/ ${totales.total.toFixed(2)}`
               )}

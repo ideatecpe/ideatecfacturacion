@@ -14,11 +14,29 @@ import { abreviaturaUnidad, formatearCantidadUnidad } from "../gestioProductos/u
 // Umbral de alerta de vencimiento (días) por defecto, si la empresa no configuró el suyo.
 const DIAS_ALERTA_VENCIMIENTO_DEFAULT = 30;
 
+function formatearFechaLocal(fechaISO: string): string {
+  try {
+    const soloFecha = fechaISO.slice(0, 10);
+    const [year, month, day] = soloFecha.split("-").map(Number);
+    if (!year || !month || !day) return fechaISO;
+    return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
+  } catch {
+    return fechaISO;
+  }
+}
+
 function estaProximoAVencer(fechaISO: string, diasAlerta: number): boolean {
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const diffDias = (new Date(fechaISO).getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
-  return diffDias <= diasAlerta;
+  try {
+    const soloFecha = fechaISO.slice(0, 10);
+    const [y, m, d] = soloFecha.split("-").map(Number);
+    const fechaLote = new Date(y, m - 1, d);
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const diffDias = (fechaLote.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
+    return diffDias <= diasAlerta;
+  } catch {
+    return false;
+  }
 }
 
 interface ProductoCardProps {
@@ -276,7 +294,7 @@ export default function ProductoCard({
 
         if (!esUrgente && !filtroVencimientoActivo) return null;
 
-        const fechaFormateada = new Date(fecha).toLocaleDateString("es-PE");
+        const fechaFormateada = formatearFechaLocal(fecha);
 
         // Menos de 30 días: advertencia real, sin importar el filtro.
         if (esUrgente) {
