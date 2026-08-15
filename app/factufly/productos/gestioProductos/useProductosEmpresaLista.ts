@@ -5,6 +5,7 @@ import axios from 'axios'
 import { ProductoSucursal } from './Producto'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/app/components/ui/Toast'
+import { esFalloDeRed } from '@/lib/offline/senalRed';
 
 export function useProductosEmpresaLista( enabled: boolean = true ) {
   const { showToast } = useToast()
@@ -23,7 +24,7 @@ export function useProductosEmpresaLista( enabled: boolean = true ) {
       )
       setProductosEmpresa(res.data)
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response) {
+      if (!esFalloDeRed(err)) {
         showToast("Error al cargar productos de la empresa", "error")
       }
     } finally {

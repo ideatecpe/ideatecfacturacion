@@ -3,6 +3,7 @@ import axios from 'axios'
 import { Categoria } from './Producto'
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/app/components/ui/Toast';
+import { esFalloDeRed } from '@/lib/offline/senalRed';
 
 export function useCategoriasLista() {
   const { showToast } = useToast();
@@ -26,7 +27,7 @@ export function useCategoriasLista() {
       setCategorias(data)
       return data
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response) {
+      if (!esFalloDeRed(err)) {
         showToast("Error al cargar categorías", "error");
       }
       return []

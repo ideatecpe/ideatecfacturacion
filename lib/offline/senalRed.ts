@@ -7,6 +7,8 @@
 // satura el canal y el ping queda encolado detrás. Estas señales dan dos
 // pruebas de vida que no dependen del ping.
 
+import axios from "axios";
+
 let peticionesEnVuelo = 0;
 
 export function marcarPeticionIniciada() {
@@ -31,4 +33,22 @@ export function avisarConexionViva() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(EVENTO_HAY_CONEXION));
   }
+}
+
+/**
+ * ¿El fallo se debe a la red y no al servidor ni a un bug?
+ *
+ * Sirve para no mostrar toasts de "Error al cargar X" cuando el usuario ya está
+ * viendo la franja de "Sin conexión": esos avisos no aportan nada y tapan la
+ * pantalla. Se deja pasar todo lo demás (4xx/5xx, errores de validación,
+ * fallos de código), que sí hay que mostrar.
+ */
+export function esFalloDeRed(err: unknown): boolean {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return true;
+  if (axios.isAxiosError(err)) {
+    // Si no hay respuesta, la petición ni siquiera llegó al servidor.
+    return !err.response;
+  }
+  // fetch lanza TypeError cuando no logra conectar.
+  return err instanceof TypeError;
 }

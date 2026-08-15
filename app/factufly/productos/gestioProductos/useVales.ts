@@ -2,6 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
+import { esFalloDeRed } from "@/lib/offline/senalRed";
 
 export interface Vale {
   idVale: number;
@@ -48,8 +49,10 @@ export function useVales() {
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       setVales(res.data);
-    } catch {
-      showToast("Error al cargar los vales", "error");
+    } catch (err) {
+      if (!esFalloDeRed(err)) {
+        showToast("Error al cargar los vales", "error");
+      }
     } finally {
       setLoadingVales(false);
     }

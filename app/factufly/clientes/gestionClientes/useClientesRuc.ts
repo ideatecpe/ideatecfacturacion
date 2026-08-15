@@ -4,6 +4,7 @@ import axios from 'axios'
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/app/components/ui/Toast';
 import { Cliente } from './typesCliente';
+import { esFalloDeRed } from '@/lib/offline/senalRed';
 
 export function useClientesRuc(enabled: boolean = true) {
   const { showToast } = useToast();
@@ -23,7 +24,7 @@ export function useClientesRuc(enabled: boolean = true) {
       setClientes(res.data)
       return res.data
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response) {
+      if (!esFalloDeRed(err)) {
         showToast("Error al cargar clientes", "error");
       }
     } finally {
