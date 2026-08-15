@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { RentabilidadProducto, RentabilidadDiaria } from "./Inventario";
 import { useAuth } from "@/context/AuthContext";
@@ -24,9 +24,17 @@ export function useRentabilidadLista() {
   const [rentabilidadDiaria, setRentabilidadDiaria] = useState<RentabilidadDiaria[]>([]);
   const [loadingRentabilidadDiaria, setLoadingRentabilidadDiaria] = useState(false);
 
+  const abortRentabilidadRef = useRef<AbortController | null>(null);
+  const abortDiariaRef = useRef<AbortController | null>(null);
+
   const fetchRentabilidad = useCallback(
     async ({ sucursalId, desde, hasta }: FetchRentabilidadParams) => {
       if (!sucursalId) return;
+
+      abortRentabilidadRef.current?.abort();
+      const controller = new AbortController();
+      abortRentabilidadRef.current = controller;
+
       setLoadingRentabilidad(true);
       try {
         const res = await axios.get<RentabilidadProducto[]>(
@@ -34,21 +42,32 @@ export function useRentabilidadLista() {
           {
             params: { desde: desde || undefined, hasta: hasta || undefined },
             headers: { Authorization: `Bearer ${accessToken}` },
+            signal: controller.signal,
           },
         );
         setRentabilidad(res.data ?? []);
-      } catch {
+      } catch (err) {
+        if (axios.isCancel(err) || (axios.isAxiosError(err) && err.code === "ERR_CANCELED")) {
+          return;
+        }
         showToast("Error al cargar el reporte de rentabilidad", "error");
       } finally {
-        setLoadingRentabilidad(false);
+        if (abortRentabilidadRef.current === controller) {
+          setLoadingRentabilidad(false);
+        }
       }
     },
-    [accessToken],
+    [accessToken, showToast],
   );
 
   const fetchRentabilidadDiaria = useCallback(
     async ({ sucursalProductoId, desde, hasta }: FetchRentabilidadDiariaParams) => {
       if (!sucursalProductoId) return;
+
+      abortDiariaRef.current?.abort();
+      const controller = new AbortController();
+      abortDiariaRef.current = controller;
+
       setLoadingRentabilidadDiaria(true);
       try {
         const res = await axios.get<RentabilidadDiaria[]>(
@@ -56,16 +75,22 @@ export function useRentabilidadLista() {
           {
             params: { desde: desde || undefined, hasta: hasta || undefined },
             headers: { Authorization: `Bearer ${accessToken}` },
+            signal: controller.signal,
           },
         );
         setRentabilidadDiaria(res.data ?? []);
-      } catch {
+      } catch (err) {
+        if (axios.isCancel(err) || (axios.isAxiosError(err) && err.code === "ERR_CANCELED")) {
+          return;
+        }
         showToast("Error al cargar la evolución del producto", "error");
       } finally {
-        setLoadingRentabilidadDiaria(false);
+        if (abortDiariaRef.current === controller) {
+          setLoadingRentabilidadDiaria(false);
+        }
       }
     },
-    [accessToken],
+    [accessToken, showToast],
   );
 
   return {

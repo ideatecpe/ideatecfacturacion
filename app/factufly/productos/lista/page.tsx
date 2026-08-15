@@ -54,6 +54,7 @@ import { ModalVentasProductoExcel } from "../gestioProductos/ModalVentasProducto
 import ModalImprimirEtiquetas from "../gestioProductos/ModalImprimirEtiquetas";
 import { generarCodigoProducto } from "../gestioProductos/generarCodigoProducto";
 import { useVales } from "../gestioProductos/useVales";
+import { useEscanerGlobal } from "../../operaciones/useEscanerGlobal";
 
 // Umbral de stock bajo (alerta visual) para productos normales, en unidades.
 const STOCK_MINIMO_UNIDAD = 5;
@@ -149,8 +150,9 @@ const [importFile, setImportFile] = useState<File | null>(null);
     errores: { fila: number; nombre: string; error: string }[];
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  //modal reporte
+  // modal reporte y ventas
   const [isReporteOpen, setIsReporteOpen] = useState(false);
   const [isVentasProductoOpen, setIsVentasProductoOpen] = useState(false);
   const sucursalId = parseInt(user?.sucursalID ?? "0");
@@ -161,12 +163,35 @@ const [importFile, setImportFile] = useState<File | null>(null);
   const [isPromoMasivaOpen, setIsPromoMasivaOpen] = useState(false);
   const [porcentajePromoMasiva, setPorcentajePromoMasiva] = useState("");
   const [aplicandoPromoMasiva, setAplicandoPromoMasiva] = useState(false);
-  // Progreso de la operación masiva (X de Y procesados).
   const [promoProgreso, setPromoProgreso] = useState<{ total: number; actual: number } | null>(null);
 
   // Impresión de códigos de barras
   const [modalImprimirOpen, setModalImprimirOpen] = useState(false);
   const [pendingPrintList, setPendingPrintList] = useState<ProductoSucursal[]>([]);
+
+  // Escáner global (lector de códigos de barras USB/Bluetooth físico):
+  // Si el usuario escanea un código de barras en cualquier parte de la pantalla (sin haber hecho clic en el buscador),
+  // se captura automáticamente, se coloca en el buscador y se filtra la lista de productos de inmediato.
+  const algunModalAbierto =
+    isNewOpen ||
+    isEditOpen ||
+    isImportOpen ||
+    isDeleteOpen ||
+    isPromoMasivaOpen ||
+    modalImprimirOpen ||
+    showModalVales ||
+    isReporteOpen ||
+    isVentasProductoOpen ||
+    escaneando;
+
+  useEscanerGlobal(
+    (codigo) => {
+      setSearch(codigo);
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    },
+    { enabled: !algunModalAbierto }
+  );
 
   // Ids de productos cuya imagen falló al cargar: se muestra el placeholder "Sin imagen".
   const [imgErrorIds, setImgErrorIds] = useState<Set<number>>(new Set());
@@ -780,10 +805,16 @@ const [importFile, setImportFile] = useState<File | null>(null);
           <div className="flex items-center gap-2 min-w-48 flex-1 max-w-md">
             <div className="relative flex-1 min-w-0">
               <input
+                ref={searchInputRef}
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar productos por código o nombre..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                  }
+                }}
+                placeholder="Buscar por nombre, código o escanear código de barras..."
                 className="w-full pl-10 pr-8 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
               />
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
