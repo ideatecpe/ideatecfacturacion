@@ -445,11 +445,13 @@ export default function AgregarProducto({
   React.useEffect(() => {
     if (isOpen) {
       setForm({ ...emptyForm, sucursalId: sucursalIdEfectivo });
+      setCostoInput("");
       setErrors({});
       setImgError(false);
       setCodigoSunatLabel("");
     } else {
       setForm({ ...emptyForm, sucursalId: 0 });
+      setCostoInput("");
       setCodigoSunatLabel("");
       setProductoExistente(null);
       setSugerencias([]);
@@ -481,7 +483,13 @@ export default function AgregarProducto({
     setShowSugerencias(productosBase.length > 0);
   }, [productosBase, palabraBusqueda]);
 
-  const { productosEmpresa, fetchProductosEmpresa } = useProductosEmpresaLista();
+  // enabled=false: igual que en EditarProducto, el catálogo solo se descarga
+  // cuando el modal se abre (efecto de abajo), no al montarlo cerrado.
+  const { productosEmpresa, fetchProductosEmpresa } = useProductosEmpresaLista(false);
+
+  // El costo se edita como TEXTO: con String(numero) al escribir "10.0" se
+  // reescribia como "10" y era imposible teclear importes como 10.02.
+  const [costoInput, setCostoInput] = React.useState("");
 
   // Refresca la lista de productos base cada vez que se abre el modal,
   // para que un producto base recién creado aparezca de inmediato al registrar su paquete.
@@ -684,6 +692,7 @@ export default function AgregarProducto({
           showToast("Producto guardado exitosamente.", "success");
           onProductoAgregado(response.data);
           setForm({ ...emptyForm, sucursalId: sucursalIdEfectivo });
+          setCostoInput("");
           setCurrentImageId(null); // imagen ya guardada en BD, no es huérfana
           onClose();
           return;
@@ -1274,17 +1283,30 @@ export default function AgregarProducto({
               compact
               label="Precio de Compra"
               labelOptional={(form.stock ?? 0) > 0 ? undefined : "(opcional)"}
-              type="number"
-              value={form.costoUnitario === null || form.costoUnitario === undefined ? "" : String(form.costoUnitario)}
+              type="text"
+              inputMode="decimal"
+              value={costoInput}
               onChange={(e) => {
+                const valor = e.target.value;
+                if (!/^\d*\.?\d{0,2}$/.test(valor)) return;
                 if (errors.costoUnitario) setErrors((prev) => ({ ...prev, costoUnitario: false }));
+                setCostoInput(valor);
                 setForm((prev) => ({
                   ...prev,
-                  costoUnitario: e.target.value === "" ? null : Number(e.target.value),
+                  costoUnitario: valor === "" || valor === "." ? null : parseFloat(valor),
                 }));
               }}
+              onBlur={() => {
+                if (costoInput === "" || costoInput === ".") {
+                  setCostoInput("");
+                  setForm((prev) => ({ ...prev, costoUnitario: null }));
+                  return;
+                }
+                const num = parseFloat(costoInput);
+                setCostoInput(num.toFixed(2));
+                setForm((prev) => ({ ...prev, costoUnitario: num }));
+              }}
               placeholder="Ej: 3.50"
-              step="0.01"
               showError={!!errors.costoUnitario}
               errorMessage="Obligatorio cuando registras stock inicial"
             />

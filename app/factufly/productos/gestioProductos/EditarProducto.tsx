@@ -28,6 +28,8 @@ interface FormFieldsProps {
   form: NuevoProducto;
   setForm: React.Dispatch<React.SetStateAction<NuevoProducto>>;
   precioInput: string;
+  costoInput: string;
+  setCostoInput: React.Dispatch<React.SetStateAction<string>>;
   setPrecioInput: React.Dispatch<React.SetStateAction<string>>;
   onChange: (field: keyof NuevoProducto) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   categorias: Categoria[];
@@ -90,9 +92,16 @@ export default function EditarProducto({
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
   const { config } = useConfiguracion();
-  const { productosEmpresa, fetchProductosEmpresa } = useProductosEmpresaLista();
+  // enabled=false: no se descarga el catálogo al montar el modal (que está
+  // cerrado). Solo se pide al abrirlo, en el efecto de más abajo. Con catálogos
+  // grandes esto ahorra descargar ~1 MB de productos en cada carga de la página.
+  const { productosEmpresa, fetchProductosEmpresa } = useProductosEmpresaLista(false);
   const [form, setForm] = React.useState<NuevoProducto>(emptyForm);
   const [precioInput, setPrecioInput] = React.useState("0.00");
+  // El costo se edita como TEXTO. Si se guardara como numero y se re-mostrara
+  // con String(numero), al escribir "10.0" se convertiria en "10" y seria
+  // imposible llegar a "10.02": el input borraria el decimal a medio escribir.
+  const [costoInput, setCostoInput] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [modalCatalogoOpen, setModalCatalogoOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -328,6 +337,8 @@ export default function EditarProducto({
     });
 
     setPrecioInput(producto.sucursalProducto.precioUnitario.toFixed(2));
+    const costoActual = producto.sucursalProducto.ultimoPrecioCompra;
+    setCostoInput(costoActual === null || costoActual === undefined ? "" : String(costoActual));
   }, [producto, isOpen]);
 
   const handleFormChange =
@@ -548,6 +559,8 @@ export default function EditarProducto({
           form={form}
           setForm={setForm}
           precioInput={precioInput}
+          costoInput={costoInput}
+          setCostoInput={setCostoInput}
           setPrecioInput={setPrecioInput}
           onChange={handleFormChange}
           categorias={categorias}
@@ -588,6 +601,8 @@ function FormEditarProducto({
   form,
   setForm,
   precioInput,
+  costoInput,
+  setCostoInput,
   setPrecioInput,
   onChange,
   categorias,
@@ -964,15 +979,30 @@ function FormEditarProducto({
             className="h-9"
             label="Precio Compra"
             labelOptional="(costo)"
-            type="number"
-            step="0.01"
-            value={form.costoUnitario === null || form.costoUnitario === undefined ? "" : String(form.costoUnitario)}
-            onChange={(e) =>
+            type="text"
+            inputMode="decimal"
+            value={costoInput}
+            onChange={(e) => {
+              const valor = e.target.value;
+              // Se acepta el texto tal cual mientras sea un decimal en curso
+              // ("10.", "10.0"), para poder escribir importes como 10.02.
+              if (!/^\d*\.?\d{0,2}$/.test(valor)) return;
+              setCostoInput(valor);
               setForm((prev) => ({
                 ...prev,
-                costoUnitario: e.target.value === "" ? null : Number(e.target.value),
-              }))
-            }
+                costoUnitario: valor === "" || valor === "." ? null : parseFloat(valor),
+              }));
+            }}
+            onBlur={() => {
+              if (costoInput === "" || costoInput === ".") {
+                setCostoInput("");
+                setForm((prev) => ({ ...prev, costoUnitario: null }));
+                return;
+              }
+              const num = parseFloat(costoInput);
+              setCostoInput(num.toFixed(2));
+              setForm((prev) => ({ ...prev, costoUnitario: num }));
+            }}
             placeholder="Ej: 3.50"
           />
         ) : <div />}
