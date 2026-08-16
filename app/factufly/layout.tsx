@@ -15,6 +15,7 @@ import {
   Truck,
   DollarSign,
   Wallet,
+  Banknote,
   FileSpreadsheet,
   Boxes,
   BookOpenCheck,
@@ -241,6 +242,7 @@ export default function DashboardLayout({
       { id: "deudasporcobrar", label: "Deudas por Cobrar", icon: Wallet },
       { id: "cuentasporcobrar", label: "Cuentas por Cobrar", icon: DollarSign },
       { id: "clientes", label: "Clientes", icon: Users },
+      { id: "caja", label: "Caja", icon: Banknote },
       { id: "trabajadores", label: "Trabajadores", icon: UserCircle },
       {
         id: "productos",
@@ -285,9 +287,12 @@ export default function DashboardLayout({
       if (item.id === "cuentasporcobrar")  return config?.isCredito ?? false;
       if (item.id === "compras")           return config?.isStock ?? false;
       if (item.id === "sire")              return config?.usaSire ?? false;
+      // El historial de caja es información de control: los facturadores
+      // cuadran su turno desde Nueva Venta, pero no revisan los cierres.
+      if (item.id === "caja")              return (config?.administraCaja ?? false) && user?.rol !== "facturador";
       return true;
     });
-  }, [config]);
+  }, [config, user?.rol]);
 
   const activeSubViewLabel = React.useMemo(() => {
     const parent = menuItems.find((m) => m.id === activeView);

@@ -25,6 +25,8 @@ export interface Configuracion {
   isCajaAutopago: boolean;
   usaSire: boolean;
   comisionPagoTarjeta?: string | null;
+  /** Exige aperturar caja para poder vender y habilita el módulo Caja. */
+  administraCaja: boolean;
 }
 
 // Cache a nivel de módulo: evita que un remount (p.ej. cambiar Boleta <-> Factura)

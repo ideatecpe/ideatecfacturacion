@@ -13,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
 import { useToast } from "@/app/components/ui/Toast";
+import { ControlCaja } from "@/app/components/caja/ControlCaja";
 
 type Tipo = "boleta" | "factura" | "notaventa";
 
@@ -61,15 +62,11 @@ export default function BoletaFacturaElectronicaPage() {
 
   // En modo Caja Autopago, la cabecera (título, badge y pestañas) se oculta
   // para que la nueva vista ocupe todo el espacio disponible.
-  if (cajaAutopago) {
-    return (
-      <div className="flex flex-col h-full">
-        <BoletaPage />
-      </div>
-    );
-  }
-
-  return (
+  const contenido = cajaAutopago ? (
+    <div className="flex flex-col h-full">
+      <BoletaPage />
+    </div>
+  ) : (
     <div className="flex flex-col h-full space-y-2">
       {/* Cabecera */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 animate-in fade-in duration-300">
@@ -138,4 +135,8 @@ export default function BoletaFacturaElectronicaPage() {
       </div>
     </div>
   );
+
+  // Con el control de caja activo, nada del módulo de venta se monta hasta que
+  // haya una caja abierta y el usuario tenga su turno iniciado.
+  return config?.administraCaja ? <ControlCaja>{contenido}</ControlCaja> : contenido;
 }
