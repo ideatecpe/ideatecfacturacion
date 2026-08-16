@@ -38,6 +38,7 @@ import {
 } from "../boleta/gestionBoletas/Boleta";
 import { useClienteBoleta } from "../boleta/gestionBoletas/useClienteBoleta";
 import { Cliente } from "../../clientes/gestionClientes/typesCliente";
+import { notificarVentaRegistrada } from "@/lib/eventosCaja";
 import { useSucursal } from "../boleta/gestionBoletas/useSucursal";
 import { formatoFechaActual, fechaLocalISO, fmtMonto } from "@/app/components/ui/formatoFecha";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
@@ -2192,6 +2193,7 @@ function NotaVentaContent() {
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const comprobanteId = resNV.data.comprobanteId ?? resNV.data.ComprobanteId;
+      notificarVentaRegistrada();
       const numeroCompleto: string = resNV.data.numeroCompleto ?? resNV.data.NumeroCompleto ?? "";
       const correlativoEmitido = parseInt(numeroCompleto.split("-")[1] ?? "0", 10);
       if (correlativoEmitido > 0) {
