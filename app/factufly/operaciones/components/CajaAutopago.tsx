@@ -36,6 +36,7 @@ import {
   ShoppingBag,
   WifiOff,
   PackagePlus,
+  RefreshCw,
 } from "lucide-react";
 
 import { scanImageData } from "@undecaf/zbar-wasm";
@@ -272,7 +273,15 @@ export default function CajaAutopago() {
   const { showToast } = useToast();
 
   const sucursalId = user?.sucursalID ? parseInt(user.sucursalID) : null;
-  const { productosSucursal, loadingSucursal, setProductosSucursal, fetchProductosSucursal, descontarStockLocal } = useProductosSucursal(sucursalId, !!sucursalId);
+  const {
+    productosSucursal,
+    loadingSucursal,
+    setProductosSucursal,
+    fetchProductosSucursal,
+    descontarStockLocal,
+    productosDesactualizados,
+    fechaCache,
+  } = useProductosSucursal(sucursalId, !!sucursalId);
   const { empresa } = useEmpresaEmisor();
   const { sucursal, fetchSucursal } = useSucursal();
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
@@ -288,6 +297,44 @@ export default function CajaAutopago() {
       fetchCategorias(user.ruc);
     }
   }, [user?.ruc, fetchCategorias]);
+
+  // ── Revalidación del stock mientras la caja está abierta ─────────────
+  // El stock es compartido entre dispositivos: si otro celular vende la última
+  // unidad, esta pantalla tiene que enterarse sola. Antes solo se refrescaba al
+  // montar y después de cada venta propia, así que una caja abierta en otro
+  // equipo seguía mostrando unidades que ya no existían.
+  const fetchProductosRef = useRef(fetchProductosSucursal);
+  fetchProductosRef.current = fetchProductosSucursal;
+  const ultimaRevalidacionRef = useRef(0);
+
+  useEffect(() => {
+    if (!sucursalId) return;
+
+    const revalidar = (forzar: boolean) => {
+      // Los eventos de foco llegan en ráfagas (teclado del móvil, cambio de app):
+      // sin este freno se dispararía una petición por cada uno.
+      if (!forzar && Date.now() - ultimaRevalidacionRef.current < 15000) return;
+      ultimaRevalidacionRef.current = Date.now();
+      fetchProductosRef.current().catch(() => {});
+    };
+
+    const alVolverAlFrente = () => {
+      if (document.visibilityState === "visible") revalidar(false);
+    };
+
+    document.addEventListener("visibilitychange", alVolverAlFrente);
+    window.addEventListener("focus", alVolverAlFrente);
+    // Con la pantalla oculta no se sondea: no sirve de nada y gasta datos.
+    const intervalo = setInterval(() => {
+      if (document.visibilityState === "visible") revalidar(true);
+    }, 60000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", alVolverAlFrente);
+      window.removeEventListener("focus", alVolverAlFrente);
+      clearInterval(intervalo);
+    };
+  }, [sucursalId]);
 
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
@@ -307,6 +354,7 @@ export default function CajaAutopago() {
   const [codigoBarrasNuevoProducto, setCodigoBarrasNuevoProducto] = useState("");
   const [nombreNuevoProducto, setNombreNuevoProducto] = useState("");
   const [historialVentasVersion, setHistorialVentasVersion] = useState(0);
+  const [refrescandoStock, setRefrescandoStock] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
@@ -2074,6 +2122,27 @@ export default function CajaAutopago() {
 
             <button
               type="button"
+              onClick={async () => {
+                if (refrescandoStock) return;
+                setRefrescandoStock(true);
+                ultimaRevalidacionRef.current = Date.now();
+                try {
+                  await fetchProductosSucursal();
+                  showToast("Stock actualizado", "success");
+                } catch {
+                  showToast("No se pudo actualizar el stock", "error");
+                } finally {
+                  setRefrescandoStock(false);
+                }
+              }}
+              className="h-9.5 w-9.5 flex items-center justify-center bg-white border border-gray-200 text-gray-500 rounded-md hover:bg-gray-50 hover:text-brand-blue active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
+              title="Actualizar stock desde el servidor"
+            >
+              <RefreshCw size={14} className={refrescandoStock ? "animate-spin" : ""} />
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 const raw = busqueda.trim();
                 setCodigoBarrasNuevoProducto(raw);
@@ -2107,6 +2176,20 @@ export default function CajaAutopago() {
               </button>
             )}
           </div>
+
+          {/* El stock que se está viendo no vino del servidor: hay que decirlo.
+              Sin este aviso, dos cajas podían mostrar números distintos sin que
+              nadie supiera cuál era el real. */}
+          {productosDesactualizados && (
+            <div className="shrink-0 flex items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] font-medium text-amber-700">
+              <WifiOff size={12} className="shrink-0" />
+              <span>
+                Stock guardado en este equipo
+                {fechaCache ? ` · ${new Date(fechaCache).toLocaleString("es-PE")}` : ""}
+                {" · puede no coincidir con otras cajas"}
+              </span>
+            </div>
+          )}
 
           {/* Visor de cámara en vivo para ventas (cuadrado estilo imagetotext.info) */}
           {isScanning && (

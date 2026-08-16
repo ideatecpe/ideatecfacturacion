@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Calendar, PackageSearch, X, Lock, ChevronDown, ChevronUp, LineChart as LineChartIcon, Search } from "lucide-react";
+import {
+  Calendar,
+  PackageSearch,
+  X,
+  Lock,
+  ChevronDown,
+  ChevronUp,
+  LineChart as LineChartIcon,
+  Search,
+} from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -46,12 +55,57 @@ export default function RentabilidadPage() {
 
   const [expandido, setExpandido] = useState<number | null>(null);
 
+  // Si solo se ingresa fechaDesde -> filtra ese día exacto (desde = hasta = fechaDesde)
+  // Si solo se ingresa fechaHasta -> filtra ese día exacto (desde = hasta = fechaHasta)
+  // Si se ingresan ambas -> filtra el rango (desde = fechaDesde, hasta = fechaHasta)
+  // Si ambas están vacías -> trae todo el historial sin filtro de fecha
+  const desdeCalculado = useMemo(() => {
+    if (fechaDesde && !fechaHasta) return fechaDesde;
+    if (!fechaDesde && fechaHasta) return fechaHasta;
+    if (fechaDesde && fechaHasta) return fechaDesde;
+    return undefined;
+  }, [fechaDesde, fechaHasta]);
+
+  const hastaCalculado = useMemo(() => {
+    if (fechaDesde && !fechaHasta) return fechaDesde;
+    if (!fechaDesde && fechaHasta) return fechaHasta;
+    if (fechaDesde && fechaHasta) return fechaHasta;
+    return undefined;
+  }, [fechaDesde, fechaHasta]);
+
   useEffect(() => {
     if (sucursalId > 0 && config?.isStock) {
-      fetchRentabilidad({ sucursalId, desde: fechaDesde || undefined, hasta: fechaHasta || undefined });
+      fetchRentabilidad({
+        sucursalId,
+        desde: desdeCalculado,
+        hasta: hastaCalculado,
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sucursalId, fechaDesde, fechaHasta, config?.isStock]);
+  }, [sucursalId, desdeCalculado, hastaCalculado, config?.isStock, fetchRentabilidad]);
+
+  useEffect(() => {
+    if (expandido !== null) {
+      fetchRentabilidadDiaria({
+        sucursalProductoId: expandido,
+        desde: desdeCalculado,
+        hasta: hastaCalculado,
+      });
+    }
+  }, [expandido, desdeCalculado, hastaCalculado, fetchRentabilidadDiaria]);
+
+  const handleFechaDesdeChange = (val: string) => {
+    setFechaDesde(val);
+    if (fechaHasta && val > fechaHasta) {
+      setFechaHasta("");
+    }
+  };
+
+  const handleFechaHastaChange = (val: string) => {
+    setFechaHasta(val);
+    if (fechaDesde && val < fechaDesde) {
+      setFechaDesde("");
+    }
+  };
 
   const filtrosActivos = filtroSucursal !== "Todos" || !!fechaDesde || !!fechaHasta || !!busqueda;
 
@@ -68,11 +122,6 @@ export default function RentabilidadPage() {
       return;
     }
     setExpandido(r.sucursalProductoId);
-    fetchRentabilidadDiaria({
-      sucursalProductoId: r.sucursalProductoId,
-      desde: fechaDesde || undefined,
-      hasta: fechaHasta || undefined,
-    });
   };
 
   const totales = useMemo(
@@ -121,7 +170,6 @@ export default function RentabilidadPage() {
 
   return (
     <div className="space-y-2 animate-in fade-in duration-500">
-
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-50 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -153,21 +201,21 @@ export default function RentabilidadPage() {
         )}
 
         <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 shadow-sm sm:ml-auto">
-          <Calendar className="w-3.5 h-3.5 text-gray-400" />
+          <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
           <input
             type="date"
             value={fechaDesde}
             max={fechaHasta || undefined}
-            onChange={(e) => setFechaDesde(e.target.value)}
-            className="text-xs outline-none w-26.25 h-full"
+            onChange={(e) => handleFechaDesdeChange(e.target.value)}
+            className="text-xs outline-none w-26.25 h-full text-gray-700"
           />
           <span className="text-gray-300">–</span>
           <input
             type="date"
             value={fechaHasta}
             min={fechaDesde || undefined}
-            onChange={(e) => setFechaHasta(e.target.value)}
-            className="text-xs outline-none w-26.25 h-full"
+            onChange={(e) => handleFechaHastaChange(e.target.value)}
+            className="text-xs outline-none w-26.25 h-full text-gray-700"
           />
         </div>
 
@@ -185,19 +233,25 @@ export default function RentabilidadPage() {
         <div className="rounded-xl border border-gray-200 overflow-hidden bg-gray-100">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-px">
             <div className="bg-white px-3 py-2 flex flex-col">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Ingreso</span>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                Ingreso
+              </span>
               <span className="text-base sm:text-lg font-bold text-gray-900 tabular-nums leading-tight whitespace-nowrap">
                 S/ {totales.ingreso.toFixed(2)}
               </span>
             </div>
             <div className="bg-white px-3 py-2 flex flex-col">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Costo</span>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                Costo
+              </span>
               <span className="text-base sm:text-lg font-bold text-gray-600 tabular-nums leading-tight whitespace-nowrap">
                 S/ {totales.costo.toFixed(2)}
               </span>
             </div>
             <div className="bg-white px-3 py-2 flex flex-col">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Utilidad</span>
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                Utilidad
+              </span>
               <span
                 className={`text-base sm:text-lg font-bold tabular-nums leading-tight whitespace-nowrap ${
                   totales.utilidad >= 0 ? "text-emerald-600" : "text-rose-600"
@@ -206,8 +260,14 @@ export default function RentabilidadPage() {
                 S/ {totales.utilidad.toFixed(2)}
               </span>
             </div>
-            <div className={`px-3 py-2 flex flex-col ${margenTotal >= 0 ? "bg-brand-blue/5" : "bg-rose-50"}`}>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Margen</span>
+            <div
+              className={`px-3 py-2 flex flex-col ${
+                margenTotal >= 0 ? "bg-brand-blue/5" : "bg-rose-50"
+              }`}
+            >
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                Margen
+              </span>
               <span
                 className={`text-base sm:text-lg font-bold tabular-nums leading-tight whitespace-nowrap ${
                   margenTotal >= 0 ? "text-brand-blue" : "text-rose-600"
