@@ -24,6 +24,7 @@ import {
   Printer,
   CalendarClock,
   ScanBarcode,
+  Barcode,
 } from "lucide-react";
 import axios from "axios";
 
@@ -160,6 +161,9 @@ export default function ProductosPage() {
   const [filtroTipoProducto, setFiltroTipoProducto] = useState<string[]>([]);
 
   const [search, setSearch] = useState("");
+  // Filtro independiente del buscador general: solo código de barras y solo
+  // por prefijo (escribir "1" lista todos los que empiezan con 1).
+  const [filtroCodigoBarras, setFiltroCodigoBarras] = useState("");
   const [escaneando, setEscaneando] = useState(false);
   const [filterCategoria, setFilterCategoria] = useState("Todos");
 
@@ -354,8 +358,17 @@ const [importFile, setImportFile] = useState<File | null>(null);
     const matchSucursal =
       !filtroSucursal || p.sucursalProducto.nomSucursal === filtroSucursal;
 
+    // Prefijo, no coincidencia parcial: "1" trae los que EMPIEZAN con 1.
+    // Se ignoran espacios para que un lector con espacios sueltos no falle.
+    const prefijoBarras = filtroCodigoBarras.replace(/\s/g, "");
+    const matchCodigoBarras =
+      !prefijoBarras ||
+      (!!p.codigoBarras &&
+        p.codigoBarras.replace(/\s/g, "").startsWith(prefijoBarras));
+
     return (
       matchSearch &&
+      matchCodigoBarras &&
       matchCategoria &&
       matchStock &&
       matchStockBajo &&
@@ -936,6 +949,41 @@ const [importFile, setImportFile] = useState<File | null>(null);
             >
               <ScanBarcode className="w-4 h-4" />
             </button>
+          </div>
+
+          {/* Filtro aislado por código de barras — busca por PREFIJO, no por
+              coincidencia parcial, y es independiente del buscador general. */}
+          <div className="relative w-56 shrink-0">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={filtroCodigoBarras}
+              onChange={(e) => setFiltroCodigoBarras(e.target.value)}
+              placeholder="Cód. barras empieza con..."
+              title="Escribe los primeros dígitos: 1 lista todos los códigos que empiezan con 1"
+              className={cn(
+                "w-full pl-9 pr-8 py-2.5 rounded-md outline-none transition-all shadow-sm text-xs border",
+                filtroCodigoBarras
+                  ? "bg-indigo-50 border-indigo-300 text-indigo-800 placeholder-indigo-300 focus:ring-2 focus:ring-indigo-200"
+                  : "bg-white border-gray-200 focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50",
+              )}
+            />
+            <Barcode
+              className={cn(
+                "w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2",
+                filtroCodigoBarras ? "text-indigo-500" : "text-gray-400",
+              )}
+            />
+            {filtroCodigoBarras && (
+              <button
+                type="button"
+                onClick={() => setFiltroCodigoBarras("")}
+                title="Quitar filtro de código de barras"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Filtros + acciones — derecha, bajan juntos */}
