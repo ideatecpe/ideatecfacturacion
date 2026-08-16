@@ -108,9 +108,9 @@ export default function ModalCrearProductoRapido({
       return;
     }
 
-    const numPrecioCompra = precioCompra ? parseFloat(precioCompra) : null;
-    if (precioCompra && (isNaN(numPrecioCompra!) || numPrecioCompra! < 0)) {
-      showToast("El precio de compra debe ser un número válido", "info");
+    const numPrecioCompra = parseFloat(precioCompra);
+    if (!precioCompra || isNaN(numPrecioCompra) || numPrecioCompra < 0) {
+      showToast("Ingresa un precio de compra válido", "info");
       return;
     }
 
@@ -305,7 +305,7 @@ export default function ModalCrearProductoRapido({
 
           <div className="space-y-1">
             <label className="block text-xs font-bold text-gray-700">
-              Precio Compra (S/)
+              Precio Compra (S/) <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
               <span className="text-xs font-bold text-gray-400 absolute left-3 top-1/2 -translate-y-1/2">
@@ -315,6 +315,7 @@ export default function ModalCrearProductoRapido({
                 type="number"
                 step="any"
                 min="0"
+                required
                 value={precioCompra}
                 onChange={(e) => setPrecioCompra(e.target.value)}
                 onFocus={(e) => e.currentTarget.select()}

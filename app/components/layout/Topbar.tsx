@@ -161,6 +161,7 @@ export const Topbar = ({
 }: TopbarProps) => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [recargando, setRecargando] = useState(false);
   const [ventasOpen, setVentasOpen] = useState(false);
 
   const notifRef = useRef<HTMLDivElement>(null);
@@ -324,6 +325,25 @@ export const Topbar = ({
             </div>
 
             <DateChip />
+
+            {/* Recargar: en la app instalada no hay barra de direcciones ni F5,
+                así que este botón es la única forma de refrescar si se cuelga. */}
+            <button
+              onClick={() => {
+                setRecargando(true);
+                window.location.reload();
+              }}
+              disabled={recargando}
+              title="Recargar la página"
+              aria-label="Recargar la página"
+              className={`p-2 rounded-lg border transition-all shadow-sm disabled:cursor-wait ${
+                isBeta
+                  ? "bg-amber-100 border-amber-200 text-amber-700 hover:bg-amber-200"
+                  : "bg-white border-[#D9E4F5] text-brand-blue hover:bg-[#EEF3FB] hover:border-brand-blue/20"
+              }`}
+            >
+              <RefreshCw className={`w-4 h-4 ${recargando ? "animate-spin" : ""}`} />
+            </button>
           </div>
 
           {/* ── Derecha ── */}
