@@ -65,9 +65,13 @@ export function ModalCuadrarCaja({
   const contadoValido = contado.trim() !== "" && Number.isFinite(contadoNumero) && contadoNumero >= 0;
   // La diferencia solo tiene sentido una vez que hay un monto contado válido.
   const diferencia = contadoValido && cuadre ? contadoNumero - cuadre.efectivoEsperado : null;
+  const hayDescuadre = diferencia !== null && Math.abs(diferencia) >= 0.005;
+  // Un faltante o sobrante no debe pasar en silencio: queda en el histórico y
+  // alguien va a preguntar por él, así que se explica en el momento.
+  const faltaJustificar = hayDescuadre && observaciones.trim() === "";
 
   const confirmar = async () => {
-    if (!contadoValido || guardando) return;
+    if (!contadoValido || faltaJustificar || guardando) return;
     setGuardando(true);
     setError(null);
     try {
@@ -80,6 +84,8 @@ export function ModalCuadrarCaja({
   };
 
   const titulo = cerrarCaja ? "Cerrar caja" : "Cuadrar caja";
+  // Los medios sin recaudación no aportan nada al conteo, solo ruido.
+  const mediosConMonto = cuadre?.medios.filter((m) => m.montoEsperado > 0) ?? [];
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={titulo} className="max-w-2xl">
@@ -104,7 +110,12 @@ export function ModalCuadrarCaja({
               Recaudado en tu turno
             </p>
             <div className="rounded-xl border border-gray-100 overflow-hidden bg-gray-100 space-y-px">
-              {cuadre.medios.map(({ medioPago, montoEsperado }) => {
+              {mediosConMonto.length === 0 && (
+                <p className="px-4 py-3 bg-white text-sm text-gray-400">
+                  No registraste ventas en este turno.
+                </p>
+              )}
+              {mediosConMonto.map(({ medioPago, montoEsperado }) => {
                 const Icono = ICONOS[medioPago] ?? Wallet;
                 return (
                   <div key={medioPago} className="flex items-center justify-between gap-4 px-4 py-2.5 bg-white">
@@ -182,12 +193,14 @@ export function ModalCuadrarCaja({
           )}
 
           <InputBase
-            label="Observaciones"
-            labelOptional="(opcional)"
+            label={hayDescuadre ? "Motivo de la diferencia" : "Observaciones"}
+            labelOptional={hayDescuadre ? "" : "(opcional)"}
             value={observaciones}
             onChange={(e) => setObservaciones(e.target.value)}
-            placeholder="Explica la diferencia si la hubo"
+            placeholder={hayDescuadre ? "¿A qué se debe el descuadre?" : "Notas del turno"}
             maxLength={500}
+            showError={faltaJustificar}
+            errorMessage="Explica la diferencia para poder confirmar"
           />
 
           {error && (
@@ -200,7 +213,7 @@ export function ModalCuadrarCaja({
             <Button variant="outline" onClick={onClose} disabled={guardando}>
               Cancelar
             </Button>
-            <Button onClick={confirmar} disabled={!contadoValido || guardando}>
+            <Button onClick={confirmar} disabled={!contadoValido || faltaJustificar || guardando}>
               {guardando ? "Confirmando…" : cerrarCaja ? "Cerrar caja" : "Confirmar cuadre"}
             </Button>
           </div>

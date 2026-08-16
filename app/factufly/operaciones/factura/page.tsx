@@ -19,6 +19,7 @@ import {
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { useAuth } from "@/context/AuthContext";
+import { notificarVentaRegistrada } from "@/lib/eventosCaja";
 import {
   useState,
   useEffect,
@@ -2417,6 +2418,7 @@ function FacturaContent() {
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const comprobanteId = resFactura.data.comprobanteId;
+      notificarVentaRegistrada();
 
       // ✅ Guardamos el id ANTES de llamar a SUNAT
       setComprobanteIdEmitido(comprobanteId);

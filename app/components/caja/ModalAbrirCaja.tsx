@@ -9,22 +9,28 @@ import { InputBase } from "@/app/components/ui/InputBase";
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  /** Efectivo con el que cerró la caja anterior; se propone como fondo inicial. */
+  sugerencia?: number | null;
   /** Debe lanzar si el backend rechaza la apertura, para poder mostrar el error. */
   onConfirmar: (montoInicial: number, observaciones?: string) => Promise<void>;
 }
 
-export function ModalAbrirCaja({ isOpen, onClose, onConfirmar }: Props) {
+export function ModalAbrirCaja({ isOpen, onClose, sugerencia, onConfirmar }: Props) {
   const [monto, setMonto] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const haySugerencia = sugerencia != null;
+
   useEffect(() => {
     if (!isOpen) return;
-    setMonto("");
+    // Arranca con lo que quedó en el cajón: en la práctica el fondo casi
+    // siempre es ese, y si no, el cajero lo corrige antes de confirmar.
+    setMonto(sugerencia != null ? sugerencia.toFixed(2) : "");
     setObservaciones("");
     setError(null);
-  }, [isOpen]);
+  }, [isOpen, sugerencia]);
 
   const montoNumero = parseFloat(monto);
   const montoValido = monto.trim() !== "" && Number.isFinite(montoNumero) && montoNumero >= 0;
@@ -48,8 +54,9 @@ export function ModalAbrirCaja({ isOpen, onClose, onConfirmar }: Props) {
         <div className="flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
           <Wallet className="w-5 h-5 text-[#0f2e64] shrink-0 mt-0.5" />
           <p className="text-xs text-gray-600 leading-relaxed">
-            Ingresa el efectivo con el que inicias el día. Este monto es el punto de
-            partida para calcular el cuadre de cada turno.
+            {haySugerencia
+              ? "La caja anterior cerró con este efectivo, así que lo proponemos como fondo inicial. Cámbialo si el monto real es otro."
+              : "Ingresa el efectivo con el que inicias el día. Este monto es el punto de partida para calcular el cuadre de cada turno."}
           </p>
         </div>
 
@@ -63,6 +70,13 @@ export function ModalAbrirCaja({ isOpen, onClose, onConfirmar }: Props) {
           placeholder="0.00"
           autoFocus
         />
+
+        {haySugerencia && (
+          <p className="-mt-3 text-[11px] text-gray-400">
+            Cierre anterior: S/{" "}
+            {sugerencia!.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+        )}
 
         <InputBase
           label="Observaciones"

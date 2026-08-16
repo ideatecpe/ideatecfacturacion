@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { suscribirVentaRegistrada } from "@/lib/eventosCaja";
 
 export interface MedioPagoResumen {
   medioPago: string;
@@ -54,6 +55,15 @@ export interface CajaEstado {
   /** Turno abierto de otro usuario que olvidó cuadrar: bloquea al actual. */
   turnoDeOtroUsuario?: CajaTurno | null;
   saldoEfectivo: number;
+  /**
+   * El usuario ya cerró un turno en esta caja. Lo resuelve el servidor, así que
+   * sobrevive a navegar fuera de Nueva Venta y volver.
+   */
+  usuarioYaCuadro: boolean;
+  /** Efectivo con el que cerró la última caja de la sucursal, si hubo alguna. */
+  sugerenciaMontoInicial?: number | null;
+  /** La caja abierta quedó de un día anterior: nadie la cerró al terminar. */
+  cajaDeDiaAnterior: boolean;
 }
 
 export interface CuadreTurno {
@@ -136,6 +146,10 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
     refrescar();
   }, [refrescar]);
 
+  // Cada venta emitida cambia el efectivo del cajón: el saldo de la barra se
+  // vuelve a pedir en vez de quedarse con el valor de cuando se montó.
+  useEffect(() => suscribirVentaRegistrada(() => { refrescar(); }), [refrescar]);
+
   const abrirCaja = useCallback(
     async (montoInicial: number, observaciones?: string) => {
       const res = await fetch(`${BASE_URL}/api/Caja/abrir`, {
@@ -196,6 +210,8 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
   useEffect(() => {
     if (!autoIniciarTurno || !estado?.cajaAbierta) return;
     if (estado.turnoActual || estado.turnoDeOtroUsuario) return;
+    // Ya cuadró en esta caja: el siguiente turno se inicia explícitamente.
+    if (estado.usuarioYaCuadro) return;
     if (iniciandoTurno.current) return;
 
     iniciandoTurno.current = true;

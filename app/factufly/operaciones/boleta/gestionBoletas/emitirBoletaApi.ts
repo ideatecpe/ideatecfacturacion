@@ -1,4 +1,5 @@
 import axios from "axios";
+import { notificarVentaRegistrada } from "@/lib/eventosCaja";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -21,6 +22,7 @@ export async function generarXml(payload: Record<string, unknown>, token: string
     payload,
     { headers: { Authorization: `Bearer ${token}` } },
   );
+  notificarVentaRegistrada();
   return res.data as { comprobanteId: number };
 }
 
@@ -45,6 +47,7 @@ export async function crearNotaVenta(payload: Record<string, unknown>, token: st
     payload,
     { headers: { Authorization: `Bearer ${token}` } },
   );
+  notificarVentaRegistrada();
   return res.data as { comprobanteId?: number; ComprobanteId?: number };
 }
 
