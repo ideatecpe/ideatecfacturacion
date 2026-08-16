@@ -4,10 +4,15 @@ export interface SirePeriodoDto {
   descripcion: string | null;
 }
 
+export interface SireEjercicioDto {
+  anio: string | null;
+  periodos: SirePeriodoDto[];
+}
+
 export interface SirePeriodosResponse {
   success: boolean;
   mensaje: string | null;
-  periodos: SirePeriodoDto[];
+  ejercicios: SireEjercicioDto[];
   respuestaCruda: string | null;
 }
 
