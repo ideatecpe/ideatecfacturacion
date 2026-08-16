@@ -61,9 +61,43 @@ const STOCK_MINIMO_UNIDAD = 5;
 // Umbral de stock bajo (alerta visual) para productos paquete/caja, en paquetes equivalentes.
 const STOCK_MINIMO_PAQUETE = 2;
 
+// Cantidad de filas por archivo a partir de la cual se recomienda dividir la importación.
+// No es un límite duro: el proceso envía un producto por petición, así que un archivo muy
+// grande tarda varios minutos y mantiene el modal bloqueado todo ese tiempo.
+const MAX_FILAS_RECOMENDADO = 300;
+
 // Empresas cuyos facturadores solo pueden ver el catálogo (sin editar/eliminar).
 // TODO: idealmente esto debería venir de la config/permisos del backend, no quemado aquí.
 const RUCS_CATALOGO_SOLO_LECTURA = ["10073587382"];
+
+// Traduce el fallo de una fila de la importación a un motivo legible.
+// Sin esto, cuando la petición no llega a responder (internet caído, API apagada)
+// no hay `response` y el mensaje quedaba en un inútil "Error undefined".
+function describirErrorImport(err: unknown, fila: number): string {
+  if (!axios.isAxiosError(err)) return "Error inesperado en la aplicación.";
+
+  if (!err.response) {
+    return err.code === "ECONNABORTED"
+      ? "El servidor tardó demasiado en responder."
+      : "Sin conexión con el servidor. Revisa tu internet e intenta de nuevo.";
+  }
+
+  const { status, data } = err.response;
+  // console.debug y no console.error: una fila rechazada ("ya existe", código de
+  // barras repetido) es un resultado esperado del proceso, no un fallo de la app.
+  // Con console.error, el overlay de Next levantaba un "Issue" por cada fila.
+  console.debug("Import fila", fila, "rechazada:", JSON.stringify(data));
+
+  if (status === 401) return "Tu sesión expiró. Vuelve a iniciar sesión.";
+  if (status === 403) return "No tienes permisos para crear productos.";
+
+  return (
+    data?.mensaje ??
+    data?.message ??
+    data?.title ??
+    (data?.errors ? JSON.stringify(data.errors) : `Error ${status} del servidor.`)
+  );
+}
 
 
 export default function ProductosPage() {
@@ -559,9 +593,20 @@ const [importFile, setImportFile] = useState<File | null>(null);
           headers: { Authorization: `Bearer ${accessToken}` },
         },
       );
-      // El producto se eliminó en el backend: eliminar también su imagen de Cloudflare.
+      // El producto se eliminó en el backend: eliminar también su imagen de Cloudflare,
+      // PERO solo si ningún otro producto está usando esa misma URL. Al importar desde
+      // Excel se reutiliza la URL de la imagen, así que varios productos pueden apuntar
+      // al mismo archivo y borrarlo dejaría a los demás sin imagen.
       if (deleteTarget.urlImagenProducto) {
-        await eliminarImagenCloudflare(deleteTarget.urlImagenProducto);
+        const otroLaUsa = productos.some(
+          (p) =>
+            p.sucursalProducto.sucursalProductoId !==
+              deleteTarget.sucursalProducto.sucursalProductoId &&
+            p.urlImagenProducto === deleteTarget.urlImagenProducto,
+        );
+        if (!otroLaUsa) {
+          await eliminarImagenCloudflare(deleteTarget.urlImagenProducto);
+        }
       }
       showToast("Producto eliminado correctamente.", "success");
       setProductos((prev) =>
@@ -605,6 +650,40 @@ const [importFile, setImportFile] = useState<File | null>(null);
     }
   };
 
+  // Motivos de error agrupados y ordenados por frecuencia, para leer de un vistazo
+  // qué pasó en una importación de cientos de filas.
+  const resumenErroresImport = React.useMemo(() => {
+    const conteo = new Map<string, number>();
+    for (const e of importResultados?.errores ?? []) {
+      conteo.set(e.error, (conteo.get(e.error) ?? 0) + 1);
+    }
+    return [...conteo.entries()]
+      .map(([error, cantidad]) => ({ error, cantidad }))
+      .sort((a, b) => b.cantidad - a.cantidad);
+  }, [importResultados]);
+
+  // Descarga el detalle completo de errores como CSV para poder corregir el Excel.
+  const descargarErroresImport = () => {
+    const errores = importResultados?.errores ?? [];
+    if (errores.length === 0) return;
+
+    const escapar = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [
+      ["Fila", "Producto", "Motivo"].join(";"),
+      ...errores.map((e) =>
+        [escapar(e.fila), escapar(e.nombre), escapar(e.error)].join(";"),
+      ),
+    ].join("\r\n");
+
+    // BOM para que Excel respete las tildes.
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `errores-importacion_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
   const resetImport = () => {
     setImportFile(null);
     setImportSucursalId(isSuperAdmin ? 0 : parseInt(user?.sucursalID ?? "0"));
@@ -645,16 +724,21 @@ const [importFile, setImportFile] = useState<File | null>(null);
         return;
       }
 
+      // Espejo de FilaProducto en app/api/productos/importar/route.ts
       const filas: {
         fila: number;
         nomProducto: string;
         precioUnitario: number | null;
+        precioCompra: number | null;
+        stock: number | null;
         tipoProducto: string;
         tipoAfectacionIGV: string;
         incluirIGV: boolean;
         unidadMedida: string;
         categoria: string;
         codigo: string;
+        codigoBarras: string;
+        urlImagenProducto: string;
         errorValidacion?: string;
       }[] = parseJson.filas;
 
@@ -700,11 +784,29 @@ const [importFile, setImportFile] = useState<File | null>(null);
       // ── PASO 3: enviar cada fila al API de productos ──────────────
       setImportProgreso({ total: filas.length, actual: 0 });
 
+      if (filas.length > MAX_FILAS_RECOMENDADO) {
+        showToast(
+          `El archivo tiene ${filas.length} filas: la importación puede tardar varios minutos. ` +
+            `Para la próxima, divídelo en archivos de ${MAX_FILAS_RECOMENDADO} productos.`,
+          "info",
+        );
+      }
+
       const ok: string[] = [];
       const errores: { fila: number; nombre: string; error: string }[] = [];
       const sucursalId = isSuperAdmin
         ? importSucursalId
         : parseInt(user?.sucursalID ?? "0");
+
+      // Los productos creados se acumulan aquí y la lista se actualiza UNA sola vez
+      // al terminar. Hacer setProductos por fila copiaba el arreglo completo en cada
+      // iteración (O(n²)) y volvía inusable la importación de archivos grandes.
+      const nuevosProductos: ProductoSucursal[] = [];
+      const sucursalNombre = sucursales.find(
+        (s) => s.sucursalId === sucursalId,
+      )?.nombre;
+      const perteneceALaVistaActual =
+        !isSuperAdmin || !filtroSucursal || filtroSucursal === sucursalNombre;
 
       for (let i = 0; i < filas.length; i++) {
         const f = filas[i];
@@ -730,6 +832,11 @@ const [importFile, setImportFile] = useState<File | null>(null);
         const codigoFinal = f.codigo ||
           generarCodigoProducto(f.nomProducto, productos.length + i);
 
+        // Stock y costo solo tienen sentido para bienes y si la empresa maneja inventario.
+        // El backend exige el costo cuando llega stock > 0 (abre el lote PEPS inicial);
+        // el parser ya marca como error las filas con stock pero sin precio de compra.
+        const manejaInventario = !!config?.isStock && f.tipoProducto === "BIEN";
+
         const payload = {
           nomProducto: f.nomProducto,
           precioUnitario: f.precioUnitario,
@@ -738,8 +845,14 @@ const [importFile, setImportFile] = useState<File | null>(null);
           incluirIGV: f.incluirIGV,
           unidadMedida: f.unidadMedida,
           codigo: codigoFinal,
+          codigoBarras: f.codigoBarras || null,
+          // Se reutiliza la URL de Cloudflare tal cual: la imagen ya está subida,
+          // no hace falta volver a subirla.
+          urlImagenProducto: f.urlImagenProducto || null,
           categoriaId: catId,
           sucursalId,
+          stock: manejaInventario ? f.stock : null,
+          costoUnitario: manejaInventario ? f.precioCompra : null,
         };
 
         try {
@@ -751,34 +864,20 @@ const [importFile, setImportFile] = useState<File | null>(null);
           ok.push(f.nomProducto);
 
           // Actualizar lista si la sucursal coincide con el filtro o si es el admin de esa sucursal
-          const sucursalNombre = sucursales.find(
-            (s) => s.sucursalId === sucursalId,
-          )?.nombre;
-          if (
-            !isSuperAdmin ||
-            !filtroSucursal ||
-            filtroSucursal === sucursalNombre
-          ) {
-            setProductos((prev) => [...prev, res.data]);
-          }
+          if (perteneceALaVistaActual) nuevosProductos.push(res.data);
         } catch (err) {
-          let msg = "Error desconocido";
-          if (axios.isAxiosError(err)) {
-            const data = err.response?.data;
-            msg =
-              data?.mensaje ??
-              data?.message ??
-              data?.title ??
-              (data?.errors
-                ? JSON.stringify(data.errors)
-                : `Error ${err.response?.status}`);
-            console.error("Import error fila", f.fila, JSON.stringify(data));
-          }
-          errores.push({ fila: f.fila, nombre: f.nomProducto, error: msg });
+          errores.push({
+            fila: f.fila,
+            nombre: f.nomProducto,
+            error: describirErrorImport(err, f.fila),
+          });
         }
 
         setImportProgreso({ total: filas.length, actual: i + 1 });
       }
+
+      if (nuevosProductos.length > 0)
+        setProductos((prev) => [...prev, ...nuevosProductos]);
 
       setImportResultados({ ok, errores });
       if (ok.length > 0)
@@ -961,9 +1060,9 @@ const [importFile, setImportFile] = useState<File | null>(null);
               Filtrar por
             </span>
 
+            {/* Afectación IGV - Oculto temporalmente */}
+            {/*
             <div className="w-px h-4 bg-gray-200 shrink-0" />
-
-            {/* Afectación IGV */}
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
                 IGV
@@ -1011,6 +1110,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 })}
               </div>
             </div>
+            */}
 
             {config?.isStock && (
               <>
@@ -1587,7 +1687,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 Paso 1 — Descarga la plantilla
               </p>
               <p className="text-xs text-blue-600 mt-0.5">
-                Llena con tus productos y sube el archivo.
+                Llena con tus productos y sube el archivo. También puedes subir el
+                Excel de <strong>Reporte Productos</strong> tal como se descarga.
               </p>
             </div>
             <a
@@ -1632,7 +1733,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 Paso 2 — Arrastra o selecciona tu archivo
               </p>
               <p className="text-xs text-gray-400 mb-3">
-                Solo formato .xlsx (Excel)
+                Solo formato .xlsx (Excel) · Recomendado hasta{" "}
+                {MAX_FILAS_RECOMENDADO} productos por archivo
               </p>
               {importFile ? (
                 <span className="text-xs text-brand-blue font-semibold">
@@ -1691,17 +1793,39 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 </div>
               )}
               {importResultados.errores.length > 0 && (
-                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-1.5 max-h-40 overflow-y-auto">
-                  <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
-                    <XCircle className="w-3.5 h-3.5" />{" "}
-                    {importResultados.errores.length} fila(s) con error
-                  </p>
-                  {importResultados.errores.map((e, i) => (
-                    <p key={i} className="text-xs text-rose-600">
-                      <span className="font-semibold">Fila {e.fila}</span> ·{" "}
-                      {e.nombre} — {e.error}
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
+                      <XCircle className="w-3.5 h-3.5" />{" "}
+                      {importResultados.errores.length} fila(s) con error
                     </p>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={descargarErroresImport}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-rose-200 text-rose-700 text-[11px] font-semibold rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap"
+                    >
+                      <Download className="w-3 h-3" /> Descargar detalle
+                    </button>
+                  </div>
+
+                  {/* Motivos agrupados: con cientos de filas, el detalle fila por fila
+                      es ilegible; primero se muestra en qué falló y cuántas veces. */}
+                  <div className="space-y-1">
+                    {resumenErroresImport.map(({ error, cantidad }) => (
+                      <p key={error} className="text-xs text-rose-700">
+                        <span className="font-bold">{cantidad}×</span> {error}
+                      </p>
+                    ))}
+                  </div>
+
+                  <div className="space-y-1 max-h-40 overflow-y-auto border-t border-rose-200 pt-2">
+                    {importResultados.errores.map((e, i) => (
+                      <p key={i} className="text-xs text-rose-600">
+                        <span className="font-semibold">Fila {e.fila}</span> ·{" "}
+                        {e.nombre} — {e.error}
+                      </p>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
