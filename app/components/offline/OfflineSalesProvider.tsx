@@ -38,6 +38,12 @@ interface OfflineSalesContextValue {
   cantidadError: number;
   syncing: boolean;
   sesionExpirada: boolean;
+  /**
+   * Sube cada vez que la cola termina de subir al menos una venta. Las cajas lo
+   * observan para recargar el stock del servidor: hasta ese momento el catálogo
+   * en pantalla es de ANTES de que el backend descontara esas ventas.
+   */
+  ventasSincronizadas: number;
   enqueueVenta: (
     payload: Record<string, unknown>,
     stockItems: { sucursalProductoId: number; cantidad: number }[],
@@ -63,6 +69,7 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
   );
   const [syncing, setSyncing] = useState(false);
   const [sesionExpirada, setSesionExpirada] = useState(false);
+  const [ventasSincronizadas, setVentasSincronizadas] = useState(0);
 
   const syncingRef = useRef(false);
   const accessTokenRef = useRef(accessToken);
@@ -109,6 +116,7 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
 
     syncingRef.current = true;
     setSyncing(true);
+    let huboExito = false;
 
     for (const venta of porSincronizar) {
       await updateVentaPendiente(venta.id, { estado: "sincronizando" });
@@ -203,6 +211,7 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
 
         await deleteVentaPendiente(venta.id);
         setVentasPendientes((prev) => prev.filter((v) => v.id !== venta.id));
+        huboExito = true;
         showToast(mensajeSunat, "success");
       } catch (err: any) {
         if (err?.response?.status === 401) {
@@ -249,6 +258,10 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
 
     syncingRef.current = false;
     setSyncing(false);
+    // El backend ya descontó el stock de estas ventas: se avisa a las cajas
+    // abiertas para que recarguen el catálogo real (equivale a pulsar
+    // "Actualizar stock desde el servidor", pero solo).
+    if (huboExito) setVentasSincronizadas((n) => n + 1);
   }, [showToast]);
 
   const sincronizarAhora = useCallback(() => {
@@ -332,6 +345,7 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
         cantidadError,
         syncing,
         sesionExpirada,
+        ventasSincronizadas,
         enqueueVenta,
         sincronizarAhora,
         reintentarVenta,

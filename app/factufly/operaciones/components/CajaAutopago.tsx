@@ -286,7 +286,7 @@ export default function CajaAutopago() {
   const { sucursal, fetchSucursal } = useSucursal();
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
   const { categorias, fetchCategorias } = useCategoriasLista();
-  const { enqueueVenta } = useOfflineSales();
+  const { enqueueVenta, ventasSincronizadas } = useOfflineSales();
   const [offlineEncolada, setOfflineEncolada] = useState(false);
   const [ultimoTicketOffline, setUltimoTicketOffline] = useState<
     Parameters<typeof imprimirTicketProvisional>[0] | null
@@ -335,6 +335,18 @@ export default function CajaAutopago() {
       clearInterval(intervalo);
     };
   }, [sucursalId]);
+
+  // ── Al terminar de subir las ventas que quedaron en cola sin conexión ──
+  // Mientras la venta está encolada, el stock en pantalla es un descuento
+  // OPTIMISTA local: el servidor todavía no sabe de ella. Cualquier recarga del
+  // catálogo antes de que la cola suba trae el stock ANTERIOR a esas ventas y
+  // borra el descuento local. Recién cuando la cola termina, el backend tiene el
+  // stock real: se refresca solo, igual que pulsar "Actualizar stock".
+  useEffect(() => {
+    if (!sucursalId || ventasSincronizadas === 0) return;
+    ultimaRevalidacionRef.current = Date.now();
+    fetchProductosRef.current().catch(() => {});
+  }, [ventasSincronizadas, sucursalId]);
 
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
