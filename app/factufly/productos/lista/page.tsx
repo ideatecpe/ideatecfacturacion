@@ -385,14 +385,25 @@ const [importFile, setImportFile] = useState<File | null>(null);
     overscan: 4,
   });
 
-  const handleProductoEditado = (productoEditado: ProductoSucursal) => {
+  const handleProductoEditado = (
+    productoEditado: ProductoSucursal,
+    productoBaseActualizado?: ProductoSucursal,
+  ) => {
     setProductos((prev) =>
-      prev.map((p) =>
-        p.sucursalProducto.sucursalProductoId ===
-        productoEditado.sucursalProducto.sucursalProductoId
-          ? productoEditado
-          : p,
-      ),
+      prev.map((p) => {
+        if (
+          p.sucursalProducto.sucursalProductoId ===
+          productoEditado.sucursalProducto.sucursalProductoId
+        )
+          return productoEditado;
+        if (
+          productoBaseActualizado &&
+          p.sucursalProducto.sucursalProductoId ===
+            productoBaseActualizado.sucursalProducto.sucursalProductoId
+        )
+          return productoBaseActualizado;
+        return p;
+      }),
     );
   };
 

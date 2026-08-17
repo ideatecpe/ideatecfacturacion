@@ -20,7 +20,12 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   producto: ProductoSucursal | null;
-  onProductoEditado: (producto: ProductoSucursal) => void;
+  // productoBaseActualizado: cuando se edita el stock de un PAQUETE, el stock real se mueve
+  // en el producto base (ver EditarProductoAsync). Se pasa también el base con su nuevo stock
+  // ya calculado para que la lista pueda refrescar en memoria las cards que dependen de él
+  // (la del propio base y la de cualquier otro paquete que comparta ese mismo base) sin
+  // necesitar un reload.
+  onProductoEditado: (producto: ProductoSucursal, productoBaseActualizado?: ProductoSucursal) => void;
   categorias: Categoria[];
 }
 
@@ -341,6 +346,25 @@ export default function EditarProducto({
     setCostoInput(costoActual === null || costoActual === undefined ? "" : String(costoActual));
   }, [producto, isOpen]);
 
+  // El stock propio de la fila del paquete no se usa (ver EditarProductoAsync en backend):
+  // el stock real vive en unidades sobre el producto base. Por eso, una vez cargado el
+  // catálogo de productos de la empresa, se recalcula el campo "Stock" del form como la
+  // cantidad de cajas derivada del stock del base (floor(stockBase / factorConversion)),
+  // reemplazando el valor crudo (casi siempre 0) que se precargó arriba.
+  React.useEffect(() => {
+    if (!producto || !isOpen) return;
+    if (!producto.esPaquete || !producto.productoBaseId || !producto.factorConversion) return;
+    if (productosEmpresa.length === 0) return;
+
+    const base = productosEmpresa.find((p) => p.productoId === producto.productoBaseId);
+    if (!base) return;
+
+    const stockBase = base.sucursalProducto.stock ?? 0;
+    const factor = producto.factorConversion;
+    const cajas = factor > 0 ? Math.floor(stockBase / factor) : 0;
+    setForm((prev) => ({ ...prev, stock: cajas }));
+  }, [producto, isOpen, productosEmpresa]);
+
   const handleFormChange =
     (field: keyof NuevoProducto) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -412,10 +436,26 @@ export default function EditarProducto({
       return;
     }
 
+    if (form.esPaquete && form.stock !== null && form.stock !== undefined) {
+      if (form.stock < 0 || !Number.isInteger(form.stock)) {
+        showToast("La cantidad de cajas/paquetes debe ser un número entero mayor o igual a 0.", "info");
+        return;
+      }
+    }
+
     // Cualquier cambio de stock (subir o bajar) exige tener costo registrado: subir sin costo
     // genera un lote PEPS a costo 0, y bajar sin costo indica que el producto todavía no tiene
     // su costo corregido (arrastraría movimientos de Kardex a costo 0 desde los lotes existentes).
-    const stockActual = producto.sucursalProducto.stock ?? 0;
+    // Para un paquete, el "actual" se compara en cajas (derivado del stock del base), no contra
+    // el stock crudo (casi siempre 0) de la propia fila del paquete.
+    const baseDelPaquete =
+      form.esPaquete && form.productoBaseId
+        ? productosEmpresa.find((p) => p.productoId === form.productoBaseId)
+        : null;
+    const stockActual =
+      form.esPaquete && baseDelPaquete && form.factorConversion
+        ? Math.floor((baseDelPaquete.sucursalProducto.stock ?? 0) / form.factorConversion)
+        : producto.sucursalProducto.stock ?? 0;
     if (
       config?.isStock &&
       form.tipoProducto === "BIEN" &&
@@ -522,8 +562,23 @@ export default function EditarProducto({
         },
       };
 
+      // Si es un paquete, el stock real se movió en el producto base (backend): se recalcula
+      // aquí el mismo valor que aplicó el backend para reflejarlo de inmediato en la lista,
+      // sin esperar a un reload.
+      let productoBaseActualizado: ProductoSucursal | undefined;
+      if (form.esPaquete && baseDelPaquete && form.factorConversion) {
+        const factor = form.factorConversion;
+        const stockBaseActual = baseDelPaquete.sucursalProducto.stock ?? 0;
+        const sueltas = stockBaseActual % factor;
+        const nuevoStockBase = (form.stock ?? 0) * factor + sueltas;
+        productoBaseActualizado = {
+          ...baseDelPaquete,
+          sucursalProducto: { ...baseDelPaquete.sucursalProducto, stock: nuevoStockBase },
+        };
+      }
+
       showToast("Producto actualizado correctamente.", "success");
-      onProductoEditado(productoActualizado);
+      onProductoEditado(productoActualizado, productoBaseActualizado);
       onClose();
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -1012,8 +1067,10 @@ function FormEditarProducto({
             compact
             className="h-9"
             label="Stock"
-            labelOptional="(unidades)"
+            labelOptional={form.esPaquete ? "(cajas)" : "(unidades)"}
             type="number"
+            step={form.esPaquete ? 1 : "any"}
+            min={0}
             value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
             onChange={(e) =>
               setForm((prev) => ({
@@ -1021,7 +1078,7 @@ function FormEditarProducto({
                 stock: e.target.value === "" ? null : Number(e.target.value),
               }))
             }
-            placeholder="Ej: 50"
+            placeholder={form.esPaquete ? "Ej: 3" : "Ej: 50"}
           />
         ) : <div />}
 
@@ -1278,8 +1335,9 @@ function FormEditarProducto({
 
       {isStock && form.tipoProducto === "BIEN" && form.esPaquete && (
         <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-          El stock de este paquete se calcula automáticamente a partir del producto base y se
-          actualiza desde el módulo de Compras. Aquí solo puedes editar sus precios.
+          El campo "Stock" de un paquete representa la cantidad de cajas completas (número
+          entero). Al guardar, se sincroniza con el stock en unidades del producto base,
+          conservando las unidades sueltas que ya existieran.
         </p>
       )}
     </>
