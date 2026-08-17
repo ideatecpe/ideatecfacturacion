@@ -26,7 +26,14 @@ export function useLotesVencidosLista() {
       try {
         const res = await axios.get<LoteVencido[]>(
           `${process.env.NEXT_PUBLIC_API_URL}/api/Inventario/vencidos/sucursal/${sucursalId}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+              Pragma: "no-cache",
+            },
+            params: { _: Date.now() },
+          },
         );
         setLotesVencidos(res.data ?? []);
       } catch {

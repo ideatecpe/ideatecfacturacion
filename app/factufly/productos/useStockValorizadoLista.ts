@@ -17,7 +17,14 @@ export function useStockValorizadoLista() {
       try {
         const res = await axios.get<StockValorizado[]>(
           `${process.env.NEXT_PUBLIC_API_URL}/api/Inventario/stock-valorizado/sucursal/${sucursalId}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+              Pragma: "no-cache",
+            },
+            params: { _: Date.now() },
+          },
         );
         setStockValorizado(res.data ?? []);
       } catch {

@@ -55,6 +55,7 @@ import ModalImprimirEtiquetas from "../gestioProductos/ModalImprimirEtiquetas";
 import { generarCodigoProducto } from "../gestioProductos/generarCodigoProducto";
 import { useVales } from "../gestioProductos/useVales";
 import { useEscanerGlobal } from "../../operaciones/useEscanerGlobal";
+import { cacheProductos } from "@/lib/offline/offlineDb";
 
 // Umbral de stock bajo (alerta visual) para productos normales, en unidades.
 const STOCK_MINIMO_UNIDAD = 5;
@@ -389,8 +390,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
     productoEditado: ProductoSucursal,
     productoBaseActualizado?: ProductoSucursal,
   ) => {
-    setProductos((prev) =>
-      prev.map((p) => {
+    setProductos((prev) => {
+      const next = prev.map((p) => {
         if (
           p.sucursalProducto.sucursalProductoId ===
           productoEditado.sucursalProducto.sucursalProductoId
@@ -403,8 +404,13 @@ const [importFile, setImportFile] = useState<File | null>(null);
         )
           return productoBaseActualizado;
         return p;
-      }),
-    );
+      });
+      const sId = user?.sucursalID ? Number(user.sucursalID) : null;
+      if (sId) {
+        cacheProductos(sId, next).catch(() => {});
+      }
+      return next;
+    });
   };
 
   const handleOpenEdit = (prod: ProductoSucursal) => {
@@ -620,13 +626,18 @@ const [importFile, setImportFile] = useState<File | null>(null);
         }
       }
       showToast("Producto eliminado correctamente.", "success");
-      setProductos((prev) =>
-        prev.filter(
+      setProductos((prev) => {
+        const next = prev.filter(
           (p) =>
             p.sucursalProducto.sucursalProductoId !==
             deleteTarget.sucursalProducto.sucursalProductoId,
-        ),
-      );
+        );
+        const sId = user?.sucursalID ? Number(user.sucursalID) : null;
+        if (sId) {
+          cacheProductos(sId, next).catch(() => {});
+        }
+        return next;
+      });
       setDeleteTarget(null);
       setIsDeleteOpen(false);
     } catch (error) {
@@ -1512,9 +1523,16 @@ const [importFile, setImportFile] = useState<File | null>(null);
       <AgregarProducto
         isOpen={isNewOpen}
         onClose={() => setIsNewOpen(false)}
-        onProductoAgregado={(producto) =>
-          setProductos((prev) => [...prev, producto])
-        }
+        onProductoAgregado={(producto) => {
+          setProductos((prev) => {
+            const next = [...prev, producto];
+            const sId = user?.sucursalID ? Number(user.sucursalID) : null;
+            if (sId) {
+              cacheProductos(sId, next).catch(() => {});
+            }
+            return next;
+          });
+        }}
         categorias={categorias}
         onAgregarCategoria={registrarCategoria}
         loadingCategoria={loadingRegistrar}

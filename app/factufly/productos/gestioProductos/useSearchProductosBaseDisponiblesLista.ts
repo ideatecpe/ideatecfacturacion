@@ -26,8 +26,12 @@ export function useSearchProductosBaseDisponiblesLista(sucursalId?: number, pala
         const res = await axios.get<ProductoBase[]>(
           `${process.env.NEXT_PUBLIC_API_URL}/api/productos/base/disponibles/buscar`,
           {
-            params: { sucursalId: idToUse, palabra },
-            headers: { Authorization: `Bearer ${accessToken}` },
+            params: { sucursalId: idToUse, palabra, _: Date.now() },
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+              Pragma: "no-cache",
+            },
           }
         )
         setProductosBase(res.data)

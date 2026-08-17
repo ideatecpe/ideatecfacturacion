@@ -17,7 +17,14 @@ export function useCategoriasLista() {
     try {
       const res = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/api/Categorias/empresa/${ruc}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+          },
+          params: { _: Date.now() },
+        }
       )
       const data: Categoria[] = res.data.map((c: any) => ({
         categoriaId: c.categoriaId,

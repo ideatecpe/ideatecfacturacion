@@ -28,8 +28,12 @@ export function useHistorialVencidosLista() {
         const res = await axios.get<HistorialVencido[]>(
           `${process.env.NEXT_PUBLIC_API_URL}/api/Inventario/vencidos/historial/sucursal/${sucursalId}`,
           {
-            params: { desde: desde || undefined, hasta: hasta || undefined },
-            headers: { Authorization: `Bearer ${accessToken}` },
+            params: { desde: desde || undefined, hasta: hasta || undefined, _: Date.now() },
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+              Pragma: "no-cache",
+            },
           },
         );
         setHistorial(res.data ?? []);

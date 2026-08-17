@@ -69,13 +69,16 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
 
     // ── Fuente real: el API ──
     try {
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${sucursalId}`;
+      console.log("URL productos:", url);
       const res = await axios.get<ProductoSucursal[]>(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${sucursalId}`,
+        url,
         {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          // El stock cambia con cada venta, incluidas las de OTRO dispositivo:
-          // el navegador no debe poder responder con una copia guardada. Se usa
-          // un parámetro (no cabeceras no-cache) para no tocar el preflight CORS.
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+          },
           params: { _: Date.now() },
         }
       )
@@ -133,8 +136,10 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
   };
 
   useEffect(() => {
-    if (accessToken && enabled) fetchProductosSucursal()
-  }, [accessToken, sucursalIdOverride, enabled])
+    if (accessToken && enabled && (sucursalIdOverride || user?.sucursalID)) {
+      fetchProductosSucursal()
+    }
+  }, [accessToken, sucursalIdOverride, user?.sucursalID, enabled])
 
   return {
     productosSucursal,

@@ -19,7 +19,12 @@ export function useProductosEmpresaLista( enabled: boolean = true ) {
       const res = await axios.get<ProductoSucursal[]>(
         `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${user?.ruc}`,
         {
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+          },
+          params: { _: Date.now() },
         }
       )
       setProductosEmpresa(res.data)
