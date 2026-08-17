@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { Package, Plus, Loader2, Sparkles, AlertCircle, ShoppingCart } from "lucide-react";
+import { Package, Plus, Loader2, Sparkles, AlertCircle, ShoppingCart, CheckCircle2 } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
@@ -28,15 +28,22 @@ export default function ModalAjustarStockRapido({
   const { showToast } = useToast();
 
   const [stockInput, setStockInput] = useState<string>("1");
+  const [costoInput, setCostoInput] = useState<string>("");
   const [autoAgregar, setAutoAgregar] = useState<boolean>(true);
   const [guardando, setGuardando] = useState<boolean>(false);
   const [imgError, setImgError] = useState<boolean>(false);
 
   const stockInputRef = useRef<HTMLInputElement>(null);
+  const costoInputRef = useRef<HTMLInputElement>(null);
+
+  const costoRegistrado = producto?.sucursalProducto.ultimoPrecioCompra ?? null;
+  const tieneCostoRegistrado = costoRegistrado != null && costoRegistrado > 0;
 
   useEffect(() => {
     if (isOpen && producto) {
+      const costoPrevio = producto.sucursalProducto.ultimoPrecioCompra;
       setStockInput("1");
+      setCostoInput(costoPrevio != null && costoPrevio > 0 ? String(costoPrevio) : "");
       setAutoAgregar(true);
       setGuardando(false);
       setImgError(false);
@@ -51,7 +58,10 @@ export default function ModalAjustarStockRapido({
   if (!producto) return null;
 
   const unidad = abreviaturaUnidad(producto.unidadMedida);
-  const ultimoCosto = producto.sucursalProducto.ultimoPrecioCompra;
+  const precioVenta = producto.sucursalProducto.precioUnitario ?? 0;
+  const costoNum = costoInput.trim() === "" ? null : parseFloat(costoInput);
+  const costoValido = costoNum != null && !isNaN(costoNum) && costoNum > 0;
+  const gananciaUnitaria = costoValido ? precioVenta - (costoNum as number) : null;
 
   const handleGuardar = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -63,6 +73,14 @@ export default function ModalAjustarStockRapido({
       stockInputRef.current?.focus();
       return;
     }
+
+    if (costoInput.trim() !== "" && (costoNum == null || isNaN(costoNum) || costoNum < 0)) {
+      showToast("Ingresa un precio de compra válido", "info");
+      costoInputRef.current?.focus();
+      return;
+    }
+
+    const costoFinal = costoValido ? (costoNum as number) : costoRegistrado;
 
     setGuardando(true);
     try {
@@ -79,7 +97,7 @@ export default function ModalAjustarStockRapido({
         precioUnitario: producto.sucursalProducto.precioUnitario ?? 0,
         urlImagenProducto: producto.urlImagenProducto ?? null,
         stock: numStock,
-        costoUnitario: ultimoCosto ?? null,
+        costoUnitario: costoFinal ?? null,
         alertaVencimientoActiva: producto.sucursalProducto.alertaVencimientoActiva ?? true,
         alertaStockBajoActiva: producto.sucursalProducto.alertaStockBajoActiva ?? true,
         stockMinimoAlerta: producto.sucursalProducto.stockMinimoAlerta ?? null,
@@ -107,7 +125,7 @@ export default function ModalAjustarStockRapido({
         sucursalProducto: {
           ...producto.sucursalProducto,
           stock: numStock,
-          ultimoPrecioCompra: ultimoCosto,
+          ultimoPrecioCompra: costoFinal,
         },
       };
 
@@ -242,6 +260,58 @@ export default function ModalAjustarStockRapido({
               <Plus size={11} /> 1
             </button>
           </div>
+        </div>
+
+        {/* Input de Precio de compra */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-gray-700">
+              Precio de compra (S/){" "}
+              {tieneCostoRegistrado ? (
+                <span className="text-[10px] font-medium text-gray-400">(opcional)</span>
+              ) : (
+                <span className="text-[10px] font-medium text-amber-600">(recomendado)</span>
+              )}
+            </label>
+            {tieneCostoRegistrado && (
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                <CheckCircle2 size={11} /> Registrado: S/ {costoRegistrado!.toFixed(2)}
+              </span>
+            )}
+          </div>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 pointer-events-none select-none">
+              S/
+            </span>
+            <input
+              ref={costoInputRef}
+              type="text"
+              inputMode="decimal"
+              value={costoInput}
+              onChange={(e) => setCostoInput(e.target.value.replace(/[^0-9.]/g, ""))}
+              onFocus={(e) => e.currentTarget.select()}
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+              placeholder="Ej: 3.50"
+              className="w-full h-11 pl-9 pr-3 bg-white border border-gray-200 rounded-xl text-base font-bold text-gray-900 outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 transition-all text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          </div>
+          {costoValido && precioVenta > 0 && (
+            <p
+              className={`text-[11px] font-semibold ${
+                (gananciaUnitaria ?? 0) >= 0 ? "text-emerald-700" : "text-rose-600"
+              }`}
+            >
+              {(gananciaUnitaria ?? 0) >= 0 ? "Ganancia" : "Pérdida"} por {unidad}: S/{" "}
+              {Math.abs(gananciaUnitaria ?? 0).toFixed(2)}
+              {" · "}
+              {(((gananciaUnitaria ?? 0) / (costoNum as number)) * 100).toFixed(1)}% margen
+            </p>
+          )}
+          {!tieneCostoRegistrado && !costoValido && (
+            <p className="text-[11px] text-gray-400">
+              Si lo dejas vacío, el producto se guardará sin precio de compra.
+            </p>
+          )}
         </div>
 
         {/* Checkbox Auto-agregar a venta */}
