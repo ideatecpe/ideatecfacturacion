@@ -985,8 +985,16 @@ export default function CajaAutopago() {
   // Enter en el buscador o escáner de código de barras físico:
   // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
   // limpiando siempre la búsqueda para la siguiente lectura.
+  //
+  // `esCodigoEscaneado` distingue una lectura de pistola (ráfaga de teclas en
+  // <45ms, ver scannerBufferRef) de una búsqueda manual tecleada. Es crítico:
+  // con un código escaneado exigimos coincidencia EXACTA y jamás "adivinamos"
+  // con el primer producto del grid si no matchea. Sin esta distinción, un
+  // código mal leído por timing (ver handleGlobalKeyDown) caía al fallback y
+  // agregaba silenciosamente otro producto (el primero del grid) en vez del
+  // escaneado — el bug de "se queda pegado el producto anterior".
   const onEnterBusqueda = useCallback(
-    async (queryOverride?: string) => {
+    async (queryOverride?: string, esCodigoEscaneado = false) => {
       const q = (queryOverride !== undefined ? queryOverride : busqueda).trim().toLowerCase();
       if (!q) {
         if (itemsRef.current.length > 0) {
@@ -1012,11 +1020,15 @@ export default function CajaAutopago() {
       if (!exacto) {
         const remotos = await buscarEnServidor(q);
         if (remotos.length > 0) {
-          exacto = remotos.find(
+          const exactoRemoto = remotos.find(
             (p) =>
               p.codigoBarras?.trim().toLowerCase() === q ||
               p.codigo?.trim().toLowerCase() === q,
-          ) ?? remotos[0];
+          );
+          // El buscador remoto es difuso (por nombre incluido): "remotos[0]"
+          // sin match exacto solo es una conveniencia válida para búsqueda
+          // manual, nunca para un código escaneado.
+          exacto = exactoRemoto ?? (esCodigoEscaneado ? undefined : remotos[0]);
         }
       }
 
@@ -1031,7 +1043,21 @@ export default function CajaAutopago() {
         return;
       }
 
-      // 3. Si no hay coincidencia exacta, buscar si hay resultados en el grid
+      // 3. Código escaneado sin ninguna coincidencia exacta: se ofrece crear
+      // el producto (probablemente nuevo). Nunca se cae al primer producto
+      // del grid, que sería un producto distinto al físicamente escaneado.
+      if (esCodigoEscaneado) {
+        showToast(`No se encontró ningún producto con el código "${queryOverride ?? q}"`, "error");
+        const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
+        setCodigoBarrasNuevoProducto(raw);
+        setNombreNuevoProducto("");
+        setModalCrearRapidoAbierto(true);
+        setBusqueda("");
+        return;
+      }
+
+      // 4. Búsqueda manual sin coincidencia exacta: agregar el primer resultado
+      // visible es la conveniencia esperada de "buscar por nombre y Enter".
       if (productosGrid.length > 0) {
         const matchGrid = productosGrid.find(
           (p) =>
@@ -1107,13 +1133,17 @@ export default function CajaAutopago() {
       if (e.key === "Enter") {
         const barcodeFromScanner = scannerBufferRef.current.text.trim();
         const currentQuery = (inputRef.current?.value || busqueda).trim();
-        const queryToUse = barcodeFromScanner.length >= 3 ? barcodeFromScanner : currentQuery;
+        // >=3 caracteres acumulados en <45ms entre sí es la firma de una
+        // pistola física; una persona tecleando a mano nunca alcanza ese
+        // ritmo, así que el buffer le queda en 1 carácter y se usa el input.
+        const esCodigoEscaneado = barcodeFromScanner.length >= 3;
+        const queryToUse = esCodigoEscaneado ? barcodeFromScanner : currentQuery;
 
         scannerBufferRef.current = { text: "", lastTime: 0 };
 
         if (queryToUse) {
           e.preventDefault();
-          onEnterBusqueda(queryToUse);
+          onEnterBusqueda(queryToUse, esCodigoEscaneado);
         } else if (itemsRef.current.length > 0) {
           e.preventDefault();
           abrirPagoRef.current?.();
@@ -2113,9 +2143,16 @@ export default function CajaAutopago() {
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 onKeyDown={(e) => {
+                  // El Enter lo procesa únicamente handleGlobalKeyDown (ver más
+                  // abajo): usa scannerBufferRef, que se actualiza de forma
+                  // síncrona por cada tecla y no depende del ciclo de render de
+                  // React, así que es la fuente más confiable del código
+                  // completo. Duplicar el manejo aquí (con el estado `busqueda`,
+                  // que puede ir un paso atrás del buffer en escaneos rápidos)
+                  // causaba que Enter se procesara dos veces con datos
+                  // distintos, agregando a veces el producto equivocado.
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    onEnterBusqueda();
                   }
                 }}
                 placeholder="Escanea con la cámara, lector físico o busca por nombre / código"
