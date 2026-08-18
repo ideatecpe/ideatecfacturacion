@@ -140,7 +140,11 @@ export default function LineaCompraRow({
         <td className="px-1.5 py-1.5 align-top">
           <select
             value={linea.sucursalId}
-            onChange={(e) => onChange(linea.key, "sucursalId", Number(e.target.value))}
+            onChange={(e) => {
+              onChange(linea.key, "sucursalId", Number(e.target.value));
+              onChange(linea.key, "productoId", 0);
+              onChange(linea.key, "unidadMedida", "");
+            }}
             disabled={disabled}
             className={`${inputCls} ${errors.sucursalId ? "border-rose-400" : "border-gray-200"}`}
           >

@@ -108,6 +108,9 @@ interface Props {
   onProveedorCreado?: (proveedor: Proveedor) => void;
 }
 
+const MAX_CANTIDAD = 5000;
+const MAX_PRECIO_COMPRA = 50000;
+
 let lineaKeySeq = 0;
 const nuevaLinea = (proveedorId = 0, sucursalId = 0): LineaCompra => ({
   key: ++lineaKeySeq,
@@ -564,8 +567,22 @@ export default function RegistrarCompra({
       if (modoProveedor === "varios" && l.proveedorId === 0) le.proveedorId = true;
       if (modoSucursal === "porItem" && l.sucursalId === 0) le.sucursalId = true;
       if (l.productoId === 0) le.productoId = true;
-      if (!l.cantidad || Number(l.cantidad) <= 0) le.cantidad = true;
-      if (!l.precioCompra || Number(l.precioCompra) <= 0) le.precioCompra = true;
+
+      const cantidadNum = Number(l.cantidad);
+      if (!l.cantidad || !Number.isFinite(cantidadNum) || cantidadNum <= 0) {
+        le.cantidad = true;
+      } else if (cantidadNum > MAX_CANTIDAD) {
+        le.cantidad = true;
+        mensajes.push(`Línea ${idx + 1}: la cantidad (${cantidadNum}) supera el máximo permitido (${MAX_CANTIDAD}). Verifica que no sea un error de digitación.`);
+      }
+
+      const precioNum = Number(l.precioCompra);
+      if (!l.precioCompra || !Number.isFinite(precioNum) || precioNum <= 0) {
+        le.precioCompra = true;
+      } else if (precioNum > MAX_PRECIO_COMPRA) {
+        le.precioCompra = true;
+        mensajes.push(`Línea ${idx + 1}: el precio de compra (S/ ${precioNum}) supera el máximo permitido (S/ ${MAX_PRECIO_COMPRA}). Verifica que no sea un error de digitación.`);
+      }
 
       if (l.productoId !== 0 && l.cantidad) {
         const producto = resolverProductoDeLinea(l);
@@ -603,6 +620,18 @@ export default function RegistrarCompra({
     // ya registradas si el usuario reintenta después de un error parcial.
     const pendientes = lineas.filter((l) => l.estado !== "guardado");
     if (pendientes.length === 0) return;
+
+    const hoy = new Date().toISOString().slice(0, 10);
+    const vencidas = pendientes.filter((l) => l.fechaVencimiento && l.fechaVencimiento < hoy);
+    if (vencidas.length > 0) {
+      const nombres = vencidas
+        .map((l) => resolverProductoDeLinea(l)?.nomProducto ?? `línea ${pendientes.indexOf(l) + 1}`)
+        .join(", ");
+      const continuar = window.confirm(
+        `Los siguientes productos tienen fecha de vencimiento ya pasada: ${nombres}. Se registrarán como vencidos. ¿Deseas continuar de todas formas?`,
+      );
+      if (!continuar) return;
+    }
 
     setGuardando(true);
     setProgreso({ total: pendientes.length, actual: 0 });
@@ -784,7 +813,7 @@ export default function RegistrarCompra({
               </option>
               {proveedores.map((p) => (
                 <option key={p.proveedorId} value={p.proveedorId}>
-                  {p.razonSocial}
+                  {p.nombreComercial ? `${p.nombreComercial} - ${p.razonSocial}` : p.razonSocial}
                 </option>
               ))}
             </select>
