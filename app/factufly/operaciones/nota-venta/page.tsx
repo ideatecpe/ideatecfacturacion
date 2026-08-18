@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
@@ -40,6 +40,7 @@ import { useClienteBoleta } from "../boleta/gestionBoletas/useClienteBoleta";
 import { Cliente } from "../../clientes/gestionClientes/typesCliente";
 import { notificarVentaRegistrada } from "@/lib/eventosCaja";
 import { useSucursal } from "../boleta/gestionBoletas/useSucursal";
+import { logNotaVenta } from "../boleta/gestionBoletas/emitirBoletaApi";
 import { formatoFechaActual, fechaLocalISO, fmtMonto } from "@/app/components/ui/formatoFecha";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
 import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
@@ -128,11 +129,12 @@ function NotaVentaContent() {
   // ── isSuperAdmin ─────────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
   const IGV_DEFAULT = config?.igv ? parseFloat(config.igv) : (user?.igv ?? 18);
+  const isCajaAutopago = !!(config?.isStock && config?.isCajaAutopago);
 
   const { empresa } = useEmpresaEmisor();
   const { cliente, loadingCliente, errorCliente, buscarCliente } =
     useClienteBoleta();
-  const { clientes, loadingClientes, fetchClientes } = useClientesRuc();
+  const { clientes, loadingClientes, fetchClientes } = useClientesRuc(!isCajaAutopago);
 
   const { sucursal: sucursalDelHook, loadingSucursal } = useSucursal();
   const [sucursal, setSucursal] = useState<Sucursal | null>(null);
@@ -2187,9 +2189,13 @@ function NotaVentaContent() {
     setErrorEmision(null);
     stockDescontadoRef.current = false;
     try {
+      const urlNV = `${process.env.NEXT_PUBLIC_API_URL}/api/NotaVenta`;
+      const bodyNV = prepararNV();
+      logNotaVenta(urlNV, bodyNV);
+
       const resNV = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/NotaVenta`,
-        prepararNV(),
+        urlNV,
+        bodyNV,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const comprobanteId = resNV.data.comprobanteId ?? resNV.data.ComprobanteId;

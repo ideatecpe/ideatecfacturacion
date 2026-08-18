@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import {
   ArrowRight,
   Store,
@@ -152,16 +152,23 @@ function calcularDisponible(
   cartItems: ItemCarrito[],
   allProducts: ProductoSucursal[],
   isStock: boolean,
+  productsMap?: Map<number, ProductoSucursal>,
 ): number | null {
   if (!isStock || p.tipoProducto !== "BIEN") return null;
   const baseId = p.esPaquete && p.productoBaseId ? p.productoBaseId : p.productoId;
   const baseProd = p.esPaquete && p.productoBaseId
-    ? allProducts.find((x) => x.productoId === p.productoBaseId)
+    ? (productsMap ? productsMap.get(p.productoBaseId) : allProducts.find((x) => x.productoId === p.productoBaseId))
     : p;
-  const stockBase = baseProd?.sucursalProducto.stock ?? 0;
+  const stockBase = baseProd?.sucursalProducto?.stock ?? 0;
+  if (cartItems.length === 0) {
+    if (p.esPaquete && p.factorConversion && p.factorConversion > 0) {
+      return Math.floor(stockBase / p.factorConversion);
+    }
+    return stockBase;
+  }
   const comprometido = cartItems.reduce((total, it) => {
     if (it.tipoProducto !== "BIEN") return total;
-    const itProd = allProducts.find((x) => x.productoId === it.productoId);
+    const itProd = productsMap ? productsMap.get(it.productoId) : allProducts.find((x) => x.productoId === it.productoId);
     if (!itProd) return total;
     const itBaseId = itProd.esPaquete && itProd.productoBaseId ? itProd.productoBaseId : itProd.productoId;
     if (itBaseId !== baseId) return total;
@@ -175,7 +182,7 @@ function calcularDisponible(
 }
 
 // Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
-function ProductoGridCard({
+const ProductoGridCard = memo(function ProductoGridCard({
   p,
   cantidadEnCarrito = 0,
   stockDisp = null,
@@ -265,7 +272,7 @@ function ProductoGridCard({
       </div>
     </button>
   );
-}
+});
 
 export default function CajaAutopago() {
   const { user, accessToken } = useAuth();
@@ -798,11 +805,28 @@ export default function CajaAutopago() {
     return null;
   })();
 
+  // Mapa de productos por ID para lookups O(1) de paquetes/stock
+  const productosPorId = useMemo(() => {
+    return new Map(productosSucursal.map((p) => [p.productoId, p]));
+  }, [productosSucursal]);
+
+  // Estadísticas de ventas en memoria para evitar parsear localStorage en cada render
+  const statsVentas = useMemo(() => {
+    try {
+      const key = `factufly_recientes_venta_${sucursalId || "default"}`;
+      const raw = typeof window !== "undefined" ? localStorage.getItem(key) : null;
+      return raw ? (JSON.parse(raw) as Record<number, { timestamp: number; count: number }>) : {};
+    } catch {
+      return {};
+    }
+  }, [sucursalId, historialVentasVersion]);
+
   // ── Grid de productos (ordenados por más recientes / más vendidos por defecto) ──
   const productosGrid = useMemo(() => {
-    if (busqueda.trim()) {
+    const q = busqueda.trim();
+    if (q) {
       return productosSucursal.filter((p) =>
-        coincideBusqueda(busqueda, p.nomProducto, p.codigo, p.codigoBarras),
+        coincideBusqueda(q, p.nomProducto, p.codigo, p.codigoBarras),
       );
     }
 
@@ -810,26 +834,16 @@ export default function CajaAutopago() {
     const baseProductos = (config?.isStock ?? true)
       ? productosSucursal.filter((p) => {
           if (p.tipoProducto !== "BIEN") return true;
-          const disp = calcularDisponible(p, [], productosSucursal, true);
+          const disp = calcularDisponible(p, [], productosSucursal, true, productosPorId);
           return disp === null || disp > 0;
         })
       : productosSucursal;
 
-    // Ordenar para que aparezcan primero los productos más vendidos/recientes de ventas finalizadas
-    let stats: Record<number, { timestamp: number; count: number }> = {};
-    try {
-      const key = `factufly_recientes_venta_${sucursalId || "default"}`;
-      const raw = typeof window !== "undefined" ? localStorage.getItem(key) : null;
-      if (raw) stats = JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-
     const copia = [...baseProductos];
     copia.sort((a, b) => {
       // 1. Por actividad de venta finalizada (timestamp más reciente primero)
-      const statA = stats[a.productoId];
-      const statB = stats[b.productoId];
+      const statA = statsVentas[a.productoId];
+      const statB = statsVentas[b.productoId];
       const timeA = statA?.timestamp ?? 0;
       const timeB = statB?.timestamp ?? 0;
       if (timeA !== timeB) return timeB - timeA;
@@ -844,7 +858,7 @@ export default function CajaAutopago() {
     });
 
     return copia;
-  }, [busqueda, productosSucursal, sucursalId, historialVentasVersion, config?.isStock]);
+  }, [busqueda, productosSucursal, statsVentas, config?.isStock, productosPorId]);
 
   const cambiarCantidad = (key: string, delta: number) => {
     if (delta > 0) {
@@ -2321,7 +2335,7 @@ export default function CajaAutopago() {
                   {productosGridVisualizados.map((p) => {
                     const itemCarrito = items.find((i) => i.productoId === p.productoId);
                     const stockDisp = config?.isStock
-                      ? calcularDisponible(p, items, productosSucursal, true)
+                      ? calcularDisponible(p, items, productosSucursal, true, productosPorId)
                       : null;
                     return (
                       <ProductoGridCard

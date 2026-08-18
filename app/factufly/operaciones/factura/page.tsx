@@ -178,6 +178,7 @@ function FacturaContent() {
   // ── 1. isSuperAdmin ──────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
   const IGV_DEFAULT = config?.igv ? parseFloat(config.igv) : (user?.igv ?? 18);
+  const isCajaAutopago = !!(config?.isStock && config?.isCajaAutopago);
 
   //Editar y reenviar
   const searchParams = useSearchParams();
@@ -189,7 +190,7 @@ function FacturaContent() {
   const { empresa } = useEmpresaEmisor();
   const { cliente, loadingCliente, errorCliente, buscarCliente } =
     useClienteFactura();
-  const { clientes, loadingClientes, fetchClientes } = useClientesRuc();
+  const { clientes, loadingClientes, fetchClientes } = useClientesRuc(!isCajaAutopago);
 
   const { sucursal: sucursalDelHook, loadingSucursal } = useSucursal();
   const [sucursal, setSucursal] = useState<Sucursal | null>(null);

@@ -40,10 +40,26 @@ export async function enviarASunatApi(comprobanteId: number, token: string | nul
   };
 }
 
+// Traza de emision: imprime en consola la URL exacta y el body completo que sale hacia
+// la API, para poder reproducir la peticion tal cual desde Postman o curl.
+// Queda fuera de produccion porque el body lleva datos del cliente (nombre, documento).
+export function logNotaVenta(url: string, payload: unknown) {
+  if (process.env.NODE_ENV === "production") return;
+
+  console.groupCollapsed(`%c[NotaVenta] POST ${url}`, "color:#d97706;font-weight:bold");
+  console.log("URL:", url);
+  console.log("Body:", payload);
+  console.log("Body (JSON):", JSON.stringify(payload, null, 2));
+  console.groupEnd();
+}
+
 // Nota de Venta: documento de control interno, no pasa por SUNAT.
 export async function crearNotaVenta(payload: Record<string, unknown>, token: string | null) {
+  const url = `${API_URL}/api/NotaVenta`;
+  logNotaVenta(url, payload);
+
   const res = await axios.post(
-    `${API_URL}/api/NotaVenta`,
+    url,
     payload,
     { headers: { Authorization: `Bearer ${token}` } },
   );

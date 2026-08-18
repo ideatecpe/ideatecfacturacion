@@ -66,6 +66,7 @@ export function useConfiguracion() {
             if (entry && !usedNetwork) {
               configCache.set(ruc, entry.config);
               setConfig(entry.config);
+              setLoading(false);
             }
           })
           .catch(() => {});

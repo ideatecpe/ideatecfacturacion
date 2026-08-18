@@ -8,6 +8,7 @@ import BoletaPage from "../boleta/page";
 import FacturaPage from "../factura/page";
 import NotaVentaPage from "../nota-venta/page";
 import EmisionRapidaPage from "../../emision/page";
+import CajaAutopago from "../components/CajaAutopago";
 import { sharedVentaStore } from "../sharedVentaStore";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
@@ -60,11 +61,11 @@ export default function BoletaFacturaElectronicaPage() {
   const isNV = tipo === "notaventa";
   const cajaAutopago = !!(config?.isStock && config?.isCajaAutopago);
 
-  // En modo Caja Autopago, la cabecera (título, badge y pestañas) se oculta
-  // para que la nueva vista ocupe todo el espacio disponible.
+  // En modo Caja Autopago, renderizamos directamente CajaAutopago sin montar
+  // BoletaPage (evita descargas innecesarias de clientes, vales y sucursales).
   const contenido = cajaAutopago ? (
     <div className="flex flex-col h-full">
-      <BoletaPage />
+      <CajaAutopago />
     </div>
   ) : (
     <div className="flex flex-col h-full space-y-2">
