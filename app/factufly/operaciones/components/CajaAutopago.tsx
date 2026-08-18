@@ -358,6 +358,21 @@ export default function CajaAutopago() {
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
+  const [ultimoItemAgregadoKey, setUltimoItemAgregadoKey] = useState<string | null>(null);
+  const cartContainerRef = useRef<HTMLDivElement | null>(null);
+  const mobileCartContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (ultimoItemAgregadoKey) {
+      cartContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      mobileCartContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      const timer = setTimeout(() => {
+        setUltimoItemAgregadoKey(null);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [ultimoItemAgregadoKey]);
+
   const [busqueda, setBusqueda] = useState("");
   const [confirmarLimpiarTodo, setConfirmarLimpiarTodo] = useState(false);
   const [mostrarPago, setMostrarPago] = useState(false);
@@ -433,29 +448,30 @@ export default function CajaAutopago() {
           showToast(`Stock insuficiente: solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${p.nomProducto}"`, "info");
           return prev;
         }
-        const copia = [...prev];
-        copia[idx] = { ...copia[idx], cantidad: copia[idx].cantidad + 1 };
-        return copia;
+        const itemActualizado = { ...prev[idx], cantidad: prev[idx].cantidad + 1 };
+        setUltimoItemAgregadoKey(itemActualizado.key);
+        // Ponemos el producto actualizado al inicio de la lista para que el cajero lo vea al instante
+        const otros = prev.filter((_, i) => i !== idx);
+        return [itemActualizado, ...otros];
       }
       // New product: cap initial quantity at available stock if less than 1
       const cantidadInicial = disp !== null && disp < 1 ? parseFloat(disp.toFixed(3)) : 1;
-      return [
-        ...prev,
-        {
-          key: crypto.randomUUID(),
-          productoId: p.productoId,
-          sucursalProductoId: p.sucursalProducto.sucursalProductoId,
-          codigo: p.codigo,
-          descripcion: p.nomProducto,
-          cantidad: cantidadInicial,
-          precio: precioConDescuento(p),
-          tipoAfectacionIGV: p.tipoAfectacionIGV,
-          urlImagen: p.urlImagenProducto ?? null,
-          unidadMedida: p.unidadMedida ?? "NIU",
-          tipoProducto: p.tipoProducto,
-          tieneVencido,
-        },
-      ];
+      const nuevoItem = {
+        key: crypto.randomUUID(),
+        productoId: p.productoId,
+        sucursalProductoId: p.sucursalProducto.sucursalProductoId,
+        codigo: p.codigo,
+        descripcion: p.nomProducto,
+        cantidad: cantidadInicial,
+        precio: precioConDescuento(p),
+        tipoAfectacionIGV: p.tipoAfectacionIGV,
+        urlImagen: p.urlImagenProducto ?? null,
+        unidadMedida: p.unidadMedida ?? "NIU",
+        tipoProducto: p.tipoProducto,
+        tieneVencido,
+      };
+      setUltimoItemAgregadoKey(nuevoItem.key);
+      return [nuevoItem, ...prev];
     });
     setBusqueda("");
     const active = document.activeElement;
@@ -2415,7 +2431,7 @@ export default function CajaAutopago() {
             )}
           </div>
 
-          <div className="flex-1 lg:overflow-y-auto px-3 py-3 space-y-2">
+          <div ref={cartContainerRef} className="flex-1 lg:overflow-y-auto px-3 py-3 space-y-2">
             {items.length > 0 && (
               <div className="flex items-center justify-between px-1 pb-1">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
@@ -2424,7 +2440,7 @@ export default function CajaAutopago() {
                 <button
                   type="button"
                   onClick={() => setConfirmarLimpiarTodo(true)}
-                  className="flex items-center gap-1 text-xs font-semibold text-rose-500 hover:text-rose-700 hover:underline transition-colors"
+                  className="flex items-center gap-1 text-xs font-semibold text-rose-500 hover:text-rose-700 hover:underline transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Limpiar todo
                 </button>
@@ -2442,156 +2458,188 @@ export default function CajaAutopago() {
                 </p>
               </div>
             ) : (
-              items.map((i) => (
-                <div
-                  key={i.key}
-                  className="rounded-lg border border-gray-100 bg-white p-2 hover:border-gray-200 transition-all shadow-2xs space-y-1.5"
-                >
-                  {/* Fila superior: Imagen + Nombre + Precio Unitario Editable + Eliminar */}
-                  <div className="flex items-center gap-2">
-                    <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
+              items.map((i) => {
+                const prodInfo = productosPorId.get(i.productoId);
+                const stockDisp = config?.isStock && prodInfo && prodInfo.tipoProducto === "BIEN"
+                  ? calcularDisponible(prodInfo, items, productosSucursal, true, productosPorId)
+                  : null;
+                const esReciente = i.key === ultimoItemAgregadoKey;
 
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
-                        {i.descripcion}
-                        {i.tieneVencido && (
-                          <span title="Lote vencido sin retirar">
-                            <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
-                          </span>
-                        )}
-                      </p>
+                return (
+                  <div
+                    key={i.key}
+                    className={`rounded-lg border p-2 transition-all shadow-2xs space-y-1.5 ${
+                      esReciente
+                        ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-400/50 shadow-md scale-[1.01]"
+                        : "border-gray-100 bg-white hover:border-gray-200"
+                    }`}
+                  >
+                    {/* Fila superior: Imagen + Nombre + Precio Unitario Editable + Stock + Eliminar */}
+                    <div className="flex items-center gap-2">
+                      <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
 
-                      {/* Precio Unitario Editable */}
-                      <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-0.5">
-                        <span className="font-medium">S/</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
+                          {i.descripcion}
+                          {i.tieneVencido && (
+                            <span title="Lote vencido sin retirar">
+                              <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                            </span>
+                          )}
+                        </p>
+
+                        <div className="flex items-center justify-between gap-1 flex-wrap mt-0.5">
+                          {/* Precio Unitario Editable */}
+                          <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                            <span className="font-medium">S/</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={
+                                i.precioStr !== undefined
+                                  ? i.precioStr
+                                  : i.precio === 0
+                                    ? "0"
+                                    : i.precio
+                              }
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(",", ".");
+                                if (raw === "" || raw === ".") {
+                                  actualizarPrecioUnitarioDirecto(i.key, 0, raw);
+                                } else if (/^\d*\.?\d*$/.test(raw)) {
+                                  const parsed = parseFloat(raw);
+                                  if (!isNaN(parsed)) {
+                                    actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
+                                  }
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const raw = e.target.value.replace(",", ".");
+                                const parsed = parseFloat(raw);
+                                actualizarPrecioUnitarioDirecto(
+                                  i.key,
+                                  isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)),
+                                  undefined,
+                                );
+                              }}
+                              className="w-14 h-4.5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
+                              title="Haz clic para cambiar el precio unitario"
+                            />
+                            <span>
+                              {i.unidadMedida
+                                ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}`
+                                : "c/u"}
+                            </span>
+                          </div>
+
+                          {/* Badge de Stock Disponible Restante */}
+                          {stockDisp !== null && (
+                            <span
+                              className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold tabular-nums shrink-0 ${
+                                stockDisp <= 0
+                                  ? "bg-rose-100 text-rose-700 border border-rose-200"
+                                  : stockDisp <= 5
+                                    ? "bg-red-100 text-red-700 border border-red-200"
+                                    : stockDisp <= 10
+                                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              }`}
+                              title={`Stock restante disponible: ${formatearCantidadUnidad(stockDisp, i.unidadMedida)} ${abreviaturaUnidad(i.unidadMedida)}`}
+                            >
+                              Stock: {formatearCantidadUnidad(stockDisp, i.unidadMedida)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Eliminar */}
+                      <button
+                        type="button"
+                        onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
+                        className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                        title="Eliminar producto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Fila inferior: Control de Cantidad (Izquierda) + Total de Línea (Derecha en 1 sola línea) */}
+                    <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => cambiarCantidad(i.key, -1)}
+                          className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
+                          title="Disminuir"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+
                         <input
                           type="text"
                           inputMode="decimal"
                           value={
-                            i.precioStr !== undefined
-                              ? i.precioStr
-                              : i.precio === 0
-                                ? "0"
-                                : i.precio
+                            i.cantidadStr !== undefined
+                              ? i.cantidadStr
+                              : i.cantidad === 0
+                                ? ""
+                                : i.cantidad
                           }
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const raw = e.target.value.replace(",", ".");
                             if (raw === "" || raw === ".") {
-                              actualizarPrecioUnitarioDirecto(i.key, 0, raw);
+                              setItems((prev) =>
+                                prev.map((it) =>
+                                  it.key === i.key ? { ...it, cantidad: 0, cantidadStr: raw } : it,
+                                ),
+                              );
                             } else if (/^\d*\.?\d*$/.test(raw)) {
                               const parsed = parseFloat(raw);
-                              if (!isNaN(parsed)) {
-                                actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
-                              }
+                              const val = isNaN(parsed) ? 0 : parsed;
+                              actualizarCantidadDirecta(i.key, val, raw);
                             }
                           }}
                           onBlur={(e) => {
                             const raw = e.target.value.replace(",", ".");
                             const parsed = parseFloat(raw);
-                            actualizarPrecioUnitarioDirecto(
-                              i.key,
-                              isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)),
-                              undefined,
-                            );
+                            if (isNaN(parsed) || parsed <= 0) {
+                              setItems((prev) => prev.filter((it) => it.key !== i.key));
+                            } else {
+                              setItems((prev) =>
+                                prev.map((it) =>
+                                  it.key === i.key
+                                    ? { ...it, cantidad: parseFloat(parsed.toFixed(3)), cantidadStr: undefined }
+                                    : it,
+                                ),
+                              );
+                            }
                           }}
-                          className="w-14 h-4.5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
-                          title="Haz clic para cambiar el precio unitario"
+                          className="w-12 h-6 text-center text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums px-0.5"
+                          title="Ingresa la cantidad o peso (ej. 0.5, 0.4)"
                         />
-                        <span>
-                          {i.unidadMedida
-                            ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}`
-                            : "c/u"}
+
+                        <button
+                          type="button"
+                          onClick={() => cambiarCantidad(i.key, 1)}
+                          className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
+                          title="Aumentar"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <span className="text-[11px] text-gray-400 font-medium">Total:</span>
+                        <span className="text-xs font-bold text-gray-900 tabular-nums">
+                          S/ {(i.precio * i.cantidad).toFixed(2)}
                         </span>
                       </div>
                     </div>
-
-                    {/* Eliminar */}
-                    <button
-                      type="button"
-                      onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
-                      className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
-                      title="Eliminar producto"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
                   </div>
-
-                  {/* Fila inferior: Control de Cantidad (Izquierda) + Total de Línea (Derecha en 1 sola línea) */}
-                  <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => cambiarCantidad(i.key, -1)}
-                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
-                        title="Disminuir"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={
-                          i.cantidadStr !== undefined
-                            ? i.cantidadStr
-                            : i.cantidad === 0
-                              ? ""
-                              : i.cantidad
-                        }
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(",", ".");
-                          if (raw === "" || raw === ".") {
-                            setItems((prev) =>
-                              prev.map((it) =>
-                                it.key === i.key ? { ...it, cantidad: 0, cantidadStr: raw } : it,
-                              ),
-                            );
-                          } else if (/^\d*\.?\d*$/.test(raw)) {
-                            const parsed = parseFloat(raw);
-                            const val = isNaN(parsed) ? 0 : parsed;
-                            actualizarCantidadDirecta(i.key, val, raw);
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const raw = e.target.value.replace(",", ".");
-                          const parsed = parseFloat(raw);
-                          if (isNaN(parsed) || parsed <= 0) {
-                            setItems((prev) => prev.filter((it) => it.key !== i.key));
-                          } else {
-                            setItems((prev) =>
-                              prev.map((it) =>
-                                it.key === i.key
-                                  ? { ...it, cantidad: parseFloat(parsed.toFixed(3)), cantidadStr: undefined }
-                                  : it,
-                              ),
-                            );
-                          }
-                        }}
-                        className="w-12 h-6 text-center text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums px-0.5"
-                        title="Ingresa la cantidad o peso (ej. 0.5, 0.4)"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => cambiarCantidad(i.key, 1)}
-                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
-                        title="Aumentar"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <span className="text-[11px] text-gray-400 font-medium">Total:</span>
-                      <span className="text-xs font-bold text-gray-900 tabular-nums">
-                        S/ {(i.precio * i.cantidad).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -2707,69 +2755,99 @@ export default function CajaAutopago() {
             </div>
 
             {/* Lista de productos en el Drawer */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-              {items.map((i) => (
-                <div
-                  key={i.key}
-                  className="rounded-lg border border-gray-100 bg-white p-2.5 shadow-2xs space-y-1.5"
-                >
-                  <div className="flex items-center gap-2">
-                    <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
-                        {i.descripcion}
-                        {i.tieneVencido && (
-                          <span title="Lote vencido sin retirar">
-                            <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
-                          </span>
-                        )}
-                      </p>
-                      <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-0.5">
-                        <span className="font-medium">S/</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={i.precioStr !== undefined ? i.precioStr : i.precio === 0 ? "0" : i.precio}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(",", ".");
-                            if (raw === "" || raw === ".") {
-                              actualizarPrecioUnitarioDirecto(i.key, 0, raw);
-                            } else if (/^\d*\.?\d*$/.test(raw)) {
-                              const parsed = parseFloat(raw);
-                              if (!isNaN(parsed)) actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const raw = e.target.value.replace(",", ".");
-                            const parsed = parseFloat(raw);
-                            actualizarPrecioUnitarioDirecto(i.key, isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)), undefined);
-                          }}
-                          className="w-14 h-5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
-                        />
-                        <span>
-                          {i.unidadMedida ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}` : "c/u"}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
-                      className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+            <div ref={mobileCartContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+              {items.map((i) => {
+                const prodInfo = productosPorId.get(i.productoId);
+                const stockDisp = config?.isStock && prodInfo && prodInfo.tipoProducto === "BIEN"
+                  ? calcularDisponible(prodInfo, items, productosSucursal, true, productosPorId)
+                  : null;
+                const esReciente = i.key === ultimoItemAgregadoKey;
 
-                  <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                    <div className="flex items-center gap-1">
+                return (
+                  <div
+                    key={i.key}
+                    className={`rounded-lg border p-2.5 shadow-2xs space-y-1.5 transition-all ${
+                      esReciente
+                        ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-400/50 shadow-md scale-[1.01]"
+                        : "border-gray-100 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
+                          {i.descripcion}
+                          {i.tieneVencido && (
+                            <span title="Lote vencido sin retirar">
+                              <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                            </span>
+                          )}
+                        </p>
+                        <div className="flex items-center justify-between gap-1 flex-wrap mt-0.5">
+                          <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                            <span className="font-medium">S/</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={i.precioStr !== undefined ? i.precioStr : i.precio === 0 ? "0" : i.precio}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(",", ".");
+                                if (raw === "" || raw === ".") {
+                                  actualizarPrecioUnitarioDirecto(i.key, 0, raw);
+                                } else if (/^\d*\.?\d*$/.test(raw)) {
+                                  const parsed = parseFloat(raw);
+                                  if (!isNaN(parsed)) actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const raw = e.target.value.replace(",", ".");
+                                const parsed = parseFloat(raw);
+                                actualizarPrecioUnitarioDirecto(i.key, isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)), undefined);
+                              }}
+                              className="w-14 h-5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
+                            />
+                            <span>
+                              {i.unidadMedida ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}` : "c/u"}
+                            </span>
+                          </div>
+
+                          {stockDisp !== null && (
+                            <span
+                              className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold tabular-nums shrink-0 ${
+                                stockDisp <= 0
+                                  ? "bg-rose-100 text-rose-700 border border-rose-200"
+                                  : stockDisp <= 5
+                                    ? "bg-red-100 text-red-700 border border-red-200"
+                                    : stockDisp <= 10
+                                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              }`}
+                              title={`Stock restante disponible: ${formatearCantidadUnidad(stockDisp, i.unidadMedida)}`}
+                            >
+                              Stock: {formatearCantidadUnidad(stockDisp, i.unidadMedida)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => cambiarCantidad(i.key, -1)}
-                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+                        onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
+                        className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
                       >
-                        <Minus className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => cambiarCantidad(i.key, -1)}
+                          className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -2812,7 +2890,8 @@ export default function CajaAutopago() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
 
             {/* Footer del Drawer */}
