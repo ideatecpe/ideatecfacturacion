@@ -20,6 +20,7 @@ import {
   updateVentaPendiente,
   deleteVentaPendiente,
   cacheCliente,
+  getClienteCache,
 } from "@/lib/offline/offlineDb";
 import { consultaDni } from "@/app/components/apiConsultasJsonPe/consultaDni";
 import { consultaRuc } from "@/app/components/apiConsultasJsonPe/consultaRuc";
@@ -148,34 +149,55 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
           numDoc === "00000000000" ||
           numDoc === "11111111";
 
-        if (!esDocGenerico && (!razonActual || razonActual === "Cliente")) {
+        const esNombrePlaceholder =
+          !razonActual ||
+          /^(cliente|clientes varios|cliente con dni|cliente con ruc|sin nombre|consumidor final)$/i.test(razonActual);
+
+        if (!esDocGenerico && esNombrePlaceholder) {
           const tipoDoc = cli.tipoDocumento || (len === 11 ? "06" : len === 9 ? "04" : "01");
+          const tipoDocKey = tipoDoc === "6" ? "06" : tipoDoc === "1" ? "01" : tipoDoc === "4" ? "04" : tipoDoc;
           try {
-            if (len === 8 || tipoDoc === "01") {
-              const resDni = await consultaDni(numDoc);
-              if (resDni?.nombreCompleto) {
-                cli.razonSocial = resDni.nombreCompleto;
-                if (venta.resumenTicket) venta.resumenTicket.clienteNombre = resDni.nombreCompleto;
-                cacheCliente("01", numDoc, { razonSocial: resDni.nombreCompleto, tipoDocumento: "01", numeroDocumento: numDoc }).catch(() => {});
-              }
-            } else if (len === 11 || tipoDoc === "06" || tipoDoc === "6") {
-              const resRuc = await consultaRuc(numDoc);
-              if (resRuc?.razonSocial) {
-                cli.razonSocial = resRuc.razonSocial;
-                cli.direccionLineal = resRuc.direccionLineal || cli.direccionLineal;
-                cli.ubigeo = resRuc.ubigeo || cli.ubigeo;
-                cli.departamento = resRuc.departamento || cli.departamento;
-                cli.provincia = resRuc.provincia || cli.provincia;
-                cli.distrito = resRuc.distrito || cli.distrito;
-                if (venta.resumenTicket) venta.resumenTicket.clienteNombre = resRuc.razonSocial;
-                cacheCliente("06", numDoc, { ...resRuc, tipoDocumento: "06", numeroDocumento: numDoc }).catch(() => {});
-              }
-            } else if (len === 9 || tipoDoc === "04") {
-              const resCe = await consultaCe(numDoc);
-              if (resCe?.nombreCompleto) {
-                cli.razonSocial = resCe.nombreCompleto;
-                if (venta.resumenTicket) venta.resumenTicket.clienteNombre = resCe.nombreCompleto;
-                cacheCliente("04", numDoc, { razonSocial: resCe.nombreCompleto, tipoDocumento: "04", numeroDocumento: numDoc }).catch(() => {});
+            // 1. Primero intentar leer de caché local IndexedDB
+            const desdeCache = await getClienteCache(tipoDocKey, numDoc).catch(() => null);
+            if (
+              desdeCache?.cliente?.razonSocial &&
+              !/^(cliente|clientes varios|cliente con dni|cliente con ruc)$/i.test(desdeCache.cliente.razonSocial.trim())
+            ) {
+              cli.razonSocial = desdeCache.cliente.razonSocial;
+              if (desdeCache.cliente.direccionLineal) cli.direccionLineal = desdeCache.cliente.direccionLineal;
+              if (desdeCache.cliente.ubigeo) cli.ubigeo = desdeCache.cliente.ubigeo;
+              if (desdeCache.cliente.departamento) cli.departamento = desdeCache.cliente.departamento;
+              if (desdeCache.cliente.provincia) cli.provincia = desdeCache.cliente.provincia;
+              if (desdeCache.cliente.distrito) cli.distrito = desdeCache.cliente.distrito;
+              if (venta.resumenTicket) venta.resumenTicket.clienteNombre = desdeCache.cliente.razonSocial;
+            } else {
+              // 2. Si no está en caché, consultar a la API de consulta en línea
+              if (len === 8 || tipoDocKey === "01") {
+                const resDni = await consultaDni(numDoc);
+                if (resDni?.nombreCompleto) {
+                  cli.razonSocial = resDni.nombreCompleto;
+                  if (venta.resumenTicket) venta.resumenTicket.clienteNombre = resDni.nombreCompleto;
+                  cacheCliente("01", numDoc, { razonSocial: resDni.nombreCompleto, tipoDocumento: "01", numeroDocumento: numDoc }).catch(() => {});
+                }
+              } else if (len === 11 || tipoDocKey === "06") {
+                const resRuc = await consultaRuc(numDoc);
+                if (resRuc?.razonSocial) {
+                  cli.razonSocial = resRuc.razonSocial;
+                  cli.direccionLineal = resRuc.direccionLineal || cli.direccionLineal;
+                  cli.ubigeo = resRuc.ubigeo || cli.ubigeo;
+                  cli.departamento = resRuc.departamento || cli.departamento;
+                  cli.provincia = resRuc.provincia || cli.provincia;
+                  cli.distrito = resRuc.distrito || cli.distrito;
+                  if (venta.resumenTicket) venta.resumenTicket.clienteNombre = resRuc.razonSocial;
+                  cacheCliente("06", numDoc, { ...resRuc, tipoDocumento: "06", numeroDocumento: numDoc }).catch(() => {});
+                }
+              } else if (len === 9 || tipoDocKey === "04") {
+                const resCe = await consultaCe(numDoc);
+                if (resCe?.nombreCompleto) {
+                  cli.razonSocial = resCe.nombreCompleto;
+                  if (venta.resumenTicket) venta.resumenTicket.clienteNombre = resCe.nombreCompleto;
+                  cacheCliente("04", numDoc, { razonSocial: resCe.nombreCompleto, tipoDocumento: "04", numeroDocumento: numDoc }).catch(() => {});
+                }
               }
             }
           } catch {

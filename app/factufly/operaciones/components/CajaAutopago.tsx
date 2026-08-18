@@ -298,7 +298,7 @@ export default function CajaAutopago() {
   const { sucursal, fetchSucursal } = useSucursal();
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
   const { categorias, fetchCategorias } = useCategoriasLista();
-  const { enqueueVenta, ventasSincronizadas } = useOfflineSales();
+  const { enqueueVenta, ventasSincronizadas, isOnline } = useOfflineSales();
   const [offlineEncolada, setOfflineEncolada] = useState(false);
   const [ultimoTicketOffline, setUltimoTicketOffline] = useState<
     Parameters<typeof imprimirTicketProvisional>[0] | null
@@ -771,20 +771,23 @@ export default function CajaAutopago() {
     return () => clearTimeout(timer);
   }, [documentoTrim]);
 
-  // Sincronizar automáticamente datos consultados hacia los estados editables
+  // Limpiar nombres y direcciones manuales inmediatamente cuando cambie el número de documento
+  const docAsociadoClienteRef = useRef("");
+  useEffect(() => {
+    if (docAsociadoClienteRef.current !== documentoTrim) {
+      docAsociadoClienteRef.current = documentoTrim;
+      setNombreManualCliente("");
+      setDireccionManualCliente("");
+    }
+  }, [documentoTrim]);
+
+  // Sincronizar automáticamente datos consultados hacia los estados editables solo cuando coincida exactamente
   useEffect(() => {
     if (cliente?.numeroDocumento === documentoTrim && cliente?.razonSocial) {
       setNombreManualCliente(cliente.razonSocial);
       setDireccionManualCliente(cliente.direccionLineal || "");
     }
   }, [cliente, documentoTrim]);
-
-  useEffect(() => {
-    if (!documentoTrim) {
-      setNombreManualCliente("");
-      setDireccionManualCliente("");
-    }
-  }, [documentoTrim]);
 
   // Línea de estado del cliente bajo el input de documento (nombre confirmable
   // sin abrir el modal). Se compara numeroDocumento para nunca mostrar un nombre
@@ -1890,9 +1893,11 @@ export default function CajaAutopago() {
   ) => {
     const stockItems = config?.isStock ? calcularStockItems().items : [];
 
+    const coincide = cliente?.numeroDocumento === documentoTrim;
+    const nombreValido = (nombreManualCliente.trim() || (coincide ? (cliente?.razonSocial || "") : "")).trim();
     const resumenTicket = {
       clienteNombre:
-        cliente?.razonSocial || (sinDocumento ? "Clientes Varios" : documentoTrim || "Cliente"),
+        nombreValido || (sinDocumento ? "Clientes Varios" : documentoTrim ? `DNI: ${documentoTrim}` : "Cliente"),
       items: items.map((it) => ({
         descripcion: it.descripcion,
         cantidad: it.cantidad,
@@ -1954,8 +1959,13 @@ export default function CajaAutopago() {
       return;
     }
     if (tipoComprobante === "Factura") {
+      if (documentoTrim.length !== 11) {
+        showToast("Ingresa un RUC válido de 11 dígitos para la Factura", "error");
+        return;
+      }
       const clienteCheck = construirCliente();
-      if (!clienteCheck.razonSocial || clienteCheck.razonSocial === "CLIENTE CON RUC" || clienteCheck.razonSocial === "Clientes Varios") {
+      const onlineReal = isOnline && (typeof navigator !== "undefined" ? navigator.onLine : true);
+      if (onlineReal && (!clienteCheck.razonSocial || clienteCheck.razonSocial === "CLIENTE CON RUC" || clienteCheck.razonSocial === "Clientes Varios")) {
         showToast("Ingresa la Razón Social de la empresa para emitir la Factura", "error");
         return;
       }
@@ -2061,13 +2071,16 @@ export default function CajaAutopago() {
 
   // Validación de si se puede emitir el comprobante actual
   const boletaMayor700SinDoc = tipoComprobante === "Boleta" && totales.total >= 700 && (!documentoTrim || documentoTrim.length < 8);
-  const facturaSinRazonSocial = tipoComprobante === "Factura" && (!nombreManualCliente.trim() && !cliente?.razonSocial);
+  const facturaSinRuc = tipoComprobante === "Factura" && documentoTrim.length !== 11;
+  const onlineReal = isOnline && (typeof navigator !== "undefined" ? navigator.onLine : true);
+  const facturaSinRazonSocial = tipoComprobante === "Factura" && onlineReal && (!nombreManualCliente.trim() && !cliente?.razonSocial);
 
   const puedeEmitir =
     !emitiendo &&
     !(pagoDividido && faltanteDividido > 0) &&
     !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0))) &&
     !boletaMayor700SinDoc &&
+    !facturaSinRuc &&
     !facturaSinRazonSocial;
 
   // Confirmación con la tecla Enter en el modal de pago
@@ -2086,6 +2099,9 @@ export default function CajaAutopago() {
         } else if (boletaMayor700SinDoc) {
           e.preventDefault();
           showToast("SUNAT exige registrar el DNI del cliente para Boletas a partir de S/ 700.00", "error");
+        } else if (facturaSinRuc) {
+          e.preventDefault();
+          showToast("Ingresa un RUC válido de 11 dígitos para la Factura", "error");
         } else if (facturaSinRazonSocial) {
           e.preventDefault();
           showToast("Ingresa la Razón Social de la empresa para la Factura", "error");
@@ -2094,7 +2110,7 @@ export default function CajaAutopago() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRazonSocial]);
+  }, [mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRuc, facturaSinRazonSocial]);
 
   const nuevaVenta = () => {
     setItems([]);
@@ -3539,6 +3555,8 @@ export default function CajaAutopago() {
                 "Registrar venta al crédito"
               ) : boletaMayor700SinDoc ? (
                 "Ingresa DNI (Boleta ≥ S/ 700)"
+              ) : facturaSinRuc ? (
+                "Ingresa RUC (11 dígitos)"
               ) : facturaSinRazonSocial ? (
                 "Ingresa Razón Social"
               ) : (
