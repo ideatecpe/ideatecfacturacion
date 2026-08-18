@@ -289,6 +289,11 @@ export default function CajaAutopago() {
     productosDesactualizados,
     fechaCache,
   } = useProductosSucursal(sucursalId, !!sucursalId);
+
+  // Mapa de productos por ID para lookups O(1) de paquetes/stock
+  const productosPorId = useMemo(() => {
+    return new Map(productosSucursal.map((p) => [p.productoId, p]));
+  }, [productosSucursal]);
   const { empresa } = useEmpresaEmisor();
   const { sucursal, fetchSucursal } = useSucursal();
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
@@ -435,12 +440,14 @@ export default function CajaAutopago() {
     if (tieneVencido) {
       showToast("⚠ Este producto tiene lotes vencidos sin retirar del inventario", "error");
     }
-    const disp = calcularDisponible(p, itemsRef.current, productosSucursal, config?.isStock ?? false);
-    if (disp !== null && disp <= 0) {
-      setProductoSinStock(p);
-      return;
-    }
+
     setItems((prev) => {
+      const disp = calcularDisponible(p, prev, productosSucursal, config?.isStock ?? false, productosPorId);
+      if (disp !== null && disp <= 0) {
+        setProductoSinStock(p);
+        return prev;
+      }
+
       const idx = prev.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
         // Re-adding a product already in cart: check stock before incrementing
@@ -454,6 +461,7 @@ export default function CajaAutopago() {
         const otros = prev.filter((_, i) => i !== idx);
         return [itemActualizado, ...otros];
       }
+
       // New product: cap initial quantity at available stock if less than 1
       const cantidadInicial = disp !== null && disp < 1 ? parseFloat(disp.toFixed(3)) : 1;
       const nuevoItem = {
@@ -473,20 +481,9 @@ export default function CajaAutopago() {
       setUltimoItemAgregadoKey(nuevoItem.key);
       return [nuevoItem, ...prev];
     });
-    setBusqueda("");
-    const active = document.activeElement;
-    const isEditingOtherInput =
-      !!active &&
-      (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT") &&
-      active !== inputRef.current;
-    const isMobileDevice =
-      typeof window !== "undefined" &&
-      ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
 
-    if (!isEditingOtherInput && !isMobileDevice) {
-      inputRef.current?.focus();
-    }
-  }, [showToast, config?.isStock, productosSucursal]);
+    setBusqueda("");
+  }, [showToast, config?.isStock, productosSucursal, productosPorId]);
 
   const handleStockGuardado = useCallback(
     (productoActualizado: ProductoSucursal, autoAgregar: boolean) => {
@@ -582,10 +579,10 @@ export default function CajaAutopago() {
       const code = decodedText.trim().toLowerCase();
       if (!code) return;
 
-      // Cooldown de 3.5s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto),
+      // Cooldown de 1s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto),
       // pero si cambia de producto (código diferente), escanea al instante sin esperar.
       const now = Date.now();
-      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 3500) {
+      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 1000) {
         return;
       }
       lastScannedCodeRef.current = { code, time: now };
@@ -821,11 +818,6 @@ export default function CajaAutopago() {
     return null;
   })();
 
-  // Mapa de productos por ID para lookups O(1) de paquetes/stock
-  const productosPorId = useMemo(() => {
-    return new Map(productosSucursal.map((p) => [p.productoId, p]));
-  }, [productosSucursal]);
-
   // Estadísticas de ventas en memoria para evitar parsear localStorage en cada render
   const statsVentas = useMemo(() => {
     try {
@@ -950,7 +942,7 @@ export default function CajaAutopago() {
     if (
       clave &&
       ultimaLecturaRef.current.q === clave &&
-      ahora - ultimaLecturaRef.current.time < 700
+      ahora - ultimaLecturaRef.current.time < 250
     ) {
       return true;
     }
