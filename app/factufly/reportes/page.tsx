@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   BarChart3, TrendingUp, Calendar, Download,
   PieChart as PieChartIcon, ArrowUpRight, ArrowDownRight, Loader2,
-  ChevronLeft, ChevronRight, FileSpreadsheet, Receipt, CreditCard
+  ChevronLeft, ChevronRight, FileSpreadsheet, Receipt, CreditCard,
+  CheckSquare, Square
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -97,6 +98,7 @@ export default function ReportesPage() {
   const [usuarioId, setUsuarioId]         = useState<number | null>(null);
   const [loadingPdf, setLoadingPdf]       = useState(false);
   const [paginaGrafico, setPaginaGrafico] = useState(0);
+  const [incluirNV, setIncluirNV]         = useState(true);
 
   // Usuarios
   const { usuarios, fetchUsuarios } = useUsuariosReporte();
@@ -192,6 +194,11 @@ export default function ReportesPage() {
   const graficoPaginado = necesitaPaginacion
     ? graficoCompleto.slice(paginaGrafico * DIAS_POR_PAGINA, (paginaGrafico + 1) * DIAS_POR_PAGINA)
     : graficoCompleto;
+  // ── Serie informativa: Ventas Tributarias + N. de Venta ────────────────────
+  const graficoConTotal = useMemo(
+    () => graficoPaginado.map(d => ({ ...d, ventasConNV: d.ventas + d.ventasNV })),
+    [graficoPaginado]
+  );
 
   useEffect(() => {
     if (graficoCompleto.length > DIAS_POR_PAGINA) {
@@ -222,9 +229,10 @@ export default function ReportesPage() {
   const stats = useMemo(() => [
     {
       label: 'Total Ventas (Inc. IGV)',
-      value: kpi ? formatNum(kpi.totalVentas) : '—',
+      value: kpi ? formatNum(kpi.totalVentas + (incluirNV && totalNV > 0 ? totalNV : 0)) : '—',
       trend: kpi ? calcTrend(kpi.totalVentas, kpi.totalVentasAnterior) : { pct: '—', isUp: true },
       icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50',
+      toggleNV: totalNV > 0,
     },
     {
       label: 'IGV por Pagar',
@@ -250,7 +258,7 @@ export default function ReportesPage() {
       trend: { pct: 'Informativo', isUp: true },
       icon: CreditCard, color: 'text-cyan-600', bg: 'bg-cyan-50',
     }] : []),
-  ], [kpi, totalNV, countNV, totalComisionTarjeta]);
+  ], [kpi, totalNV, countNV, totalComisionTarjeta, incluirNV]);
 
   // ── Export Excel desde modal ──────────────────────────────────────────────
   const getParamsBase = (sId: number | null = sucursalSeleccionada) => ({
@@ -488,11 +496,28 @@ export default function ReportesPage() {
                   {stat.trend.pct}
                 </div>
               </div>
-              <div className="mt-4">
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{stat.label}</p>
-                <p className="text-[14px] font-black text-gray-900 mt-1">
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : stat.value}
-                </p>
+              <div className="mt-4 flex items-end justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{stat.label}</p>
+                  <p className="text-[14px] font-black text-gray-900 mt-1">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin inline" /> : stat.value}
+                  </p>
+                </div>
+                {'toggleNV' in stat && stat.toggleNV && (
+                  <button
+                    type="button"
+                    onClick={() => setIncluirNV(v => !v)}
+                    title={incluirNV ? 'Excluir Notas de Venta del total' : 'Incluir Notas de Venta en el total'}
+                    className="flex items-center gap-1 shrink-0 pb-0.5"
+                  >
+                    {incluirNV ? (
+                      <CheckSquare size={12} className="text-amber-500 shrink-0" />
+                    ) : (
+                      <Square size={12} className="text-slate-300 shrink-0" />
+                    )}
+                    <span className="text-[10px] text-slate-400 leading-tight whitespace-nowrap">Incluye N. Venta</span>
+                  </button>
+                )}
               </div>
             </div>
           </Card>
@@ -532,24 +557,47 @@ export default function ReportesPage() {
               <div className="h-full flex items-center justify-center text-gray-400 text-sm">
                 <Loader2 className="w-5 h-5 animate-spin mr-2" /> Cargando datos...
               </div>
-            ) : graficoPaginado.length === 0 ? (
+            ) : graficoConTotal.length === 0 ? (
               <div className="h-full flex items-center justify-center text-gray-400 text-sm">
                 Sin datos en el período seleccionado
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={graficoPaginado}>
+                <BarChart data={graficoConTotal}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                   <XAxis dataKey="etiqueta" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
                   <Tooltip
                     cursor={{ fill: '#f8fafc' }}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                    formatter={(value: number | undefined) => value !== undefined ? `S/ ${value.toLocaleString('es-PE')}` : '—'}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || payload.length === 0) return null;
+                      const data = payload[0].payload as (typeof graficoConTotal)[number];
+                      return (
+                        <div
+                          style={{
+                            borderRadius: '12px',
+                            border: 'none',
+                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                            background: '#fff',
+                            padding: '12px 16px',
+                          }}
+                        >
+                          <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>
+                          <p style={{ color: '#FF6321', margin: 0 }}>IGV Generado : S/ {data.igv.toLocaleString('es-PE')}</p>
+                          {totalNV > 0 && (
+                            <p style={{ color: '#d97706', margin: 0 }}>N. de Venta : S/ {data.ventasNV.toLocaleString('es-PE')}</p>
+                          )}
+                          <p style={{ color: '#0052CC', margin: 0 }}>Ventas Tributarias : S/ {data.ventas.toLocaleString('es-PE')}</p>
+                          {totalNV > 0 && incluirNV && (
+                            <p style={{ color: '#0ea5e9', margin: 0 }}>Ventas Totales : S/ {data.ventasConNV.toLocaleString('es-PE')}</p>
+                          )}
+                        </div>
+                      );
+                    }}
                   />
                   <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
-                  <Bar dataKey="ventas"   name="Ventas Totales"  fill="#0052CC" radius={[4, 4, 0, 0]} barSize={16} />
-                  <Bar dataKey="igv"      name="IGV Generado"    fill="#FF6321" radius={[4, 4, 0, 0]} barSize={16} />
+                  <Bar dataKey="ventas"   name="Ventas Tributarias" fill="#0052CC" radius={[4, 4, 0, 0]} barSize={16} />
+                  <Bar dataKey="igv"      name="IGV Generado"       fill="#FF6321" radius={[4, 4, 0, 0]} barSize={16} />
                   {totalNV > 0 && <Bar dataKey="ventasNV" name="N. de Venta" fill="#d97706" radius={[4, 4, 0, 0]} barSize={16} />}
                 </BarChart>
               </ResponsiveContainer>

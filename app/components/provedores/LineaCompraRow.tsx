@@ -45,6 +45,7 @@ interface Props {
   disabled: boolean;
   canRemove: boolean;
   onChange: (key: number, field: keyof Omit<LineaCompra, "key">, value: string | number) => void;
+  onSeleccionarProducto: (key: number, productoId: number, seleccionado?: ProductoSucursal) => void;
   onRemove: (key: number) => void;
   onAgregarProveedor: (key: number) => void;
 }
@@ -68,6 +69,7 @@ export default function LineaCompraRow({
   disabled,
   canRemove,
   onChange,
+  onSeleccionarProducto,
   onRemove,
   onAgregarProveedor,
 }: Props) {
@@ -177,11 +179,7 @@ export default function LineaCompraRow({
           onChange={(val) => {
             const id = val ?? 0;
             const seleccionado = productosSucursal.find((p) => p.productoId === id);
-            onChange(linea.key, "productoId", id);
-            onChange(linea.key, "unidadMedida", seleccionado?.unidadMedida ?? "");
-            if (seleccionado?.sucursalProducto?.ultimoPrecioCompra && seleccionado.sucursalProducto.ultimoPrecioCompra > 0) {
-              onChange(linea.key, "precioCompra", String(seleccionado.sucursalProducto.ultimoPrecioCompra));
-            }
+            onSeleccionarProducto(linea.key, id, seleccionado);
           }}
           disabled={sucursalIdEfectiva === 0 || loadingSucursal || disabled}
           placeholder={loadingSucursal ? "Cargando..." : "Seleccione o busque por código..."}

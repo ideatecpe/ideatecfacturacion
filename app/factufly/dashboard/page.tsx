@@ -20,6 +20,8 @@ import {
   TrendingUp,
   ArrowLeftRight,
   CreditCard,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -244,13 +246,13 @@ const DesgloseNotasCard: React.FC<{
       title="Desglose de Notas"
       subtitle="Impacto de notas de crédito y débito según fecha del documento afectado"
     >
-      <div className={hayNV ? "grid grid-cols-2 lg:grid-cols-6 gap-2 mt-1" : "grid grid-cols-2 lg:grid-cols-5 gap-2 mt-1"}>
+      <div className={hayNV ? "grid grid-cols-2 lg:grid-cols-5 gap-2 mt-1" : "grid grid-cols-2 lg:grid-cols-4 gap-2 mt-1"}>
         {/* NC del día */}
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-rose-100 bg-rose-50/50">
           <TrendingDown size={13} className="text-rose-500 shrink-0" />
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-rose-600 uppercase tracking-wide">NC · Hoy</p>
-            <p className="text-sm font-bold text-rose-700 truncate">{formatMoneda(ncDia)}</p>
+            <p className="text-[11px] font-semibold text-rose-600 uppercase tracking-wide">NC · Hoy</p>
+            <p className="text-[15px] font-bold text-rose-700 truncate">{formatMoneda(ncDia)}</p>
           </div>
         </div>
 
@@ -258,8 +260,8 @@ const DesgloseNotasCard: React.FC<{
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-100 bg-emerald-50/50">
           <TrendingUp size={13} className="text-emerald-500 shrink-0" />
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">ND · Hoy</p>
-            <p className="text-sm font-bold text-emerald-700 truncate">{formatMoneda(ndDia)}</p>
+            <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">ND · Hoy</p>
+            <p className="text-[15px] font-bold text-emerald-700 truncate">{formatMoneda(ndDia)}</p>
           </div>
         </div>
 
@@ -268,8 +270,8 @@ const DesgloseNotasCard: React.FC<{
           hayNotasOtrasFechas ? "border-amber-100 bg-amber-50/50" : "border-gray-100 bg-gray-50/40")}>
           <ArrowLeftRight size={13} className={hayNotasOtrasFechas ? "text-amber-500 shrink-0" : "text-gray-300 shrink-0"} />
           <div className="min-w-0">
-            <p className={cn("text-[10px] font-semibold uppercase tracking-wide", hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400")}>NC · Anteriores</p>
-            <p className={cn("text-sm font-bold truncate", hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400")}>{formatMoneda(ncOtras)}</p>
+            <p className={cn("text-[11px] font-semibold uppercase tracking-wide", hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400")}>NC · Anteriores</p>
+            <p className={cn("text-[15px] font-bold truncate", hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400")}>{formatMoneda(ncOtras)}</p>
           </div>
         </div>
 
@@ -278,8 +280,8 @@ const DesgloseNotasCard: React.FC<{
           hayNotasOtrasFechas ? "border-amber-100 bg-amber-50/50" : "border-gray-100 bg-gray-50/40")}>
           <ArrowLeftRight size={13} className={hayNotasOtrasFechas ? "text-amber-500 shrink-0" : "text-gray-300 shrink-0"} />
           <div className="min-w-0">
-            <p className={cn("text-[10px] font-semibold uppercase tracking-wide", hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400")}>ND · Anteriores</p>
-            <p className={cn("text-sm font-bold truncate", hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400")}>{formatMoneda(ndOtras)}</p>
+            <p className={cn("text-[11px] font-semibold uppercase tracking-wide", hayNotasOtrasFechas ? "text-amber-600" : "text-gray-400")}>ND · Anteriores</p>
+            <p className={cn("text-[15px] font-bold truncate", hayNotasOtrasFechas ? "text-amber-700" : "text-gray-400")}>{formatMoneda(ndOtras)}</p>
           </div>
         </div>
 
@@ -288,25 +290,15 @@ const DesgloseNotasCard: React.FC<{
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-100 bg-amber-50/50">
             <FileText size={13} className="text-amber-500 shrink-0" />
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">NV · Hoy</p>
-              <p className="text-sm font-bold text-amber-700 truncate">{formatMoneda(dashboard?.totalNotasVentaDelDia ?? 0)}</p>
+              <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wide">NV · Hoy</p>
+              <p className="text-[15px] font-bold text-amber-700 truncate">{formatMoneda(dashboard?.totalNotasVentaDelDia ?? 0)}</p>
             </div>
           </div>
         )}
-
-        {/* Ventas netas */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#D9E4F5] bg-[#EEF3FB]">
-          <BarChart3 size={13} className="text-brand-blue shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-brand-blue/60 uppercase tracking-wide">Netas del Día</p>
-            <p className="text-sm font-bold text-brand-blue truncate">{formatMoneda(dashboard?.ventasNetas ?? 0)}</p>
-            <p className="text-[9px] text-brand-blue/40 mt-0.5">Brutas + ND − NC del día</p>
-          </div>
-        </div>
       </div>
 
       {hayNotasOtrasFechas && (
-        <p className="text-[10px] text-amber-600 mt-2 flex items-center gap-1">
+        <p className="text-[11px] text-amber-600 mt-2 flex items-center gap-1">
           <AlertTriangle size={10} />
           Hay notas que afectan documentos de días anteriores.
         </p>
@@ -330,6 +322,7 @@ export default function DashboardPage() {
   >(null);
   const [showTodasAlertas, setShowTodasAlertas] = useState(false);
   const [fecha, setFecha] = useState<string>(getFechaHoy());
+  const [incluirNV, setIncluirNV] = useState(true);
 
   const { dashboard, loading, error } = useMemo(() => {
     if (isSuperAdmin && sucursalSeleccionada) return hookSucursal;
@@ -393,6 +386,8 @@ export default function DashboardPage() {
     fetchData(nuevaFecha, sucursalSeleccionada);
   };
 
+  const hayNV = (dashboard?.totalNotasVentaDelDia ?? 0) > 0;
+
   const chartData = useMemo(() => {
     const dias: { name: string; sales: number }[] = [];
     const base = new Date(fecha + "T00:00:00");
@@ -403,22 +398,30 @@ export default function DashboardPage() {
       const encontrado = (dashboard?.rendimientoVentas ?? []).find((r) =>
         r.fecha.startsWith(fechaStr),
       );
+      // ── El último punto (día seleccionado) suma NV si el toggle está activo ──
+      const extraNV = i === 0 && incluirNV && hayNV
+        ? (dashboard?.totalNotasVentaDelDia ?? 0)
+        : 0;
       dias.push({
         name: d.toLocaleDateString("es-PE", {
           weekday: "short",
           day: "2-digit",
         }),
-        sales: encontrado ? Number(encontrado.totalVentas.toFixed(2)) : 0,
+        sales: Number(((encontrado?.totalVentas ?? 0) + extraNV).toFixed(2)),
       });
     }
     return dias;
-  }, [dashboard?.rendimientoVentas, fecha]);
+  }, [dashboard?.rendimientoVentas, dashboard?.totalNotasVentaDelDia, fecha, incluirNV, hayNV]);
 
   // ─── KPIs ─────────────────────────────────────────────────────────
+  const ventasDelDiaMostrado =
+    (dashboard?.ventasDelDia ?? 0) +
+    (incluirNV && hayNV ? (dashboard?.totalNotasVentaDelDia ?? 0) : 0);
+
   const kpis = [
     {
       label: "Ventas del Día",
-      value: formatMoneda(dashboard?.ventasDelDia ?? 0),
+      value: formatMoneda(ventasDelDiaMostrado),
       icon: BarChart3,
       color: "text-[#0f2e64]",
       bar: "bg-[#0f2e64]",
@@ -429,6 +432,7 @@ export default function DashboardPage() {
       icon: TrendingUp,
       color: "text-blue-500",
       bar: "bg-blue-500",
+      desc: "Ventas + ND − NC del día",
     },
     ...((dashboard?.totalComisionTarjetaDelDia ?? 0) > 0 ? [{
       label: "Comisión POS",
@@ -564,12 +568,38 @@ export default function DashboardPage() {
                   <div className="flex-1 px-3 py-2.5 flex items-center gap-2.5 min-w-0">
                     <kpi.icon className={cn("w-4 h-4 shrink-0", kpi.color)} />
                     <div className="min-w-0">
-                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
+                      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                         {kpi.label}
                       </p>
-                      <p className="text-sm font-bold text-brand-blue mt-0.5 truncate">
+                      <p className="text-[15px] font-bold text-brand-blue mt-0.5 truncate">
                         {kpi.value}
                       </p>
+                      {"desc" in kpi && kpi.desc && (
+                        <p className="text-[10px] text-slate-400 mt-0.5 leading-tight truncate">
+                          {kpi.desc}
+                        </p>
+                      )}
+                      {kpi.label === "Ventas del Día" && hayNV && (
+                        <button
+                          type="button"
+                          onClick={() => setIncluirNV((v) => !v)}
+                          title={
+                            incluirNV
+                              ? "Excluir Notas de Venta del total"
+                              : "Incluir Notas de Venta en el total"
+                          }
+                          className="flex items-center gap-1 mt-0.5 -ml-0.5"
+                        >
+                          {incluirNV ? (
+                            <CheckSquare size={12} className="text-amber-500 shrink-0" />
+                          ) : (
+                            <Square size={12} className="text-slate-300 shrink-0" />
+                          )}
+                          <span className="text-[10px] text-slate-400 leading-tight">
+                            Incluye N. Venta
+                          </span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

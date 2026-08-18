@@ -7,7 +7,6 @@ import { scanImageData } from "@undecaf/zbar-wasm";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { cn } from "@/app/utils/cn";
-import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { Proveedor, CompraProveedor } from "@/app/factufly/compras/proveedores/gestionProveedorCompra/Proveedor";
@@ -24,13 +23,15 @@ import AgregarProveedor from "./AgregarProveedor";
 function useProductosPorSucursalCache() {
   const { accessToken } = useAuth();
   const [cache, setCache] = React.useState<Record<number, ProductoSucursal[]>>({});
+  const cacheRef = React.useRef(cache);
+  cacheRef.current = cache;
   const [loadingIds, setLoadingIds] = React.useState<Set<number>>(new Set());
   const enVueloRef = React.useRef<Set<number>>(new Set());
 
   const ensureProductos = React.useCallback(
     async (sucursalId: number, force: boolean = false) => {
       if (!sucursalId) return;
-      if (!force && cache[sucursalId]) return;
+      if (!force && cacheRef.current[sucursalId]) return;
       if (enVueloRef.current.has(sucursalId)) return;
       enVueloRef.current.add(sucursalId);
       setLoadingIds((prev) => new Set(prev).add(sucursalId));
@@ -51,7 +52,7 @@ function useProductosPorSucursalCache() {
         });
       }
     },
-    [accessToken, cache],
+    [accessToken],
   );
 
   return { cache, loadingIds, ensureProductos };
@@ -161,6 +162,17 @@ export default function RegistrarCompra({
   const [progreso, setProgreso] = React.useState<{ total: number; actual: number } | null>(null);
   const [isAgregarProveedorOpen, setIsAgregarProveedorOpen] = React.useState(false);
   const [lineaTargetNuevoProveedor, setLineaTargetNuevoProveedor] = React.useState<number | null>(null);
+  const [lineaAEliminar, setLineaAEliminar] = React.useState<number | null>(null);
+  const [eleccionLote, setEleccionLote] = React.useState<{
+    nomProducto: string;
+    candidatas: LineaCompra[];
+  } | null>(null);
+  const [duplicadoManual, setDuplicadoManual] = React.useState<{
+    key: number;
+    productoId: number;
+    seleccionado?: ProductoSucursal;
+    candidatas: LineaCompra[];
+  } | null>(null);
 
   // Escáner de código de barras rápido y cámara
   const [quickSearch, setQuickSearch] = React.useState("");
@@ -194,6 +206,9 @@ export default function RegistrarCompra({
       setGuardando(false);
       setProgreso(null);
       setQuickSearch("");
+      setLineaAEliminar(null);
+      setEleccionLote(null);
+      setDuplicadoManual(null);
     } else {
       stopScanning();
     }
@@ -203,25 +218,19 @@ export default function RegistrarCompra({
     (scannedText: string) => {
       const raw = scannedText.trim();
       if (!raw) return;
-      const text = raw.toLowerCase();
       const cleanDigits = raw.replace(/\s+/g, "").toLowerCase();
+      const text = raw.toLowerCase();
 
       const sucursalIdEfectiva =
         modoSucursal === "porItem" ? lineas[0]?.sucursalId || sucursalFija?.id || 1 : sucursalFija?.id ?? 1;
       const productosSucursal = productosCache[sucursalIdEfectiva] ?? [];
 
-      // Coincidencia por código de barras (limpiando espacios), código o nombre
+      // Este input es solo para código de barras / código — no busca por nombre.
       const encontrado =
         productosSucursal.find((p) => {
           const pBarcode = (p.codigoBarras ?? "").replace(/\s+/g, "").toLowerCase();
           const pCodigo = (p.codigo ?? "").trim().toLowerCase();
-          const pNombre = (p.nomProducto ?? "").trim().toLowerCase();
-          return (
-            (pBarcode && (pBarcode === cleanDigits || pBarcode.includes(cleanDigits))) ||
-            pCodigo === text ||
-            pNombre === text ||
-            coincideBusqueda(raw, p.nomProducto, p.codigo, p.codigoBarras)
-          );
+          return (pBarcode && (pBarcode === cleanDigits || pBarcode.includes(cleanDigits))) || pCodigo === text;
         });
 
       if (!encontrado) {
@@ -262,11 +271,12 @@ export default function RegistrarCompra({
         return;
       }
 
-      // 2. Si el producto ya existe en la lista, aumentamos la cantidad + 1
-      const lineaExistente = lineas.find(
+      // 2. Si el producto ya existe en la lista: 1 lote → suma directo; 2+ lotes → pregunta a cuál sumar
+      const lineasExistentes = lineas.filter(
         (l) => l.productoId === encontrado.productoId && l.estado !== "guardado",
       );
-      if (lineaExistente) {
+      if (lineasExistentes.length === 1) {
+        const lineaExistente = lineasExistentes[0];
         const nuevaCant = (Number(lineaExistente.cantidad) || 0) + 1;
         setLineas((prev) =>
           prev.map((l) =>
@@ -280,6 +290,11 @@ export default function RegistrarCompra({
           ),
         );
         showToast(`+1 ${encontrado.nomProducto} (Total: ${nuevaCant})`, "success");
+        setQuickSearch("");
+        return;
+      }
+      if (lineasExistentes.length >= 2) {
+        setEleccionLote({ nomProducto: encontrado.nomProducto, candidatas: lineasExistentes });
         setQuickSearch("");
         return;
       }
@@ -517,8 +532,117 @@ export default function RegistrarCompra({
       nuevaLinea(modoProveedor === "unico" ? proveedorIdHeader : 0, sucursalFija?.id ?? 0),
     ]);
 
-  const handleEliminarLinea = (key: number) =>
-    setLineas((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
+  const handleClickAgregarProducto = () => {
+    const lineasIncompletas = lineas
+      .map((l, idx) => ({ l, idx }))
+      .filter(
+        ({ l }) =>
+          l.estado !== "guardado" &&
+          (l.productoId === 0 || !l.cantidad || Number(l.cantidad) <= 0 || !l.precioCompra || Number(l.precioCompra) <= 0),
+      );
+
+    if (lineasIncompletas.length > 0) {
+      const newLineaErrors: Record<number, Record<string, boolean>> = { ...lineaErrors };
+      const faltantesPrimera: string[] = [];
+
+      lineasIncompletas.forEach(({ l, idx }, i) => {
+        const le: Record<string, boolean> = {};
+        const faltan: string[] = [];
+        if (l.productoId === 0) {
+          le.productoId = true;
+          faltan.push("producto");
+        }
+        if (!l.cantidad || Number(l.cantidad) <= 0) {
+          le.cantidad = true;
+          faltan.push("cantidad");
+        }
+        if (!l.precioCompra || Number(l.precioCompra) <= 0) {
+          le.precioCompra = true;
+          faltan.push("precio");
+        }
+        newLineaErrors[l.key] = { ...newLineaErrors[l.key], ...le };
+        if (i === 0) faltantesPrimera.push(`Línea ${idx + 1}: falta ${faltan.join(", ")}`);
+      });
+
+      setLineaErrors(newLineaErrors);
+      showToast(faltantesPrimera[0], "error");
+      return;
+    }
+
+    handleAgregarLinea();
+  };
+
+  const handleEliminarLinea = (key: number) => setLineaAEliminar(key);
+
+  const confirmarEliminarLinea = () => {
+    if (lineaAEliminar == null) return;
+    const key = lineaAEliminar;
+    setLineas((prev) => prev.filter((l) => l.key !== key));
+    setLineaErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setLineaAEliminar(null);
+  };
+
+  const sumarACandidata = (key: number) => {
+    if (!eleccionLote) return;
+    setLineas((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, cantidad: String((Number(l.cantidad) || 0) + 1) } : l)),
+    );
+    showToast(`+1 ${eleccionLote.nomProducto}`, "success");
+    setEleccionLote(null);
+  };
+
+  const aplicarSeleccionProducto = (key: number, productoId: number, seleccionado?: ProductoSucursal) => {
+    setLineas((prev) =>
+      prev.map((l) =>
+        l.key === key
+          ? {
+              ...l,
+              productoId,
+              unidadMedida: seleccionado?.unidadMedida ?? "",
+              precioCompra:
+                seleccionado?.sucursalProducto?.ultimoPrecioCompra && seleccionado.sucursalProducto.ultimoPrecioCompra > 0
+                  ? String(seleccionado.sucursalProducto.ultimoPrecioCompra)
+                  : l.precioCompra,
+            }
+          : l,
+      ),
+    );
+    setLineaErrors((prev) => ({ ...prev, [key]: { ...prev[key], productoId: false } }));
+  };
+
+  const handleSeleccionarProducto = (key: number, productoId: number, seleccionado?: ProductoSucursal) => {
+    if (productoId === 0) {
+      aplicarSeleccionProducto(key, 0, undefined);
+      return;
+    }
+    const candidatas = lineas.filter(
+      (l) => l.key !== key && l.productoId === productoId && l.estado !== "guardado",
+    );
+    if (candidatas.length === 0) {
+      aplicarSeleccionProducto(key, productoId, seleccionado);
+      return;
+    }
+    setDuplicadoManual({ key, productoId, seleccionado, candidatas });
+  };
+
+  const confirmarAgregarNuevoLote = () => {
+    if (!duplicadoManual) return;
+    aplicarSeleccionProducto(duplicadoManual.key, duplicadoManual.productoId, duplicadoManual.seleccionado);
+    setDuplicadoManual(null);
+  };
+
+  const confirmarSumarALineaExistente = (candidataKey: number) => {
+    if (!duplicadoManual) return;
+    setLineas((prev) =>
+      prev.map((l) => (l.key === candidataKey ? { ...l, cantidad: String((Number(l.cantidad) || 0) + 1) } : l)),
+    );
+    showToast(`+1 ${duplicadoManual.seleccionado?.nomProducto ?? "producto"}`, "success");
+    setDuplicadoManual(null);
+  };
 
   const handleAbrirNuevoProveedor = (lineaKey: number | null) => {
     setLineaTargetNuevoProveedor(lineaKey);
@@ -892,7 +1016,7 @@ export default function RegistrarCompra({
                   handleScanOrSearchBarcode(quickSearch);
                 }
               }}
-              placeholder="Escanea el código de barras con pistola o escribe aquí (EAN-13, código o nombre)..."
+              placeholder="Escanea el código de barras (EAN-13, código)..."
               className="w-full h-8 pl-9 pr-24 bg-white border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue text-gray-800 placeholder:text-gray-400"
             />
             <button
@@ -1019,8 +1143,9 @@ export default function RegistrarCompra({
                       ensureProductos={ensureProductos}
                       errors={lineaErrors[l.key] ?? {}}
                       disabled={guardando || l.estado === "guardado"}
-                      canRemove={lineas.length > 1 && l.estado !== "guardado"}
+                      canRemove={l.estado !== "guardado"}
                       onChange={handleLineaChange}
+                      onSeleccionarProducto={handleSeleccionarProducto}
                       onRemove={handleEliminarLinea}
                       onAgregarProveedor={handleAbrirNuevoProveedor}
                     />
@@ -1033,7 +1158,7 @@ export default function RegistrarCompra({
           <div className="flex items-center justify-between flex-wrap gap-2">
             <button
               type="button"
-              onClick={handleAgregarLinea}
+              onClick={handleClickAgregarProducto}
               disabled={guardando}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors disabled:opacity-50"
             >
@@ -1103,6 +1228,108 @@ export default function RegistrarCompra({
       onProveedorAgregado={handleProveedorCreado}
       elevated
     />
+
+    <Modal
+      isOpen={lineaAEliminar != null}
+      onClose={() => setLineaAEliminar(null)}
+      title="Eliminar producto"
+      className="max-w-md"
+      elevated
+    >
+      <p className="text-sm text-gray-600">
+        ¿Seguro que deseas eliminar este producto de la lista? Esta acción no se puede deshacer.
+      </p>
+      <div className="flex justify-end gap-3 mt-5">
+        <Button variant="outline" type="button" onClick={() => setLineaAEliminar(null)}>
+          Cancelar
+        </Button>
+        <Button type="button" onClick={confirmarEliminarLinea} className="bg-rose-600 hover:bg-rose-700">
+          Eliminar
+        </Button>
+      </div>
+    </Modal>
+
+    <Modal
+      isOpen={!!eleccionLote}
+      onClose={() => setEleccionLote(null)}
+      title="Producto ya registrado en varios lotes"
+      className="max-w-lg"
+      elevated
+    >
+      {eleccionLote && (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            <strong>{eleccionLote.nomProducto}</strong> ya está registrado en {eleccionLote.candidatas.length} lotes
+            de esta lista. Elige a cuál sumarle 1 unidad:
+          </p>
+          <div className="space-y-2">
+            {eleccionLote.candidatas.map((l, i) => (
+              <button
+                key={l.key}
+                type="button"
+                onClick={() => sumarACandidata(l.key)}
+                className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-brand-blue/50 rounded-lg transition-colors text-left"
+              >
+                <span className="font-medium text-gray-700">Lote {i + 1}</span>
+                <span className="text-xs text-gray-500">
+                  Cant: {l.cantidad || 0} · Precio: S/ {l.precioCompra || "0.00"} · Vence:{" "}
+                  {l.fechaVencimiento || "sin fecha"}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end pt-1">
+            <Button variant="outline" type="button" onClick={() => setEleccionLote(null)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+
+    <Modal
+      isOpen={!!duplicadoManual}
+      onClose={() => setDuplicadoManual(null)}
+      title="Producto ya está en otra línea"
+      className="max-w-lg"
+      elevated
+    >
+      {duplicadoManual && (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            <strong>{duplicadoManual.seleccionado?.nomProducto ?? "Este producto"}</strong> ya está en{" "}
+            {duplicadoManual.candidatas.length === 1 ? "otra línea" : `otras ${duplicadoManual.candidatas.length} líneas`}
+            . ¿Qué deseas hacer?
+          </p>
+          <div className="space-y-2">
+            {duplicadoManual.candidatas.map((l) => (
+              <button
+                key={l.key}
+                type="button"
+                onClick={() => confirmarSumarALineaExistente(l.key)}
+                className="w-full flex items-center justify-between px-3 py-2 text-sm bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-brand-blue/50 rounded-lg transition-colors text-left"
+              >
+                <span className="font-medium text-gray-700">
+                  Sumar a Línea {lineas.findIndex((x) => x.key === l.key) + 1}
+                </span>
+                <span className="text-xs text-gray-500">
+                  Cant: {l.cantidad || 0} · Precio: S/ {l.precioCompra || "0.00"} · Vence:{" "}
+                  {l.fechaVencimiento || "sin fecha"}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <Button variant="outline" type="button" onClick={() => setDuplicadoManual(null)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={confirmarAgregarNuevoLote}>
+              Agregar como nuevo lote
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
     </>
   );
 }
