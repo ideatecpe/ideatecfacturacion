@@ -40,7 +40,7 @@ import { useClienteBoleta } from "../boleta/gestionBoletas/useClienteBoleta";
 import { Cliente } from "../../clientes/gestionClientes/typesCliente";
 import { notificarVentaRegistrada } from "@/lib/eventosCaja";
 import { useSucursal } from "../boleta/gestionBoletas/useSucursal";
-import { logNotaVenta } from "../boleta/gestionBoletas/emitirBoletaApi";
+import { logEmision } from "../boleta/gestionBoletas/emitirBoletaApi";
 import { formatoFechaActual, fechaLocalISO, fmtMonto } from "@/app/components/ui/formatoFecha";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
 import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
@@ -2191,7 +2191,7 @@ function NotaVentaContent() {
     try {
       const urlNV = `${process.env.NEXT_PUBLIC_API_URL}/api/NotaVenta`;
       const bodyNV = prepararNV();
-      logNotaVenta(urlNV, bodyNV);
+      logEmision("NotaVenta", urlNV, bodyNV);
 
       const resNV = await axios.post(
         urlNV,

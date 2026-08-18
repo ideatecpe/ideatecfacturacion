@@ -25,6 +25,7 @@ import { useClientesRuc } from "../clientes/gestionClientes/useClientesRuc";
 import { useClienteBoleta } from "../operaciones/boleta/gestionBoletas/useClienteBoleta";
 import { useEmpresaEmisor } from "../operaciones/boleta/gestionBoletas/useEmpresaEmisor";
 import { useSucursal } from "../operaciones/boleta/gestionBoletas/useSucursal";
+import { logEmision, etiquetaPorTipo } from "../operaciones/boleta/gestionBoletas/emitirBoletaApi";
 import { useSucursalRuc } from "../operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { useClienteFactura } from "../operaciones/factura/gestionFacturas/useClienteFactura";
 import { ProductoSucursal } from "../productos/gestioProductos/Producto";
@@ -1115,8 +1116,11 @@ export default function EmisionRapidaPage({
       };
 
       // ── 1. Generar XML y guardar en BD ──────────────────────
+      const urlXml = `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/GenerarXml`;
+      logEmision(etiquetaPorTipo(payload), urlXml, payload);
+
       const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/GenerarXml`,
+        urlXml,
         payload,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
