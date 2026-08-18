@@ -51,6 +51,7 @@ import { useClientesRuc } from "../../clientes/gestionClientes/useClientesRuc";
 import { useEmpresaEmisor } from "../boleta/gestionBoletas/useEmpresaEmisor";
 import { useSucursal } from "../boleta/gestionBoletas/useSucursal";
 import { useSucursalRuc } from "../boleta/gestionBoletas/useSucursalRuc";
+import { logEmision } from "../boleta/gestionBoletas/emitirBoletaApi";
 import { DatePickerLimitado } from "@/app/components/ui/DatePickerLimitado";
 import { ModalGuardarCliente } from "./gestionFacturas/ModalGuardarCliente";
 import { sharedVentaStore } from "../sharedVentaStore";
@@ -178,6 +179,7 @@ function FacturaContent() {
   // ── 1. isSuperAdmin ──────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
   const IGV_DEFAULT = config?.igv ? parseFloat(config.igv) : (user?.igv ?? 18);
+  const isCajaAutopago = !!(config?.isStock && config?.isCajaAutopago);
 
   //Editar y reenviar
   const searchParams = useSearchParams();
@@ -189,7 +191,7 @@ function FacturaContent() {
   const { empresa } = useEmpresaEmisor();
   const { cliente, loadingCliente, errorCliente, buscarCliente } =
     useClienteFactura();
-  const { clientes, loadingClientes, fetchClientes } = useClientesRuc();
+  const { clientes, loadingClientes, fetchClientes } = useClientesRuc(!isCajaAutopago);
 
   const { sucursal: sucursalDelHook, loadingSucursal } = useSucursal();
   const [sucursal, setSucursal] = useState<Sucursal | null>(null);
@@ -2412,8 +2414,11 @@ function FacturaContent() {
       const facturaFinal = prepararFactura();
 
       // Primera API: solo guarda en BD y genera XML
+      const urlXml = `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/GenerarXml`;
+      logEmision("Factura", urlXml, facturaFinal);
+
       const resFactura = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/GenerarXml`,
+        urlXml,
         facturaFinal,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );

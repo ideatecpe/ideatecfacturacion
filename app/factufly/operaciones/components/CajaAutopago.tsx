@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import {
   ArrowRight,
   Store,
@@ -152,16 +152,23 @@ function calcularDisponible(
   cartItems: ItemCarrito[],
   allProducts: ProductoSucursal[],
   isStock: boolean,
+  productsMap?: Map<number, ProductoSucursal>,
 ): number | null {
   if (!isStock || p.tipoProducto !== "BIEN") return null;
   const baseId = p.esPaquete && p.productoBaseId ? p.productoBaseId : p.productoId;
   const baseProd = p.esPaquete && p.productoBaseId
-    ? allProducts.find((x) => x.productoId === p.productoBaseId)
+    ? (productsMap ? productsMap.get(p.productoBaseId) : allProducts.find((x) => x.productoId === p.productoBaseId))
     : p;
-  const stockBase = baseProd?.sucursalProducto.stock ?? 0;
+  const stockBase = baseProd?.sucursalProducto?.stock ?? 0;
+  if (cartItems.length === 0) {
+    if (p.esPaquete && p.factorConversion && p.factorConversion > 0) {
+      return Math.floor(stockBase / p.factorConversion);
+    }
+    return stockBase;
+  }
   const comprometido = cartItems.reduce((total, it) => {
     if (it.tipoProducto !== "BIEN") return total;
-    const itProd = allProducts.find((x) => x.productoId === it.productoId);
+    const itProd = productsMap ? productsMap.get(it.productoId) : allProducts.find((x) => x.productoId === it.productoId);
     if (!itProd) return total;
     const itBaseId = itProd.esPaquete && itProd.productoBaseId ? itProd.productoBaseId : itProd.productoId;
     if (itBaseId !== baseId) return total;
@@ -175,7 +182,7 @@ function calcularDisponible(
 }
 
 // Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
-function ProductoGridCard({
+const ProductoGridCard = memo(function ProductoGridCard({
   p,
   cantidadEnCarrito = 0,
   stockDisp = null,
@@ -265,7 +272,7 @@ function ProductoGridCard({
       </div>
     </button>
   );
-}
+});
 
 export default function CajaAutopago() {
   const { user, accessToken } = useAuth();
@@ -282,11 +289,16 @@ export default function CajaAutopago() {
     productosDesactualizados,
     fechaCache,
   } = useProductosSucursal(sucursalId, !!sucursalId);
+
+  // Mapa de productos por ID para lookups O(1) de paquetes/stock
+  const productosPorId = useMemo(() => {
+    return new Map(productosSucursal.map((p) => [p.productoId, p]));
+  }, [productosSucursal]);
   const { empresa } = useEmpresaEmisor();
   const { sucursal, fetchSucursal } = useSucursal();
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
   const { categorias, fetchCategorias } = useCategoriasLista();
-  const { enqueueVenta, ventasSincronizadas } = useOfflineSales();
+  const { enqueueVenta, ventasSincronizadas, isOnline } = useOfflineSales();
   const [offlineEncolada, setOfflineEncolada] = useState(false);
   const [ultimoTicketOffline, setUltimoTicketOffline] = useState<
     Parameters<typeof imprimirTicketProvisional>[0] | null
@@ -351,6 +363,21 @@ export default function CajaAutopago() {
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
+  const [ultimoItemAgregadoKey, setUltimoItemAgregadoKey] = useState<string | null>(null);
+  const cartContainerRef = useRef<HTMLDivElement | null>(null);
+  const mobileCartContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (ultimoItemAgregadoKey) {
+      cartContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      mobileCartContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      const timer = setTimeout(() => {
+        setUltimoItemAgregadoKey(null);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [ultimoItemAgregadoKey]);
+
   const [busqueda, setBusqueda] = useState("");
   const [confirmarLimpiarTodo, setConfirmarLimpiarTodo] = useState(false);
   const [mostrarPago, setMostrarPago] = useState(false);
@@ -413,12 +440,14 @@ export default function CajaAutopago() {
     if (tieneVencido) {
       showToast("⚠ Este producto tiene lotes vencidos sin retirar del inventario", "error");
     }
-    const disp = calcularDisponible(p, itemsRef.current, productosSucursal, config?.isStock ?? false);
-    if (disp !== null && disp <= 0) {
-      setProductoSinStock(p);
-      return;
-    }
+
     setItems((prev) => {
+      const disp = calcularDisponible(p, prev, productosSucursal, config?.isStock ?? false, productosPorId);
+      if (disp !== null && disp <= 0) {
+        setProductoSinStock(p);
+        return prev;
+      }
+
       const idx = prev.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
         // Re-adding a product already in cart: check stock before incrementing
@@ -426,44 +455,35 @@ export default function CajaAutopago() {
           showToast(`Stock insuficiente: solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${p.nomProducto}"`, "info");
           return prev;
         }
-        const copia = [...prev];
-        copia[idx] = { ...copia[idx], cantidad: copia[idx].cantidad + 1 };
-        return copia;
+        const itemActualizado = { ...prev[idx], cantidad: prev[idx].cantidad + 1 };
+        setUltimoItemAgregadoKey(itemActualizado.key);
+        // Ponemos el producto actualizado al inicio de la lista para que el cajero lo vea al instante
+        const otros = prev.filter((_, i) => i !== idx);
+        return [itemActualizado, ...otros];
       }
+
       // New product: cap initial quantity at available stock if less than 1
       const cantidadInicial = disp !== null && disp < 1 ? parseFloat(disp.toFixed(3)) : 1;
-      return [
-        ...prev,
-        {
-          key: crypto.randomUUID(),
-          productoId: p.productoId,
-          sucursalProductoId: p.sucursalProducto.sucursalProductoId,
-          codigo: p.codigo,
-          descripcion: p.nomProducto,
-          cantidad: cantidadInicial,
-          precio: precioConDescuento(p),
-          tipoAfectacionIGV: p.tipoAfectacionIGV,
-          urlImagen: p.urlImagenProducto ?? null,
-          unidadMedida: p.unidadMedida ?? "NIU",
-          tipoProducto: p.tipoProducto,
-          tieneVencido,
-        },
-      ];
+      const nuevoItem = {
+        key: crypto.randomUUID(),
+        productoId: p.productoId,
+        sucursalProductoId: p.sucursalProducto.sucursalProductoId,
+        codigo: p.codigo,
+        descripcion: p.nomProducto,
+        cantidad: cantidadInicial,
+        precio: precioConDescuento(p),
+        tipoAfectacionIGV: p.tipoAfectacionIGV,
+        urlImagen: p.urlImagenProducto ?? null,
+        unidadMedida: p.unidadMedida ?? "NIU",
+        tipoProducto: p.tipoProducto,
+        tieneVencido,
+      };
+      setUltimoItemAgregadoKey(nuevoItem.key);
+      return [nuevoItem, ...prev];
     });
-    setBusqueda("");
-    const active = document.activeElement;
-    const isEditingOtherInput =
-      !!active &&
-      (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT") &&
-      active !== inputRef.current;
-    const isMobileDevice =
-      typeof window !== "undefined" &&
-      ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
 
-    if (!isEditingOtherInput && !isMobileDevice) {
-      inputRef.current?.focus();
-    }
-  }, [showToast, config?.isStock, productosSucursal]);
+    setBusqueda("");
+  }, [showToast, config?.isStock, productosSucursal, productosPorId]);
 
   const handleStockGuardado = useCallback(
     (productoActualizado: ProductoSucursal, autoAgregar: boolean) => {
@@ -559,10 +579,10 @@ export default function CajaAutopago() {
       const code = decodedText.trim().toLowerCase();
       if (!code) return;
 
-      // Cooldown de 3.5s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto),
+      // Cooldown de 1s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto),
       // pero si cambia de producto (código diferente), escanea al instante sin esperar.
       const now = Date.now();
-      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 3500) {
+      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 1000) {
         return;
       }
       lastScannedCodeRef.current = { code, time: now };
@@ -751,20 +771,23 @@ export default function CajaAutopago() {
     return () => clearTimeout(timer);
   }, [documentoTrim]);
 
-  // Sincronizar automáticamente datos consultados hacia los estados editables
+  // Limpiar nombres y direcciones manuales inmediatamente cuando cambie el número de documento
+  const docAsociadoClienteRef = useRef("");
+  useEffect(() => {
+    if (docAsociadoClienteRef.current !== documentoTrim) {
+      docAsociadoClienteRef.current = documentoTrim;
+      setNombreManualCliente("");
+      setDireccionManualCliente("");
+    }
+  }, [documentoTrim]);
+
+  // Sincronizar automáticamente datos consultados hacia los estados editables solo cuando coincida exactamente
   useEffect(() => {
     if (cliente?.numeroDocumento === documentoTrim && cliente?.razonSocial) {
       setNombreManualCliente(cliente.razonSocial);
       setDireccionManualCliente(cliente.direccionLineal || "");
     }
   }, [cliente, documentoTrim]);
-
-  useEffect(() => {
-    if (!documentoTrim) {
-      setNombreManualCliente("");
-      setDireccionManualCliente("");
-    }
-  }, [documentoTrim]);
 
   // Línea de estado del cliente bajo el input de documento (nombre confirmable
   // sin abrir el modal). Se compara numeroDocumento para nunca mostrar un nombre
@@ -798,11 +821,23 @@ export default function CajaAutopago() {
     return null;
   })();
 
+  // Estadísticas de ventas en memoria para evitar parsear localStorage en cada render
+  const statsVentas = useMemo(() => {
+    try {
+      const key = `factufly_recientes_venta_${sucursalId || "default"}`;
+      const raw = typeof window !== "undefined" ? localStorage.getItem(key) : null;
+      return raw ? (JSON.parse(raw) as Record<number, { timestamp: number; count: number }>) : {};
+    } catch {
+      return {};
+    }
+  }, [sucursalId, historialVentasVersion]);
+
   // ── Grid de productos (ordenados por más recientes / más vendidos por defecto) ──
   const productosGrid = useMemo(() => {
-    if (busqueda.trim()) {
+    const q = busqueda.trim();
+    if (q) {
       return productosSucursal.filter((p) =>
-        coincideBusqueda(busqueda, p.nomProducto, p.codigo, p.codigoBarras),
+        coincideBusqueda(q, p.nomProducto, p.codigo, p.codigoBarras),
       );
     }
 
@@ -810,26 +845,16 @@ export default function CajaAutopago() {
     const baseProductos = (config?.isStock ?? true)
       ? productosSucursal.filter((p) => {
           if (p.tipoProducto !== "BIEN") return true;
-          const disp = calcularDisponible(p, [], productosSucursal, true);
+          const disp = calcularDisponible(p, [], productosSucursal, true, productosPorId);
           return disp === null || disp > 0;
         })
       : productosSucursal;
 
-    // Ordenar para que aparezcan primero los productos más vendidos/recientes de ventas finalizadas
-    let stats: Record<number, { timestamp: number; count: number }> = {};
-    try {
-      const key = `factufly_recientes_venta_${sucursalId || "default"}`;
-      const raw = typeof window !== "undefined" ? localStorage.getItem(key) : null;
-      if (raw) stats = JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-
     const copia = [...baseProductos];
     copia.sort((a, b) => {
       // 1. Por actividad de venta finalizada (timestamp más reciente primero)
-      const statA = stats[a.productoId];
-      const statB = stats[b.productoId];
+      const statA = statsVentas[a.productoId];
+      const statB = statsVentas[b.productoId];
       const timeA = statA?.timestamp ?? 0;
       const timeB = statB?.timestamp ?? 0;
       if (timeA !== timeB) return timeB - timeA;
@@ -844,7 +869,7 @@ export default function CajaAutopago() {
     });
 
     return copia;
-  }, [busqueda, productosSucursal, sucursalId, historialVentasVersion, config?.isStock]);
+  }, [busqueda, productosSucursal, statsVentas, config?.isStock, productosPorId]);
 
   const cambiarCantidad = (key: string, delta: number) => {
     if (delta > 0) {
@@ -920,7 +945,7 @@ export default function CajaAutopago() {
     if (
       clave &&
       ultimaLecturaRef.current.q === clave &&
-      ahora - ultimaLecturaRef.current.time < 700
+      ahora - ultimaLecturaRef.current.time < 250
     ) {
       return true;
     }
@@ -1868,9 +1893,11 @@ export default function CajaAutopago() {
   ) => {
     const stockItems = config?.isStock ? calcularStockItems().items : [];
 
+    const coincide = cliente?.numeroDocumento === documentoTrim;
+    const nombreValido = (nombreManualCliente.trim() || (coincide ? (cliente?.razonSocial || "") : "")).trim();
     const resumenTicket = {
       clienteNombre:
-        cliente?.razonSocial || (sinDocumento ? "Clientes Varios" : documentoTrim || "Cliente"),
+        nombreValido || (sinDocumento ? "Clientes Varios" : documentoTrim ? `DNI: ${documentoTrim}` : "Cliente"),
       items: items.map((it) => ({
         descripcion: it.descripcion,
         cantidad: it.cantidad,
@@ -1932,8 +1959,13 @@ export default function CajaAutopago() {
       return;
     }
     if (tipoComprobante === "Factura") {
+      if (documentoTrim.length !== 11) {
+        showToast("Ingresa un RUC válido de 11 dígitos para la Factura", "error");
+        return;
+      }
       const clienteCheck = construirCliente();
-      if (!clienteCheck.razonSocial || clienteCheck.razonSocial === "CLIENTE CON RUC" || clienteCheck.razonSocial === "Clientes Varios") {
+      const onlineReal = isOnline && (typeof navigator !== "undefined" ? navigator.onLine : true);
+      if (onlineReal && (!clienteCheck.razonSocial || clienteCheck.razonSocial === "CLIENTE CON RUC" || clienteCheck.razonSocial === "Clientes Varios")) {
         showToast("Ingresa la Razón Social de la empresa para emitir la Factura", "error");
         return;
       }
@@ -2039,13 +2071,16 @@ export default function CajaAutopago() {
 
   // Validación de si se puede emitir el comprobante actual
   const boletaMayor700SinDoc = tipoComprobante === "Boleta" && totales.total >= 700 && (!documentoTrim || documentoTrim.length < 8);
-  const facturaSinRazonSocial = tipoComprobante === "Factura" && (!nombreManualCliente.trim() && !cliente?.razonSocial);
+  const facturaSinRuc = tipoComprobante === "Factura" && documentoTrim.length !== 11;
+  const onlineReal = isOnline && (typeof navigator !== "undefined" ? navigator.onLine : true);
+  const facturaSinRazonSocial = tipoComprobante === "Factura" && onlineReal && (!nombreManualCliente.trim() && !cliente?.razonSocial);
 
   const puedeEmitir =
     !emitiendo &&
     !(pagoDividido && faltanteDividido > 0) &&
     !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0))) &&
     !boletaMayor700SinDoc &&
+    !facturaSinRuc &&
     !facturaSinRazonSocial;
 
   // Confirmación con la tecla Enter en el modal de pago
@@ -2064,6 +2099,9 @@ export default function CajaAutopago() {
         } else if (boletaMayor700SinDoc) {
           e.preventDefault();
           showToast("SUNAT exige registrar el DNI del cliente para Boletas a partir de S/ 700.00", "error");
+        } else if (facturaSinRuc) {
+          e.preventDefault();
+          showToast("Ingresa un RUC válido de 11 dígitos para la Factura", "error");
         } else if (facturaSinRazonSocial) {
           e.preventDefault();
           showToast("Ingresa la Razón Social de la empresa para la Factura", "error");
@@ -2072,7 +2110,7 @@ export default function CajaAutopago() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRazonSocial]);
+  }, [mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRuc, facturaSinRazonSocial]);
 
   const nuevaVenta = () => {
     setItems([]);
@@ -2321,7 +2359,7 @@ export default function CajaAutopago() {
                   {productosGridVisualizados.map((p) => {
                     const itemCarrito = items.find((i) => i.productoId === p.productoId);
                     const stockDisp = config?.isStock
-                      ? calcularDisponible(p, items, productosSucursal, true)
+                      ? calcularDisponible(p, items, productosSucursal, true, productosPorId)
                       : null;
                     return (
                       <ProductoGridCard
@@ -2401,7 +2439,7 @@ export default function CajaAutopago() {
             )}
           </div>
 
-          <div className="flex-1 lg:overflow-y-auto px-3 py-3 space-y-2">
+          <div ref={cartContainerRef} className="flex-1 lg:overflow-y-auto px-3 py-3 space-y-2">
             {items.length > 0 && (
               <div className="flex items-center justify-between px-1 pb-1">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
@@ -2410,7 +2448,7 @@ export default function CajaAutopago() {
                 <button
                   type="button"
                   onClick={() => setConfirmarLimpiarTodo(true)}
-                  className="flex items-center gap-1 text-xs font-semibold text-rose-500 hover:text-rose-700 hover:underline transition-colors"
+                  className="flex items-center gap-1 text-xs font-semibold text-rose-500 hover:text-rose-700 hover:underline transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Limpiar todo
                 </button>
@@ -2428,156 +2466,188 @@ export default function CajaAutopago() {
                 </p>
               </div>
             ) : (
-              items.map((i) => (
-                <div
-                  key={i.key}
-                  className="rounded-lg border border-gray-100 bg-white p-2 hover:border-gray-200 transition-all shadow-2xs space-y-1.5"
-                >
-                  {/* Fila superior: Imagen + Nombre + Precio Unitario Editable + Eliminar */}
-                  <div className="flex items-center gap-2">
-                    <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
+              items.map((i) => {
+                const prodInfo = productosPorId.get(i.productoId);
+                const stockDisp = config?.isStock && prodInfo && prodInfo.tipoProducto === "BIEN"
+                  ? calcularDisponible(prodInfo, items, productosSucursal, true, productosPorId)
+                  : null;
+                const esReciente = i.key === ultimoItemAgregadoKey;
 
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
-                        {i.descripcion}
-                        {i.tieneVencido && (
-                          <span title="Lote vencido sin retirar">
-                            <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
-                          </span>
-                        )}
-                      </p>
+                return (
+                  <div
+                    key={i.key}
+                    className={`rounded-lg border p-2 transition-all shadow-2xs space-y-1.5 ${
+                      esReciente
+                        ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-400/50 shadow-md scale-[1.01]"
+                        : "border-gray-100 bg-white hover:border-gray-200"
+                    }`}
+                  >
+                    {/* Fila superior: Imagen + Nombre + Precio Unitario Editable + Stock + Eliminar */}
+                    <div className="flex items-center gap-2">
+                      <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
 
-                      {/* Precio Unitario Editable */}
-                      <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-0.5">
-                        <span className="font-medium">S/</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
+                          {i.descripcion}
+                          {i.tieneVencido && (
+                            <span title="Lote vencido sin retirar">
+                              <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                            </span>
+                          )}
+                        </p>
+
+                        <div className="flex items-center justify-between gap-1 flex-wrap mt-0.5">
+                          {/* Precio Unitario Editable */}
+                          <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                            <span className="font-medium">S/</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={
+                                i.precioStr !== undefined
+                                  ? i.precioStr
+                                  : i.precio === 0
+                                    ? "0"
+                                    : i.precio
+                              }
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(",", ".");
+                                if (raw === "" || raw === ".") {
+                                  actualizarPrecioUnitarioDirecto(i.key, 0, raw);
+                                } else if (/^\d*\.?\d*$/.test(raw)) {
+                                  const parsed = parseFloat(raw);
+                                  if (!isNaN(parsed)) {
+                                    actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
+                                  }
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const raw = e.target.value.replace(",", ".");
+                                const parsed = parseFloat(raw);
+                                actualizarPrecioUnitarioDirecto(
+                                  i.key,
+                                  isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)),
+                                  undefined,
+                                );
+                              }}
+                              className="w-14 h-4.5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
+                              title="Haz clic para cambiar el precio unitario"
+                            />
+                            <span>
+                              {i.unidadMedida
+                                ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}`
+                                : "c/u"}
+                            </span>
+                          </div>
+
+                          {/* Badge de Stock Disponible Restante */}
+                          {stockDisp !== null && (
+                            <span
+                              className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold tabular-nums shrink-0 ${
+                                stockDisp <= 0
+                                  ? "bg-rose-100 text-rose-700 border border-rose-200"
+                                  : stockDisp <= 5
+                                    ? "bg-red-100 text-red-700 border border-red-200"
+                                    : stockDisp <= 10
+                                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              }`}
+                              title={`Stock restante disponible: ${formatearCantidadUnidad(stockDisp, i.unidadMedida)} ${abreviaturaUnidad(i.unidadMedida)}`}
+                            >
+                              Stock: {formatearCantidadUnidad(stockDisp, i.unidadMedida)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Eliminar */}
+                      <button
+                        type="button"
+                        onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
+                        className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                        title="Eliminar producto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Fila inferior: Control de Cantidad (Izquierda) + Total de Línea (Derecha en 1 sola línea) */}
+                    <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => cambiarCantidad(i.key, -1)}
+                          className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
+                          title="Disminuir"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+
                         <input
                           type="text"
                           inputMode="decimal"
                           value={
-                            i.precioStr !== undefined
-                              ? i.precioStr
-                              : i.precio === 0
-                                ? "0"
-                                : i.precio
+                            i.cantidadStr !== undefined
+                              ? i.cantidadStr
+                              : i.cantidad === 0
+                                ? ""
+                                : i.cantidad
                           }
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const raw = e.target.value.replace(",", ".");
                             if (raw === "" || raw === ".") {
-                              actualizarPrecioUnitarioDirecto(i.key, 0, raw);
+                              setItems((prev) =>
+                                prev.map((it) =>
+                                  it.key === i.key ? { ...it, cantidad: 0, cantidadStr: raw } : it,
+                                ),
+                              );
                             } else if (/^\d*\.?\d*$/.test(raw)) {
                               const parsed = parseFloat(raw);
-                              if (!isNaN(parsed)) {
-                                actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
-                              }
+                              const val = isNaN(parsed) ? 0 : parsed;
+                              actualizarCantidadDirecta(i.key, val, raw);
                             }
                           }}
                           onBlur={(e) => {
                             const raw = e.target.value.replace(",", ".");
                             const parsed = parseFloat(raw);
-                            actualizarPrecioUnitarioDirecto(
-                              i.key,
-                              isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)),
-                              undefined,
-                            );
+                            if (isNaN(parsed) || parsed <= 0) {
+                              setItems((prev) => prev.filter((it) => it.key !== i.key));
+                            } else {
+                              setItems((prev) =>
+                                prev.map((it) =>
+                                  it.key === i.key
+                                    ? { ...it, cantidad: parseFloat(parsed.toFixed(3)), cantidadStr: undefined }
+                                    : it,
+                                ),
+                              );
+                            }
                           }}
-                          className="w-14 h-4.5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
-                          title="Haz clic para cambiar el precio unitario"
+                          className="w-12 h-6 text-center text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums px-0.5"
+                          title="Ingresa la cantidad o peso (ej. 0.5, 0.4)"
                         />
-                        <span>
-                          {i.unidadMedida
-                            ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}`
-                            : "c/u"}
+
+                        <button
+                          type="button"
+                          onClick={() => cambiarCantidad(i.key, 1)}
+                          className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
+                          title="Aumentar"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <span className="text-[11px] text-gray-400 font-medium">Total:</span>
+                        <span className="text-xs font-bold text-gray-900 tabular-nums">
+                          S/ {(i.precio * i.cantidad).toFixed(2)}
                         </span>
                       </div>
                     </div>
-
-                    {/* Eliminar */}
-                    <button
-                      type="button"
-                      onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
-                      className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
-                      title="Eliminar producto"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
                   </div>
-
-                  {/* Fila inferior: Control de Cantidad (Izquierda) + Total de Línea (Derecha en 1 sola línea) */}
-                  <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => cambiarCantidad(i.key, -1)}
-                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
-                        title="Disminuir"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={
-                          i.cantidadStr !== undefined
-                            ? i.cantidadStr
-                            : i.cantidad === 0
-                              ? ""
-                              : i.cantidad
-                        }
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(",", ".");
-                          if (raw === "" || raw === ".") {
-                            setItems((prev) =>
-                              prev.map((it) =>
-                                it.key === i.key ? { ...it, cantidad: 0, cantidadStr: raw } : it,
-                              ),
-                            );
-                          } else if (/^\d*\.?\d*$/.test(raw)) {
-                            const parsed = parseFloat(raw);
-                            const val = isNaN(parsed) ? 0 : parsed;
-                            actualizarCantidadDirecta(i.key, val, raw);
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const raw = e.target.value.replace(",", ".");
-                          const parsed = parseFloat(raw);
-                          if (isNaN(parsed) || parsed <= 0) {
-                            setItems((prev) => prev.filter((it) => it.key !== i.key));
-                          } else {
-                            setItems((prev) =>
-                              prev.map((it) =>
-                                it.key === i.key
-                                  ? { ...it, cantidad: parseFloat(parsed.toFixed(3)), cantidadStr: undefined }
-                                  : it,
-                              ),
-                            );
-                          }
-                        }}
-                        className="w-12 h-6 text-center text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums px-0.5"
-                        title="Ingresa la cantidad o peso (ej. 0.5, 0.4)"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => cambiarCantidad(i.key, 1)}
-                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
-                        title="Aumentar"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <span className="text-[11px] text-gray-400 font-medium">Total:</span>
-                      <span className="text-xs font-bold text-gray-900 tabular-nums">
-                        S/ {(i.precio * i.cantidad).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -2693,69 +2763,99 @@ export default function CajaAutopago() {
             </div>
 
             {/* Lista de productos en el Drawer */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-              {items.map((i) => (
-                <div
-                  key={i.key}
-                  className="rounded-lg border border-gray-100 bg-white p-2.5 shadow-2xs space-y-1.5"
-                >
-                  <div className="flex items-center gap-2">
-                    <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
-                        {i.descripcion}
-                        {i.tieneVencido && (
-                          <span title="Lote vencido sin retirar">
-                            <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
-                          </span>
-                        )}
-                      </p>
-                      <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-0.5">
-                        <span className="font-medium">S/</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={i.precioStr !== undefined ? i.precioStr : i.precio === 0 ? "0" : i.precio}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(",", ".");
-                            if (raw === "" || raw === ".") {
-                              actualizarPrecioUnitarioDirecto(i.key, 0, raw);
-                            } else if (/^\d*\.?\d*$/.test(raw)) {
-                              const parsed = parseFloat(raw);
-                              if (!isNaN(parsed)) actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const raw = e.target.value.replace(",", ".");
-                            const parsed = parseFloat(raw);
-                            actualizarPrecioUnitarioDirecto(i.key, isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)), undefined);
-                          }}
-                          className="w-14 h-5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
-                        />
-                        <span>
-                          {i.unidadMedida ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}` : "c/u"}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
-                      className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+            <div ref={mobileCartContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+              {items.map((i) => {
+                const prodInfo = productosPorId.get(i.productoId);
+                const stockDisp = config?.isStock && prodInfo && prodInfo.tipoProducto === "BIEN"
+                  ? calcularDisponible(prodInfo, items, productosSucursal, true, productosPorId)
+                  : null;
+                const esReciente = i.key === ultimoItemAgregadoKey;
 
-                  <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-                    <div className="flex items-center gap-1">
+                return (
+                  <div
+                    key={i.key}
+                    className={`rounded-lg border p-2.5 shadow-2xs space-y-1.5 transition-all ${
+                      esReciente
+                        ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-400/50 shadow-md scale-[1.01]"
+                        : "border-gray-100 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-900 leading-tight truncate flex items-center gap-1">
+                          {i.descripcion}
+                          {i.tieneVencido && (
+                            <span title="Lote vencido sin retirar">
+                              <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                            </span>
+                          )}
+                        </p>
+                        <div className="flex items-center justify-between gap-1 flex-wrap mt-0.5">
+                          <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                            <span className="font-medium">S/</span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={i.precioStr !== undefined ? i.precioStr : i.precio === 0 ? "0" : i.precio}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(",", ".");
+                                if (raw === "" || raw === ".") {
+                                  actualizarPrecioUnitarioDirecto(i.key, 0, raw);
+                                } else if (/^\d*\.?\d*$/.test(raw)) {
+                                  const parsed = parseFloat(raw);
+                                  if (!isNaN(parsed)) actualizarPrecioUnitarioDirecto(i.key, parsed, raw);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const raw = e.target.value.replace(",", ".");
+                                const parsed = parseFloat(raw);
+                                actualizarPrecioUnitarioDirecto(i.key, isNaN(parsed) ? 0 : parseFloat(parsed.toFixed(2)), undefined);
+                              }}
+                              className="w-14 h-5 px-1 text-center font-bold text-gray-800 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums text-[11px]"
+                            />
+                            <span>
+                              {i.unidadMedida ? `/ ${i.unidadMedida === "KGM" ? "kg" : i.unidadMedida === "LTR" ? "lt" : i.unidadMedida === "NIU" ? "c/u" : i.unidadMedida}` : "c/u"}
+                            </span>
+                          </div>
+
+                          {stockDisp !== null && (
+                            <span
+                              className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold tabular-nums shrink-0 ${
+                                stockDisp <= 0
+                                  ? "bg-rose-100 text-rose-700 border border-rose-200"
+                                  : stockDisp <= 5
+                                    ? "bg-red-100 text-red-700 border border-red-200"
+                                    : stockDisp <= 10
+                                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              }`}
+                              title={`Stock restante disponible: ${formatearCantidadUnidad(stockDisp, i.unidadMedida)}`}
+                            >
+                              Stock: {formatearCantidadUnidad(stockDisp, i.unidadMedida)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => cambiarCantidad(i.key, -1)}
-                        className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+                        onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
+                        className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
                       >
-                        <Minus className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => cambiarCantidad(i.key, -1)}
+                          className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -2798,7 +2898,8 @@ export default function CajaAutopago() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
 
             {/* Footer del Drawer */}
@@ -3454,6 +3555,8 @@ export default function CajaAutopago() {
                 "Registrar venta al crédito"
               ) : boletaMayor700SinDoc ? (
                 "Ingresa DNI (Boleta ≥ S/ 700)"
+              ) : facturaSinRuc ? (
+                "Ingresa RUC (11 dígitos)"
               ) : facturaSinRazonSocial ? (
                 "Ingresa Razón Social"
               ) : (

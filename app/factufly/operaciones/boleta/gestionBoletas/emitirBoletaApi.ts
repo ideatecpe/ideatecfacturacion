@@ -17,8 +17,11 @@ export function esErrorTransitorio(err: unknown): boolean {
 
 // Primera API: guarda el comprobante en BD y asigna serie/correlativo real.
 export async function generarXml(payload: Record<string, unknown>, token: string | null) {
+  const urlXml = `${API_URL}/api/Comprobantes/GenerarXml`;
+  logEmision(etiquetaPorTipo(payload), urlXml, payload);
+
   const res = await axios.post(
-    `${API_URL}/api/Comprobantes/GenerarXml`,
+    urlXml,
     payload,
     { headers: { Authorization: `Bearer ${token}` } },
   );
@@ -28,8 +31,11 @@ export async function generarXml(payload: Record<string, unknown>, token: string
 
 // Segunda API: envía el comprobante ya guardado a SUNAT.
 export async function enviarASunatApi(comprobanteId: number, token: string | null) {
+  const urlSunat = `${API_URL}/api/Comprobantes/${comprobanteId}/enviar-sunat`;
+  logEmision("SUNAT", urlSunat, { comprobanteId, body: null });
+
   const res = await axios.post(
-    `${API_URL}/api/Comprobantes/${comprobanteId}/enviar-sunat`,
+    urlSunat,
     null,
     { headers: { Authorization: `Bearer ${token}` } },
   );
@@ -40,10 +46,32 @@ export async function enviarASunatApi(comprobanteId: number, token: string | nul
   };
 }
 
+// Traza de emision: imprime en consola la URL exacta y el body completo que sale hacia
+// la API, para poder reproducir la peticion tal cual desde Postman o curl.
+// Queda fuera de produccion porque el body lleva datos del cliente (nombre, documento).
+export function logEmision(etiqueta: string, url: string, payload: unknown) {
+  if (process.env.NODE_ENV === "production") return;
+
+  console.groupCollapsed(`%c[${etiqueta}] POST ${url}`, "color:#d97706;font-weight:bold");
+  console.log("URL:", url);
+  console.log("Body:", payload);
+  console.log("Body (JSON):", JSON.stringify(payload, null, 2));
+  console.groupEnd();
+}
+
+// El endpoint GenerarXml es el mismo para boleta y factura; el tipo va dentro del body.
+export function etiquetaPorTipo(payload: unknown) {
+  const tipo = (payload as { tipoComprobante?: string })?.tipoComprobante;
+  return tipo === "01" ? "Factura" : tipo === "03" ? "Boleta" : "Comprobante";
+}
+
 // Nota de Venta: documento de control interno, no pasa por SUNAT.
 export async function crearNotaVenta(payload: Record<string, unknown>, token: string | null) {
+  const url = `${API_URL}/api/NotaVenta`;
+  logEmision("NotaVenta", url, payload);
+
   const res = await axios.post(
-    `${API_URL}/api/NotaVenta`,
+    url,
     payload,
     { headers: { Authorization: `Bearer ${token}` } },
   );
