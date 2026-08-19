@@ -37,6 +37,9 @@ import {
   WifiOff,
   PackagePlus,
   RefreshCw,
+  Zap,
+  Minimize2,
+  Maximize2,
 } from "lucide-react";
 
 import { scanImageData } from "@undecaf/zbar-wasm";
@@ -131,6 +134,10 @@ interface ItemCarrito {
   tipoProducto: string | null;
   tieneVencido: boolean;
 }
+
+// Un carrito vacío estable: si se pasara `[]` en línea, cada render sería una
+// referencia nueva y recalcularía el stock disponible de todo el grid.
+const SIN_RESERVAS: ItemCarrito[] = [];
 
 // Precio de venta efectivo: si el producto está en promoción, aplica el
 // porcentaje de descuento sobre precioUnitario (mismo cálculo que en
@@ -274,7 +281,53 @@ const ProductoGridCard = memo(function ProductoGridCard({
   );
 });
 
-export default function CajaAutopago() {
+// Recursos que las dos cajas simultáneas COMPARTEN: catálogo/stock, sucursal
+// (serie y correlativo), empresa emisora y categorías. Se cargan una sola vez en
+// <CajaAutopago /> y se pasan a cada vista. Si cada caja tuviera su propia copia,
+// la venta rápida y la principal mostrarían stock distinto del mismo producto y
+// podrían vender dos veces la última unidad.
+interface RecursosCaja {
+  productos: ReturnType<typeof useProductosSucursal>;
+  recursoSucursal: ReturnType<typeof useSucursal>;
+  recursoEmpresa: ReturnType<typeof useEmpresaEmisor>;
+  recursoCategorias: ReturnType<typeof useCategoriasLista>;
+  ultimaRevalidacionRef: { current: number };
+}
+
+interface CajaAutopagoVistaProps {
+  recursos: RecursosCaja;
+  /** Solo la caja enfocada escucha el teclado global y usa la cámara. */
+  activo: boolean;
+  /** true cuando esta vista es la ventana emergente de venta rápida. */
+  esRapida?: boolean;
+  /** Carrito de la OTRA caja: sus unidades ya están comprometidas del stock. */
+  reservasOtraCaja: ItemCarrito[];
+  /** Publica el carrito propio para que la otra caja lo descuente. */
+  onCarritoCambio: (items: ItemCarrito[]) => void;
+  /** Solo en la caja principal: abre la ventana emergente de venta rápida. */
+  onAbrirVentaRapida?: () => void;
+  /** Nº de productos que la venta rápida tiene pendientes (badge del botón). */
+  itemsVentaRapida?: number;
+  /** La venta rápida quedó a medias y minimizada: se muestra su barra. */
+  ventaRapidaMinimizada?: boolean;
+  /** Importe acumulado en la venta rápida minimizada. */
+  totalVentaRapida?: number;
+  /** Avisa al contenedor que el cajero cerró esta venta con "Nueva venta". */
+  onVentaTerminada?: () => void;
+}
+
+function CajaAutopagoVista({
+  recursos,
+  activo,
+  esRapida = false,
+  reservasOtraCaja,
+  onCarritoCambio,
+  onAbrirVentaRapida,
+  itemsVentaRapida = 0,
+  ventaRapidaMinimizada = false,
+  totalVentaRapida = 0,
+  onVentaTerminada,
+}: CajaAutopagoVistaProps) {
   const { user, accessToken } = useAuth();
   const { config } = useConfiguracion();
   const { showToast } = useToast();
@@ -288,81 +341,48 @@ export default function CajaAutopago() {
     descontarStockLocal,
     productosDesactualizados,
     fechaCache,
-  } = useProductosSucursal(sucursalId, !!sucursalId);
+  } = recursos.productos;
+  const ultimaRevalidacionRef = recursos.ultimaRevalidacionRef;
 
   // Mapa de productos por ID para lookups O(1) de paquetes/stock
   const productosPorId = useMemo(() => {
     return new Map(productosSucursal.map((p) => [p.productoId, p]));
   }, [productosSucursal]);
-  const { empresa } = useEmpresaEmisor();
-  const { sucursal, fetchSucursal } = useSucursal();
+  const { empresa } = recursos.recursoEmpresa;
+  const { sucursal, fetchSucursal } = recursos.recursoSucursal;
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
-  const { categorias, fetchCategorias } = useCategoriasLista();
-  const { enqueueVenta, ventasSincronizadas, isOnline } = useOfflineSales();
+  const { categorias } = recursos.recursoCategorias;
+  const { enqueueVenta, isOnline } = useOfflineSales();
   const [offlineEncolada, setOfflineEncolada] = useState(false);
   const [ultimoTicketOffline, setUltimoTicketOffline] = useState<
     Parameters<typeof imprimirTicketProvisional>[0] | null
   >(null);
 
-  useEffect(() => {
-    if (user?.ruc) {
-      fetchCategorias(user.ruc);
-    }
-  }, [user?.ruc, fetchCategorias]);
-
-  // ── Revalidación del stock mientras la caja está abierta ─────────────
-  // El stock es compartido entre dispositivos: si otro celular vende la última
-  // unidad, esta pantalla tiene que enterarse sola. Antes solo se refrescaba al
-  // montar y después de cada venta propia, así que una caja abierta en otro
-  // equipo seguía mostrando unidades que ya no existían.
-  const fetchProductosRef = useRef(fetchProductosSucursal);
-  fetchProductosRef.current = fetchProductosSucursal;
-  const ultimaRevalidacionRef = useRef(0);
-
-  useEffect(() => {
-    if (!sucursalId) return;
-
-    const revalidar = (forzar: boolean) => {
-      // Los eventos de foco llegan en ráfagas (teclado del móvil, cambio de app):
-      // sin este freno se dispararía una petición por cada uno.
-      if (!forzar && Date.now() - ultimaRevalidacionRef.current < 15000) return;
-      ultimaRevalidacionRef.current = Date.now();
-      fetchProductosRef.current().catch(() => {});
-    };
-
-    const alVolverAlFrente = () => {
-      if (document.visibilityState === "visible") revalidar(false);
-    };
-
-    document.addEventListener("visibilitychange", alVolverAlFrente);
-    window.addEventListener("focus", alVolverAlFrente);
-    // Con la pantalla oculta no se sondea: no sirve de nada y gasta datos.
-    const intervalo = setInterval(() => {
-      if (document.visibilityState === "visible") revalidar(true);
-    }, 60000);
-
-    return () => {
-      document.removeEventListener("visibilitychange", alVolverAlFrente);
-      window.removeEventListener("focus", alVolverAlFrente);
-      clearInterval(intervalo);
-    };
-  }, [sucursalId]);
-
-  // ── Al terminar de subir las ventas que quedaron en cola sin conexión ──
-  // Mientras la venta está encolada, el stock en pantalla es un descuento
-  // OPTIMISTA local: el servidor todavía no sabe de ella. Cualquier recarga del
-  // catálogo antes de que la cola suba trae el stock ANTERIOR a esas ventas y
-  // borra el descuento local. Recién cuando la cola termina, el backend tiene el
-  // stock real: se refresca solo, igual que pulsar "Actualizar stock".
-  useEffect(() => {
-    if (!sucursalId || ventasSincronizadas === 0) return;
-    ultimaRevalidacionRef.current = Date.now();
-    fetchProductosRef.current().catch(() => {});
-  }, [ventasSincronizadas, sucursalId]);
+  // La carga de categorías y la revalidación periódica del stock viven en
+  // <CajaAutopago />: son recursos compartidos y con dos cajas montadas se
+  // dispararían dos veces cada una.
 
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
+
+  // ── Stock compartido entre las dos cajas abiertas ────────────────────
+  // Lo que la otra caja ya tiene en su carrito está comprometido aunque todavía
+  // no se haya emitido: si no se descontara aquí, las dos podrían agregar la
+  // última unidad del mismo producto y una de las dos ventas se caería recién
+  // en el backend (que descuenta stock de forma atómica).
+  const reservasRef = useRef<ItemCarrito[]>(reservasOtraCaja);
+  useEffect(() => { reservasRef.current = reservasOtraCaja; });
+
+  const itemsMasReservas = useMemo(
+    () => (reservasOtraCaja.length ? [...items, ...reservasOtraCaja] : items),
+    [items, reservasOtraCaja],
+  );
+  // Versión para callbacks/efectos, que leen el carrito por ref y no por render.
+  const carritoConReservas = useCallback(
+    () => (reservasRef.current.length ? [...itemsRef.current, ...reservasRef.current] : itemsRef.current),
+    [],
+  );
   const [ultimoItemAgregadoKey, setUltimoItemAgregadoKey] = useState<string | null>(null);
   const cartContainerRef = useRef<HTMLDivElement | null>(null);
   const mobileCartContainerRef = useRef<HTMLDivElement | null>(null);
@@ -442,7 +462,13 @@ export default function CajaAutopago() {
     }
 
     setItems((prev) => {
-      const disp = calcularDisponible(p, prev, productosSucursal, config?.isStock ?? false, productosPorId);
+      const disp = calcularDisponible(
+        p,
+        reservasRef.current.length ? [...prev, ...reservasRef.current] : prev,
+        productosSucursal,
+        config?.isStock ?? false,
+        productosPorId,
+      );
       if (disp !== null && disp <= 0) {
         setProductoSinStock(p);
         return prev;
@@ -528,6 +554,13 @@ export default function CajaAutopago() {
     setIsScanning(false);
   }, []);
 
+  // Al perder el foco (se abrió la otra caja) esta vista suelta la cámara: el
+  // navegador entrega un solo stream de video y el escáner de la caja activa
+  // se quedaría sin imagen.
+  useEffect(() => {
+    if (!activo && isScanning) stopScanning();
+  }, [activo, isScanning, stopScanning]);
+
   // Limpieza al desmontar el componente: apagar la cámara y detener el loop de escaneo
   useEffect(() => {
     return () => {
@@ -606,7 +639,7 @@ export default function CajaAutopago() {
 
       if (p) {
         if (config?.isStock && p.tipoProducto === "BIEN") {
-          const disp = calcularDisponible(p, itemsRef.current, productosSucursal, true);
+          const disp = calcularDisponible(p, carritoConReservas(), productosSucursal, true);
           if (disp !== null && disp <= 0) {
             setProductoSinStock(p);
             return;
@@ -620,7 +653,7 @@ export default function CajaAutopago() {
         setModalCrearRapidoAbierto(true);
       }
     },
-    [productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor],
+    [productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, carritoConReservas],
   );
 
   const startScanning = async () => {
@@ -845,7 +878,7 @@ export default function CajaAutopago() {
     const baseProductos = (config?.isStock ?? true)
       ? productosSucursal.filter((p) => {
           if (p.tipoProducto !== "BIEN") return true;
-          const disp = calcularDisponible(p, [], productosSucursal, true, productosPorId);
+          const disp = calcularDisponible(p, reservasOtraCaja, productosSucursal, true, productosPorId);
           return disp === null || disp > 0;
         })
       : productosSucursal;
@@ -869,7 +902,7 @@ export default function CajaAutopago() {
     });
 
     return copia;
-  }, [busqueda, productosSucursal, statsVentas, config?.isStock, productosPorId]);
+  }, [busqueda, productosSucursal, statsVentas, config?.isStock, productosPorId, reservasOtraCaja]);
 
   const cambiarCantidad = (key: string, delta: number) => {
     if (delta > 0) {
@@ -877,7 +910,7 @@ export default function CajaAutopago() {
       if (item) {
         const prod = productosSucursal.find((p) => p.productoId === item.productoId);
         if (prod) {
-          const disp = calcularDisponible(prod, items, productosSucursal, config?.isStock ?? false);
+          const disp = calcularDisponible(prod, itemsMasReservas, productosSucursal, config?.isStock ?? false);
           if (disp !== null && disp <= 0) {
             showToast(`Stock insuficiente: no hay más unidades disponibles de "${item.descripcion}"`, "info");
             return;
@@ -908,7 +941,7 @@ export default function CajaAutopago() {
     if (val > item.cantidad) {
       const prod = productosSucursal.find((p) => p.productoId === item.productoId);
       if (prod) {
-        const disp = calcularDisponible(prod, items, productosSucursal, config?.isStock ?? false);
+        const disp = calcularDisponible(prod, itemsMasReservas, productosSucursal, config?.isStock ?? false);
         const incremento = val - item.cantidad;
         if (disp !== null && disp < incremento) {
           showToast(
@@ -995,7 +1028,7 @@ export default function CajaAutopago() {
         return;
       }
       if (config?.isStock && exacto.tipoProducto === "BIEN") {
-        const disp = calcularDisponible(exacto, itemsRef.current, productosSucursal, true);
+        const disp = calcularDisponible(exacto, carritoConReservas(), productosSucursal, true);
         if (disp !== null && disp <= 0) {
           setProductoSinStock(exacto);
           setBusqueda("");
@@ -1005,7 +1038,7 @@ export default function CajaAutopago() {
       agregarProducto(exacto);
       setBusqueda("");
     }
-  }, [busqueda, productosSucursal, config?.isStock, showToast, agregarProducto, esLecturaDuplicada]);
+  }, [busqueda, productosSucursal, config?.isStock, showToast, agregarProducto, esLecturaDuplicada, carritoConReservas]);
 
   // Enter en el buscador o escáner de código de barras físico:
   // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
@@ -1109,18 +1142,27 @@ export default function CajaAutopago() {
     [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, esLecturaDuplicada],
   );
 
-  // Foco inicial único al cargar la página (solo en computadoras/laptops)
+  // Foco inicial único al cargar la página (solo en computadoras/laptops).
+  // También al recuperar el foco: al pasar de una caja a la otra, el cursor
+  // tiene que saltar solo a su buscador para poder escanear sin tocar el mouse.
+  // Con el modal de pago abierto no se toca el foco: ahí manda el monto
+  // recibido, y robárselo al volver de la venta rápida obligaría a hacer clic
+  // de nuevo justo en la mitad del cobro.
   useEffect(() => {
+    if (!activo || mostrarPago) return;
     const isMobile = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
     if (!isMobile) {
       inputRef.current?.focus();
     }
-  }, []);
+  }, [activo, mostrarPago]);
 
   // Captura global de lecturas de códigos de barras (escáner físico USB/Bluetooth)
   // incluso si el usuario hace clic afuera del input.
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Con las dos cajas montadas, solo la que tiene el foco puede consumir la
+      // lectura: si escucharan las dos, el mismo código entraría en ambos carritos.
+      if (!activo) return;
       // No capturar si hay cualquier modal abierto
       if (mostrarPago || modalCrearRapidoAbierto || !!productoSinStock || confirmarLimpiarTodo) return;
 
@@ -1186,7 +1228,7 @@ export default function CajaAutopago() {
 
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [onEnterBusqueda, mostrarPago, modalCrearRapidoAbierto, productoSinStock, confirmarLimpiarTodo, busqueda]);
+  }, [activo, onEnterBusqueda, mostrarPago, modalCrearRapidoAbierto, productoSinStock, confirmarLimpiarTodo, busqueda]);
 
   // ── Totales (con desglose por afectación de IGV, para el payload real) ──
   const totales = useMemo(() => {
@@ -1231,6 +1273,15 @@ export default function CajaAutopago() {
   const [notaPago, setNotaPago] = useState("");
   const [emitiendo, setEmitiendo] = useState(false);
   const [emitido, setEmitido] = useState(false);
+
+  // Publica el carrito propio para que la otra caja lo descuente de su stock.
+  // Una vez emitida la venta el carrito deja de reservar: esas unidades ya se
+  // descontaron del catálogo compartido (descontarStockLocal) y seguir
+  // publicándolas las restaría dos veces en la otra caja, que vería menos
+  // stock del que hay hasta que aquí se pulse "Nueva venta".
+  useEffect(() => {
+    onCarritoCambio(emitido ? SIN_RESERVAS : items);
+  }, [items, emitido, onCarritoCambio]);
   const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<number | null>(null);
   const [serieCorrelativoEmitido, setSerieCorrelativoEmitido] = useState<string | null>(null);
   const [medioPagoEmitido, setMedioPagoEmitido] = useState("Efectivo");
@@ -2085,7 +2136,7 @@ export default function CajaAutopago() {
 
   // Confirmación con la tecla Enter en el modal de pago
   useEffect(() => {
-    if (!mostrarPago) return;
+    if (!mostrarPago || !activo) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
         // Ignorar si el modal se acaba de abrir (evita doble disparo por el Enter de la vista principal)
@@ -2110,7 +2161,7 @@ export default function CajaAutopago() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRuc, facturaSinRazonSocial]);
+  }, [activo, mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRuc, facturaSinRazonSocial]);
 
   const nuevaVenta = () => {
     setItems([]);
@@ -2144,15 +2195,20 @@ export default function CajaAutopago() {
     fetchProductosSucursal();
     setTimeout(() => {
       const isMobile = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
-      if (!isMobile) {
+      if (!isMobile && activo) {
         inputRef.current?.focus();
       }
     }, 50);
+    // En la ventana rápida, "Nueva venta" significa "ya terminé con este
+    // cliente": la pantalla de éxito se queda hasta aquí (para reimprimir o
+    // mandar el ticket) y recién ahora la ventana se quita de encima y devuelve
+    // el foco a la venta principal, que sigue esperando su cobro.
+    onVentaTerminada?.();
   };
 
   // Enter para "Nueva venta" cuando se muestra la pantalla de éxito
   useEffect(() => {
-    if (!emitido) return;
+    if (!emitido || !activo) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
         const activeEl = document.activeElement;
@@ -2165,12 +2221,38 @@ export default function CajaAutopago() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [emitido, telWhatsapp]);
+  }, [activo, emitido, telWhatsapp]);
 
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
     <>
-      <div className="w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:h-[calc(100vh-125px)] lg:overflow-hidden">
+      <div
+        className={`relative w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:overflow-hidden ${
+          esRapida ? "min-h-full lg:h-full" : "lg:h-[calc(100vh-125px)]"
+        }`}
+      >
+        {/* Barra de la venta rápida minimizada: recuerda que quedó una venta a
+            medias y la trae de vuelta con un clic. Va anclada DENTRO de la caja
+            (no a la ventana) porque el sidebar ocupa ancho real en el layout y
+            un `fixed left-3` le quedaba encima. En móvil sí es fija: ahí el
+            sidebar se superpone y la tarjeta crece más que la pantalla. */}
+        {onAbrirVentaRapida && ventaRapidaMinimizada && (
+          <button
+            type="button"
+            onClick={onAbrirVentaRapida}
+            className="fixed bottom-20 left-3 lg:absolute lg:bottom-3 lg:left-3 z-30 flex items-center gap-2.5 rounded-lg bg-brand-blue pl-3 pr-3.5 py-2 text-white shadow-[0_10px_30px_-8px_rgba(15,46,100,0.7)] ring-1 ring-white/20 hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer"
+            title="Retomar la venta rápida (F2)"
+          >
+            <Zap className="w-4 h-4 shrink-0" />
+            <span className="flex flex-col items-start leading-tight">
+              <span className="text-[10px] font-semibold text-white/75">Venta rápida en espera</span>
+              <span className="text-xs font-bold tabular-nums">
+                {itemsVentaRapida} producto{itemsVentaRapida === 1 ? "" : "s"} · S/ {totalVentaRapida.toFixed(2)}
+              </span>
+            </span>
+            <Maximize2 className="w-3.5 h-3.5 shrink-0 opacity-80" />
+          </button>
+        )}
         {/* ── Columna izquierda: buscador + grid de productos ── */}
         <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden">
           <div className="shrink-0 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
@@ -2242,6 +2324,23 @@ export default function CajaAutopago() {
               <PackagePlus size={14} />
               <span className="hidden sm:inline">+ Producto</span>
             </button>
+
+            {onAbrirVentaRapida && (
+              <button
+                type="button"
+                onClick={onAbrirVentaRapida}
+                className="relative h-9.5 flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
+                title="Atender otra venta en paralelo sin perder este carrito (F2)"
+              >
+                <Zap size={14} />
+                <span className="hidden sm:inline">Venta rápida</span>
+                {itemsVentaRapida > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-4.5 h-4.5 px-1 rounded-full bg-amber-400 text-[10px] font-bold text-gray-900 flex items-center justify-center tabular-nums shadow-sm">
+                    {itemsVentaRapida}
+                  </span>
+                )}
+              </button>
+            )}
 
             {!isScanning ? (
               <button
@@ -2359,7 +2458,7 @@ export default function CajaAutopago() {
                   {productosGridVisualizados.map((p) => {
                     const itemCarrito = items.find((i) => i.productoId === p.productoId);
                     const stockDisp = config?.isStock
-                      ? calcularDisponible(p, items, productosSucursal, true, productosPorId)
+                      ? calcularDisponible(p, itemsMasReservas, productosSucursal, true, productosPorId)
                       : null;
                     return (
                       <ProductoGridCard
@@ -2469,7 +2568,7 @@ export default function CajaAutopago() {
               items.map((i) => {
                 const prodInfo = productosPorId.get(i.productoId);
                 const stockDisp = config?.isStock && prodInfo && prodInfo.tipoProducto === "BIEN"
-                  ? calcularDisponible(prodInfo, items, productosSucursal, true, productosPorId)
+                  ? calcularDisponible(prodInfo, itemsMasReservas, productosSucursal, true, productosPorId)
                   : null;
                 const esReciente = i.key === ultimoItemAgregadoKey;
 
@@ -2767,7 +2866,7 @@ export default function CajaAutopago() {
               {items.map((i) => {
                 const prodInfo = productosPorId.get(i.productoId);
                 const stockDisp = config?.isStock && prodInfo && prodInfo.tipoProducto === "BIEN"
-                  ? calcularDisponible(prodInfo, items, productosSucursal, true, productosPorId)
+                  ? calcularDisponible(prodInfo, itemsMasReservas, productosSucursal, true, productosPorId)
                   : null;
                 const esReciente = i.key === ultimoItemAgregadoKey;
 
@@ -3729,6 +3828,210 @@ export default function CajaAutopago() {
         sucursalId={sucursalId || 1}
         onProductoCreado={handleProductoCreado}
       />
+    </>
+  );
+}
+
+/**
+ * Caja Autopago con dos ventas simultáneas.
+ *
+ * La caja principal se queda tal cual está (carrito, cliente, pago) y F2 abre
+ * una segunda caja idéntica en una ventana flotante para cobrarle en el acto a
+ * quien solo lleva un producto. Las dos comparten catálogo, stock, empresa y
+ * sucursal, así que ninguna vende unidades que la otra ya tiene apartadas.
+ *
+ * La ventana flotante nunca se destruye: se minimiza. Así el cajero salta entre
+ * las dos ventas sin perder ninguna, y mientras la rápida está minimizada la
+ * principal sigue siendo usable (no hay fondo que la bloquee).
+ *
+ * Serie y correlativo no se duplican: los asigna el backend al emitir, y como
+ * las dos cajas comparten `useSucursal`, al terminar una venta la otra ya ve el
+ * siguiente número.
+ */
+export default function CajaAutopago() {
+  const { user } = useAuth();
+  const sucursalId = user?.sucursalID ? parseInt(user.sucursalID) : null;
+
+  const productos = useProductosSucursal(sucursalId, !!sucursalId);
+  const recursoSucursal = useSucursal();
+  const recursoEmpresa = useEmpresaEmisor();
+  const recursoCategorias = useCategoriasLista();
+  const { ventasSincronizadas } = useOfflineSales();
+  const ultimaRevalidacionRef = useRef(0);
+
+  const { fetchCategorias } = recursoCategorias;
+  useEffect(() => {
+    if (user?.ruc) {
+      fetchCategorias(user.ruc);
+    }
+  }, [user?.ruc, fetchCategorias]);
+
+  // ── Revalidación del stock mientras la caja está abierta ─────────────
+  // El stock es compartido entre dispositivos: si otro celular vende la última
+  // unidad, esta pantalla tiene que enterarse sola. Antes solo se refrescaba al
+  // montar y después de cada venta propia, así que una caja abierta en otro
+  // equipo seguía mostrando unidades que ya no existían.
+  const fetchProductosRef = useRef(productos.fetchProductosSucursal);
+  useEffect(() => { fetchProductosRef.current = productos.fetchProductosSucursal; });
+
+  useEffect(() => {
+    if (!sucursalId) return;
+
+    const revalidar = (forzar: boolean) => {
+      // Los eventos de foco llegan en ráfagas (teclado del móvil, cambio de app):
+      // sin este freno se dispararía una petición por cada uno.
+      if (!forzar && Date.now() - ultimaRevalidacionRef.current < 15000) return;
+      ultimaRevalidacionRef.current = Date.now();
+      fetchProductosRef.current().catch(() => {});
+    };
+
+    const alVolverAlFrente = () => {
+      if (document.visibilityState === "visible") revalidar(false);
+    };
+
+    document.addEventListener("visibilitychange", alVolverAlFrente);
+    window.addEventListener("focus", alVolverAlFrente);
+    // Con la pantalla oculta no se sondea: no sirve de nada y gasta datos.
+    const intervalo = setInterval(() => {
+      if (document.visibilityState === "visible") revalidar(true);
+    }, 60000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", alVolverAlFrente);
+      window.removeEventListener("focus", alVolverAlFrente);
+      clearInterval(intervalo);
+    };
+  }, [sucursalId]);
+
+  // ── Al terminar de subir las ventas que quedaron en cola sin conexión ──
+  // Mientras la venta está encolada, el stock en pantalla es un descuento
+  // OPTIMISTA local: el servidor todavía no sabe de ella. Cualquier recarga del
+  // catálogo antes de que la cola suba trae el stock ANTERIOR a esas ventas y
+  // borra el descuento local. Recién cuando la cola termina, el backend tiene el
+  // stock real: se refresca solo, igual que pulsar "Actualizar stock".
+  useEffect(() => {
+    if (!sucursalId || ventasSincronizadas === 0) return;
+    ultimaRevalidacionRef.current = Date.now();
+    fetchProductosRef.current().catch(() => {});
+  }, [ventasSincronizadas, sucursalId]);
+
+  const recursos: RecursosCaja = {
+    productos,
+    recursoSucursal,
+    recursoEmpresa,
+    recursoCategorias,
+    ultimaRevalidacionRef,
+  };
+
+  // `montada` se queda en true tras la primera apertura: la ventana solo se
+  // minimiza, nunca se destruye, para no perder la venta a medio cobrar.
+  const [ventaRapidaMontada, setVentaRapidaMontada] = useState(false);
+  const [ventaRapidaAbierta, setVentaRapidaAbierta] = useState(false);
+  const [carritoPrincipal, setCarritoPrincipal] = useState<ItemCarrito[]>(SIN_RESERVAS);
+  const [carritoRapido, setCarritoRapido] = useState<ItemCarrito[]>(SIN_RESERVAS);
+
+  const abrirVentaRapida = useCallback(() => {
+    setVentaRapidaMontada(true);
+    setVentaRapidaAbierta(true);
+  }, []);
+  const minimizarVentaRapida = useCallback(() => setVentaRapidaAbierta(false), []);
+
+  // Clic fuera de la ventana flotante = trabajar en la caja principal. El clic
+  // NO se intercepta: llega igual al producto o al botón que se tocó, así que
+  // pasar de una venta a la otra cuesta un solo clic y no dos.
+  const panelRapidoRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!ventaRapidaAbierta) return;
+    const alPresionar = (e: MouseEvent) => {
+      if (panelRapidoRef.current?.contains(e.target as Node)) return;
+      setVentaRapidaAbierta(false);
+    };
+    window.addEventListener("mousedown", alPresionar);
+    return () => window.removeEventListener("mousedown", alPresionar);
+  }, [ventaRapidaAbierta]);
+
+  const totalRapido = carritoRapido.reduce((t, i) => t + i.precio * i.cantidad, 0);
+
+  // F2 abre y minimiza la venta rápida. Es una tecla que ningún campo consume,
+  // así que funciona aunque el cursor esté dentro del buscador o del monto.
+  useEffect(() => {
+    const alPulsar = (e: KeyboardEvent) => {
+      if (e.key !== "F2") return;
+      e.preventDefault();
+      if (ventaRapidaAbierta) minimizarVentaRapida();
+      else abrirVentaRapida();
+    };
+    window.addEventListener("keydown", alPulsar);
+    return () => window.removeEventListener("keydown", alPulsar);
+  }, [ventaRapidaAbierta, abrirVentaRapida, minimizarVentaRapida]);
+
+  return (
+    <>
+      <CajaAutopagoVista
+        recursos={recursos}
+        activo={!ventaRapidaAbierta}
+        reservasOtraCaja={carritoRapido}
+        onCarritoCambio={setCarritoPrincipal}
+        onAbrirVentaRapida={abrirVentaRapida}
+        itemsVentaRapida={carritoRapido.length}
+        ventaRapidaMinimizada={ventaRapidaMontada && !ventaRapidaAbierta && carritoRapido.length > 0}
+        totalVentaRapida={totalRapido}
+      />
+
+      {/* Ventana flotante. Sin fondo oscuro y con `pointer-events-none` en la
+          capa exterior: la caja principal queda visible a los costados y se
+          puede usar sin cerrar nada. Ojo con no poner aquí transform, filter ni
+          backdrop-blur: crean bloque contenedor y los modales `fixed` de
+          adentro (pago, cliente, producto nuevo) se descolocarían. */}
+      {ventaRapidaMontada && (
+        <div
+          className={`fixed inset-0 z-100 flex items-stretch justify-center p-1.5 sm:p-3 pointer-events-none ${
+            ventaRapidaAbierta ? "" : "hidden"
+          }`}
+        >
+          <div
+            ref={panelRapidoRef}
+            className="pointer-events-auto w-full max-w-[1180px] flex flex-col rounded-lg bg-gray-50 shadow-[0_16px_50px_-12px_rgba(15,23,42,0.45)] ring-1 ring-slate-900/10 overflow-hidden"
+          >
+            <div className="shrink-0 flex items-center gap-2.5 px-3 sm:px-4 py-2 bg-brand-blue text-white">
+              <Zap className="w-4 h-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold leading-tight">Venta rápida</p>
+                <p className="hidden sm:block text-[10px] text-white/70 leading-tight">
+                  Minimiza o toca la caja de atrás para volver a la venta principal
+                </p>
+              </div>
+              {carritoPrincipal.length > 0 && (
+                <span className="hidden sm:flex items-center gap-1 ml-2 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold">
+                  <ShoppingBag className="w-3 h-3" />
+                  {carritoPrincipal.length} esperando en la caja principal
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={minimizarVentaRapida}
+                className="ml-auto flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-semibold hover:bg-white/25 transition-colors cursor-pointer"
+                title="Minimizar (F2) · esta venta se conserva tal como está"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                Minimizar
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-1.5 sm:p-2.5">
+              <CajaAutopagoVista
+                recursos={recursos}
+                activo={ventaRapidaAbierta}
+                esRapida
+                reservasOtraCaja={carritoPrincipal}
+                onCarritoCambio={setCarritoRapido}
+                onVentaTerminada={minimizarVentaRapida}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </>
   );
 }
