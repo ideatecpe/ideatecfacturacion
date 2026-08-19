@@ -247,6 +247,47 @@ function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
   return false;
 }
 
+// Coincidencia ESTRICTA de código (solo puntos 1, 2 y 4 de coincideCodigoOBarras):
+// exacta, numérica exacta (ignorando ceros a la izquierda) o normalizada exacta.
+// A diferencia de coincideCodigoOBarras, NO hace matching difuso por substring ni por
+// nombre de producto: se usa para el auto-agregado instantáneo mientras el usuario
+// todavía está tecleando (lector físico), donde un match parcial por nombre borraría
+// el campo de búsqueda apenas se escriben un par de letras.
+function coincideCodigoExacto(p: ProductoSucursal, q: string): boolean {
+  const query = q.trim().toLowerCase();
+  if (!query) return false;
+
+  const cb = p.codigoBarras?.trim().toLowerCase() ?? "";
+  const cod = p.codigo?.trim().toLowerCase() ?? "";
+
+  if (cb === query || cod === query) return true;
+
+  const qDigits = query.replace(/\D/g, "");
+  const qSinCeros = qDigits.replace(/^0+/, "");
+  const cbDigits = cb.replace(/\D/g, "");
+  const cbSinCeros = cbDigits.replace(/^0+/, "");
+  const codDigits = cod.replace(/\D/g, "");
+  const codSinCeros = codDigits.replace(/^0+/, "");
+
+  if (qSinCeros.length >= 3) {
+    if (cbSinCeros && cbSinCeros === qSinCeros) return true;
+    if (codSinCeros && codSinCeros === qSinCeros) return true;
+  }
+  if (qDigits.length >= 3) {
+    if (cbDigits && cbDigits === qDigits) return true;
+    if (codDigits && codDigits === qDigits) return true;
+  }
+
+  if (
+    normalizarTexto(cb) === normalizarTexto(query) ||
+    normalizarTexto(cod) === normalizarTexto(query)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 // Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
 // Tamaño responsivo que corresponde a las columnas del grid (8→7→6→5→4→3 cols):
 // le indica al navegador cuán ancha se va a renderizar la imagen para que, si el
@@ -1139,13 +1180,9 @@ function CajaAutopagoVista({
     const q = busqueda.trim().toLowerCase();
     if (!q) return;
 
-    // 1. Buscar coincidencia por código de barras o código interno
-    let exacto = productosSucursal.find((p) => coincideCodigoOBarras(p, q));
-
-    // 2. Si no es exacto, pero el grid tiene un único resultado (coincidencia unívoca)
-    if (!exacto && productosGrid.length === 1) {
-      exacto = productosGrid[0];
-    }
+    // Coincidencia estricta por código de barras o código interno (sin matching
+    // difuso por nombre ni substring, para no autoagregar mientras el usuario tipea).
+    const exacto = productosSucursal.find((p) => coincideCodigoExacto(p, q));
 
     if (exacto) {
       if (esLecturaDuplicada(q)) {
@@ -1163,7 +1200,7 @@ function CajaAutopagoVista({
       agregarProducto(exacto);
       setBusqueda("");
     }
-  }, [busqueda, productosSucursal, productosGrid, config?.isStock, showToast, agregarProducto, esLecturaDuplicada, carritoConReservas]);
+  }, [busqueda, productosSucursal, config?.isStock, showToast, agregarProducto, esLecturaDuplicada, carritoConReservas]);
 
   // Enter en el buscador o escáner de código de barras físico:
   // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
