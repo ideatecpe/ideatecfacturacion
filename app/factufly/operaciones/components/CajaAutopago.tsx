@@ -16,6 +16,7 @@ import {
   FileText,
   Users,
   ImageOff,
+  ImageIcon,
   CheckCircle2,
   Printer,
   Download,
@@ -62,7 +63,7 @@ import { formatoFechaActual } from "@/app/components/ui/formatoFecha";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
 import { avisarStockBajoWhatsapp } from "@/app/factufly/productos/gestioProductos/stockAlerta";
 import { useToast } from "@/app/components/ui/Toast";
-import { coincideBusqueda } from "@/app/utils/normalizarTexto";
+import { coincideBusqueda, normalizarTexto } from "@/app/utils/normalizarTexto";
 import {
   generarXml,
   enviarASunatApi,
@@ -188,26 +189,125 @@ function calcularDisponible(
   return disponibleBase;
 }
 
+// Coincidencia inteligente de código de barras o código interno:
+// 1. Exacto (case-insensitive, trimmed)
+// 2. Numérico puro ignorando TODOS los ceros a la izquierda (ej. '007500435247634' vs '07500435247634' vs '7500435247634')
+// 3. Substring numérico o por palabras (igual que en lista de productos)
+function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
+  const query = q.trim().toLowerCase();
+  if (!query) return false;
+
+  const cb = p.codigoBarras?.trim().toLowerCase() ?? "";
+  const cod = p.codigo?.trim().toLowerCase() ?? "";
+
+  // 1. Coincidencia exacta directa
+  if (cb === query || cod === query) return true;
+
+  // 2. Coincidencia numérica pura ignorando ceros a la izquierda ('00...' vs '0...' vs '...')
+  const qDigits = query.replace(/\D/g, "");
+  const qSinCeros = qDigits.replace(/^0+/, "");
+
+  const cbDigits = cb.replace(/\D/g, "");
+  const cbSinCeros = cbDigits.replace(/^0+/, "");
+
+  const codDigits = cod.replace(/\D/g, "");
+  const codSinCeros = codDigits.replace(/^0+/, "");
+
+  // Si ambos números sin ceros iniciales coinciden (mínimo 3 dígitos)
+  if (qSinCeros.length >= 3) {
+    if (cbSinCeros && cbSinCeros === qSinCeros) return true;
+    if (codSinCeros && codSinCeros === qSinCeros) return true;
+  }
+
+  // Si con ceros coinciden (ej. '001' vs '001')
+  if (qDigits.length >= 3) {
+    if (cbDigits && cbDigits === qDigits) return true;
+    if (codDigits && codDigits === qDigits) return true;
+  }
+
+  // 3. Si el código de barras o código contiene el término escaneado como substring
+  if (qSinCeros.length >= 4) {
+    if (cbSinCeros && (cbSinCeros.includes(qSinCeros) || qSinCeros.includes(cbSinCeros))) return true;
+    if (codSinCeros && (codSinCeros.includes(qSinCeros) || qSinCeros.includes(codSinCeros))) return true;
+  }
+
+  // 4. Normalizado sin acentos ni espacios
+  if (
+    normalizarTexto(cb) === normalizarTexto(query) ||
+    normalizarTexto(cod) === normalizarTexto(query)
+  ) {
+    return true;
+  }
+
+  // 5. Coincidencia flexible de búsqueda (como en la lista de productos)
+  if (coincideBusqueda(query, p.codigoBarras, p.codigo, p.nomProducto)) {
+    return true;
+  }
+
+  return false;
+}
+
 // Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
+// Tamaño responsivo que corresponde a las columnas del grid (8→7→6→5→4→3 cols):
+// le indica al navegador cuán ancha se va a renderizar la imagen para que, si el
+// CDN ofrece varias resoluciones, descargue la más liviana posible.
+const GRID_IMG_SIZES =
+  "(min-width: 1536px) 12.5vw, (min-width: 1280px) 14.3vw, (min-width: 1024px) 16.7vw, (min-width: 768px) 20vw, (min-width: 640px) 25vw, 33.3vw";
+
 const ProductoGridCard = memo(function ProductoGridCard({
   p,
   cantidadEnCarrito = 0,
   stockDisp = null,
   onClick,
+  index = 99,
 }: {
   p: ProductoSucursal;
   cantidadEnCarrito?: number;
   stockDisp?: number | null;
   onClick: () => void;
+  /** Posición en el grid: las primeras 8 se cargan de inmediato. */
+  index?: number;
 }) {
+  const cardRef = useRef<HTMLButtonElement>(null);
+  // Las primeras 8 tarjetas (primera fila visible) arrancan como visibles;
+  // el resto empieza oculto hasta que IntersectionObserver lo detecte.
+  const [isInView, setIsInView] = useState(index < 8);
   const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  // IntersectionObserver por tarjeta: la <img> NO se monta en el DOM hasta que
+  // la tarjeta entre al viewport. Así el navegador no descarga ninguna imagen
+  // que no sea visible — las tarjetas (nombre + precio) aparecen al instante y
+  // las fotos van cargando una por una al hacer scroll (como Falabella).
+  useEffect(() => {
+    if (isInView) return; // ya visible, no necesita observer
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "100px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isInView]);
+
   const tieneImagen = !!p.urlImagenProducto && !imgError;
   const enOferta = !!p.sucursalProducto.enPromocion && !!p.sucursalProducto.porcentajeDescuento;
   const seleccionado = cantidadEnCarrito > 0;
   const hoy = new Date().toISOString().split("T")[0];
   const vencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
+
+  // Solo montar el <img> cuando la tarjeta está en el viewport
+  const mostrarImg = tieneImagen && isInView;
+
   return (
     <button
+      ref={cardRef}
       onClick={onClick}
       className={`group relative flex flex-col rounded-md border transition-all text-left overflow-hidden ${
         seleccionado
@@ -216,15 +316,22 @@ const ProductoGridCard = memo(function ProductoGridCard({
       }`}
     >
       <div className="aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden relative p-2">
-        {tieneImagen ? (
+        {mostrarImg ? (
           <img
             src={conVarianteImagen(p.urlImagenProducto as string, "thumbnail")}
             alt={p.nomProducto}
-            loading="lazy"
             decoding="async"
-            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+            fetchPriority={index < 8 ? "high" : "auto"}
+            sizes={GRID_IMG_SIZES}
+            className={`w-full h-full object-contain group-hover:scale-105 transition-all duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+            onLoad={() => setImgLoaded(true)}
             onError={() => setImgError(true)}
           />
+        ) : tieneImagen ? (
+          /* Placeholder liviano mientras la tarjeta no está en el viewport (0 peticiones de red) */
+          <div className="w-full h-full bg-gray-100/60 rounded flex items-center justify-center">
+            <ImageIcon className="w-5 h-5 text-gray-300/70 animate-pulse" />
+          </div>
         ) : (
           <ImageOff className="w-5 h-5 text-gray-300" />
         )}
@@ -620,20 +727,12 @@ function CajaAutopagoVista({
       }
       lastScannedCodeRef.current = { code, time: now };
 
-      let p = productosSucursal.find(
-        (prod) =>
-          prod.codigoBarras?.trim().toLowerCase() === code ||
-          prod.codigo?.trim().toLowerCase() === code,
-      );
+      let p = productosSucursal.find((prod) => coincideCodigoOBarras(prod, code));
 
       if (!p) {
         const remotos = await buscarEnServidor(code);
         if (remotos.length > 0) {
-          p = remotos.find(
-            (prod) =>
-              prod.codigoBarras?.trim().toLowerCase() === code ||
-              prod.codigo?.trim().toLowerCase() === code,
-          ) ?? remotos[0];
+          p = remotos.find((prod) => coincideCodigoOBarras(prod, code)) ?? remotos[0];
         }
       }
 
@@ -986,13 +1085,37 @@ function CajaAutopagoVista({
     return false;
   }, []);
 
-  // ── Paginación y límite de renderizado inicial (32 productos más recientes/vendidos) ──
-  const [limiteVistaGrid, setLimiteVistaGrid] = useState(32);
-  useEffect(() => { setLimiteVistaGrid(32); }, [busqueda]);
+  // ── Paginación y límite de renderizado inicial (20 productos más recientes/vendidos) ──
+  // En 3G, menos tarjetas iniciales = menos imágenes compitiendo por ancho de banda.
+  const GRID_PAGE_SIZE = 20;
+  const [limiteVistaGrid, setLimiteVistaGrid] = useState(GRID_PAGE_SIZE);
+  useEffect(() => { setLimiteVistaGrid(GRID_PAGE_SIZE); }, [busqueda]);
 
   const productosGridVisualizados = useMemo(() => {
     return productosGrid.slice(0, limiteVistaGrid);
   }, [productosGrid, limiteVistaGrid]);
+
+  // Auto-cargar más productos al hacer scroll (IntersectionObserver):
+  // reemplaza el botón manual "Cargar más" — invisible al usuario, carga bajo
+  // demanda como Falabella/MercadoLibre. Solo incrementa cuando hay más productos.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setLimiteVistaGrid((prev) => {
+            const total = productosGrid.length;
+            return prev >= total ? prev : prev + GRID_PAGE_SIZE;
+          });
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [productosGrid.length]);
 
   // Búsqueda remota automática cuando no hay coincidencias locales
   useEffect(() => {
@@ -1016,11 +1139,13 @@ function CajaAutopagoVista({
     const q = busqueda.trim().toLowerCase();
     if (!q) return;
 
-    const exacto = productosSucursal.find(
-      (p) =>
-        (p.codigoBarras && p.codigoBarras.trim().toLowerCase() === q) ||
-        (p.codigo && p.codigo.trim().toLowerCase() === q),
-    );
+    // 1. Buscar coincidencia por código de barras o código interno
+    let exacto = productosSucursal.find((p) => coincideCodigoOBarras(p, q));
+
+    // 2. Si no es exacto, pero el grid tiene un único resultado (coincidencia unívoca)
+    if (!exacto && productosGrid.length === 1) {
+      exacto = productosGrid[0];
+    }
 
     if (exacto) {
       if (esLecturaDuplicada(q)) {
@@ -1038,19 +1163,11 @@ function CajaAutopagoVista({
       agregarProducto(exacto);
       setBusqueda("");
     }
-  }, [busqueda, productosSucursal, config?.isStock, showToast, agregarProducto, esLecturaDuplicada, carritoConReservas]);
+  }, [busqueda, productosSucursal, productosGrid, config?.isStock, showToast, agregarProducto, esLecturaDuplicada, carritoConReservas]);
 
   // Enter en el buscador o escáner de código de barras físico:
   // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
   // limpiando siempre la búsqueda para la siguiente lectura.
-  //
-  // `esCodigoEscaneado` distingue una lectura de pistola (ráfaga de teclas en
-  // <45ms, ver scannerBufferRef) de una búsqueda manual tecleada. Es crítico:
-  // con un código escaneado exigimos coincidencia EXACTA y jamás "adivinamos"
-  // con el primer producto del grid si no matchea. Sin esta distinción, un
-  // código mal leído por timing (ver handleGlobalKeyDown) caía al fallback y
-  // agregaba silenciosamente otro producto (el primero del grid) en vez del
-  // escaneado — el bug de "se queda pegado el producto anterior".
   const onEnterBusqueda = useCallback(
     async (queryOverride?: string, esCodigoEscaneado = false) => {
       const q = (queryOverride !== undefined ? queryOverride : busqueda).trim().toLowerCase();
@@ -1067,25 +1184,25 @@ function CajaAutopagoVista({
         return;
       }
 
-      // 1. Buscar coincidencia exacta local por código de barras o código
-      let exacto = productosSucursal.find(
-        (p) =>
-          p.codigoBarras?.trim().toLowerCase() === q ||
-          p.codigo?.trim().toLowerCase() === q,
-      );
+      // 1. Buscar coincidencia por código de barras o código interno
+      let exacto = productosSucursal.find((p) => coincideCodigoOBarras(p, q));
 
-      // 2. Si no está en memoria local, consultar al servidor
+      // 2. Si el grid tiene exactamente 1 producto que coincide con la búsqueda
+      if (!exacto && productosGrid.length === 1) {
+        exacto = productosGrid[0];
+      }
+
+      // 3. Si en el grid hay algún producto cuyo código coincide
+      if (!exacto && productosGrid.length > 0) {
+        const matchGrid = productosGrid.find((p) => coincideCodigoOBarras(p, q));
+        if (matchGrid) exacto = matchGrid;
+      }
+
+      // 4. Si no está en memoria local, consultar al servidor
       if (!exacto) {
         const remotos = await buscarEnServidor(q);
         if (remotos.length > 0) {
-          const exactoRemoto = remotos.find(
-            (p) =>
-              p.codigoBarras?.trim().toLowerCase() === q ||
-              p.codigo?.trim().toLowerCase() === q,
-          );
-          // El buscador remoto es difuso (por nombre incluido): "remotos[0]"
-          // sin match exacto solo es una conveniencia válida para búsqueda
-          // manual, nunca para un código escaneado.
+          const exactoRemoto = remotos.find((p) => coincideCodigoOBarras(p, q));
           exacto = exactoRemoto ?? (esCodigoEscaneado ? undefined : remotos[0]);
         }
       }
@@ -1101,43 +1218,26 @@ function CajaAutopagoVista({
         return;
       }
 
-      // 3. Código escaneado sin ninguna coincidencia exacta: se ofrece crear
-      // el producto (probablemente nuevo). Nunca se cae al primer producto
-      // del grid, que sería un producto distinto al físicamente escaneado.
-      if (esCodigoEscaneado) {
-        showToast(`No se encontró ningún producto con el código "${queryOverride ?? q}"`, "error");
-        const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
-        setCodigoBarrasNuevoProducto(raw);
-        setNombreNuevoProducto("");
-        setModalCrearRapidoAbierto(true);
-        setBusqueda("");
-        return;
-      }
-
-      // 4. Búsqueda manual sin coincidencia exacta: agregar el primer resultado
-      // visible es la conveniencia esperada de "buscar por nombre y Enter".
-      if (productosGrid.length > 0) {
-        const matchGrid = productosGrid.find(
-          (p) =>
-            p.codigoBarras?.trim().toLowerCase() === q ||
-            p.codigo?.trim().toLowerCase() === q,
-        ) ?? productosGrid[0];
-
+      // 5. Búsqueda manual sin coincidencia de código pero con resultados en grid
+      if (!esCodigoEscaneado && productosGrid.length > 0) {
+        const matchGrid = productosGrid[0];
         if (config?.isStock && matchGrid.tipoProducto === "BIEN" && (matchGrid.sucursalProducto.stock ?? 0) <= 0) {
           setProductoSinStock(matchGrid);
           setBusqueda("");
           return;
         }
-
         agregarProducto(matchGrid);
         setBusqueda("");
-      } else {
-        const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
-        setCodigoBarrasNuevoProducto(raw);
-        setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
-        setModalCrearRapidoAbierto(true);
-        setBusqueda("");
+        return;
       }
+
+      // 6. Código escaneado o tecleado sin ninguna coincidencia: se abre modal para registrar
+      showToast(`No se encontró ningún producto con el código "${queryOverride ?? q}"`, "error");
+      const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
+      setCodigoBarrasNuevoProducto(raw);
+      setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
+      setModalCrearRapidoAbierto(true);
+      setBusqueda("");
     },
     [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, esLecturaDuplicada],
   );
@@ -1187,9 +1287,9 @@ function CajaAutopagoVista({
       const now = Date.now();
       const timeDiff = now - scannerBufferRef.current.lastTime;
 
-      // Si las teclas se envían en menos de 45ms (típico de pistola de código de barras)
+      // Si las teclas se envían en menos de 65ms (típico de pistola de código de barras USB/Bluetooth)
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        if (timeDiff < 45) {
+        if (timeDiff < 65) {
           scannerBufferRef.current.text += e.key;
         } else {
           scannerBufferRef.current.text = e.key;
@@ -1200,11 +1300,12 @@ function CajaAutopagoVista({
       if (e.key === "Enter") {
         const barcodeFromScanner = scannerBufferRef.current.text.trim();
         const currentQuery = (inputRef.current?.value || busqueda).trim();
-        // >=3 caracteres acumulados en <45ms entre sí es la firma de una
-        // pistola física; una persona tecleando a mano nunca alcanza ese
-        // ritmo, así que el buffer le queda en 1 carácter y se usa el input.
         const esCodigoEscaneado = barcodeFromScanner.length >= 3;
-        const queryToUse = esCodigoEscaneado ? barcodeFromScanner : currentQuery;
+        // Preferir el valor más completo entre lo capturado por el buffer y el input
+        const queryToUse =
+          barcodeFromScanner.length >= currentQuery.length && barcodeFromScanner.length >= 3
+            ? barcodeFromScanner
+            : currentQuery || barcodeFromScanner;
 
         scannerBufferRef.current = { text: "", lastTime: 0 };
 
@@ -2455,7 +2556,7 @@ function CajaAutopagoVista({
             ) : (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5">
-                  {productosGridVisualizados.map((p) => {
+                  {productosGridVisualizados.map((p, idx) => {
                     const itemCarrito = items.find((i) => i.productoId === p.productoId);
                     const stockDisp = config?.isStock
                       ? calcularDisponible(p, itemsMasReservas, productosSucursal, true, productosPorId)
@@ -2467,21 +2568,15 @@ function CajaAutopagoVista({
                         cantidadEnCarrito={itemCarrito?.cantidad ?? 0}
                         stockDisp={stockDisp}
                         onClick={() => agregarProducto(p)}
+                        index={idx}
                       />
                     );
                   })}
                 </div>
 
+                {/* Sentinel invisible: IntersectionObserver lo detecta y carga más productos automáticamente */}
                 {productosGrid.length > limiteVistaGrid && (
-                  <div className="flex justify-center pt-2 pb-1">
-                    <button
-                      type="button"
-                      onClick={() => setLimiteVistaGrid((prev) => prev + 32)}
-                      className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
-                    >
-                      Cargar más productos (mostrando {limiteVistaGrid} de {productosGrid.length})
-                    </button>
-                  </div>
+                  <div ref={sentinelRef} className="h-1" />
                 )}
               </div>
             )}
@@ -3870,38 +3965,9 @@ export default function CajaAutopago() {
   // El stock es compartido entre dispositivos: si otro celular vende la última
   // unidad, esta pantalla tiene que enterarse sola. Antes solo se refrescaba al
   // montar y después de cada venta propia, así que una caja abierta en otro
-  // equipo seguía mostrando unidades que ya no existían.
+  // Revalidación cuando se enfoca la ventana (opcional) o tras sincronizar ventas
   const fetchProductosRef = useRef(productos.fetchProductosSucursal);
   useEffect(() => { fetchProductosRef.current = productos.fetchProductosSucursal; });
-
-  useEffect(() => {
-    if (!sucursalId) return;
-
-    const revalidar = (forzar: boolean) => {
-      // Los eventos de foco llegan en ráfagas (teclado del móvil, cambio de app):
-      // sin este freno se dispararía una petición por cada uno.
-      if (!forzar && Date.now() - ultimaRevalidacionRef.current < 15000) return;
-      ultimaRevalidacionRef.current = Date.now();
-      fetchProductosRef.current().catch(() => {});
-    };
-
-    const alVolverAlFrente = () => {
-      if (document.visibilityState === "visible") revalidar(false);
-    };
-
-    document.addEventListener("visibilitychange", alVolverAlFrente);
-    window.addEventListener("focus", alVolverAlFrente);
-    // Con la pantalla oculta no se sondea: no sirve de nada y gasta datos.
-    const intervalo = setInterval(() => {
-      if (document.visibilityState === "visible") revalidar(true);
-    }, 60000);
-
-    return () => {
-      document.removeEventListener("visibilitychange", alVolverAlFrente);
-      window.removeEventListener("focus", alVolverAlFrente);
-      clearInterval(intervalo);
-    };
-  }, [sucursalId]);
 
   // ── Al terminar de subir las ventas que quedaron en cola sin conexión ──
   // Mientras la venta está encolada, el stock en pantalla es un descuento

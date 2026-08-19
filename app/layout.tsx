@@ -106,6 +106,11 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        {/* Preconectar al CDN de imágenes de productos (Cloudflare Images):
+            en 3G el handshake TLS puede tomar 200-400ms por conexión; hacerlo
+            por adelantado ahorra ese tiempo en la primera imagen que se cargue. */}
+        <link rel="preconnect" href="https://imagedelivery.net" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://imagedelivery.net" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased `}
