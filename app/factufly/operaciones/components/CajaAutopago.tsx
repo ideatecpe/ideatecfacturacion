@@ -4001,21 +4001,25 @@ export default function CajaAutopago() {
                   Minimiza o toca la caja de atrás para volver a la venta principal
                 </p>
               </div>
-              {carritoPrincipal.length > 0 && (
-                <span className="hidden sm:flex items-center gap-1 ml-2 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold">
-                  <ShoppingBag className="w-3 h-3" />
-                  {carritoPrincipal.length} esperando en la caja principal
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={minimizarVentaRapida}
-                className="ml-auto flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-semibold hover:bg-white/25 transition-colors cursor-pointer"
-                title="Minimizar (F2) · esta venta se conserva tal como está"
-              >
-                <Minimize2 className="w-3.5 h-3.5" />
-                Minimizar
-              </button>
+              {/* Contador y Minimizar van juntos a la derecha, con la misma
+                  altura y el mismo fondo: leen como un solo bloque de acciones. */}
+              <div className="ml-auto flex items-center gap-2">
+                {carritoPrincipal.length > 0 && (
+                  <span className="hidden sm:flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-semibold">
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    {carritoPrincipal.length} esperando en la caja principal
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={minimizarVentaRapida}
+                  className="flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-semibold hover:bg-white/25 transition-colors cursor-pointer"
+                  title="Minimizar (F2) · esta venta se conserva tal como está"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  Minimizar
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto p-1.5 sm:p-2.5">
