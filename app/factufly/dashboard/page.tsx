@@ -22,6 +22,7 @@ import {
   CreditCard,
   CheckSquare,
   Square,
+  Download,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -38,12 +39,15 @@ import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Badge";
 import { cn } from "@/app/utils/cn";
 import { useAuth } from "@/context/AuthContext";
+import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useDashboardEmpresa } from "./gestionDashboard/UseDashboardEmpresa";
 import { useDashboardSucursal } from "./gestionDashboard/UseDashboardSucursal";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { useSucursalRuc } from "../operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { DropdownSucursal } from "@/app/components/ui/DropdownSucursal";
 import { NotificacionesSunatModal } from "@/app/components/modalnotificacionesSunat/NotificacionesSunatModal";
+import { ModalDashboardReport } from "@/app/components/modalDashboardReport/ModalDashboardReport";
+import { useDashboardReport } from "@/app/components/modalDashboardReport/useDashboardReport";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -316,7 +320,9 @@ export default function DashboardPage() {
 
   const hookEmpresa = useDashboardEmpresa();
   const hookSucursal = useDashboardSucursal();
+  const { config } = useConfiguracion();
   const { sucursales } = useSucursalRuc(isSuperAdmin);
+  const dashReport = useDashboardReport();
   const [sucursalSeleccionada, setSucursalSeleccionada] = useState<
     number | null
   >(null);
@@ -398,25 +404,30 @@ export default function DashboardPage() {
       const encontrado = (dashboard?.rendimientoVentas ?? []).find((r) =>
         r.fecha.startsWith(fechaStr),
       );
-      // ── El último punto (día seleccionado) suma NV si el toggle está activo ──
+      // ── El último punto (día seleccionado) suma NV (si el toggle está activo)
+      // y la comisión POS, igual que el KPI "Ventas del Día" ──
       const extraNV = i === 0 && incluirNV && hayNV
         ? (dashboard?.totalNotasVentaDelDia ?? 0)
         : 0;
+      const extraComision = i === 0 ? (dashboard?.totalComisionTarjetaDelDia ?? 0) : 0;
       dias.push({
         name: d.toLocaleDateString("es-PE", {
           weekday: "short",
           day: "2-digit",
         }),
-        sales: Number(((encontrado?.totalVentas ?? 0) + extraNV).toFixed(2)),
+        sales: Number(((encontrado?.totalVentas ?? 0) + extraNV + extraComision).toFixed(2)),
       });
     }
     return dias;
-  }, [dashboard?.rendimientoVentas, dashboard?.totalNotasVentaDelDia, fecha, incluirNV, hayNV]);
+  }, [dashboard?.rendimientoVentas, dashboard?.totalNotasVentaDelDia, dashboard?.totalComisionTarjetaDelDia, fecha, incluirNV, hayNV]);
 
   // ─── KPIs ─────────────────────────────────────────────────────────
+  // Suma visual: incluye la comisión POS del día para que "Ventas del Día"
+  // refleje el total cobrado en caja (no afecta ningún cálculo del backend).
   const ventasDelDiaMostrado =
     (dashboard?.ventasDelDia ?? 0) +
-    (incluirNV && hayNV ? (dashboard?.totalNotasVentaDelDia ?? 0) : 0);
+    (incluirNV && hayNV ? (dashboard?.totalNotasVentaDelDia ?? 0) : 0) +
+    (dashboard?.totalComisionTarjetaDelDia ?? 0);
 
   const kpis = [
     {
@@ -426,14 +437,23 @@ export default function DashboardPage() {
       color: "text-[#0f2e64]",
       bar: "bg-[#0f2e64]",
     },
-    {
-      label: "Ventas Netas",
-      value: formatMoneda(dashboard?.ventasNetas ?? 0),
-      icon: TrendingUp,
-      color: "text-blue-500",
-      bar: "bg-blue-500",
-      desc: "Ventas + ND − NC del día",
-    },
+    config?.isStock
+      ? {
+          label: "Ganancias",
+          value: formatMoneda(dashboard?.ganancias ?? 0),
+          icon: TrendingUp,
+          color: "text-blue-500",
+          bar: "bg-blue-500",
+          desc: "Ingreso − Costo del día",
+        }
+      : {
+          label: "Ventas Netas",
+          value: formatMoneda(dashboard?.ventasNetas ?? 0),
+          icon: TrendingUp,
+          color: "text-blue-500",
+          bar: "bg-blue-500",
+          desc: "Ventas + ND − NC del día",
+        },
     ...((dashboard?.totalComisionTarjetaDelDia ?? 0) > 0 ? [{
       label: "Comisión POS",
       value: formatMoneda(dashboard?.totalComisionTarjetaDelDia ?? 0),
@@ -515,11 +535,32 @@ export default function DashboardPage() {
             />
           </div>
         </div>
-        <Button onClick={() => router.push("/factufly/operaciones/boleta-facturaelectronica")} className="flex-1 min-w-0 sm:flex-none whitespace-nowrap">
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Nuevo </span>Comprobante
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={dashReport.abrir}
+            className="flex-1 min-w-0 sm:flex-none whitespace-nowrap"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Descargar </span>Dashboard
+          </Button>
+          <Button onClick={() => router.push("/factufly/operaciones/boleta-facturaelectronica")} className="flex-1 min-w-0 sm:flex-none whitespace-nowrap">
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nuevo </span>Comprobante
+          </Button>
+        </div>
       </div>
+
+      <ModalDashboardReport
+        isOpen={dashReport.abierto}
+        onClose={dashReport.cerrar}
+        loadingFormato={dashReport.loadingFormato}
+        isSuperAdmin={isSuperAdmin}
+        sucursales={sucursales}
+        usuarios={[]}
+        ruc={user?.ruc ?? ""}
+        onDescargar={dashReport.descargar}
+      />
 
       {/* ─── Alerta de error ─────────────────────────────────────────── */}
       {error && (

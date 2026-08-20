@@ -25,6 +25,8 @@ import { DropdownUsuario } from '@/app/components/ui/DropdownUsuario';
 import { ModalReportes } from '@/app/components/modalReportes/Modalreportes';
 import { useModalReportes } from '@/app/components/modalReportes/UseModalReportes';
 import { FormatoReporte } from './gestionReportes/UseReportesAvanzados';
+import { ModalDashboardReport } from '@/app/components/modalDashboardReport/ModalDashboardReport';
+import { useDashboardReport } from '@/app/components/modalDashboardReport/useDashboardReport';
 
 // ─── Colores donut ────────────────────────────────────────────────────────────
 const DOC_COLORS = {
@@ -83,6 +85,7 @@ export default function ReportesPage() {
   const hookSucursal = useReportesSucursal();
   const avanzados    = useReportesAvanzados();
   const modal        = useModalReportes();
+  const dashReport   = useDashboardReport();
 
   // Sucursales
   const [sucursalSeleccionada, setSucursalSeleccionada] = useState<number | null>(null);
@@ -463,6 +466,12 @@ export default function ReportesPage() {
 
         {/* Botones derecha */}
         <div className="flex gap-2">
+          {/* Botón Dashboard Report — abre modal PDF/Excel */}
+          <Button variant="outline" onClick={dashReport.abrir}>
+            <Download className="w-4 h-4" />
+            Reporte Dashboard
+          </Button>
+
           {/* Botón Reportes — abre el modal */}
           <Button
             variant="outline"
@@ -716,6 +725,18 @@ export default function ReportesPage() {
         onDescargarControlCaja={handleDescargarControlCaja}
         onDescargarTicket={handleDescargarTicket}
         onDescargarPdfTicket={handleDescargarPdfTicket}
+      />
+
+      {/* ── Modal Dashboard Report PDF/Excel ──────────────────────────────── */}
+      <ModalDashboardReport
+        isOpen={dashReport.abierto}
+        onClose={dashReport.cerrar}
+        loadingFormato={dashReport.loadingFormato}
+        isSuperAdmin={isSuperAdmin}
+        sucursales={sucursales}
+        usuarios={usuarios}
+        ruc={user?.ruc ?? ''}
+        onDescargar={dashReport.descargar}
       />
     </div>
   );

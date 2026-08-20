@@ -16,6 +16,7 @@ export interface ComprobanteReciente {
 export interface DashboardData {
   ventasDelDia: number
   ventasNetas: number
+  ganancias: number
   totalComisionTarjetaDelDia: number
   facturasEmitidas: number
   boletasEmitidas: number
