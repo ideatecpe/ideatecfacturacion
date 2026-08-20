@@ -260,8 +260,10 @@ function coincideCodigoExacto(p: ProductoSucursal, q: string): boolean {
   const cb = p.codigoBarras?.trim().toLowerCase() ?? "";
   const cod = p.codigo?.trim().toLowerCase() ?? "";
 
-  if (cb === query || cod === query) return true;
+  // 1. Coincidencia exacta directa (solo si el código no está vacío)
+  if ((cb && cb === query) || (cod && cod === query)) return true;
 
+  // 2. Coincidencia numérica pura sin ceros iniciales
   const qDigits = query.replace(/\D/g, "");
   const qSinCeros = qDigits.replace(/^0+/, "");
   const cbDigits = cb.replace(/\D/g, "");
@@ -269,18 +271,19 @@ function coincideCodigoExacto(p: ProductoSucursal, q: string): boolean {
   const codDigits = cod.replace(/\D/g, "");
   const codSinCeros = codDigits.replace(/^0+/, "");
 
-  if (qSinCeros.length >= 3) {
+  if (qSinCeros && qSinCeros.length >= 3) {
     if (cbSinCeros && cbSinCeros === qSinCeros) return true;
     if (codSinCeros && codSinCeros === qSinCeros) return true;
   }
-  if (qDigits.length >= 3) {
+  if (qDigits && qDigits.length >= 3) {
     if (cbDigits && cbDigits === qDigits) return true;
     if (codDigits && codDigits === qDigits) return true;
   }
 
+  // 3. Normalizado sin acentos
   if (
-    normalizarTexto(cb) === normalizarTexto(query) ||
-    normalizarTexto(cod) === normalizarTexto(query)
+    (cb && normalizarTexto(cb) === normalizarTexto(query)) ||
+    (cod && normalizarTexto(cod) === normalizarTexto(query))
   ) {
     return true;
   }
@@ -1176,33 +1179,6 @@ function CajaAutopagoVista({
       return () => clearTimeout(timer);
     }
   }, [busqueda, productosSucursal, buscarEnServidor]);
-
-  // Auto-adición instantánea al escanear con lector físico o ingresar código exacto
-  useEffect(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return;
-
-    // Coincidencia estricta por código de barras o código interno (sin matching
-    // difuso por nombre ni substring, para no autoagregar mientras el usuario tipea).
-    const exacto = productosSucursal.find((p) => coincideCodigoExacto(p, q));
-
-    if (exacto) {
-      if (esLecturaDuplicada(q)) {
-        setBusqueda("");
-        return;
-      }
-      if (config?.isStock && exacto.tipoProducto === "BIEN") {
-        const disp = calcularDisponible(exacto, carritoConReservas(), productosSucursal, true);
-        if (disp !== null && disp <= 0) {
-          setProductoSinStock(exacto);
-          setBusqueda("");
-          return;
-        }
-      }
-      agregarProducto(exacto);
-      setBusqueda("");
-    }
-  }, [busqueda, productosSucursal, config?.isStock, showToast, agregarProducto, esLecturaDuplicada, carritoConReservas]);
 
   // Enter en el buscador o escáner de código de barras físico:
   // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
