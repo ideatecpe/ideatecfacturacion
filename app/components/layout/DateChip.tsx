@@ -19,14 +19,21 @@ const MESES = [
   "Dic",
 ] as const;
 
-function formatDate(date: Date): string {
+function formatDate(date: Date): { largo: string; corto: string } {
   const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const DIAS_CORTO = ["Dom.", "Lun.", "Mar.", "Mié.", "Jue.", "Vie.", "Sáb."];
   const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const MESES_CORTO = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."];
   const dia = DIAS[date.getDay()];
+  const diaCorto = DIAS_CORTO[date.getDay()];
   const num = date.getDate();
   const mes = MESES[date.getMonth()];
+  const mesCorto = MESES_CORTO[date.getMonth()];
   const anio = date.getFullYear();
-  return `${dia}, ${num} de ${mes} del ${anio}`;
+  return {
+    largo: `${dia}, ${num} de ${mes} del ${anio}`,
+    corto: `${diaCorto} ${num} ${mesCorto}`,
+  };
 }
 // ─── SVG paths ───────────────────────────────────────────────────────────────
 
@@ -677,7 +684,12 @@ export const DateChip: React.FC<DateChipProps> = ({ date, className = "" }) => {
             whiteSpace: "nowrap",
           }}
         >
-          {dateStr.charAt(0).toUpperCase() + dateStr.slice(1).toLowerCase()}
+          <span className="hidden sm:inline">
+            {dateStr.largo.charAt(0).toUpperCase() + dateStr.largo.slice(1).toLowerCase()}
+          </span>
+          <span className="sm:hidden">
+            {dateStr.corto}
+          </span>
         </span>
       </div>
     );
@@ -685,7 +697,7 @@ export const DateChip: React.FC<DateChipProps> = ({ date, className = "" }) => {
 
   // ── Día normal ──
   return (
-    <div className={`flex items-center gap-1.5 ${className}`}>
+    <div className={`flex items-center gap-1.5 shrink-0 ${className}`}>
       <svg
         viewBox="0 0 24 24"
         width="13"
@@ -708,7 +720,12 @@ export const DateChip: React.FC<DateChipProps> = ({ date, className = "" }) => {
           whiteSpace: "nowrap",
         }}
       >
-     {dateStr.charAt(0).toUpperCase() + dateStr.slice(1).toLowerCase()}
+        <span className="hidden sm:inline">
+          {dateStr.largo.charAt(0).toUpperCase() + dateStr.largo.slice(1).toLowerCase()}
+        </span>
+        <span className="sm:hidden">
+          {dateStr.corto}
+        </span>
       </span>
     </div>
   );

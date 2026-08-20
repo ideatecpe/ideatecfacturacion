@@ -286,13 +286,13 @@ export const Topbar = ({
           !isBeta ? { boxShadow: "0 1px 3px rgba(15,46,100,0.06)" } : undefined
         }
       >
-        <div className="h-14 flex items-center justify-between px-4">
+        <div className="h-14 flex items-center justify-between px-2 sm:px-4 gap-1.5 sm:gap-2">
           {/* ── Izquierda ── */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             {/* Botón hamburguesa */}
             <button
               onClick={toggleSidebar}
-              className={`p-2 rounded-lg border transition-all shadow-sm ${
+              className={`p-2 rounded-lg border transition-all shadow-sm shrink-0 ${
                 isBeta
                   ? "bg-amber-100 border-amber-200 text-amber-700 hover:bg-amber-200"
                   : "bg-white border-[#D9E4F5] text-brand-blue hover:bg-[#EEF3FB] hover:border-brand-blue/20"
@@ -336,7 +336,7 @@ export const Topbar = ({
               disabled={recargando}
               title="Recargar la página"
               aria-label="Recargar la página"
-              className={`p-2 rounded-lg border transition-all shadow-sm disabled:cursor-wait ${
+              className={`p-2 rounded-lg border transition-all shadow-sm shrink-0 disabled:cursor-wait ${
                 isBeta
                   ? "bg-amber-100 border-amber-200 text-amber-700 hover:bg-amber-200"
                   : "bg-white border-[#D9E4F5] text-brand-blue hover:bg-[#EEF3FB] hover:border-brand-blue/20"
@@ -347,7 +347,7 @@ export const Topbar = ({
           </div>
 
           {/* ── Derecha ── */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             {/* Context badge */}
             <div className="hidden lg:flex items-center gap-2 px-3 py-2">
               <div className="flex flex-col leading-none">
@@ -650,7 +650,7 @@ export const Topbar = ({
                   setUserOpen((v) => !v);
                   setNotifOpen(false);
                 }}
-                className={`flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-all group cursor-pointer ${
+                className={`flex items-center gap-1.5 sm:gap-2.5 rounded-xl p-1 sm:px-2.5 sm:py-1.5 transition-all group cursor-pointer shrink-0 ${
                   isBeta ? "hover:bg-amber-100" : "hover:bg-[#EEF3FB]"
                 }`}
               >
