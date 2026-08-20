@@ -189,6 +189,59 @@ function calcularDisponible(
   return disponibleBase;
 }
 
+// Retroalimentación háptica (vibración) y acústica ('bip') al escanear con la cámara del celular
+function emitirBeepEscaneo() {
+  try {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate([60, 30, 60]);
+    }
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1400, ctx.currentTime);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function emitirBeepError() {
+  try {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(150);
+    }
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(320, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 // Coincidencia inteligente de código de barras o código interno:
 // 1. Exacto (case-insensitive, trimmed)
 // 2. Numérico puro ignorando TODOS los ceros a la izquierda (ej. '007500435247634' vs '07500435247634' vs '7500435247634')
@@ -599,10 +652,16 @@ function CajaAutopagoVista({
   // ── Cámara Escáner de Código de Barras (Móvil / Web) ───────────────
   const [isScanning, setIsScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [ultimoEscaneadoCamara, setUltimoEscaneadoCamara] = useState<{
+    nombre: string;
+    precio: number;
+    exito: boolean;
+  } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const lastScannedCodeRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
+  const timerBannerCamaraRef = useRef<NodeJS.Timeout | null>(null);
 
   // ── Agregar / quitar / cantidad ──────────────────────────────
   const agregarProducto = useCallback((p: ProductoSucursal) => {
@@ -763,16 +822,15 @@ function CajaAutopagoVista({
       const code = decodedText.trim().toLowerCase();
       if (!code) return;
 
-      // Cooldown de 1s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto),
-      // pero si cambia de producto (código diferente), escanea al instante sin esperar.
       const now = Date.now();
-      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 1000) {
+      // Cooldown de 2.5s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto en el celular).
+      // Si cambia de producto (código diferente), escanea de inmediato.
+      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 2500) {
         return;
       }
       lastScannedCodeRef.current = { code, time: now };
 
-      // Coincidencia estricta: un código escaneado con la cámara nunca debe
-      // "adivinar" un producto por substring o por nombre (ver coincideCodigoExacto).
+      // Coincidencia estricta por código (exacto o ignorando ceros iniciales)
       let p = productosSucursal.find((prod) => coincideCodigoExacto(prod, code));
 
       if (!p) {
@@ -786,16 +844,38 @@ function CajaAutopagoVista({
         if (config?.isStock && p.tipoProducto === "BIEN") {
           const disp = calcularDisponible(p, carritoConReservas(), productosSucursal, true);
           if (disp !== null && disp <= 0) {
+            emitirBeepError();
             setProductoSinStock(p);
             return;
           }
         }
         agregarProducto(p);
+        emitirBeepEscaneo();
+
+        setUltimoEscaneadoCamara({
+          nombre: p.nomProducto,
+          precio: precioConDescuento(p),
+          exito: true,
+        });
+
+        if (timerBannerCamaraRef.current) clearTimeout(timerBannerCamaraRef.current);
+        timerBannerCamaraRef.current = setTimeout(() => {
+          setUltimoEscaneadoCamara(null);
+        }, 2500);
       } else {
-        const raw = decodedText.trim();
-        setCodigoBarrasNuevoProducto(raw);
-        setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
-        setModalCrearRapidoAbierto(true);
+        // En celular con cámara NO se abre el modal invasivo de registrar producto
+        // para que los reflejos o lecturas ruidosas de la cámara no interrumpan al cajero.
+        emitirBeepError();
+        setUltimoEscaneadoCamara({
+          nombre: `Código "${decodedText}" no encontrado`,
+          precio: 0,
+          exito: false,
+        });
+
+        if (timerBannerCamaraRef.current) clearTimeout(timerBannerCamaraRef.current);
+        timerBannerCamaraRef.current = setTimeout(() => {
+          setUltimoEscaneadoCamara(null);
+        }, 2500);
       }
     },
     [productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, carritoConReservas],
@@ -2534,9 +2614,36 @@ function CajaAutopagoVista({
                     </p>
                   </div>
                 ) : (
-                  <div className="pointer-events-none absolute inset-3 border-2 border-white/20 rounded-xl flex items-center justify-center overflow-hidden z-10">
-                    <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
-                  </div>
+                  <>
+                    <div className="pointer-events-none absolute inset-3 border-2 border-white/20 rounded-xl flex items-center justify-center overflow-hidden z-10">
+                      <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
+                    </div>
+
+                    {/* Banner de confirmación visual instantánea sobre la cámara */}
+                    {ultimoEscaneadoCamara && (
+                      <div
+                        className={`absolute bottom-2 inset-x-2 z-20 rounded-xl p-2 text-center text-xs font-bold text-white shadow-lg transition-all animate-in slide-in-from-bottom-2 duration-200 ${
+                          ultimoEscaneadoCamara.exito
+                            ? "bg-emerald-600/95 border border-emerald-400/50"
+                            : "bg-rose-600/95 border border-rose-400/50"
+                        }`}
+                      >
+                        {ultimoEscaneadoCamara.exito ? (
+                          <div className="flex items-center justify-center gap-1.5 truncate">
+                            <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
+                            <span className="truncate">
+                              {ultimoEscaneadoCamara.nombre} (S/ {ultimoEscaneadoCamara.precio.toFixed(2)})
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1 text-[11px] truncate">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-white" />
+                            <span className="truncate">{ultimoEscaneadoCamara.nombre}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
