@@ -41,6 +41,7 @@ import {
   Zap,
   Minimize2,
   Maximize2,
+  AlertCircle,
 } from "lucide-react";
 
 import { scanImageData } from "@undecaf/zbar-wasm";
@@ -609,9 +610,7 @@ function CajaAutopagoVista({
   const [documento, setDocumento] = useState("");
   const [nombreManualCliente, setNombreManualCliente] = useState("");
   const [direccionManualCliente, setDireccionManualCliente] = useState("");
-  const [tipoSinDocumento, setTipoSinDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
-  // Con DNI/CE (no RUC), el cajero puede pasar de Boleta a Nota de Venta; por defecto Boleta.
-  const [tipoConDocumento, setTipoConDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
+  const [tipoComprobante, setTipoComprobante] = useState<"Boleta" | "Nota de Venta" | "Factura">("Boleta");
   const [productoSinStock, setProductoSinStock] = useState<ProductoSucursal | null>(null);
   const [modalCrearRapidoAbierto, setModalCrearRapidoAbierto] = useState(false);
   const [codigoBarrasNuevoProducto, setCodigoBarrasNuevoProducto] = useState("");
@@ -991,22 +990,19 @@ function CajaAutopagoVista({
 
   const igvPct = config?.igv ? parseFloat(config.igv) : 18;
 
-  // Default del tipo de comprobante (sin documento) según "Tipo por defecto":
+  // Default del tipo de comprobante según "Tipo por defecto":
   // si el predeterminado es Nota de Venta y está habilitada, arranca en Nota de Venta.
   useEffect(() => {
     if (!config || tipoSinDocInitRef.current) return;
     tipoSinDocInitRef.current = true;
     if (config.useNotaVenta && config.isBoletaOrFactura === "n") {
-      setTipoSinDocumento("Nota de Venta");
+      setTipoComprobante("Nota de Venta");
     }
   }, [config]);
 
-  // Tipo de comprobante resultante: sin documento → elección manual (Boleta/NV);
-  // RUC (11 díg.) → siempre Factura; DNI/CE (8 o 9) → Boleta o Nota de Venta (elección manual).
   const documentoTrim = documento.trim();
   const sinDocumento = documentoTrim.length === 0;
   const esRuc = documentoTrim.length === 11;
-  const tipoComprobante = sinDocumento ? tipoSinDocumento : esRuc ? "Factura" : tipoConDocumento;
 
   // Consulta el nombre / razón social en cuanto se escribe un documento válido
   // (8=DNI, 9=CE, 11=RUC), con debounce. Guarda el último documento consultado
@@ -1017,17 +1013,26 @@ function CajaAutopagoVista({
   const ultimoDocConsultadoRef = useRef("");
   useEffect(() => {
     const len = documentoTrim.length;
-    if (![8, 9, 11].includes(len)) {
-      ultimoDocConsultadoRef.current = "";
-      return;
+    // Si el comprobante es Factura, SOLO se consulta a SUNAT al llegar a los 11 dígitos de RUC
+    if (tipoComprobante === "Factura") {
+      if (len !== 11) {
+        ultimoDocConsultadoRef.current = "";
+        return;
+      }
+    } else {
+      if (![8, 9, 11].includes(len)) {
+        ultimoDocConsultadoRef.current = "";
+        return;
+      }
     }
+
     if (ultimoDocConsultadoRef.current === documentoTrim) return;
     const timer = setTimeout(() => {
       ultimoDocConsultadoRef.current = documentoTrim;
       buscarClienteRef.current(len === 11 ? "06" : len === 9 ? "04" : "01", documentoTrim);
     }, 500);
     return () => clearTimeout(timer);
-  }, [documentoTrim]);
+  }, [documentoTrim, tipoComprobante]);
 
   // Limpiar nombres y direcciones manuales inmediatamente cuando cambie el número de documento
   const docAsociadoClienteRef = useRef("");
@@ -1792,7 +1797,7 @@ function CajaAutopagoVista({
     const { fechaHora, fecha } = obtenerFechaEmision();
     const clienteBase = construirCliente();
     const clienteFinal =
-      tipoComprobanteCod === "01" && clienteBase.tipoDocumento === "06"
+      clienteBase.tipoDocumento === "06"
         ? { ...clienteBase, tipoDocumento: "6" }
         : clienteBase;
     const detalles = items.map((it, idx) => {
@@ -2120,7 +2125,6 @@ function CajaAutopagoVista({
     // así que aquí no se vuelve a llamar a la API. Si el debounce aún no disparó
     // (clic muy rápido), el efecto pendiente lo resuelve una sola vez.
     modalAbiertoAtRef.current = Date.now();
-    setTipoConDocumento("Boleta");
     setMedioPago("Efectivo");
     setMontoRecibido(totales.total.toFixed(2));
     setNotaPago("");
@@ -2138,9 +2142,8 @@ function CajaAutopagoVista({
     abrirPagoRef.current = abrirPago;
   }, [abrirPago]);
 
-  const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta") => {
-    if (sinDocumento) setTipoSinDocumento(t);
-    else setTipoConDocumento(t);
+  const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta" | "Factura") => {
+    setTipoComprobante(t);
   };
 
   // ── Venta sin conexión: se encola localmente ────────────────────
@@ -2374,7 +2377,7 @@ function CajaAutopagoVista({
     setDocumento("");
     setNombreManualCliente("");
     setDireccionManualCliente("");
-    setTipoConDocumento("Boleta");
+    setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
     setMedioPago("Efectivo");
     setMontoRecibido("");
     setNotaPago("");
@@ -3444,39 +3447,36 @@ function CajaAutopagoVista({
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Comprobante</p>
               <div className={`grid gap-2 ${config?.useNotaVenta ? "grid-cols-3" : "grid-cols-2"}`}>
                 <button
+                  type="button"
                   onClick={() => elegirTipoComprobante("Boleta")}
-                  disabled={esRuc}
-                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-colors ${
+                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
                     tipoComprobante === "Boleta"
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                      : esRuc
-                        ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-                        : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm"
+                      : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-300"
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" /> Boleta
                 </button>
                 {config?.useNotaVenta && (
                   <button
+                    type="button"
                     onClick={() => elegirTipoComprobante("Nota de Venta")}
-                    disabled={esRuc}
-                    className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-colors ${
+                    className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
                       tipoComprobante === "Nota de Venta"
-                        ? "border-amber-500 bg-amber-50 text-amber-700"
-                        : esRuc
-                          ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-                          : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
+                        ? "border-amber-500 bg-amber-50 text-amber-700 shadow-sm"
+                        : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-300"
                     }`}
                   >
                     <Receipt className="w-3.5 h-3.5" /> N. Venta
                   </button>
                 )}
                 <button
-                  disabled={!esRuc}
-                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-colors ${
+                  type="button"
+                  onClick={() => elegirTipoComprobante("Factura")}
+                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
                     tipoComprobante === "Factura"
-                      ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
-                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                      ? "border-brand-blue bg-brand-blue/10 text-brand-blue font-bold shadow-sm"
+                      : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-300"
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" /> Factura
@@ -3496,15 +3496,28 @@ function CajaAutopagoVista({
                 </div>
               )}
 
+              {/* Alerta SUNAT Factura sin RUC */}
+              {tipoComprobante === "Factura" && documentoTrim.length !== 11 && (
+                <div className="mt-2 rounded-md border border-brand-blue/30 bg-blue-50/80 p-2.5 text-xs text-brand-blue flex items-start gap-2 animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 text-brand-blue shrink-0 mt-0.5" />
+                  <div className="leading-tight">
+                    <p className="font-bold text-gray-900">RUC Requerido para Factura</p>
+                    <p className="text-[11px] text-gray-600 mt-0.5">
+                      Ingresa el <strong>RUC (11 dígitos)</strong> de la empresa en el campo de abajo para emitir la factura.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Cliente en el modal de cobro */}
               <div className="mt-2 text-xs">
                 <div className="rounded-md border border-gray-200 bg-gray-50/70 p-2.5 space-y-2">
                   <div className="flex items-center justify-between text-gray-700">
                     <span className="font-bold text-[11px] text-gray-600 uppercase tracking-wide flex items-center gap-1">
                       <UserRound className="w-3.5 h-3.5 text-brand-blue" />
-                      {documentoTrim.length === 11 ? "RUC / Empresa *" : "Cliente (DNI / RUC)"}
+                      {tipoComprobante === "Factura" || documentoTrim.length === 11 ? "RUC / Empresa *" : "Cliente (DNI / RUC)"}
                     </span>
-                    {sinDocumento && (
+                    {sinDocumento && tipoComprobante !== "Factura" && (
                       <span className="text-[11px] text-gray-400 font-medium">Clientes varios (opcional)</span>
                     )}
                   </div>
@@ -3517,21 +3530,25 @@ function CajaAutopagoVista({
                       value={documento}
                       onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
                       placeholder={
-                        totales.total >= 700 && tipoComprobante === "Boleta"
-                          ? "Ingresa DNI (8 dígitos) - Requerido por SUNAT"
-                          : "DNI o RUC del cliente (opcional)"
+                        tipoComprobante === "Factura"
+                          ? "Ingresa RUC de la empresa (11 dígitos) *"
+                          : totales.total >= 700 && tipoComprobante === "Boleta"
+                            ? "Ingresa DNI (8 dígitos) - Requerido por SUNAT"
+                            : "DNI o RUC del cliente (opcional)"
                       }
                       className={`w-full h-8.5 pl-3 pr-7 bg-white rounded border text-xs font-semibold outline-none transition-all ${
-                        totales.total >= 700 && tipoComprobante === "Boleta" && (!documentoTrim || documentoTrim.length < 8)
-                          ? "border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-200"
-                          : "border-gray-200 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                        tipoComprobante === "Factura" && documentoTrim.length !== 11
+                          ? "border-brand-blue focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                          : totales.total >= 700 && tipoComprobante === "Boleta" && (!documentoTrim || documentoTrim.length < 8)
+                            ? "border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-200"
+                            : "border-gray-200 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
                       }`}
                     />
                     {documento && (
                       <button
                         type="button"
                         onClick={() => setDocumento("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                       >
                         <X size={12} />
                       </button>
@@ -3539,7 +3556,7 @@ function CajaAutopagoVista({
                   </div>
 
                   {/* Estado o Nombre del cliente */}
-                  {documentoTrim && (
+                  {documentoTrim ? (
                     <>
                       {loadingCliente && !nombreManualCliente ? (
                         <div className="flex items-center gap-1.5 text-xs text-gray-500 py-0.5">
@@ -3553,13 +3570,13 @@ function CajaAutopagoVista({
                             value={nombreManualCliente}
                             onChange={(e) => setNombreManualCliente(e.target.value)}
                             placeholder={
-                              documentoTrim.length === 11
+                              documentoTrim.length === 11 || tipoComprobante === "Factura"
                                 ? "Razón Social (obligatoria para Factura)"
                                 : "Nombre del cliente (opcional)"
                             }
                             className="w-full h-8 px-2.5 bg-white rounded border border-gray-200 text-xs font-semibold text-gray-800 outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
                           />
-                          {documentoTrim.length === 11 && (
+                          {(documentoTrim.length === 11 || tipoComprobante === "Factura") && (
                             <input
                               type="text"
                               value={direccionManualCliente}
@@ -3571,7 +3588,24 @@ function CajaAutopagoVista({
                         </div>
                       )}
                     </>
-                  )}
+                  ) : tipoComprobante === "Factura" ? (
+                    <div className="space-y-1.5">
+                      <input
+                        type="text"
+                        value={nombreManualCliente}
+                        onChange={(e) => setNombreManualCliente(e.target.value)}
+                        placeholder="Razón Social (obligatoria para Factura)"
+                        className="w-full h-8 px-2.5 bg-white rounded border border-gray-200 text-xs font-semibold text-gray-800 outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                      />
+                      <input
+                        type="text"
+                        value={direccionManualCliente}
+                        onChange={(e) => setDireccionManualCliente(e.target.value)}
+                        placeholder="Dirección fiscal (opcional)"
+                        className="w-full h-7.5 px-2.5 bg-white rounded border border-gray-200 text-[11px] text-gray-600 outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
