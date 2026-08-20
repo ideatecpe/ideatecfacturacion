@@ -29,6 +29,14 @@ import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas
 import { useRentabilidadLista } from "../useRentabilidadLista";
 import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 
+const getFechaHoy = (): string => {
+  const hoy = new Date();
+  const año = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, "0");
+  const dia = String(hoy.getDate()).padStart(2, "0");
+  return `${año}-${mes}-${dia}`;
+};
+
 export default function RentabilidadPage() {
   const { user } = useAuth();
   const { config, loading: loadingConfig } = useConfiguracion();
@@ -39,6 +47,21 @@ export default function RentabilidadPage() {
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [busqueda, setBusqueda] = useState("");
+
+  const fechaHoy = getFechaHoy();
+  const esHoy =
+    (fechaDesde === fechaHoy && (!fechaHasta || fechaHasta === fechaHoy)) ||
+    (!fechaDesde && fechaHasta === fechaHoy);
+
+  const handleToggleHoy = () => {
+    if (esHoy) {
+      setFechaDesde("");
+      setFechaHasta("");
+    } else {
+      setFechaDesde(fechaHoy);
+      setFechaHasta(fechaHoy);
+    }
+  };
 
   const sucursalId = isSuperAdmin
     ? sucursales.find((s) => s.nombre === filtroSucursal)?.sucursalId ?? 0
@@ -200,23 +223,39 @@ export default function RentabilidadPage() {
           />
         )}
 
-        <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 shadow-sm sm:ml-auto">
-          <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-          <input
-            type="date"
-            value={fechaDesde}
-            max={fechaHasta || undefined}
-            onChange={(e) => handleFechaDesdeChange(e.target.value)}
-            className="text-xs outline-none w-26.25 h-full text-gray-700"
-          />
-          <span className="text-gray-300">–</span>
-          <input
-            type="date"
-            value={fechaHasta}
-            min={fechaDesde || undefined}
-            onChange={(e) => handleFechaHastaChange(e.target.value)}
-            className="text-xs outline-none w-26.25 h-full text-gray-700"
-          />
+        <div className="flex items-center gap-1.5 sm:ml-auto">
+          <button
+            type="button"
+            onClick={handleToggleHoy}
+            className={`h-9 px-3 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
+              esHoy
+                ? "bg-brand-blue text-white border-brand-blue shadow-sm hover:bg-brand-blue/90"
+                : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 shadow-sm"
+            }`}
+            title={esHoy ? "Quitar filtro de hoy" : "Ver rentabilidad de hoy"}
+          >
+            <Calendar className={`w-3.5 h-3.5 ${esHoy ? "text-white" : "text-brand-blue"}`} />
+            Hoy
+          </button>
+
+          <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 shadow-sm">
+            <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            <input
+              type="date"
+              value={fechaDesde}
+              max={fechaHasta || undefined}
+              onChange={(e) => handleFechaDesdeChange(e.target.value)}
+              className="text-xs outline-none w-26.25 h-full text-gray-700"
+            />
+            <span className="text-gray-300">–</span>
+            <input
+              type="date"
+              value={fechaHasta}
+              min={fechaDesde || undefined}
+              onChange={(e) => handleFechaHastaChange(e.target.value)}
+              className="text-xs outline-none w-26.25 h-full text-gray-700"
+            />
+          </div>
         </div>
 
         {filtrosActivos && (

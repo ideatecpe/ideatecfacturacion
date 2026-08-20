@@ -14,25 +14,19 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
   const [productosDesactualizados, setProductosDesactualizados] = useState(false)
   const [fechaCache, setFechaCache] = useState<string | null>(null)
 
-  // ── Regla de oro del stock ──────────────────────────────────────────
-  // CON internet, los productos salen SIEMPRE del API. El cache de IndexedDB
-  // es el plan B para seguir vendiendo sin conexión, NO una fuente que compita
-  // con el servidor. Antes se pintaba el cache "mientras carga" (patrón
-  // stale-while-revalidate) y eso hacía que dos cajas del mismo negocio
-  // mostraran stock distinto del mismo producto: una veía el número real y la
-  // otra el que tenía guardado desde su última visita.
+  // ── Estrategia Stale-While-Revalidate (Offline-First / Instant Load) ──
+  // Al abrir la caja, se cargan de inmediato los productos desde IndexedDB (en ~10ms),
+  // permitiendo que el cajero vea y venda al instante. En paralelo, la API consulta
+  // al servidor en segundo plano para actualizar el stock real y guardar los cambios.
   const secuenciaRef = useRef(0)          // nº de la petición en curso
   const secuenciaAplicadaRef = useRef(0)  // nº de la última respuesta del servidor aplicada
   const hayDatosServidorRef = useRef(false)
   const hayProductosRef = useRef(false)
 
-  // Vuelca el cache local a pantalla. Solo se llama cuando el servidor no es
-  // una opción: sin conexión al arrancar, o después de que la petición falló.
+  // Vuelca el cache local a pantalla de forma inmediata
   const aplicarCache = async (sucursalId: number): Promise<ProductoSucursal[] | null> => {
     try {
       const cache = await getProductosCache(sucursalId);
-      // Se vuelve a comprobar aquí: leer IndexedDB es asíncrono y en ese rato
-      // pudo llegar la respuesta real, que siempre manda sobre el cache.
       if (
         cache &&
         cache.productos.length > 0 &&
@@ -41,7 +35,6 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
       ) {
         hayProductosRef.current = true;
         setProductosSucursal(cache.productos);
-        setProductosDesactualizados(true);
         setFechaCache(cache.updatedAt);
         return cache.productos;
       }
@@ -55,19 +48,19 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
 
     const secuencia = ++secuenciaRef.current;
 
-    // Única situación en que se muestra el cache de entrada: el navegador
-    // afirma que no hay red, así que esperar al API solo dejaría la caja vacía.
-    const sinConexion = typeof navigator !== "undefined" && !navigator.onLine;
-    if (sinConexion && !hayProductosRef.current) {
+    // ⚡ PASO 1: Carga local inmediata desde IndexedDB
+    // Si la pantalla aún no tiene productos y no han llegado datos del servidor,
+    // cargamos de inmediato desde IndexedDB (toma ~10ms) para que la pantalla abra al instante.
+    if (!hayProductosRef.current && !hayDatosServidorRef.current) {
       await aplicarCache(Number(sucursalId));
     }
 
-    // Solo mostrar loading si no hay nada que mostrar (ni cache ni estado previo)
+    // Solo mostrar skeleton/loading si el disco local está totalmente vacío (primera vez)
     if (!hayProductosRef.current) {
       setLoadingSucursal(true);
     }
 
-    // ── Fuente real: el API ──
+    // 🌐 PASO 2: Petición en segundo plano al servidor (Background Sync)
     try {
       const url = `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${sucursalId}`;
       console.log("URL productos:", url);
@@ -82,8 +75,7 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
           params: { _: Date.now() },
         }
       )
-      // Solo se aplica la respuesta más reciente: una petición lenta anterior no
-      // puede revivir un stock ya superado.
+      // Solo se aplica la respuesta más reciente
       if (secuencia >= secuenciaAplicadaRef.current) {
         secuenciaAplicadaRef.current = secuencia;
         hayDatosServidorRef.current = true;
@@ -95,9 +87,7 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
       }
       return res.data
     } catch (err) {
-      // La petición al servidor falló de verdad: recién AHORA el cache es la
-      // mejor información disponible. Si ya hay productos en pantalla (frescos
-      // de una carga anterior) no se toca nada: siguen siendo mejores.
+      // Si la petición al servidor falló de verdad y no teníamos productos en pantalla, usamos caché
       if (!hayProductosRef.current) {
         const desdeCache = await aplicarCache(Number(sucursalId))
         if (desdeCache) return desdeCache

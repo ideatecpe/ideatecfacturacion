@@ -16,6 +16,7 @@ import {
   FileText,
   Users,
   ImageOff,
+  ImageIcon,
   CheckCircle2,
   Printer,
   Download,
@@ -37,6 +38,10 @@ import {
   WifiOff,
   PackagePlus,
   RefreshCw,
+  Zap,
+  Minimize2,
+  Maximize2,
+  AlertCircle,
 } from "lucide-react";
 
 import { scanImageData } from "@undecaf/zbar-wasm";
@@ -59,7 +64,7 @@ import { formatoFechaActual } from "@/app/components/ui/formatoFecha";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
 import { avisarStockBajoWhatsapp } from "@/app/factufly/productos/gestioProductos/stockAlerta";
 import { useToast } from "@/app/components/ui/Toast";
-import { coincideBusqueda } from "@/app/utils/normalizarTexto";
+import { coincideBusqueda, normalizarTexto } from "@/app/utils/normalizarTexto";
 import {
   generarXml,
   enviarASunatApi,
@@ -132,6 +137,10 @@ interface ItemCarrito {
   tieneVencido: boolean;
 }
 
+// Un carrito vacío estable: si se pasara `[]` en línea, cada render sería una
+// referencia nueva y recalcularía el stock disponible de todo el grid.
+const SIN_RESERVAS: ItemCarrito[] = [];
+
 // Precio de venta efectivo: si el producto está en promoción, aplica el
 // porcentaje de descuento sobre precioUnitario (mismo cálculo que en
 // productos/lista/ProductoCard.tsx y en boleta/factura/nota-venta).
@@ -181,26 +190,222 @@ function calcularDisponible(
   return disponibleBase;
 }
 
+// Retroalimentación háptica (vibración) y acústica ('bip') al escanear con la cámara del celular
+function emitirBeepEscaneo() {
+  try {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate([60, 30, 60]);
+    }
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1400, ctx.currentTime);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function emitirBeepError() {
+  try {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(150);
+    }
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(320, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+// Coincidencia inteligente de código de barras o código interno:
+// 1. Exacto (case-insensitive, trimmed)
+// 2. Numérico puro ignorando TODOS los ceros a la izquierda (ej. '007500435247634' vs '07500435247634' vs '7500435247634')
+// 3. Substring numérico o por palabras (igual que en lista de productos)
+function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
+  const query = q.trim().toLowerCase();
+  if (!query) return false;
+
+  const cb = p.codigoBarras?.trim().toLowerCase() ?? "";
+  const cod = p.codigo?.trim().toLowerCase() ?? "";
+
+  // 1. Coincidencia exacta directa
+  if (cb === query || cod === query) return true;
+
+  // 2. Coincidencia numérica pura ignorando ceros a la izquierda ('00...' vs '0...' vs '...')
+  const qDigits = query.replace(/\D/g, "");
+  const qSinCeros = qDigits.replace(/^0+/, "");
+
+  const cbDigits = cb.replace(/\D/g, "");
+  const cbSinCeros = cbDigits.replace(/^0+/, "");
+
+  const codDigits = cod.replace(/\D/g, "");
+  const codSinCeros = codDigits.replace(/^0+/, "");
+
+  // Si ambos números sin ceros iniciales coinciden (mínimo 3 dígitos)
+  if (qSinCeros.length >= 3) {
+    if (cbSinCeros && cbSinCeros === qSinCeros) return true;
+    if (codSinCeros && codSinCeros === qSinCeros) return true;
+  }
+
+  // Si con ceros coinciden (ej. '001' vs '001')
+  if (qDigits.length >= 3) {
+    if (cbDigits && cbDigits === qDigits) return true;
+    if (codDigits && codDigits === qDigits) return true;
+  }
+
+  // 3. Si el código de barras o código contiene el término escaneado como substring
+  if (qSinCeros.length >= 4) {
+    if (cbSinCeros && (cbSinCeros.includes(qSinCeros) || qSinCeros.includes(cbSinCeros))) return true;
+    if (codSinCeros && (codSinCeros.includes(qSinCeros) || qSinCeros.includes(codSinCeros))) return true;
+  }
+
+  // 4. Normalizado sin acentos ni espacios
+  if (
+    normalizarTexto(cb) === normalizarTexto(query) ||
+    normalizarTexto(cod) === normalizarTexto(query)
+  ) {
+    return true;
+  }
+
+  // 5. Coincidencia flexible de búsqueda (como en la lista de productos)
+  if (coincideBusqueda(query, p.codigoBarras, p.codigo, p.nomProducto)) {
+    return true;
+  }
+
+  return false;
+}
+
+// Coincidencia ESTRICTA de código (solo puntos 1, 2 y 4 de coincideCodigoOBarras):
+// exacta, numérica exacta (ignorando ceros a la izquierda) o normalizada exacta.
+// A diferencia de coincideCodigoOBarras, NO hace matching difuso por substring ni por
+// nombre de producto: se usa para el auto-agregado instantáneo mientras el usuario
+// todavía está tecleando (lector físico), donde un match parcial por nombre borraría
+// el campo de búsqueda apenas se escriben un par de letras.
+function coincideCodigoExacto(p: ProductoSucursal, q: string): boolean {
+  const query = q.trim().toLowerCase();
+  if (!query) return false;
+
+  const cb = p.codigoBarras?.trim().toLowerCase() ?? "";
+  const cod = p.codigo?.trim().toLowerCase() ?? "";
+
+  // 1. Coincidencia exacta directa (solo si el código no está vacío)
+  if ((cb && cb === query) || (cod && cod === query)) return true;
+
+  // 2. Coincidencia numérica pura sin ceros iniciales
+  const qDigits = query.replace(/\D/g, "");
+  const qSinCeros = qDigits.replace(/^0+/, "");
+  const cbDigits = cb.replace(/\D/g, "");
+  const cbSinCeros = cbDigits.replace(/^0+/, "");
+  const codDigits = cod.replace(/\D/g, "");
+  const codSinCeros = codDigits.replace(/^0+/, "");
+
+  if (qSinCeros && qSinCeros.length >= 3) {
+    if (cbSinCeros && cbSinCeros === qSinCeros) return true;
+    if (codSinCeros && codSinCeros === qSinCeros) return true;
+  }
+  if (qDigits && qDigits.length >= 3) {
+    if (cbDigits && cbDigits === qDigits) return true;
+    if (codDigits && codDigits === qDigits) return true;
+  }
+
+  // 3. Normalizado sin acentos
+  if (
+    (cb && normalizarTexto(cb) === normalizarTexto(query)) ||
+    (cod && normalizarTexto(cod) === normalizarTexto(query))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 // Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
+// Tamaño responsivo que corresponde a las columnas del grid (8→7→6→5→4→3 cols):
+// le indica al navegador cuán ancha se va a renderizar la imagen para que, si el
+// CDN ofrece varias resoluciones, descargue la más liviana posible.
+const GRID_IMG_SIZES =
+  "(min-width: 1536px) 12.5vw, (min-width: 1280px) 14.3vw, (min-width: 1024px) 16.7vw, (min-width: 768px) 20vw, (min-width: 640px) 25vw, 33.3vw";
+
 const ProductoGridCard = memo(function ProductoGridCard({
   p,
   cantidadEnCarrito = 0,
   stockDisp = null,
   onClick,
+  index = 99,
 }: {
   p: ProductoSucursal;
   cantidadEnCarrito?: number;
   stockDisp?: number | null;
   onClick: () => void;
+  /** Posición en el grid: las primeras 8 se cargan de inmediato. */
+  index?: number;
 }) {
+  const cardRef = useRef<HTMLButtonElement>(null);
+  // Las primeras 8 tarjetas (primera fila visible) arrancan como visibles;
+  // el resto empieza oculto hasta que IntersectionObserver lo detecte.
+  const [isInView, setIsInView] = useState(index < 8);
   const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  // IntersectionObserver por tarjeta: la <img> NO se monta en el DOM hasta que
+  // la tarjeta entre al viewport. Así el navegador no descarga ninguna imagen
+  // que no sea visible — las tarjetas (nombre + precio) aparecen al instante y
+  // las fotos van cargando una por una al hacer scroll (como Falabella).
+  useEffect(() => {
+    if (isInView) return; // ya visible, no necesita observer
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "100px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isInView]);
+
   const tieneImagen = !!p.urlImagenProducto && !imgError;
   const enOferta = !!p.sucursalProducto.enPromocion && !!p.sucursalProducto.porcentajeDescuento;
   const seleccionado = cantidadEnCarrito > 0;
   const hoy = new Date().toISOString().split("T")[0];
   const vencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
+
+  // Solo montar el <img> cuando la tarjeta está en el viewport
+  const mostrarImg = tieneImagen && isInView;
+
   return (
     <button
+      ref={cardRef}
       onClick={onClick}
       className={`group relative flex flex-col rounded-md border transition-all text-left overflow-hidden ${
         seleccionado
@@ -209,15 +414,22 @@ const ProductoGridCard = memo(function ProductoGridCard({
       }`}
     >
       <div className="aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden relative p-2">
-        {tieneImagen ? (
+        {mostrarImg ? (
           <img
             src={conVarianteImagen(p.urlImagenProducto as string, "thumbnail")}
             alt={p.nomProducto}
-            loading="lazy"
             decoding="async"
-            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+            fetchPriority={index < 8 ? "high" : "auto"}
+            sizes={GRID_IMG_SIZES}
+            className={`w-full h-full object-contain group-hover:scale-105 transition-all duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+            onLoad={() => setImgLoaded(true)}
             onError={() => setImgError(true)}
           />
+        ) : tieneImagen ? (
+          /* Placeholder liviano mientras la tarjeta no está en el viewport (0 peticiones de red) */
+          <div className="w-full h-full bg-gray-100/60 rounded flex items-center justify-center">
+            <ImageIcon className="w-5 h-5 text-gray-300/70 animate-pulse" />
+          </div>
         ) : (
           <ImageOff className="w-5 h-5 text-gray-300" />
         )}
@@ -274,7 +486,53 @@ const ProductoGridCard = memo(function ProductoGridCard({
   );
 });
 
-export default function CajaAutopago() {
+// Recursos que las dos cajas simultáneas COMPARTEN: catálogo/stock, sucursal
+// (serie y correlativo), empresa emisora y categorías. Se cargan una sola vez en
+// <CajaAutopago /> y se pasan a cada vista. Si cada caja tuviera su propia copia,
+// la venta rápida y la principal mostrarían stock distinto del mismo producto y
+// podrían vender dos veces la última unidad.
+interface RecursosCaja {
+  productos: ReturnType<typeof useProductosSucursal>;
+  recursoSucursal: ReturnType<typeof useSucursal>;
+  recursoEmpresa: ReturnType<typeof useEmpresaEmisor>;
+  recursoCategorias: ReturnType<typeof useCategoriasLista>;
+  ultimaRevalidacionRef: { current: number };
+}
+
+interface CajaAutopagoVistaProps {
+  recursos: RecursosCaja;
+  /** Solo la caja enfocada escucha el teclado global y usa la cámara. */
+  activo: boolean;
+  /** true cuando esta vista es la ventana emergente de venta rápida. */
+  esRapida?: boolean;
+  /** Carrito de la OTRA caja: sus unidades ya están comprometidas del stock. */
+  reservasOtraCaja: ItemCarrito[];
+  /** Publica el carrito propio para que la otra caja lo descuente. */
+  onCarritoCambio: (items: ItemCarrito[]) => void;
+  /** Solo en la caja principal: abre la ventana emergente de venta rápida. */
+  onAbrirVentaRapida?: () => void;
+  /** Nº de productos que la venta rápida tiene pendientes (badge del botón). */
+  itemsVentaRapida?: number;
+  /** La venta rápida quedó a medias y minimizada: se muestra su barra. */
+  ventaRapidaMinimizada?: boolean;
+  /** Importe acumulado en la venta rápida minimizada. */
+  totalVentaRapida?: number;
+  /** Avisa al contenedor que el cajero cerró esta venta con "Nueva venta". */
+  onVentaTerminada?: () => void;
+}
+
+function CajaAutopagoVista({
+  recursos,
+  activo,
+  esRapida = false,
+  reservasOtraCaja,
+  onCarritoCambio,
+  onAbrirVentaRapida,
+  itemsVentaRapida = 0,
+  ventaRapidaMinimizada = false,
+  totalVentaRapida = 0,
+  onVentaTerminada,
+}: CajaAutopagoVistaProps) {
   const { user, accessToken } = useAuth();
   const { config } = useConfiguracion();
   const { showToast } = useToast();
@@ -288,81 +546,48 @@ export default function CajaAutopago() {
     descontarStockLocal,
     productosDesactualizados,
     fechaCache,
-  } = useProductosSucursal(sucursalId, !!sucursalId);
+  } = recursos.productos;
+  const ultimaRevalidacionRef = recursos.ultimaRevalidacionRef;
 
   // Mapa de productos por ID para lookups O(1) de paquetes/stock
   const productosPorId = useMemo(() => {
     return new Map(productosSucursal.map((p) => [p.productoId, p]));
   }, [productosSucursal]);
-  const { empresa } = useEmpresaEmisor();
-  const { sucursal, fetchSucursal } = useSucursal();
+  const { empresa } = recursos.recursoEmpresa;
+  const { sucursal, fetchSucursal } = recursos.recursoSucursal;
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
-  const { categorias, fetchCategorias } = useCategoriasLista();
-  const { enqueueVenta, ventasSincronizadas, isOnline } = useOfflineSales();
+  const { categorias } = recursos.recursoCategorias;
+  const { enqueueVenta, isOnline } = useOfflineSales();
   const [offlineEncolada, setOfflineEncolada] = useState(false);
   const [ultimoTicketOffline, setUltimoTicketOffline] = useState<
     Parameters<typeof imprimirTicketProvisional>[0] | null
   >(null);
 
-  useEffect(() => {
-    if (user?.ruc) {
-      fetchCategorias(user.ruc);
-    }
-  }, [user?.ruc, fetchCategorias]);
-
-  // ── Revalidación del stock mientras la caja está abierta ─────────────
-  // El stock es compartido entre dispositivos: si otro celular vende la última
-  // unidad, esta pantalla tiene que enterarse sola. Antes solo se refrescaba al
-  // montar y después de cada venta propia, así que una caja abierta en otro
-  // equipo seguía mostrando unidades que ya no existían.
-  const fetchProductosRef = useRef(fetchProductosSucursal);
-  fetchProductosRef.current = fetchProductosSucursal;
-  const ultimaRevalidacionRef = useRef(0);
-
-  useEffect(() => {
-    if (!sucursalId) return;
-
-    const revalidar = (forzar: boolean) => {
-      // Los eventos de foco llegan en ráfagas (teclado del móvil, cambio de app):
-      // sin este freno se dispararía una petición por cada uno.
-      if (!forzar && Date.now() - ultimaRevalidacionRef.current < 15000) return;
-      ultimaRevalidacionRef.current = Date.now();
-      fetchProductosRef.current().catch(() => {});
-    };
-
-    const alVolverAlFrente = () => {
-      if (document.visibilityState === "visible") revalidar(false);
-    };
-
-    document.addEventListener("visibilitychange", alVolverAlFrente);
-    window.addEventListener("focus", alVolverAlFrente);
-    // Con la pantalla oculta no se sondea: no sirve de nada y gasta datos.
-    const intervalo = setInterval(() => {
-      if (document.visibilityState === "visible") revalidar(true);
-    }, 60000);
-
-    return () => {
-      document.removeEventListener("visibilitychange", alVolverAlFrente);
-      window.removeEventListener("focus", alVolverAlFrente);
-      clearInterval(intervalo);
-    };
-  }, [sucursalId]);
-
-  // ── Al terminar de subir las ventas que quedaron en cola sin conexión ──
-  // Mientras la venta está encolada, el stock en pantalla es un descuento
-  // OPTIMISTA local: el servidor todavía no sabe de ella. Cualquier recarga del
-  // catálogo antes de que la cola suba trae el stock ANTERIOR a esas ventas y
-  // borra el descuento local. Recién cuando la cola termina, el backend tiene el
-  // stock real: se refresca solo, igual que pulsar "Actualizar stock".
-  useEffect(() => {
-    if (!sucursalId || ventasSincronizadas === 0) return;
-    ultimaRevalidacionRef.current = Date.now();
-    fetchProductosRef.current().catch(() => {});
-  }, [ventasSincronizadas, sucursalId]);
+  // La carga de categorías y la revalidación periódica del stock viven en
+  // <CajaAutopago />: son recursos compartidos y con dos cajas montadas se
+  // dispararían dos veces cada una.
 
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
+
+  // ── Stock compartido entre las dos cajas abiertas ────────────────────
+  // Lo que la otra caja ya tiene en su carrito está comprometido aunque todavía
+  // no se haya emitido: si no se descontara aquí, las dos podrían agregar la
+  // última unidad del mismo producto y una de las dos ventas se caería recién
+  // en el backend (que descuenta stock de forma atómica).
+  const reservasRef = useRef<ItemCarrito[]>(reservasOtraCaja);
+  useEffect(() => { reservasRef.current = reservasOtraCaja; });
+
+  const itemsMasReservas = useMemo(
+    () => (reservasOtraCaja.length ? [...items, ...reservasOtraCaja] : items),
+    [items, reservasOtraCaja],
+  );
+  // Versión para callbacks/efectos, que leen el carrito por ref y no por render.
+  const carritoConReservas = useCallback(
+    () => (reservasRef.current.length ? [...itemsRef.current, ...reservasRef.current] : itemsRef.current),
+    [],
+  );
   const [ultimoItemAgregadoKey, setUltimoItemAgregadoKey] = useState<string | null>(null);
   const cartContainerRef = useRef<HTMLDivElement | null>(null);
   const mobileCartContainerRef = useRef<HTMLDivElement | null>(null);
@@ -385,9 +610,7 @@ export default function CajaAutopago() {
   const [documento, setDocumento] = useState("");
   const [nombreManualCliente, setNombreManualCliente] = useState("");
   const [direccionManualCliente, setDireccionManualCliente] = useState("");
-  const [tipoSinDocumento, setTipoSinDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
-  // Con DNI/CE (no RUC), el cajero puede pasar de Boleta a Nota de Venta; por defecto Boleta.
-  const [tipoConDocumento, setTipoConDocumento] = useState<"Boleta" | "Nota de Venta">("Boleta");
+  const [tipoComprobante, setTipoComprobante] = useState<"Boleta" | "Nota de Venta" | "Factura">("Boleta");
   const [productoSinStock, setProductoSinStock] = useState<ProductoSucursal | null>(null);
   const [modalCrearRapidoAbierto, setModalCrearRapidoAbierto] = useState(false);
   const [codigoBarrasNuevoProducto, setCodigoBarrasNuevoProducto] = useState("");
@@ -428,10 +651,16 @@ export default function CajaAutopago() {
   // ── Cámara Escáner de Código de Barras (Móvil / Web) ───────────────
   const [isScanning, setIsScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [ultimoEscaneadoCamara, setUltimoEscaneadoCamara] = useState<{
+    nombre: string;
+    precio: number;
+    exito: boolean;
+  } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const lastScannedCodeRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
+  const timerBannerCamaraRef = useRef<NodeJS.Timeout | null>(null);
 
   // ── Agregar / quitar / cantidad ──────────────────────────────
   const agregarProducto = useCallback((p: ProductoSucursal) => {
@@ -442,7 +671,13 @@ export default function CajaAutopago() {
     }
 
     setItems((prev) => {
-      const disp = calcularDisponible(p, prev, productosSucursal, config?.isStock ?? false, productosPorId);
+      const disp = calcularDisponible(
+        p,
+        reservasRef.current.length ? [...prev, ...reservasRef.current] : prev,
+        productosSucursal,
+        config?.isStock ?? false,
+        productosPorId,
+      );
       if (disp !== null && disp <= 0) {
         setProductoSinStock(p);
         return prev;
@@ -528,6 +763,13 @@ export default function CajaAutopago() {
     setIsScanning(false);
   }, []);
 
+  // Al perder el foco (se abrió la otra caja) esta vista suelta la cámara: el
+  // navegador entrega un solo stream de video y el escáner de la caja activa
+  // se quedaría sin imagen.
+  useEffect(() => {
+    if (!activo && isScanning) stopScanning();
+  }, [activo, isScanning, stopScanning]);
+
   // Limpieza al desmontar el componente: apagar la cámara y detener el loop de escaneo
   useEffect(() => {
     return () => {
@@ -579,48 +821,63 @@ export default function CajaAutopago() {
       const code = decodedText.trim().toLowerCase();
       if (!code) return;
 
-      // Cooldown de 1s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto),
-      // pero si cambia de producto (código diferente), escanea al instante sin esperar.
       const now = Date.now();
-      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 1000) {
+      // Cooldown de 2.5s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto en el celular).
+      // Si cambia de producto (código diferente), escanea de inmediato.
+      if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 2500) {
         return;
       }
       lastScannedCodeRef.current = { code, time: now };
 
-      let p = productosSucursal.find(
-        (prod) =>
-          prod.codigoBarras?.trim().toLowerCase() === code ||
-          prod.codigo?.trim().toLowerCase() === code,
-      );
+      // Coincidencia estricta por código (exacto o ignorando ceros iniciales)
+      let p = productosSucursal.find((prod) => coincideCodigoExacto(prod, code));
 
       if (!p) {
         const remotos = await buscarEnServidor(code);
         if (remotos.length > 0) {
-          p = remotos.find(
-            (prod) =>
-              prod.codigoBarras?.trim().toLowerCase() === code ||
-              prod.codigo?.trim().toLowerCase() === code,
-          ) ?? remotos[0];
+          p = remotos.find((prod) => coincideCodigoExacto(prod, code));
         }
       }
 
       if (p) {
         if (config?.isStock && p.tipoProducto === "BIEN") {
-          const disp = calcularDisponible(p, itemsRef.current, productosSucursal, true);
+          const disp = calcularDisponible(p, carritoConReservas(), productosSucursal, true);
           if (disp !== null && disp <= 0) {
+            emitirBeepError();
             setProductoSinStock(p);
             return;
           }
         }
         agregarProducto(p);
+        emitirBeepEscaneo();
+
+        setUltimoEscaneadoCamara({
+          nombre: p.nomProducto,
+          precio: precioConDescuento(p),
+          exito: true,
+        });
+
+        if (timerBannerCamaraRef.current) clearTimeout(timerBannerCamaraRef.current);
+        timerBannerCamaraRef.current = setTimeout(() => {
+          setUltimoEscaneadoCamara(null);
+        }, 2500);
       } else {
-        const raw = decodedText.trim();
-        setCodigoBarrasNuevoProducto(raw);
-        setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
-        setModalCrearRapidoAbierto(true);
+        // En celular con cámara NO se abre el modal invasivo de registrar producto
+        // para que los reflejos o lecturas ruidosas de la cámara no interrumpan al cajero.
+        emitirBeepError();
+        setUltimoEscaneadoCamara({
+          nombre: `Código "${decodedText}" no encontrado`,
+          precio: 0,
+          exito: false,
+        });
+
+        if (timerBannerCamaraRef.current) clearTimeout(timerBannerCamaraRef.current);
+        timerBannerCamaraRef.current = setTimeout(() => {
+          setUltimoEscaneadoCamara(null);
+        }, 2500);
       }
     },
-    [productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor],
+    [productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, carritoConReservas],
   );
 
   const startScanning = async () => {
@@ -733,22 +990,19 @@ export default function CajaAutopago() {
 
   const igvPct = config?.igv ? parseFloat(config.igv) : 18;
 
-  // Default del tipo de comprobante (sin documento) según "Tipo por defecto":
+  // Default del tipo de comprobante según "Tipo por defecto":
   // si el predeterminado es Nota de Venta y está habilitada, arranca en Nota de Venta.
   useEffect(() => {
     if (!config || tipoSinDocInitRef.current) return;
     tipoSinDocInitRef.current = true;
     if (config.useNotaVenta && config.isBoletaOrFactura === "n") {
-      setTipoSinDocumento("Nota de Venta");
+      setTipoComprobante("Nota de Venta");
     }
   }, [config]);
 
-  // Tipo de comprobante resultante: sin documento → elección manual (Boleta/NV);
-  // RUC (11 díg.) → siempre Factura; DNI/CE (8 o 9) → Boleta o Nota de Venta (elección manual).
   const documentoTrim = documento.trim();
   const sinDocumento = documentoTrim.length === 0;
   const esRuc = documentoTrim.length === 11;
-  const tipoComprobante = sinDocumento ? tipoSinDocumento : esRuc ? "Factura" : tipoConDocumento;
 
   // Consulta el nombre / razón social en cuanto se escribe un documento válido
   // (8=DNI, 9=CE, 11=RUC), con debounce. Guarda el último documento consultado
@@ -759,17 +1013,26 @@ export default function CajaAutopago() {
   const ultimoDocConsultadoRef = useRef("");
   useEffect(() => {
     const len = documentoTrim.length;
-    if (![8, 9, 11].includes(len)) {
-      ultimoDocConsultadoRef.current = "";
-      return;
+    // Si el comprobante es Factura, SOLO se consulta a SUNAT al llegar a los 11 dígitos de RUC
+    if (tipoComprobante === "Factura") {
+      if (len !== 11) {
+        ultimoDocConsultadoRef.current = "";
+        return;
+      }
+    } else {
+      if (![8, 9, 11].includes(len)) {
+        ultimoDocConsultadoRef.current = "";
+        return;
+      }
     }
+
     if (ultimoDocConsultadoRef.current === documentoTrim) return;
     const timer = setTimeout(() => {
       ultimoDocConsultadoRef.current = documentoTrim;
       buscarClienteRef.current(len === 11 ? "06" : len === 9 ? "04" : "01", documentoTrim);
     }, 500);
     return () => clearTimeout(timer);
-  }, [documentoTrim]);
+  }, [documentoTrim, tipoComprobante]);
 
   // Limpiar nombres y direcciones manuales inmediatamente cuando cambie el número de documento
   const docAsociadoClienteRef = useRef("");
@@ -845,7 +1108,7 @@ export default function CajaAutopago() {
     const baseProductos = (config?.isStock ?? true)
       ? productosSucursal.filter((p) => {
           if (p.tipoProducto !== "BIEN") return true;
-          const disp = calcularDisponible(p, [], productosSucursal, true, productosPorId);
+          const disp = calcularDisponible(p, reservasOtraCaja, productosSucursal, true, productosPorId);
           return disp === null || disp > 0;
         })
       : productosSucursal;
@@ -869,7 +1132,7 @@ export default function CajaAutopago() {
     });
 
     return copia;
-  }, [busqueda, productosSucursal, statsVentas, config?.isStock, productosPorId]);
+  }, [busqueda, productosSucursal, statsVentas, config?.isStock, productosPorId, reservasOtraCaja]);
 
   const cambiarCantidad = (key: string, delta: number) => {
     if (delta > 0) {
@@ -877,7 +1140,7 @@ export default function CajaAutopago() {
       if (item) {
         const prod = productosSucursal.find((p) => p.productoId === item.productoId);
         if (prod) {
-          const disp = calcularDisponible(prod, items, productosSucursal, config?.isStock ?? false);
+          const disp = calcularDisponible(prod, itemsMasReservas, productosSucursal, config?.isStock ?? false);
           if (disp !== null && disp <= 0) {
             showToast(`Stock insuficiente: no hay más unidades disponibles de "${item.descripcion}"`, "info");
             return;
@@ -908,7 +1171,7 @@ export default function CajaAutopago() {
     if (val > item.cantidad) {
       const prod = productosSucursal.find((p) => p.productoId === item.productoId);
       if (prod) {
-        const disp = calcularDisponible(prod, items, productosSucursal, config?.isStock ?? false);
+        const disp = calcularDisponible(prod, itemsMasReservas, productosSucursal, config?.isStock ?? false);
         const incremento = val - item.cantidad;
         if (disp !== null && disp < incremento) {
           showToast(
@@ -953,13 +1216,37 @@ export default function CajaAutopago() {
     return false;
   }, []);
 
-  // ── Paginación y límite de renderizado inicial (32 productos más recientes/vendidos) ──
-  const [limiteVistaGrid, setLimiteVistaGrid] = useState(32);
-  useEffect(() => { setLimiteVistaGrid(32); }, [busqueda]);
+  // ── Paginación y límite de renderizado inicial (20 productos más recientes/vendidos) ──
+  // En 3G, menos tarjetas iniciales = menos imágenes compitiendo por ancho de banda.
+  const GRID_PAGE_SIZE = 20;
+  const [limiteVistaGrid, setLimiteVistaGrid] = useState(GRID_PAGE_SIZE);
+  useEffect(() => { setLimiteVistaGrid(GRID_PAGE_SIZE); }, [busqueda]);
 
   const productosGridVisualizados = useMemo(() => {
     return productosGrid.slice(0, limiteVistaGrid);
   }, [productosGrid, limiteVistaGrid]);
+
+  // Auto-cargar más productos al hacer scroll (IntersectionObserver):
+  // reemplaza el botón manual "Cargar más" — invisible al usuario, carga bajo
+  // demanda como Falabella/MercadoLibre. Solo incrementa cuando hay más productos.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setLimiteVistaGrid((prev) => {
+            const total = productosGrid.length;
+            return prev >= total ? prev : prev + GRID_PAGE_SIZE;
+          });
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [productosGrid.length]);
 
   // Búsqueda remota automática cuando no hay coincidencias locales
   useEffect(() => {
@@ -978,46 +1265,9 @@ export default function CajaAutopago() {
     }
   }, [busqueda, productosSucursal, buscarEnServidor]);
 
-  // Auto-adición instantánea al escanear con lector físico o ingresar código exacto
-  useEffect(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return;
-
-    const exacto = productosSucursal.find(
-      (p) =>
-        (p.codigoBarras && p.codigoBarras.trim().toLowerCase() === q) ||
-        (p.codigo && p.codigo.trim().toLowerCase() === q),
-    );
-
-    if (exacto) {
-      if (esLecturaDuplicada(q)) {
-        setBusqueda("");
-        return;
-      }
-      if (config?.isStock && exacto.tipoProducto === "BIEN") {
-        const disp = calcularDisponible(exacto, itemsRef.current, productosSucursal, true);
-        if (disp !== null && disp <= 0) {
-          setProductoSinStock(exacto);
-          setBusqueda("");
-          return;
-        }
-      }
-      agregarProducto(exacto);
-      setBusqueda("");
-    }
-  }, [busqueda, productosSucursal, config?.isStock, showToast, agregarProducto, esLecturaDuplicada]);
-
   // Enter en el buscador o escáner de código de barras físico:
   // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
   // limpiando siempre la búsqueda para la siguiente lectura.
-  //
-  // `esCodigoEscaneado` distingue una lectura de pistola (ráfaga de teclas en
-  // <45ms, ver scannerBufferRef) de una búsqueda manual tecleada. Es crítico:
-  // con un código escaneado exigimos coincidencia EXACTA y jamás "adivinamos"
-  // con el primer producto del grid si no matchea. Sin esta distinción, un
-  // código mal leído por timing (ver handleGlobalKeyDown) caía al fallback y
-  // agregaba silenciosamente otro producto (el primero del grid) en vez del
-  // escaneado — el bug de "se queda pegado el producto anterior".
   const onEnterBusqueda = useCallback(
     async (queryOverride?: string, esCodigoEscaneado = false) => {
       const q = (queryOverride !== undefined ? queryOverride : busqueda).trim().toLowerCase();
@@ -1034,25 +1284,35 @@ export default function CajaAutopago() {
         return;
       }
 
-      // 1. Buscar coincidencia exacta local por código de barras o código
-      let exacto = productosSucursal.find(
-        (p) =>
-          p.codigoBarras?.trim().toLowerCase() === q ||
-          p.codigo?.trim().toLowerCase() === q,
+      // 1. Buscar coincidencia por código de barras o código interno.
+      // Un código escaneado (pistola o cámara) exige coincidencia ESTRICTA:
+      // jamás se "adivina" por substring o por nombre de producto, porque eso
+      // es lo que causaba agregar un producto distinto al físicamente leído.
+      let exacto = productosSucursal.find((p) =>
+        esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
       );
 
-      // 2. Si no está en memoria local, consultar al servidor
+      // 2. Si el grid tiene exactamente 1 producto que coincide con la búsqueda
+      // (solo para búsqueda manual tecleada, nunca para un código escaneado).
+      if (!exacto && !esCodigoEscaneado && productosGrid.length === 1) {
+        exacto = productosGrid[0];
+      }
+
+      // 3. Si en el grid hay algún producto cuyo código coincide
+      if (!exacto && productosGrid.length > 0) {
+        const matchGrid = productosGrid.find((p) =>
+          esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
+        );
+        if (matchGrid) exacto = matchGrid;
+      }
+
+      // 4. Si no está en memoria local, consultar al servidor
       if (!exacto) {
         const remotos = await buscarEnServidor(q);
         if (remotos.length > 0) {
-          const exactoRemoto = remotos.find(
-            (p) =>
-              p.codigoBarras?.trim().toLowerCase() === q ||
-              p.codigo?.trim().toLowerCase() === q,
+          const exactoRemoto = remotos.find((p) =>
+            esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
           );
-          // El buscador remoto es difuso (por nombre incluido): "remotos[0]"
-          // sin match exacto solo es una conveniencia válida para búsqueda
-          // manual, nunca para un código escaneado.
           exacto = exactoRemoto ?? (esCodigoEscaneado ? undefined : remotos[0]);
         }
       }
@@ -1068,59 +1328,51 @@ export default function CajaAutopago() {
         return;
       }
 
-      // 3. Código escaneado sin ninguna coincidencia exacta: se ofrece crear
-      // el producto (probablemente nuevo). Nunca se cae al primer producto
-      // del grid, que sería un producto distinto al físicamente escaneado.
-      if (esCodigoEscaneado) {
-        showToast(`No se encontró ningún producto con el código "${queryOverride ?? q}"`, "error");
-        const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
-        setCodigoBarrasNuevoProducto(raw);
-        setNombreNuevoProducto("");
-        setModalCrearRapidoAbierto(true);
-        setBusqueda("");
-        return;
-      }
-
-      // 4. Búsqueda manual sin coincidencia exacta: agregar el primer resultado
-      // visible es la conveniencia esperada de "buscar por nombre y Enter".
-      if (productosGrid.length > 0) {
-        const matchGrid = productosGrid.find(
-          (p) =>
-            p.codigoBarras?.trim().toLowerCase() === q ||
-            p.codigo?.trim().toLowerCase() === q,
-        ) ?? productosGrid[0];
-
+      // 5. Búsqueda manual sin coincidencia de código pero con resultados en grid
+      if (!esCodigoEscaneado && productosGrid.length > 0) {
+        const matchGrid = productosGrid[0];
         if (config?.isStock && matchGrid.tipoProducto === "BIEN" && (matchGrid.sucursalProducto.stock ?? 0) <= 0) {
           setProductoSinStock(matchGrid);
           setBusqueda("");
           return;
         }
-
         agregarProducto(matchGrid);
         setBusqueda("");
-      } else {
-        const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
-        setCodigoBarrasNuevoProducto(raw);
-        setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
-        setModalCrearRapidoAbierto(true);
-        setBusqueda("");
+        return;
       }
+
+      // 6. Código escaneado o tecleado sin ninguna coincidencia: se abre modal para registrar
+      showToast(`No se encontró ningún producto con el código "${queryOverride ?? q}"`, "error");
+      const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
+      setCodigoBarrasNuevoProducto(raw);
+      setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
+      setModalCrearRapidoAbierto(true);
+      setBusqueda("");
     },
     [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, esLecturaDuplicada],
   );
 
-  // Foco inicial único al cargar la página (solo en computadoras/laptops)
+  // Foco inicial único al cargar la página (solo en computadoras/laptops).
+  // También al recuperar el foco: al pasar de una caja a la otra, el cursor
+  // tiene que saltar solo a su buscador para poder escanear sin tocar el mouse.
+  // Con el modal de pago abierto no se toca el foco: ahí manda el monto
+  // recibido, y robárselo al volver de la venta rápida obligaría a hacer clic
+  // de nuevo justo en la mitad del cobro.
   useEffect(() => {
+    if (!activo || mostrarPago) return;
     const isMobile = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
     if (!isMobile) {
       inputRef.current?.focus();
     }
-  }, []);
+  }, [activo, mostrarPago]);
 
   // Captura global de lecturas de códigos de barras (escáner físico USB/Bluetooth)
   // incluso si el usuario hace clic afuera del input.
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Con las dos cajas montadas, solo la que tiene el foco puede consumir la
+      // lectura: si escucharan las dos, el mismo código entraría en ambos carritos.
+      if (!activo) return;
       // No capturar si hay cualquier modal abierto
       if (mostrarPago || modalCrearRapidoAbierto || !!productoSinStock || confirmarLimpiarTodo) return;
 
@@ -1145,9 +1397,9 @@ export default function CajaAutopago() {
       const now = Date.now();
       const timeDiff = now - scannerBufferRef.current.lastTime;
 
-      // Si las teclas se envían en menos de 45ms (típico de pistola de código de barras)
+      // Si las teclas se envían en menos de 65ms (típico de pistola de código de barras USB/Bluetooth)
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        if (timeDiff < 45) {
+        if (timeDiff < 65) {
           scannerBufferRef.current.text += e.key;
         } else {
           scannerBufferRef.current.text = e.key;
@@ -1158,11 +1410,12 @@ export default function CajaAutopago() {
       if (e.key === "Enter") {
         const barcodeFromScanner = scannerBufferRef.current.text.trim();
         const currentQuery = (inputRef.current?.value || busqueda).trim();
-        // >=3 caracteres acumulados en <45ms entre sí es la firma de una
-        // pistola física; una persona tecleando a mano nunca alcanza ese
-        // ritmo, así que el buffer le queda en 1 carácter y se usa el input.
         const esCodigoEscaneado = barcodeFromScanner.length >= 3;
-        const queryToUse = esCodigoEscaneado ? barcodeFromScanner : currentQuery;
+        // Preferir el valor más completo entre lo capturado por el buffer y el input
+        const queryToUse =
+          barcodeFromScanner.length >= currentQuery.length && barcodeFromScanner.length >= 3
+            ? barcodeFromScanner
+            : currentQuery || barcodeFromScanner;
 
         scannerBufferRef.current = { text: "", lastTime: 0 };
 
@@ -1186,7 +1439,7 @@ export default function CajaAutopago() {
 
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [onEnterBusqueda, mostrarPago, modalCrearRapidoAbierto, productoSinStock, confirmarLimpiarTodo, busqueda]);
+  }, [activo, onEnterBusqueda, mostrarPago, modalCrearRapidoAbierto, productoSinStock, confirmarLimpiarTodo, busqueda]);
 
   // ── Totales (con desglose por afectación de IGV, para el payload real) ──
   const totales = useMemo(() => {
@@ -1231,6 +1484,15 @@ export default function CajaAutopago() {
   const [notaPago, setNotaPago] = useState("");
   const [emitiendo, setEmitiendo] = useState(false);
   const [emitido, setEmitido] = useState(false);
+
+  // Publica el carrito propio para que la otra caja lo descuente de su stock.
+  // Una vez emitida la venta el carrito deja de reservar: esas unidades ya se
+  // descontaron del catálogo compartido (descontarStockLocal) y seguir
+  // publicándolas las restaría dos veces en la otra caja, que vería menos
+  // stock del que hay hasta que aquí se pulse "Nueva venta".
+  useEffect(() => {
+    onCarritoCambio(emitido ? SIN_RESERVAS : items);
+  }, [items, emitido, onCarritoCambio]);
   const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<number | null>(null);
   const [serieCorrelativoEmitido, setSerieCorrelativoEmitido] = useState<string | null>(null);
   const [medioPagoEmitido, setMedioPagoEmitido] = useState("Efectivo");
@@ -1535,7 +1797,7 @@ export default function CajaAutopago() {
     const { fechaHora, fecha } = obtenerFechaEmision();
     const clienteBase = construirCliente();
     const clienteFinal =
-      tipoComprobanteCod === "01" && clienteBase.tipoDocumento === "06"
+      clienteBase.tipoDocumento === "06"
         ? { ...clienteBase, tipoDocumento: "6" }
         : clienteBase;
     const detalles = items.map((it, idx) => {
@@ -1863,7 +2125,6 @@ export default function CajaAutopago() {
     // así que aquí no se vuelve a llamar a la API. Si el debounce aún no disparó
     // (clic muy rápido), el efecto pendiente lo resuelve una sola vez.
     modalAbiertoAtRef.current = Date.now();
-    setTipoConDocumento("Boleta");
     setMedioPago("Efectivo");
     setMontoRecibido(totales.total.toFixed(2));
     setNotaPago("");
@@ -1881,9 +2142,8 @@ export default function CajaAutopago() {
     abrirPagoRef.current = abrirPago;
   }, [abrirPago]);
 
-  const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta") => {
-    if (sinDocumento) setTipoSinDocumento(t);
-    else setTipoConDocumento(t);
+  const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta" | "Factura") => {
+    setTipoComprobante(t);
   };
 
   // ── Venta sin conexión: se encola localmente ────────────────────
@@ -2085,7 +2345,7 @@ export default function CajaAutopago() {
 
   // Confirmación con la tecla Enter en el modal de pago
   useEffect(() => {
-    if (!mostrarPago) return;
+    if (!mostrarPago || !activo) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
         // Ignorar si el modal se acaba de abrir (evita doble disparo por el Enter de la vista principal)
@@ -2110,14 +2370,14 @@ export default function CajaAutopago() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRuc, facturaSinRazonSocial]);
+  }, [activo, mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRuc, facturaSinRazonSocial]);
 
   const nuevaVenta = () => {
     setItems([]);
     setDocumento("");
     setNombreManualCliente("");
     setDireccionManualCliente("");
-    setTipoConDocumento("Boleta");
+    setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
     setMedioPago("Efectivo");
     setMontoRecibido("");
     setNotaPago("");
@@ -2144,15 +2404,20 @@ export default function CajaAutopago() {
     fetchProductosSucursal();
     setTimeout(() => {
       const isMobile = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
-      if (!isMobile) {
+      if (!isMobile && activo) {
         inputRef.current?.focus();
       }
     }, 50);
+    // En la ventana rápida, "Nueva venta" significa "ya terminé con este
+    // cliente": la pantalla de éxito se queda hasta aquí (para reimprimir o
+    // mandar el ticket) y recién ahora la ventana se quita de encima y devuelve
+    // el foco a la venta principal, que sigue esperando su cobro.
+    onVentaTerminada?.();
   };
 
   // Enter para "Nueva venta" cuando se muestra la pantalla de éxito
   useEffect(() => {
-    if (!emitido) return;
+    if (!emitido || !activo) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
         const activeEl = document.activeElement;
@@ -2165,12 +2430,38 @@ export default function CajaAutopago() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [emitido, telWhatsapp]);
+  }, [activo, emitido, telWhatsapp]);
 
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
     <>
-      <div className="w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:h-[calc(100vh-125px)] lg:overflow-hidden">
+      <div
+        className={`relative w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:overflow-hidden ${
+          esRapida ? "min-h-full lg:h-full" : "lg:h-[calc(100vh-125px)]"
+        }`}
+      >
+        {/* Barra de la venta rápida minimizada: recuerda que quedó una venta a
+            medias y la trae de vuelta con un clic. Va anclada DENTRO de la caja
+            (no a la ventana) porque el sidebar ocupa ancho real en el layout y
+            un `fixed left-3` le quedaba encima. En móvil sí es fija: ahí el
+            sidebar se superpone y la tarjeta crece más que la pantalla. */}
+        {onAbrirVentaRapida && ventaRapidaMinimizada && (
+          <button
+            type="button"
+            onClick={onAbrirVentaRapida}
+            className="fixed bottom-20 left-3 lg:absolute lg:bottom-3 lg:left-3 z-30 flex items-center gap-2.5 rounded-lg bg-brand-blue pl-3 pr-3.5 py-2 text-white shadow-[0_10px_30px_-8px_rgba(15,46,100,0.7)] ring-1 ring-white/20 hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer"
+            title="Retomar la venta rápida (F2)"
+          >
+            <Zap className="w-4 h-4 shrink-0" />
+            <span className="flex flex-col items-start leading-tight">
+              <span className="text-[10px] font-semibold text-white/75">Venta rápida en espera</span>
+              <span className="text-xs font-bold tabular-nums">
+                {itemsVentaRapida} producto{itemsVentaRapida === 1 ? "" : "s"} · S/ {totalVentaRapida.toFixed(2)}
+              </span>
+            </span>
+            <Maximize2 className="w-3.5 h-3.5 shrink-0 opacity-80" />
+          </button>
+        )}
         {/* ── Columna izquierda: buscador + grid de productos ── */}
         <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden">
           <div className="shrink-0 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
@@ -2243,6 +2534,23 @@ export default function CajaAutopago() {
               <span className="hidden sm:inline">+ Producto</span>
             </button>
 
+            {onAbrirVentaRapida && (
+              <button
+                type="button"
+                onClick={onAbrirVentaRapida}
+                className="relative h-9.5 flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
+                title="Atender otra venta en paralelo sin perder este carrito (F2)"
+              >
+                <Zap size={14} />
+                <span className="hidden sm:inline">Venta rápida</span>
+                {itemsVentaRapida > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-4.5 h-4.5 px-1 rounded-full bg-amber-400 text-[10px] font-bold text-gray-900 flex items-center justify-center tabular-nums shadow-sm">
+                    {itemsVentaRapida}
+                  </span>
+                )}
+              </button>
+            )}
+
             {!isScanning ? (
               <button
                 type="button"
@@ -2309,9 +2617,36 @@ export default function CajaAutopago() {
                     </p>
                   </div>
                 ) : (
-                  <div className="pointer-events-none absolute inset-3 border-2 border-white/20 rounded-xl flex items-center justify-center overflow-hidden z-10">
-                    <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
-                  </div>
+                  <>
+                    <div className="pointer-events-none absolute inset-3 border-2 border-white/20 rounded-xl flex items-center justify-center overflow-hidden z-10">
+                      <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
+                    </div>
+
+                    {/* Banner de confirmación visual instantánea sobre la cámara */}
+                    {ultimoEscaneadoCamara && (
+                      <div
+                        className={`absolute bottom-2 inset-x-2 z-20 rounded-xl p-2 text-center text-xs font-bold text-white shadow-lg transition-all animate-in slide-in-from-bottom-2 duration-200 ${
+                          ultimoEscaneadoCamara.exito
+                            ? "bg-emerald-600/95 border border-emerald-400/50"
+                            : "bg-rose-600/95 border border-rose-400/50"
+                        }`}
+                      >
+                        {ultimoEscaneadoCamara.exito ? (
+                          <div className="flex items-center justify-center gap-1.5 truncate">
+                            <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
+                            <span className="truncate">
+                              {ultimoEscaneadoCamara.nombre} (S/ {ultimoEscaneadoCamara.precio.toFixed(2)})
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1 text-[11px] truncate">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-white" />
+                            <span className="truncate">{ultimoEscaneadoCamara.nombre}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -2356,10 +2691,10 @@ export default function CajaAutopago() {
             ) : (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5">
-                  {productosGridVisualizados.map((p) => {
+                  {productosGridVisualizados.map((p, idx) => {
                     const itemCarrito = items.find((i) => i.productoId === p.productoId);
                     const stockDisp = config?.isStock
-                      ? calcularDisponible(p, items, productosSucursal, true, productosPorId)
+                      ? calcularDisponible(p, itemsMasReservas, productosSucursal, true, productosPorId)
                       : null;
                     return (
                       <ProductoGridCard
@@ -2368,21 +2703,15 @@ export default function CajaAutopago() {
                         cantidadEnCarrito={itemCarrito?.cantidad ?? 0}
                         stockDisp={stockDisp}
                         onClick={() => agregarProducto(p)}
+                        index={idx}
                       />
                     );
                   })}
                 </div>
 
+                {/* Sentinel invisible: IntersectionObserver lo detecta y carga más productos automáticamente */}
                 {productosGrid.length > limiteVistaGrid && (
-                  <div className="flex justify-center pt-2 pb-1">
-                    <button
-                      type="button"
-                      onClick={() => setLimiteVistaGrid((prev) => prev + 32)}
-                      className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
-                    >
-                      Cargar más productos (mostrando {limiteVistaGrid} de {productosGrid.length})
-                    </button>
-                  </div>
+                  <div ref={sentinelRef} className="h-1" />
                 )}
               </div>
             )}
@@ -2469,7 +2798,7 @@ export default function CajaAutopago() {
               items.map((i) => {
                 const prodInfo = productosPorId.get(i.productoId);
                 const stockDisp = config?.isStock && prodInfo && prodInfo.tipoProducto === "BIEN"
-                  ? calcularDisponible(prodInfo, items, productosSucursal, true, productosPorId)
+                  ? calcularDisponible(prodInfo, itemsMasReservas, productosSucursal, true, productosPorId)
                   : null;
                 const esReciente = i.key === ultimoItemAgregadoKey;
 
@@ -2767,7 +3096,7 @@ export default function CajaAutopago() {
               {items.map((i) => {
                 const prodInfo = productosPorId.get(i.productoId);
                 const stockDisp = config?.isStock && prodInfo && prodInfo.tipoProducto === "BIEN"
-                  ? calcularDisponible(prodInfo, items, productosSucursal, true, productosPorId)
+                  ? calcularDisponible(prodInfo, itemsMasReservas, productosSucursal, true, productosPorId)
                   : null;
                 const esReciente = i.key === ultimoItemAgregadoKey;
 
@@ -3118,39 +3447,36 @@ export default function CajaAutopago() {
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Comprobante</p>
               <div className={`grid gap-2 ${config?.useNotaVenta ? "grid-cols-3" : "grid-cols-2"}`}>
                 <button
+                  type="button"
                   onClick={() => elegirTipoComprobante("Boleta")}
-                  disabled={esRuc}
-                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-colors ${
+                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
                     tipoComprobante === "Boleta"
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                      : esRuc
-                        ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-                        : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm"
+                      : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-300"
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" /> Boleta
                 </button>
                 {config?.useNotaVenta && (
                   <button
+                    type="button"
                     onClick={() => elegirTipoComprobante("Nota de Venta")}
-                    disabled={esRuc}
-                    className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-colors ${
+                    className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
                       tipoComprobante === "Nota de Venta"
-                        ? "border-amber-500 bg-amber-50 text-amber-700"
-                        : esRuc
-                          ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
-                          : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
+                        ? "border-amber-500 bg-amber-50 text-amber-700 shadow-sm"
+                        : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-300"
                     }`}
                   >
                     <Receipt className="w-3.5 h-3.5" /> N. Venta
                   </button>
                 )}
                 <button
-                  disabled={!esRuc}
-                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-colors ${
+                  type="button"
+                  onClick={() => elegirTipoComprobante("Factura")}
+                  className={`flex items-center justify-center gap-1.5 rounded-md border-2 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
                     tipoComprobante === "Factura"
-                      ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
-                      : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"
+                      ? "border-brand-blue bg-brand-blue/10 text-brand-blue font-bold shadow-sm"
+                      : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-300"
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" /> Factura
@@ -3170,15 +3496,28 @@ export default function CajaAutopago() {
                 </div>
               )}
 
+              {/* Alerta SUNAT Factura sin RUC */}
+              {tipoComprobante === "Factura" && documentoTrim.length !== 11 && (
+                <div className="mt-2 rounded-md border border-brand-blue/30 bg-blue-50/80 p-2.5 text-xs text-brand-blue flex items-start gap-2 animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 text-brand-blue shrink-0 mt-0.5" />
+                  <div className="leading-tight">
+                    <p className="font-bold text-gray-900">RUC Requerido para Factura</p>
+                    <p className="text-[11px] text-gray-600 mt-0.5">
+                      Ingresa el <strong>RUC (11 dígitos)</strong> de la empresa en el campo de abajo para emitir la factura.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Cliente en el modal de cobro */}
               <div className="mt-2 text-xs">
                 <div className="rounded-md border border-gray-200 bg-gray-50/70 p-2.5 space-y-2">
                   <div className="flex items-center justify-between text-gray-700">
                     <span className="font-bold text-[11px] text-gray-600 uppercase tracking-wide flex items-center gap-1">
                       <UserRound className="w-3.5 h-3.5 text-brand-blue" />
-                      {documentoTrim.length === 11 ? "RUC / Empresa *" : "Cliente (DNI / RUC)"}
+                      {tipoComprobante === "Factura" || documentoTrim.length === 11 ? "RUC / Empresa *" : "Cliente (DNI / RUC)"}
                     </span>
-                    {sinDocumento && (
+                    {sinDocumento && tipoComprobante !== "Factura" && (
                       <span className="text-[11px] text-gray-400 font-medium">Clientes varios (opcional)</span>
                     )}
                   </div>
@@ -3191,21 +3530,25 @@ export default function CajaAutopago() {
                       value={documento}
                       onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
                       placeholder={
-                        totales.total >= 700 && tipoComprobante === "Boleta"
-                          ? "Ingresa DNI (8 dígitos) - Requerido por SUNAT"
-                          : "DNI o RUC del cliente (opcional)"
+                        tipoComprobante === "Factura"
+                          ? "Ingresa RUC de la empresa (11 dígitos) *"
+                          : totales.total >= 700 && tipoComprobante === "Boleta"
+                            ? "Ingresa DNI (8 dígitos) - Requerido por SUNAT"
+                            : "DNI o RUC del cliente (opcional)"
                       }
                       className={`w-full h-8.5 pl-3 pr-7 bg-white rounded border text-xs font-semibold outline-none transition-all ${
-                        totales.total >= 700 && tipoComprobante === "Boleta" && (!documentoTrim || documentoTrim.length < 8)
-                          ? "border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-200"
-                          : "border-gray-200 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                        tipoComprobante === "Factura" && documentoTrim.length !== 11
+                          ? "border-brand-blue focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                          : totales.total >= 700 && tipoComprobante === "Boleta" && (!documentoTrim || documentoTrim.length < 8)
+                            ? "border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-200"
+                            : "border-gray-200 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
                       }`}
                     />
                     {documento && (
                       <button
                         type="button"
                         onClick={() => setDocumento("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
                       >
                         <X size={12} />
                       </button>
@@ -3213,7 +3556,7 @@ export default function CajaAutopago() {
                   </div>
 
                   {/* Estado o Nombre del cliente */}
-                  {documentoTrim && (
+                  {documentoTrim ? (
                     <>
                       {loadingCliente && !nombreManualCliente ? (
                         <div className="flex items-center gap-1.5 text-xs text-gray-500 py-0.5">
@@ -3227,13 +3570,13 @@ export default function CajaAutopago() {
                             value={nombreManualCliente}
                             onChange={(e) => setNombreManualCliente(e.target.value)}
                             placeholder={
-                              documentoTrim.length === 11
+                              documentoTrim.length === 11 || tipoComprobante === "Factura"
                                 ? "Razón Social (obligatoria para Factura)"
                                 : "Nombre del cliente (opcional)"
                             }
                             className="w-full h-8 px-2.5 bg-white rounded border border-gray-200 text-xs font-semibold text-gray-800 outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
                           />
-                          {documentoTrim.length === 11 && (
+                          {(documentoTrim.length === 11 || tipoComprobante === "Factura") && (
                             <input
                               type="text"
                               value={direccionManualCliente}
@@ -3245,7 +3588,24 @@ export default function CajaAutopago() {
                         </div>
                       )}
                     </>
-                  )}
+                  ) : tipoComprobante === "Factura" ? (
+                    <div className="space-y-1.5">
+                      <input
+                        type="text"
+                        value={nombreManualCliente}
+                        onChange={(e) => setNombreManualCliente(e.target.value)}
+                        placeholder="Razón Social (obligatoria para Factura)"
+                        className="w-full h-8 px-2.5 bg-white rounded border border-gray-200 text-xs font-semibold text-gray-800 outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                      />
+                      <input
+                        type="text"
+                        value={direccionManualCliente}
+                        onChange={(e) => setDireccionManualCliente(e.target.value)}
+                        placeholder="Dirección fiscal (opcional)"
+                        className="w-full h-7.5 px-2.5 bg-white rounded border border-gray-200 text-[11px] text-gray-600 outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -3729,6 +4089,185 @@ export default function CajaAutopago() {
         sucursalId={sucursalId || 1}
         onProductoCreado={handleProductoCreado}
       />
+    </>
+  );
+}
+
+/**
+ * Caja Autopago con dos ventas simultáneas.
+ *
+ * La caja principal se queda tal cual está (carrito, cliente, pago) y F2 abre
+ * una segunda caja idéntica en una ventana flotante para cobrarle en el acto a
+ * quien solo lleva un producto. Las dos comparten catálogo, stock, empresa y
+ * sucursal, así que ninguna vende unidades que la otra ya tiene apartadas.
+ *
+ * La ventana flotante nunca se destruye: se minimiza. Así el cajero salta entre
+ * las dos ventas sin perder ninguna, y mientras la rápida está minimizada la
+ * principal sigue siendo usable (no hay fondo que la bloquee).
+ *
+ * Serie y correlativo no se duplican: los asigna el backend al emitir, y como
+ * las dos cajas comparten `useSucursal`, al terminar una venta la otra ya ve el
+ * siguiente número.
+ */
+export default function CajaAutopago() {
+  const { user } = useAuth();
+  const sucursalId = user?.sucursalID ? parseInt(user.sucursalID) : null;
+
+  const productos = useProductosSucursal(sucursalId, !!sucursalId);
+  const recursoSucursal = useSucursal();
+  const recursoEmpresa = useEmpresaEmisor();
+  const recursoCategorias = useCategoriasLista();
+  const { ventasSincronizadas } = useOfflineSales();
+  const ultimaRevalidacionRef = useRef(0);
+
+  const { fetchCategorias } = recursoCategorias;
+  useEffect(() => {
+    if (user?.ruc) {
+      fetchCategorias(user.ruc);
+    }
+  }, [user?.ruc, fetchCategorias]);
+
+  // ── Revalidación del stock mientras la caja está abierta ─────────────
+  // El stock es compartido entre dispositivos: si otro celular vende la última
+  // unidad, esta pantalla tiene que enterarse sola. Antes solo se refrescaba al
+  // montar y después de cada venta propia, así que una caja abierta en otro
+  // Revalidación cuando se enfoca la ventana (opcional) o tras sincronizar ventas
+  const fetchProductosRef = useRef(productos.fetchProductosSucursal);
+  useEffect(() => { fetchProductosRef.current = productos.fetchProductosSucursal; });
+
+  // ── Al terminar de subir las ventas que quedaron en cola sin conexión ──
+  // Mientras la venta está encolada, el stock en pantalla es un descuento
+  // OPTIMISTA local: el servidor todavía no sabe de ella. Cualquier recarga del
+  // catálogo antes de que la cola suba trae el stock ANTERIOR a esas ventas y
+  // borra el descuento local. Recién cuando la cola termina, el backend tiene el
+  // stock real: se refresca solo, igual que pulsar "Actualizar stock".
+  useEffect(() => {
+    if (!sucursalId || ventasSincronizadas === 0) return;
+    ultimaRevalidacionRef.current = Date.now();
+    fetchProductosRef.current().catch(() => {});
+  }, [ventasSincronizadas, sucursalId]);
+
+  const recursos: RecursosCaja = {
+    productos,
+    recursoSucursal,
+    recursoEmpresa,
+    recursoCategorias,
+    ultimaRevalidacionRef,
+  };
+
+  // `montada` se queda en true tras la primera apertura: la ventana solo se
+  // minimiza, nunca se destruye, para no perder la venta a medio cobrar.
+  const [ventaRapidaMontada, setVentaRapidaMontada] = useState(false);
+  const [ventaRapidaAbierta, setVentaRapidaAbierta] = useState(false);
+  const [carritoPrincipal, setCarritoPrincipal] = useState<ItemCarrito[]>(SIN_RESERVAS);
+  const [carritoRapido, setCarritoRapido] = useState<ItemCarrito[]>(SIN_RESERVAS);
+
+  const abrirVentaRapida = useCallback(() => {
+    setVentaRapidaMontada(true);
+    setVentaRapidaAbierta(true);
+  }, []);
+  const minimizarVentaRapida = useCallback(() => setVentaRapidaAbierta(false), []);
+
+  // Clic fuera de la ventana flotante = trabajar en la caja principal. El clic
+  // NO se intercepta: llega igual al producto o al botón que se tocó, así que
+  // pasar de una venta a la otra cuesta un solo clic y no dos.
+  const panelRapidoRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!ventaRapidaAbierta) return;
+    const alPresionar = (e: MouseEvent) => {
+      if (panelRapidoRef.current?.contains(e.target as Node)) return;
+      setVentaRapidaAbierta(false);
+    };
+    window.addEventListener("mousedown", alPresionar);
+    return () => window.removeEventListener("mousedown", alPresionar);
+  }, [ventaRapidaAbierta]);
+
+  const totalRapido = carritoRapido.reduce((t, i) => t + i.precio * i.cantidad, 0);
+
+  // F2 abre y minimiza la venta rápida. Es una tecla que ningún campo consume,
+  // así que funciona aunque el cursor esté dentro del buscador o del monto.
+  useEffect(() => {
+    const alPulsar = (e: KeyboardEvent) => {
+      if (e.key !== "F2") return;
+      e.preventDefault();
+      if (ventaRapidaAbierta) minimizarVentaRapida();
+      else abrirVentaRapida();
+    };
+    window.addEventListener("keydown", alPulsar);
+    return () => window.removeEventListener("keydown", alPulsar);
+  }, [ventaRapidaAbierta, abrirVentaRapida, minimizarVentaRapida]);
+
+  return (
+    <>
+      <CajaAutopagoVista
+        recursos={recursos}
+        activo={!ventaRapidaAbierta}
+        reservasOtraCaja={carritoRapido}
+        onCarritoCambio={setCarritoPrincipal}
+        onAbrirVentaRapida={abrirVentaRapida}
+        itemsVentaRapida={carritoRapido.length}
+        ventaRapidaMinimizada={ventaRapidaMontada && !ventaRapidaAbierta && carritoRapido.length > 0}
+        totalVentaRapida={totalRapido}
+      />
+
+      {/* Ventana flotante. Sin fondo oscuro y con `pointer-events-none` en la
+          capa exterior: la caja principal queda visible a los costados y se
+          puede usar sin cerrar nada. Ojo con no poner aquí transform, filter ni
+          backdrop-blur: crean bloque contenedor y los modales `fixed` de
+          adentro (pago, cliente, producto nuevo) se descolocarían. */}
+      {ventaRapidaMontada && (
+        <div
+          className={`fixed inset-0 z-100 flex items-stretch justify-center p-1.5 sm:p-3 pointer-events-none ${
+            ventaRapidaAbierta ? "" : "hidden"
+          }`}
+        >
+          <div
+            ref={panelRapidoRef}
+            className="pointer-events-auto w-full max-w-[1180px] flex flex-col rounded-lg bg-gray-50 shadow-[0_16px_50px_-12px_rgba(15,23,42,0.45)] ring-1 ring-slate-900/10 overflow-hidden"
+          >
+            <div className="shrink-0 flex items-center gap-2.5 px-3 sm:px-4 py-2 bg-brand-blue text-white">
+              <Zap className="w-4 h-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold leading-tight">Venta rápida</p>
+                <p className="hidden sm:block text-[10px] text-white/70 leading-tight">
+                  Minimiza o toca la caja de atrás para volver a la venta principal
+                </p>
+              </div>
+              {/* Contador y Minimizar van juntos a la derecha, con la misma
+                  altura y el mismo fondo: leen como un solo bloque de acciones. */}
+              <div className="ml-auto flex items-center gap-2">
+                {carritoPrincipal.length > 0 && (
+                  <span className="hidden sm:flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-semibold">
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    {carritoPrincipal.length} esperando en la caja principal
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={minimizarVentaRapida}
+                  className="flex items-center gap-1.5 rounded-md bg-white/15 px-2.5 py-1.5 text-xs font-semibold hover:bg-white/25 transition-colors cursor-pointer"
+                  title="Minimizar (F2) · esta venta se conserva tal como está"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  Minimizar
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-1.5 sm:p-2.5">
+              <CajaAutopagoVista
+                recursos={recursos}
+                activo={ventaRapidaAbierta}
+                esRapida
+                reservasOtraCaja={carritoPrincipal}
+                onCarritoCambio={setCarritoRapido}
+                onVentaTerminada={minimizarVentaRapida}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </>
   );
 }
