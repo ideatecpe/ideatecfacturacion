@@ -768,12 +768,14 @@ function CajaAutopagoVista({
       }
       lastScannedCodeRef.current = { code, time: now };
 
-      let p = productosSucursal.find((prod) => coincideCodigoOBarras(prod, code));
+      // Coincidencia estricta: un código escaneado con la cámara nunca debe
+      // "adivinar" un producto por substring o por nombre (ver coincideCodigoExacto).
+      let p = productosSucursal.find((prod) => coincideCodigoExacto(prod, code));
 
       if (!p) {
         const remotos = await buscarEnServidor(code);
         if (remotos.length > 0) {
-          p = remotos.find((prod) => coincideCodigoOBarras(prod, code)) ?? remotos[0];
+          p = remotos.find((prod) => coincideCodigoExacto(prod, code));
         }
       }
 
@@ -1221,17 +1223,25 @@ function CajaAutopagoVista({
         return;
       }
 
-      // 1. Buscar coincidencia por código de barras o código interno
-      let exacto = productosSucursal.find((p) => coincideCodigoOBarras(p, q));
+      // 1. Buscar coincidencia por código de barras o código interno.
+      // Un código escaneado (pistola o cámara) exige coincidencia ESTRICTA:
+      // jamás se "adivina" por substring o por nombre de producto, porque eso
+      // es lo que causaba agregar un producto distinto al físicamente leído.
+      let exacto = productosSucursal.find((p) =>
+        esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
+      );
 
       // 2. Si el grid tiene exactamente 1 producto que coincide con la búsqueda
-      if (!exacto && productosGrid.length === 1) {
+      // (solo para búsqueda manual tecleada, nunca para un código escaneado).
+      if (!exacto && !esCodigoEscaneado && productosGrid.length === 1) {
         exacto = productosGrid[0];
       }
 
       // 3. Si en el grid hay algún producto cuyo código coincide
       if (!exacto && productosGrid.length > 0) {
-        const matchGrid = productosGrid.find((p) => coincideCodigoOBarras(p, q));
+        const matchGrid = productosGrid.find((p) =>
+          esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
+        );
         if (matchGrid) exacto = matchGrid;
       }
 
@@ -1239,7 +1249,9 @@ function CajaAutopagoVista({
       if (!exacto) {
         const remotos = await buscarEnServidor(q);
         if (remotos.length > 0) {
-          const exactoRemoto = remotos.find((p) => coincideCodigoOBarras(p, q));
+          const exactoRemoto = remotos.find((p) =>
+            esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
+          );
           exacto = exactoRemoto ?? (esCodigoEscaneado ? undefined : remotos[0]);
         }
       }
