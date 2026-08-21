@@ -288,19 +288,32 @@ export default function DashboardLayout({
       { id: "usuarios", label: "Usuarios", icon: UserCircle },
     ];
 
-    return todosLosMenuItems.filter((item) => {
-      if (item.id === "trabajadores")      return config?.trabajadores ?? false;
-      if (item.id === "guiasremision")     return config?.guiaRemision ?? false;
-      if (item.id === "carga-comprobantes") return config?.cargaComprobantes ?? false;
-      if (item.id === "deudasporcobrar")   return config?.deudasCobrar ?? false;
-      if (item.id === "cuentasporcobrar")  return config?.isCredito ?? false;
-      if (item.id === "compras")           return config?.isStock ?? false;
-      if (item.id === "sire")              return config?.usaSire ?? false;
-      // El historial de caja es información de control: los facturadores
-      // cuadran su turno desde Nueva Venta, pero no revisan los cierres.
-      if (item.id === "caja")              return (config?.administraCaja ?? false) && user?.rol !== "facturador";
-      return true;
-    });
+    const esFacturador = user?.rol === "facturador";
+    // Módulos administrativos: los facturadores no gestionan usuarios, sucursales,
+    // datos de la empresa ni configuración SUNAT.
+    const soloAdministrativo = new Set(["usuarios", "sucursales", "empresa", "sunat"]);
+
+    return todosLosMenuItems
+      .filter((item) => {
+        if (item.id === "trabajadores")      return config?.trabajadores ?? false;
+        if (item.id === "guiasremision")     return config?.guiaRemision ?? false;
+        if (item.id === "carga-comprobantes") return config?.cargaComprobantes ?? false;
+        if (item.id === "deudasporcobrar")   return config?.deudasCobrar ?? false;
+        if (item.id === "cuentasporcobrar")  return config?.isCredito ?? false;
+        if (item.id === "compras")           return config?.isStock ?? false;
+        if (item.id === "sire")              return config?.usaSire ?? false;
+        if (item.id === "caja")              return config?.administraCaja ?? false;
+        if (soloAdministrativo.has(item.id)) return !esFacturador;
+        return true;
+      })
+      .map((item) => {
+        // El historial de caja es información de control: los facturadores
+        // cuadran su turno desde Nueva Venta, pero no revisan los cierres.
+        if (item.id === "caja" && esFacturador) {
+          return { ...item, children: item.children?.filter((c) => c.id !== "historial") };
+        }
+        return item;
+      });
   }, [config, user?.rol]);
 
   const activeSubViewLabel = React.useMemo(() => {

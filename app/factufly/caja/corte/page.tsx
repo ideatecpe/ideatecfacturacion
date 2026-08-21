@@ -77,6 +77,8 @@ export default function CajaPage() {
   const { config, loading: loadingConfig } = useConfiguracion();
 
   const sucursalId = user?.sucursalID ? Number(user.sucursalID) : null;
+  // El facturador solo cuadra su propio turno, no el de otros cajeros.
+  const esFacturador = user?.rol === "facturador";
 
   const [fecha, setFecha] = useState(hoyISO());
   const [usuarioId, setUsuarioId] = useState<number | null>(null);
@@ -91,7 +93,8 @@ export default function CajaPage() {
     setError(null);
     try {
       const params = new URLSearchParams({ fecha });
-      if (usuarioId != null) params.set("usuarioId", String(usuarioId));
+      const filtroUsuario = esFacturador ? (user?.id ? Number(user.id) : null) : usuarioId;
+      if (filtroUsuario != null) params.set("usuarioId", String(filtroUsuario));
 
       const res = await fetch(`${BASE_URL}/api/Caja/corte/${sucursalId}?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -105,7 +108,7 @@ export default function CajaPage() {
     } finally {
       setLoading(false);
     }
-  }, [sucursalId, accessToken, fecha, usuarioId]);
+  }, [sucursalId, accessToken, fecha, usuarioId, esFacturador, user?.id]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -170,19 +173,21 @@ export default function CajaPage() {
             </div>
           </div>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Cajero</span>
-            <select
-              value={usuarioId ?? ""}
-              onChange={(e) => setUsuarioId(e.target.value ? Number(e.target.value) : null)}
-              className="h-10 px-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:bg-white transition-colors min-w-[200px]"
-            >
-              <option value="">Todos los cajeros</option>
-              {corte?.cajerosDelDia.map((c) => (
-                <option key={c.usuarioId} value={c.usuarioId}>{c.nombreUsuario ?? `Usuario ${c.usuarioId}`}</option>
-              ))}
-            </select>
-          </label>
+          {!esFacturador && (
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Cajero</span>
+              <select
+                value={usuarioId ?? ""}
+                onChange={(e) => setUsuarioId(e.target.value ? Number(e.target.value) : null)}
+                className="h-10 px-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:bg-white transition-colors min-w-[200px]"
+              >
+                <option value="">Todos los cajeros</option>
+                {corte?.cajerosDelDia.map((c) => (
+                  <option key={c.usuarioId} value={c.usuarioId}>{c.nombreUsuario ?? `Usuario ${c.usuarioId}`}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
 
         <p className="text-sm font-semibold text-gray-500 whitespace-nowrap">{fechaLarga(fecha)}</p>

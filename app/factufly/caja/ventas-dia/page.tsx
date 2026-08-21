@@ -46,6 +46,8 @@ export default function VentasDelDiaPage() {
   const router = useRouter();
 
   const sucursalId = user?.sucursalID ? Number(user.sucursalID) : null;
+  // El facturador solo ve sus propias ventas, no las de otros cajeros.
+  const esFacturador = user?.rol === "facturador";
 
   const [fecha, setFecha] = useState(hoyISO());
   const [usuarioId, setUsuarioId] = useState<number | null>(null);
@@ -57,23 +59,25 @@ export default function VentasDelDiaPage() {
 
   useEffect(() => { fetchUsuarios(); }, [fetchUsuarios]);
 
+  const filtroUsuarioId = esFacturador ? (user?.id ? Number(user.id) : null) : usuarioId;
+
   const cargar = useCallback(() => {
     if (!sucursalId) return;
     fetchComprobantes({
       sucursalId,
       fechaDesde: `${fecha}T00:00:00`,
       fechaHasta: `${fecha}T23:59:59`,
-      usuarioId,
+      usuarioId: filtroUsuarioId,
       limit: 200,
     });
-  }, [sucursalId, fecha, usuarioId, fetchComprobantes]);
+  }, [sucursalId, fecha, filtroUsuarioId, fetchComprobantes]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
   useEffect(() => {
     setSeleccionadoId(null);
     resetDetalles();
-  }, [fecha, usuarioId, resetDetalles]);
+  }, [fecha, filtroUsuarioId, resetDetalles]);
 
   const seleccionar = (doc: ComprobanteListado) => {
     setSeleccionadoId(doc.comprobanteId);
@@ -180,19 +184,21 @@ export default function VentasDelDiaPage() {
           </div>
         </div>
 
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-bold text-gray-500 uppercase">Cajero</span>
-          <select
-            value={usuarioId ?? ""}
-            onChange={(e) => setUsuarioId(e.target.value ? Number(e.target.value) : null)}
-            className="h-10 px-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 min-w-[200px]"
-          >
-            <option value="">Todos los cajeros</option>
-            {usuarios.map((u) => (
-              <option key={u.usuarioID} value={u.usuarioID}>{u.username}</option>
-            ))}
-          </select>
-        </label>
+        {!esFacturador && (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-bold text-gray-500 uppercase">Cajero</span>
+            <select
+              value={usuarioId ?? ""}
+              onChange={(e) => setUsuarioId(e.target.value ? Number(e.target.value) : null)}
+              className="h-10 px-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 min-w-[200px]"
+            >
+              <option value="">Todos los cajeros</option>
+              {usuarios.map((u) => (
+                <option key={u.usuarioID} value={u.usuarioID}>{u.username}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       <p className="text-sm font-medium text-gray-500 px-1">{fechaLarga(fecha)}</p>
 

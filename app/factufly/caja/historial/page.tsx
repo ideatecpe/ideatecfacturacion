@@ -124,6 +124,18 @@ export default function CajaPage() {
     );
   }
 
+  if (user?.rol === "facturador") {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="max-w-sm text-center space-y-2">
+          <Lock className="w-8 h-8 text-gray-300 mx-auto" />
+          <h3 className="text-base font-bold text-gray-800">No autorizado</h3>
+          <p className="text-xs text-gray-500">No tienes acceso al historial de caja.</p>
+        </div>
+      </div>
+    );
+  }
+
   const totalPaginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
