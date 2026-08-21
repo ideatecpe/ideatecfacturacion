@@ -399,10 +399,18 @@ const [importFile, setImportFile] = useState<File | null>(null);
           return productoEditado;
         if (
           productoBaseActualizado &&
-          p.sucursalProducto.sucursalProductoId ===
-            productoBaseActualizado.sucursalProducto.sucursalProductoId
-        )
-          return productoBaseActualizado;
+          (p.sucursalProducto.sucursalProductoId ===
+            productoBaseActualizado.sucursalProducto.sucursalProductoId ||
+            p.productoId === productoBaseActualizado.productoId)
+        ) {
+          return {
+            ...p,
+            sucursalProducto: {
+              ...p.sucursalProducto,
+              stock: productoBaseActualizado.sucursalProducto.stock,
+            },
+          };
+        }
         return p;
       });
       const sId = user?.sucursalID ? Number(user.sucursalID) : null;
