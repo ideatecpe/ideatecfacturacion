@@ -182,17 +182,28 @@ export default function ProductoCard({
                   const cajas = stockBase != null ? Math.floor(stockBase / factor) : null;
                   const sueltas = stockBase != null ? stockBase % factor : null;
                   const estado = getEstadoStock(prod);
+
+                  const abrevPaquete =
+                    prod.unidadMedida === "BX"
+                      ? cajas === 1
+                        ? "caja"
+                        : "cajas"
+                      : "und.";
+
+                  const abrevBase = abreviaturaUnidad(productoBase?.unidadMedida);
+
                   const labelPrincipal = (() => {
                     if (cajas == null) return "STOCK: —";
-                    if (cajas > 0) return `STOCK: ${cajas} caja${cajas > 1 ? "s" : ""}`;
-                    if (sueltas! > 0) return `STOCK: 0 cajas`;
-                    return "STOCK: 0";
+                    return `STOCK: ${cajas} ${abrevPaquete}`;
                   })();
                   const labelDetalle = (() => {
                     if (cajas == null || !productoBase) return null;
                     const partes = [];
-                    if (cajas > 0) partes.push(`${cajas} caj. (${factor} und. c/u)`);
-                    if (sueltas! > 0) partes.push(`${sueltas} und. sueltas`);
+                    if (cajas > 0) partes.push(`${cajas} ${abrevPaquete} (${factor} ${abrevBase} c/u)`);
+                    if (sueltas != null && sueltas > 0) {
+                      const sufijoSuelto = abrevBase === "und." ? "sueltas" : "sueltos";
+                      partes.push(`${sueltas} ${abrevBase} ${sufijoSuelto}`);
+                    }
                     return partes.length ? partes.join(" + ") : null;
                   })();
                   return (
