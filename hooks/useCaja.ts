@@ -66,6 +66,15 @@ export interface CajaEstado {
   cajaDeDiaAnterior: boolean;
 }
 
+export interface CajaRetiro {
+  cajaRetiroId: number;
+  cajaTurnoId: number;
+  monto: number;
+  motivo: string;
+  fechaRetiro: string;
+  nombreUsuario?: string | null;
+}
+
 export interface CuadreTurno {
   cajaTurnoId: number;
   cajaAperturaId: number;
@@ -73,10 +82,12 @@ export interface CuadreTurno {
   fechaInicio: string;
   saldoInicial: number;
   ventasEfectivo: number;
+  totalRetiros: number;
   efectivoEsperado: number;
   totalVentas: number;
   cantidadComprobantes: number;
   medios: MedioPagoResumen[];
+  retiros: CajaRetiro[];
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -205,6 +216,22 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
     [headers, refrescar],
   );
 
+  const registrarRetiro = useCallback(
+    async (cajaTurnoId: number, monto: number, motivo: string) => {
+      const res = await fetch(`${BASE_URL}/api/Caja/retiro`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ cajaTurnoId, monto, motivo }),
+      });
+      if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo registrar el retiro"));
+
+      const data: CajaEstado = await res.json();
+      setEstado(data);
+      return data;
+    },
+    [headers],
+  );
+
   // Segundo usuario del día: la caja sigue abierta y nadie tiene turno, así que
   // el suyo arranca solo y puede vender sin tocar nada.
   useEffect(() => {
@@ -220,5 +247,5 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
       .finally(() => { iniciandoTurno.current = false; });
   }, [autoIniciarTurno, estado, iniciarTurno]);
 
-  return { estado, loading, error, refrescar, abrirCaja, iniciarTurno, obtenerCuadre, cuadrar };
+  return { estado, loading, error, refrescar, abrirCaja, iniciarTurno, obtenerCuadre, cuadrar, registrarRetiro };
 }

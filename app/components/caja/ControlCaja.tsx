@@ -10,6 +10,7 @@ import { Button } from "@/app/components/ui/Button";
 import { useCaja } from "@/hooks/useCaja";
 import { ModalAbrirCaja } from "./ModalAbrirCaja";
 import { ModalCuadrarCaja, soles } from "./ModalCuadrarCaja";
+import { ModalRetiroCaja } from "./ModalRetiroCaja";
 import { ModalCerrarSesion } from "./ModalCerrarSesion";
 
 /**
@@ -23,13 +24,14 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
   // La caja se lleva por sucursal, así que sin sucursal asignada no hay nada
   // que controlar y no tiene sentido bloquear la venta.
   const sinSucursal = !user?.sucursalID;
-  const { estado, loading, error, abrirCaja, iniciarTurno, obtenerCuadre, cuadrar } =
+  const { estado, loading, error, abrirCaja, iniciarTurno, obtenerCuadre, cuadrar, registrarRetiro } =
     useCaja({ autoIniciarTurno: true, activo: isOnline && !sinSucursal });
   const { showToast } = useToast();
   const router = useRouter();
 
   const [abrirAbierto, setAbrirAbierto] = useState(false);
   const [cuadreAbierto, setCuadreAbierto] = useState(false);
+  const [retiroAbierto, setRetiroAbierto] = useState(false);
   const [cerrandoCaja, setCerrandoCaja] = useState(false);
   const [preguntarSesion, setPreguntarSesion] = useState(false);
   // Turno concreto que se está cuadrando: no siempre es el propio (puede ser el
@@ -102,6 +104,12 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const onRetirar = async (monto: number, motivo: string) => {
+    if (!estado?.turnoActual) return;
+    await registrarRetiro(estado.turnoActual.cajaTurnoId, monto, motivo);
+    showToast("Retiro registrado correctamente", "success");
+  };
+
   const onCuadrar = async (efectivoContado: number, observaciones?: string) => {
     if (!turnoIdCuadre) return;
     await cuadrar(turnoIdCuadre, efectivoContado, cerrandoCaja, observaciones);
@@ -125,6 +133,11 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
         cerrarCaja={cerrandoCaja}
         obtenerCuadre={obtenerCuadre}
         onConfirmar={onCuadrar}
+      />
+      <ModalRetiroCaja
+        isOpen={retiroAbierto}
+        onClose={() => setRetiroAbierto(false)}
+        onConfirmar={onRetirar}
       />
       <ModalCerrarSesion
         isOpen={preguntarSesion}
@@ -269,6 +282,10 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
           </span>
         </div>
 
+        <Button variant="outline" onClick={() => setRetiroAbierto(true)} className="!px-3 !py-1.5 !text-xs">
+          <Banknote className="w-3.5 h-3.5" />
+          Retirar efectivo
+        </Button>
         <Button variant="outline" onClick={() => abrirCuadre(false)} className="!px-3 !py-1.5 !text-xs">
           <Banknote className="w-3.5 h-3.5" />
           Cuadrar Caja

@@ -146,6 +146,12 @@ export function ModalCuadrarCaja({
               <span className="text-sm text-gray-500">+ Ventas en efectivo</span>
               <span className="text-sm text-gray-700 tabular-nums">{soles(cuadre.ventasEfectivo)}</span>
             </div>
+            {cuadre.totalRetiros > 0 && (
+              <div className="flex items-center justify-between gap-4 px-4 py-2.5 bg-white">
+                <span className="text-sm text-gray-500">− Retiros de caja</span>
+                <span className="text-sm text-rose-600 tabular-nums">{soles(cuadre.totalRetiros)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
               <span className="text-sm font-bold text-gray-800">Efectivo esperado en caja</span>
               <span className="text-base font-bold text-[#0f2e64] tabular-nums">
