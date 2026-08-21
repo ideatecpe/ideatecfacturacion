@@ -11,6 +11,7 @@ interface DropdownFiltroProps {
   colorMap?: Record<string, string>;
   className?: string;
   searchable?: boolean;
+  footer?: React.ReactNode;
 }
 
 export const DropdownFiltro = ({
@@ -21,6 +22,7 @@ export const DropdownFiltro = ({
   colorMap,
   className,
   searchable = false,
+  footer,
 }: DropdownFiltroProps) => {
   const [open, setOpen] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -117,6 +119,11 @@ export const DropdownFiltro = ({
               </button>
             ))}
           </div>
+          {footer && (
+            <div className="border-t border-gray-100">
+              {footer}
+            </div>
+          )}
         </div>
       )}
     </div>
