@@ -242,7 +242,16 @@ export default function DashboardLayout({
       { id: "deudasporcobrar", label: "Deudas por Cobrar", icon: Wallet },
       { id: "cuentasporcobrar", label: "Cuentas por Cobrar", icon: DollarSign },
       { id: "clientes", label: "Clientes", icon: Users },
-      { id: "caja", label: "Caja", icon: Banknote },
+      {
+        id: "caja",
+        label: "Caja",
+        icon: Banknote,
+        children: [
+          { id: "corte", label: "Corte" },
+          { id: "historial", label: "Historial" },
+          { id: "ventas-dia", label: "Ventas del día" },
+        ],
+      },
       { id: "trabajadores", label: "Trabajadores", icon: UserCircle },
       {
         id: "productos",

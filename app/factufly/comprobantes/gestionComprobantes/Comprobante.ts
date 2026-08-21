@@ -197,6 +197,7 @@ export interface ComprobanteListado {
   importeTotal: number
   montoCredito: number
   totalComisionPagoTarjeta?: number | null
+  cantidadItems?: number | null
   comprobanteAfectadoId: number | null
   tipDocAfectado: string | null
   numDocAfectado: string | null

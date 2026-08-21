@@ -9,6 +9,7 @@ interface UseComprobantesSucursalListadoParams {
   fechaHasta?: string | null
   limit?: number
   offset?: number
+  usuarioId?: number | null
 }
 
 interface UseComprobantesSucursalListadoReturn {
@@ -29,7 +30,7 @@ export const useComprobantesSucursalListado = (): UseComprobantesSucursalListado
   const [hasMore, setHasMore] = useState(true)
 
   const fetchComprobantes = useCallback(async ({
-    sucursalId, fechaDesde, fechaHasta, limit = 100, offset = 0
+    sucursalId, fechaDesde, fechaHasta, limit = 100, offset = 0, usuarioId
   }: UseComprobantesSucursalListadoParams): Promise<ComprobanteListado[]> => {
     setLoading(true)
     setError(null)
@@ -37,8 +38,9 @@ export const useComprobantesSucursalListado = (): UseComprobantesSucursalListado
       const url = new URL(`${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/listado/sucursal/${sucursalId}`)
       if (fechaDesde) url.searchParams.append("fechaDesde", fechaDesde)
       if (fechaHasta) url.searchParams.append("fechaHasta", fechaHasta)
-      url.searchParams.append("limit", limit.toString()) 
-      url.searchParams.append("offset", offset.toString()) 
+      if (usuarioId != null) url.searchParams.append("usuarioId", String(usuarioId))
+      url.searchParams.append("limit", limit.toString())
+      url.searchParams.append("offset", offset.toString())
 
       const response = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${accessToken}` }
