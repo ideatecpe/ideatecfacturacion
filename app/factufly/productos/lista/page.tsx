@@ -49,6 +49,7 @@ import { useProductosEmpresaLista } from "../gestioProductos/useProductosEmpresa
 import { useSucursalRuc } from "../../operaciones/boleta/gestionBoletas/useSucursalRuc";
 import { useRegistrarCategoria } from "../gestioProductos/useRegistrarCategoria";
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
+import ModalAdministrarCategorias from "../gestioProductos/ModalAdministrarCategorias";
 import ModalReporteProductos from "@/app/components/modalProductos/Modalreporteproductos";
 import { ModalVentasProductoExcel } from "../gestioProductos/ModalVentasProductoExcel";
 import ModalImprimirEtiquetas from "../gestioProductos/ModalImprimirEtiquetas";
@@ -168,6 +169,7 @@ export default function ProductosPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isCategoriasOpen, setIsCategoriasOpen] = useState(false);
 
   const [editTarget, setEditTarget] = useState<ProductoSucursal | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProductoSucursal | null>(
@@ -217,6 +219,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
     showModalVales ||
     isReporteOpen ||
     isVentasProductoOpen ||
+    isCategoriasOpen ||
     escaneando;
 
   useEscanerGlobal(
@@ -276,6 +279,17 @@ const [importFile, setImportFile] = useState<File | null>(null);
   // Mapa rápido productoId -> producto, para resolver el producto base de un paquete
   const productosPorId = React.useMemo(
     () => new Map(productos.map((p) => [p.productoId, p])),
+    [productos],
+  );
+
+  // Set de categoriaIds actualmente en uso por algún producto
+  const categoriasEnUso = React.useMemo(
+    () =>
+      new Set(
+        productos
+          .map((p) => p.categoria?.categoriaId)
+          .filter((id): id is number => id != null),
+      ),
     [productos],
   );
 
@@ -978,6 +992,16 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 ...categorias.map((cat) => cat.categoriaNombre),
               ]}
               onChange={(v) => setFilterCategoria(v)}
+              footer={
+                <button
+                  type="button"
+                  onClick={() => setIsCategoriasOpen(true)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-brand-blue hover:bg-blue-50 transition-colors"
+                >
+                  <Tag size={12} />
+                  Administrar categorías
+                </button>
+              }
             />
 
             <button
@@ -1514,6 +1538,14 @@ const [importFile, setImportFile] = useState<File | null>(null);
         )}
       </div>
 
+      <ModalAdministrarCategorias
+        isOpen={isCategoriasOpen}
+        onClose={() => setIsCategoriasOpen(false)}
+        categorias={categorias}
+        loadingCategorias={loadingCategorias}
+        onRefresh={() => { if (user?.ruc) fetchCategorias(user.ruc); }}
+        categoriasEnUso={categoriasEnUso}
+      />
       <EscanerCodigoBarras
         isOpen={escaneando}
         onClose={() => setEscaneando(false)}

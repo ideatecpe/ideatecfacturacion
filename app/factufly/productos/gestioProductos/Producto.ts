@@ -3,6 +3,7 @@ export interface Categoria {
   categoriaId: number;
   empresaRuc: string;
   categoriaNombre: string;
+  descripcion?: string;
 }
 
 // ─── SucursalProducto (precio y stock por sucursal) ──────────

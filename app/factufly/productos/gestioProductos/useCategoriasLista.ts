@@ -30,6 +30,7 @@ export function useCategoriasLista() {
         categoriaId: c.categoriaId,
         empresaRuc: c.empresaRuc,
         categoriaNombre: c.categoriaNombre,
+        descripcion: c.descripcion ?? undefined,
       }))
       setCategorias(data)
       return data
