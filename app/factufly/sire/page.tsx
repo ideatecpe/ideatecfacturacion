@@ -198,14 +198,14 @@ export default function SirePage() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-end gap-3 px-4 py-2.5">
-              <div className="flex flex-col gap-1">
+            <div className="flex items-end gap-3 px-4 py-2.5">
+              <div className="flex flex-col gap-1 w-32 shrink-0">
                 <label className="text-xs font-medium text-gray-500">Año</label>
                 <select
                   value={anioSel ?? ""}
                   onChange={(e) => handleAnioChange(e.target.value)}
                   disabled={loadingPeriodos || ejercicios.length === 0}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white min-w-28 disabled:opacity-50"
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white w-full disabled:opacity-50"
                 >
                   {ejercicios.length === 0 && <option value="">—</option>}
                   {ejercicios.map((e) => (
@@ -216,13 +216,13 @@ export default function SirePage() {
                 </select>
               </div>
 
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 flex-1 min-w-48">
                 <label className="text-xs font-medium text-gray-500">Mes</label>
                 <select
                   value={mesSel ?? ""}
                   onChange={(e) => setMesSel(e.target.value || null)}
                   disabled={loadingPeriodos || periodosDelAnio.length === 0}
-                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white min-w-48 disabled:opacity-50"
+                  className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white w-full disabled:opacity-50"
                 >
                   <option value="">Seleccionar...</option>
                   {periodosDelAnio.map((p) => (
@@ -236,7 +236,7 @@ export default function SirePage() {
               <button
                 onClick={() => workspaceRef.current?.cargarPropuesta()}
                 disabled={!periodoActivo || loadingPeriodos}
-                className="h-9 inline-flex items-center gap-1.5 px-4 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                className="h-9 shrink-0 inline-flex items-center gap-1.5 px-4 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
               >
                 <RefreshCw size={13} />
                 Cargar propuesta

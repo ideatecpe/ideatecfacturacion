@@ -269,7 +269,7 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
 
   useImperativeHandle(ref, () => ({
     cargarPropuesta: () => {
-      setTab("propuesta");
+      setTab("resumen");
       cargarPropuesta();
     },
   }));
@@ -484,41 +484,10 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
         {/* Propuesta */}
         {tab === "propuesta" && comprobantes && (
           <div className="space-y-3">
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={cargarPropuesta}
-                disabled={cargandoPropuesta}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg transition-colors"
-              >
-                <RefreshCw size={13} className={cn(cargandoPropuesta && "animate-spin")} />
-                Recargar propuesta
-              </button>
-              {canManage && (
-                <button
-                  onClick={() => setMostrarFormAgregar(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                >
-                  <Plus size={13} />
-                  Agregar comprobante
-                </button>
-              )}
+            <div className="flex flex-wrap items-center gap-2">
               {comprobantes.length > 0 && (
-                <button
-                  onClick={() => exportarExcel(comprobantes, perTributario, ruc, nombreEmpresa)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                >
-                  <FileSpreadsheet size={13} />
-                  Exportar Excel
-                </button>
-              )}
-            </div>
-
-            {comprobantes.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-12">SUNAT no reportó comprobantes para este periodo.</p>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative flex-1 min-w-56">
+                <>
+                  <div className="relative min-w-40 max-w-72 flex-1">
                     <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       value={busqueda}
@@ -531,13 +500,13 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                     type="date"
                     value={filtroFecha}
                     onChange={(e) => setFiltroFecha(e.target.value)}
-                    className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700"
+                    className="h-9 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 w-36"
                     title="Filtrar por fecha de emisión"
                   />
                   <select
                     value={filtroTipo}
                     onChange={(e) => setFiltroTipo(e.target.value)}
-                    className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white"
+                    className="h-9 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white"
                   >
                     <option value="">Todos los tipos</option>
                     {tiposDisponibles.map((t) => (
@@ -554,11 +523,44 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                       Limpiar filtros
                     </button>
                   )}
-                </div>
+                </>
+              )}
 
-                {comprobantesFiltrados.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-12">Ningún comprobante coincide con los filtros aplicados.</p>
-                ) : (
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  onClick={cargarPropuesta}
+                  disabled={cargandoPropuesta}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg transition-colors"
+                >
+                  <RefreshCw size={13} className={cn(cargandoPropuesta && "animate-spin")} />
+                  Recargar propuesta
+                </button>
+                {canManage && (
+                  <button
+                    onClick={() => setMostrarFormAgregar(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                  >
+                    <Plus size={13} />
+                    Agregar comprobante
+                  </button>
+                )}
+                {comprobantes.length > 0 && (
+                  <button
+                    onClick={() => exportarExcel(comprobantes, perTributario, ruc, nombreEmpresa)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                  >
+                    <FileSpreadsheet size={13} />
+                    Exportar Excel
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {comprobantes.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-12">SUNAT no reportó comprobantes para este periodo.</p>
+            ) : comprobantesFiltrados.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-12">Ningún comprobante coincide con los filtros aplicados.</p>
+            ) : (
                   <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[240px] rounded-lg border border-gray-100">
                     <table className="w-full text-left border-collapse">
                       <thead className="sticky top-0 z-10">
@@ -646,8 +648,6 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                       </tfoot>
                     </table>
                   </div>
-                )}
-              </>
             )}
           </div>
         )}
