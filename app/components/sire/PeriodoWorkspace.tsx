@@ -12,6 +12,7 @@ import {
   Plus,
   DollarSign,
   Search,
+  X,
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import { cn } from "@/app/utils/cn";
@@ -348,6 +349,18 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
     return acc;
   }, {});
 
+  const rangoFechaPeriodo = useMemo(() => {
+    if (!/^\d{6}$/.test(perTributario)) return null;
+    const anio = Number(perTributario.slice(0, 4));
+    const mes = Number(perTributario.slice(4, 6));
+    const ultimoDia = new Date(anio, mes, 0).getDate();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return {
+      min: `${anio}-${pad(mes)}-01`,
+      max: `${anio}-${pad(mes)}-${pad(ultimoDia)}`,
+    };
+  }, [perTributario]);
+
   const tiposDisponibles = useMemo(() => {
     const set = new Set<string>();
     (comprobantes ?? []).forEach((c) => {
@@ -493,13 +506,24 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                       value={busqueda}
                       onChange={(e) => setBusqueda(e.target.value)}
                       placeholder="Buscar por serie, número, doc. o nombre..."
-                      className="h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-xs w-full"
+                      className="h-9 pl-8 pr-7 rounded-lg border border-gray-200 text-xs w-full"
                     />
+                    {busqueda && (
+                      <button
+                        onClick={() => setBusqueda("")}
+                        title="Borrar búsqueda"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
                   <input
                     type="date"
                     value={filtroFecha}
                     onChange={(e) => setFiltroFecha(e.target.value)}
+                    min={rangoFechaPeriodo?.min}
+                    max={rangoFechaPeriodo?.max}
                     className="h-9 px-2 rounded-lg border border-gray-200 text-xs text-gray-700 w-36"
                     title="Filtrar por fecha de emisión"
                   />
@@ -518,7 +542,7 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                   {hayFiltrosActivos && (
                     <button
                       onClick={limpiarFiltros}
-                      className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+                      className="text-xs text-rose-500 hover:text-rose-700 font-medium underline underline-offset-2"
                     >
                       Limpiar filtros
                     </button>
