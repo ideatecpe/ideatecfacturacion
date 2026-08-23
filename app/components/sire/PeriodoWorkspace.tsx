@@ -487,7 +487,7 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
             <div className="flex flex-wrap items-center gap-2">
               {comprobantes.length > 0 && (
                 <>
-                  <div className="relative min-w-40 max-w-72 flex-1">
+                  <div className="relative min-w-40 max-w-96 flex-1">
                     <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       value={busqueda}
