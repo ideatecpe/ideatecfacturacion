@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, forwardRef, useImperativeHandle, type ReactNode } from "react";
 import {
   RefreshCw,
   FileWarning,
@@ -11,6 +11,7 @@ import {
   Trash2,
   Plus,
   DollarSign,
+  Search,
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import { cn } from "@/app/utils/cn";
@@ -34,6 +35,13 @@ const TIPO_COMPROBANTE: Record<string, string> = {
 function formatMoneda(valor: number, moneda: string | null) {
   const simbolo = moneda === "USD" ? "$" : "S/";
   return `${simbolo} ${valor.toFixed(2)}`;
+}
+
+function fechaAIso(fecha: string | null): string {
+  if (!fecha) return "";
+  const [d, m, y] = fecha.split("/");
+  if (!d || !m || !y) return "";
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
 function formatPeriodoLabel(perTributario: string): string {
@@ -160,6 +168,34 @@ async function exportarExcel(
     });
   });
 
+  // Fila de totales
+  const totales = comprobantes.reduce(
+    (acc, c) => ({ base: acc.base + c.baseImponible, igv: acc.igv + c.igv, total: acc.total + c.importeTotal }),
+    { base: 0, igv: 0, total: 0 },
+  );
+  const totalRowIndex = headerRowIndex + 1 + comprobantes.length;
+  const totalRow = sheet.getRow(totalRowIndex);
+  sheet.mergeCells(totalRowIndex, 1, totalRowIndex, 6);
+  const totalLabelCell = totalRow.getCell(1);
+  totalLabelCell.value = `TOTAL (${comprobantes.length})`;
+  totalLabelCell.font = { bold: true, size: 10, color: { argb: COLOR_NAVY } };
+  totalLabelCell.alignment = { vertical: "middle", horizontal: "right" };
+  totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_TH_BG } };
+
+  const totalValores = [totales.base, totales.igv, totales.total];
+  [7, 8, 9].forEach((colIdx, i) => {
+    const cell = totalRow.getCell(colIdx);
+    cell.value = totalValores[i];
+    cell.font = { bold: true, size: 10, color: { argb: COLOR_NAVY } };
+    cell.numFmt = "#,##0.00";
+    cell.alignment = { vertical: "middle", horizontal: "right" };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_TH_BG } };
+  });
+  [10, 11, 12].forEach((colIdx) => {
+    totalRow.getCell(colIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_TH_BG } };
+  });
+  totalRow.height = 20;
+
   sheet.views = [{ state: "frozen", ySplit: headerRowIndex }];
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -187,7 +223,14 @@ interface Props {
   onAccionExitosa: () => void;
 }
 
-export function PeriodoWorkspace({ ruc, nombreEmpresa, perTributario, estadoSunat, descripcion, estadoLocal, canManage, onAccionExitosa }: Props) {
+export interface PeriodoWorkspaceHandle {
+  cargarPropuesta: () => void;
+}
+
+export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(function PeriodoWorkspace(
+  { ruc, nombreEmpresa, perTributario, estadoSunat, descripcion, estadoLocal, canManage, onAccionExitosa },
+  ref,
+) {
   const [tab, setTab] = useState<Tab>("resumen");
   const [comprobantes, setComprobantes] = useState<SireComprobanteDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +240,9 @@ export function PeriodoWorkspace({ ruc, nombreEmpresa, perTributario, estadoSuna
   const [mostrarFormAgregar, setMostrarFormAgregar] = useState(false);
   const [comprobanteEditarCambio, setComprobanteEditarCambio] = useState<SireComprobanteDto | null>(null);
   const [nuevoTipoCambio, setNuevoTipoCambio] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroFecha, setFiltroFecha] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
 
   const { loading: cargandoPropuesta, descargarPropuesta } = useSireDescargarPropuesta();
   const { loading: aceptando, aceptarPropuesta } = useSireAceptarPropuesta();
@@ -220,6 +266,13 @@ export function PeriodoWorkspace({ ruc, nombreEmpresa, perTributario, estadoSuna
       setError(data?.mensaje ?? "No se pudo generar la propuesta");
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    cargarPropuesta: () => {
+      setTab("propuesta");
+      cargarPropuesta();
+    },
+  }));
 
   const confirmarAceptar = async () => {
     setConfirmando(null);
@@ -295,19 +348,42 @@ export function PeriodoWorkspace({ ruc, nombreEmpresa, perTributario, estadoSuna
     return acc;
   }, {});
 
+  const tiposDisponibles = useMemo(() => {
+    const set = new Set<string>();
+    (comprobantes ?? []).forEach((c) => {
+      if (c.tipoComprobante) set.add(c.tipoComprobante);
+    });
+    return Array.from(set);
+  }, [comprobantes]);
+
+  const comprobantesFiltrados = useMemo(() => {
+    if (!comprobantes) return [];
+    const q = busqueda.trim().toLowerCase();
+    return comprobantes.filter((c) => {
+      if (filtroTipo && c.tipoComprobante !== filtroTipo) return false;
+      if (filtroFecha && fechaAIso(c.fechaEmision) !== filtroFecha) return false;
+      if (q) {
+        const campos = [c.serie, c.numero, c.numDocCliente, c.razonSocialCliente].map((v) => (v ?? "").toLowerCase());
+        if (!campos.some((v) => v.includes(q))) return false;
+      }
+      return true;
+    });
+  }, [comprobantes, busqueda, filtroFecha, filtroTipo]);
+
+  const totalesTabla = comprobantesFiltrados.reduce(
+    (acc, c) => ({ base: acc.base + c.baseImponible, igv: acc.igv + c.igv, total: acc.total + c.importeTotal }),
+    { base: 0, igv: 0, total: 0 },
+  );
+
+  const hayFiltrosActivos = !!(busqueda || filtroFecha || filtroTipo);
+  const limpiarFiltros = () => {
+    setBusqueda("");
+    setFiltroFecha("");
+    setFiltroTipo("");
+  };
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      {/* Header del periodo */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/60">
-        <div>
-          <p className="text-base font-semibold text-gray-900">{formatPeriodoLabel(perTributario)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {perTributario} · Estado SUNAT: <span className="font-medium text-gray-600">{estadoSunat ?? "—"}</span>
-            {descripcion ? ` (${descripcion})` : ""}
-          </p>
-        </div>
-      </div>
-
       {/* Tabs */}
       <div className="flex items-center gap-1 px-5 pt-3 border-b border-gray-100">
         {([
@@ -341,15 +417,9 @@ export function PeriodoWorkspace({ ruc, nombreEmpresa, perTributario, estadoSuna
                 <p className="text-xs text-gray-400">Esto puede tardar hasta un minuto, SUNAT procesa el reporte de forma asíncrona.</p>
               </>
             ) : (
-              <>
-                <p className="text-sm text-gray-500 text-center max-w-sm">
-                  Aún no se ha cargado la propuesta de este periodo. Esta consulta se hace directamente contra producción de SUNAT.
-                </p>
-                <Button onClick={cargarPropuesta} className="h-9 text-xs">
-                  <RefreshCw size={13} />
-                  Cargar propuesta
-                </Button>
-              </>
+              <p className="text-sm text-gray-500 text-center max-w-sm">
+                Aún no se ha cargado la propuesta de este periodo. Usa el botón <strong>&quot;Cargar propuesta&quot;</strong> de la parte superior para consultarla directamente contra producción de SUNAT.
+              </p>
             )}
           </div>
         )}
@@ -446,22 +516,65 @@ export function PeriodoWorkspace({ ruc, nombreEmpresa, perTributario, estadoSuna
             {comprobantes.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-12">SUNAT no reportó comprobantes para este periodo.</p>
             ) : (
-              <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[240px] rounded-lg border border-gray-100">
-                <table className="w-full text-left border-collapse">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="bg-gray-100">
-                      <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Fecha</th>
-                      <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Comprobante</th>
-                      <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
-                      <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Base Imp.</th>
-                      <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">IGV</th>
-                      <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Total</th>
-                      <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
-                      {canManage && <th className="px-4 py-2.5" />}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
-                    {comprobantes.map((c, idx) => (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative flex-1 min-w-56">
+                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={busqueda}
+                      onChange={(e) => setBusqueda(e.target.value)}
+                      placeholder="Buscar por serie, número, doc. o nombre..."
+                      className="h-9 pl-8 pr-3 rounded-lg border border-gray-200 text-xs w-full"
+                    />
+                  </div>
+                  <input
+                    type="date"
+                    value={filtroFecha}
+                    onChange={(e) => setFiltroFecha(e.target.value)}
+                    className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700"
+                    title="Filtrar por fecha de emisión"
+                  />
+                  <select
+                    value={filtroTipo}
+                    onChange={(e) => setFiltroTipo(e.target.value)}
+                    className="h-9 px-3 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white"
+                  >
+                    <option value="">Todos los tipos</option>
+                    {tiposDisponibles.map((t) => (
+                      <option key={t} value={t}>
+                        {TIPO_COMPROBANTE[t] ?? t}
+                      </option>
+                    ))}
+                  </select>
+                  {hayFiltrosActivos && (
+                    <button
+                      onClick={limpiarFiltros}
+                      className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+                    >
+                      Limpiar filtros
+                    </button>
+                  )}
+                </div>
+
+                {comprobantesFiltrados.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-12">Ningún comprobante coincide con los filtros aplicados.</p>
+                ) : (
+                  <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[240px] rounded-lg border border-gray-100">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="sticky top-0 z-10">
+                        <tr className="bg-gray-100">
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Fecha</th>
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Comprobante</th>
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Base Imp.</th>
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">IGV</th>
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Total</th>
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
+                          {canManage && <th className="px-4 py-2.5" />}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {comprobantesFiltrados.map((c, idx) => (
                       <tr key={`${c.carSunat}-${idx}`} className={cn("hover:bg-gray-50/50 transition-colors", !c.activo && "opacity-50")}>
                         <td className="px-4 py-2 text-xs text-gray-700 whitespace-nowrap">{c.fechaEmision ?? "—"}</td>
                         <td className="px-4 py-2 whitespace-nowrap">
@@ -517,10 +630,24 @@ export function PeriodoWorkspace({ ruc, nombreEmpresa, perTributario, estadoSuna
                           </td>
                         )}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-gray-100 font-semibold">
+                          <td className="px-4 py-2 text-xs text-gray-700" colSpan={3}>
+                            Totales ({comprobantesFiltrados.length})
+                          </td>
+                          <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTabla.base, null)}</td>
+                          <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTabla.igv, null)}</td>
+                          <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTabla.total, null)}</td>
+                          <td className="px-4 py-2" />
+                          {canManage && <td className="px-4 py-2" />}
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -773,7 +900,9 @@ export function PeriodoWorkspace({ ruc, nombreEmpresa, perTributario, estadoSuna
       />
     </div>
   );
-}
+});
+
+PeriodoWorkspace.displayName = "PeriodoWorkspace";
 
 const FECHA_REGEX = /^\d{2}\/\d{2}\/\d{4}$/;
 
