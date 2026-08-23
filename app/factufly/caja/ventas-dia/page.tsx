@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import {
-  Banknote, Lock, ChevronLeft, ChevronRight, Calendar, RefreshCw, FileText, Ban, Receipt,
+  Banknote, Lock, ChevronLeft, ChevronRight, Calendar, RefreshCw, FileText, Ban, Receipt, TrendingUp, Hash,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
@@ -86,6 +86,16 @@ export default function VentasDelDiaPage() {
 
   const seleccionado = comprobantes.find((c) => c.comprobanteId === seleccionadoId) ?? null;
 
+  const resumen = useMemo(() => {
+    const vigentes = comprobantes.filter((c) => c.estadoSunat !== "ANULADO");
+    const totalesPorMoneda = new Map<string, number>();
+    for (const c of vigentes) {
+      const moneda = c.tipoMoneda ?? "PEN";
+      totalesPorMoneda.set(moneda, (totalesPorMoneda.get(moneda) ?? 0) + c.importeTotal);
+    }
+    return { cantidad: vigentes.length, totales: Array.from(totalesPorMoneda.entries()) };
+  }, [comprobantes]);
+
   const nombreCajero = useMemo(() => {
     if (!seleccionado?.usuarioCreacion) return "—";
     const u = usuarios.find((x) => x.usuarioID === seleccionado.usuarioCreacion);
@@ -163,82 +173,127 @@ export default function VentasDelDiaPage() {
         </Button>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-start gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-bold text-gray-500 uppercase">Día</span>
-          <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => setFecha((f) => sumarDias(f, -1))}
-                    className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <label className="flex items-center gap-2 h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-brand-blue/50">
-              <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-              <input type="date" value={fecha} onChange={(e) => e.target.value && setFecha(e.target.value)}
-                     className="text-sm font-semibold text-gray-700 bg-transparent outline-none cursor-pointer" />
-            </label>
-            <button type="button" onClick={() => setFecha((f) => sumarDias(f, 1))}
-                    className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
-              <ChevronRight className="w-5 h-5" />
-            </button>
+      {/* Filtros + resumen */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Día</span>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => setFecha((f) => sumarDias(f, -1))}
+                      className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <label className="flex items-center gap-2 h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-brand-blue/50 focus-within:ring-2 focus-within:ring-brand-blue/10 transition-colors">
+                <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                <input type="date" value={fecha} onChange={(e) => e.target.value && setFecha(e.target.value)}
+                       className="text-sm font-semibold text-gray-700 bg-transparent outline-none cursor-pointer" />
+              </label>
+              <button type="button" onClick={() => setFecha((f) => sumarDias(f, 1))}
+                      className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
           </div>
+
+          {!esFacturador && (
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Cajero</span>
+              <select
+                value={usuarioId ?? ""}
+                onChange={(e) => setUsuarioId(e.target.value ? Number(e.target.value) : null)}
+                className="h-10 px-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/10 transition-colors min-w-[200px]"
+              >
+                <option value="">Todos los cajeros</option>
+                {usuarios.map((u) => (
+                  <option key={u.usuarioID} value={u.usuarioID}>{u.username}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
 
-        {!esFacturador && (
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-bold text-gray-500 uppercase">Cajero</span>
-            <select
-              value={usuarioId ?? ""}
-              onChange={(e) => setUsuarioId(e.target.value ? Number(e.target.value) : null)}
-              className="h-10 px-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 min-w-[200px]"
-            >
-              <option value="">Todos los cajeros</option>
-              {usuarios.map((u) => (
-                <option key={u.usuarioID} value={u.usuarioID}>{u.username}</option>
-              ))}
-            </select>
-          </label>
-        )}
+        {/* Resumen: cantidad y total de ventas filtradas */}
+        <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+          <div className="flex items-center gap-2 h-12 pl-3 pr-4 rounded-lg border border-gray-100 bg-gray-50">
+            <div className="h-8 w-8 rounded-md flex items-center justify-center shrink-0 bg-white border border-gray-200">
+              <Hash className="w-3.5 h-3.5 text-gray-400" />
+            </div>
+            <div className="leading-tight">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Ventas</p>
+              <p className="text-sm font-bold text-gray-800 tabular-nums">{loading ? "—" : resumen.cantidad}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 h-12 pl-3 pr-4 rounded-lg"
+               style={{ background: "rgba(15,46,100,0.06)" }}>
+            <div className="h-8 w-8 rounded-md flex items-center justify-center shrink-0"
+                 style={{ background: "rgba(15,46,100,0.12)" }}>
+              <TrendingUp className="w-3.5 h-3.5" style={{ color: "#0f2e64" }} />
+            </div>
+            <div className="leading-tight">
+              <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#0f2e64", opacity: 0.7 }}>Total</p>
+              {loading ? (
+                <p className="text-sm font-bold" style={{ color: "#0f2e64" }}>—</p>
+              ) : resumen.totales.length === 0 ? (
+                <p className="text-sm font-bold tabular-nums" style={{ color: "#0f2e64" }}>{soles(0)}</p>
+              ) : (
+                resumen.totales.map(([moneda, total]) => (
+                  <p key={moneda} className="text-sm font-bold tabular-nums" style={{ color: "#0f2e64" }}>
+                    {soles(total, moneda)}
+                  </p>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       </div>
       <p className="text-sm font-medium text-gray-500 px-1">{fechaLarga(fecha)}</p>
 
       {/* Maestro-detalle */}
       <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-[1fr_340px] gap-3 items-start">
         {/* Lista */}
-        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
           <div>
             <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-gray-50 z-10">
+              <thead className="sticky top-0 bg-gray-50 z-10 border-b border-gray-100">
                 <tr className="text-gray-500 uppercase text-[10px]">
-                  <th className="text-left font-bold px-4 py-2.5">Folio</th>
-                  <th className="text-center font-bold px-4 py-2.5">Arts</th>
-                  <th className="text-left font-bold px-4 py-2.5">Hora</th>
-                  <th className="text-right font-bold px-4 py-2.5">Total</th>
+                  <th className="text-left font-bold px-4 py-3">Folio</th>
+                  <th className="text-center font-bold px-4 py-3">Arts</th>
+                  <th className="text-left font-bold px-4 py-3">Hora</th>
+                  <th className="text-right font-bold px-4 py-3">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading && (
-                  <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400">Cargando…</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-14 text-center text-gray-400">Cargando…</td></tr>
                 )}
                 {!loading && comprobantes.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400">Sin ventas con estos filtros</td></tr>
+                  <tr>
+                    <td colSpan={4} className="px-4 py-14 text-center text-gray-400">
+                      <Receipt className="w-6 h-6 text-gray-200 mx-auto mb-2" />
+                      Sin ventas con estos filtros
+                    </td>
+                  </tr>
                 )}
                 {!loading && comprobantes.map((doc) => {
                   const activo = doc.comprobanteId === seleccionadoId;
+                  const anulado = doc.estadoSunat === "ANULADO";
                   return (
                     <tr key={doc.comprobanteId}
                         onClick={() => seleccionar(doc)}
-                        className={`cursor-pointer transition-colors ${activo ? "bg-blue-50" : "hover:bg-gray-50"}`}>
-                      <td className="px-4 py-2.5">
+                        className={`cursor-pointer transition-colors ${activo ? "bg-blue-50" : "hover:bg-gray-50"} ${anulado ? "opacity-50" : ""}`}>
+                      <td className="px-4 py-3">
                         <p className="font-semibold text-gray-800 uppercase">{doc.numeroCompleto}</p>
-                        <p className="text-[10px] text-gray-400">{tipoLabel(doc.tipoComprobante)}</p>
+                        <p className="text-[10px] text-gray-400">{tipoLabel(doc.tipoComprobante)}{anulado ? " · Anulado" : ""}</p>
                       </td>
-                      <td className="px-4 py-2.5 text-center text-gray-600">{doc.cantidadItems ?? "—"}</td>
-                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">
+                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{doc.cantidadItems ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap tabular-nums">
                         {formatFechaHora(doc.horaEmision).split(" ")[1]}
                       </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <p className="font-semibold text-gray-800 tabular-nums">{soles(doc.importeTotal, doc.tipoMoneda)}</p>
+                      <td className="px-4 py-3 text-right">
+                        <p className={`font-semibold tabular-nums ${anulado ? "text-gray-400 line-through" : "text-gray-800"}`}>
+                          {soles(doc.importeTotal, doc.tipoMoneda)}
+                        </p>
                         {(doc.totalComisionPagoTarjeta ?? 0) > 0 && (
                           <p className="text-[10px] text-cyan-600 tabular-nums">
                             + {soles(doc.totalComisionPagoTarjeta!, doc.tipoMoneda)}
@@ -257,7 +312,7 @@ export default function VentasDelDiaPage() {
             key=seleccionadoId fuerza a React a remontar el panel al cambiar de venta, para que
             no arrastre la posición de scroll interna de la venta anterior. */}
         <div key={seleccionado?.comprobanteId ?? "vacio"}
-             className="rounded-lg border border-gray-200 bg-white overflow-y-auto sticky top-3 max-h-[calc(100vh-6rem)]">
+             className="rounded-xl border border-gray-200 bg-white overflow-y-auto sticky top-3 max-h-[calc(100vh-6rem)] shadow-sm">
           {!seleccionado && (
             <div className="h-full flex items-center justify-center py-16 px-4">
               <div className="text-center space-y-2">
@@ -317,8 +372,9 @@ export default function VentasDelDiaPage() {
                 </>
               )}
 
-              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                <span className="text-sm font-bold text-gray-800">Total</span>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg"
+                   style={{ background: "rgba(15,46,100,0.06)" }}>
+                <span className="text-sm font-bold" style={{ color: "#0f2e64" }}>Total</span>
                 <span className="text-base font-bold tabular-nums" style={{ color: "#0f2e64" }}>
                   {soles(seleccionado.importeTotal, seleccionado.tipoMoneda)}
                 </span>
