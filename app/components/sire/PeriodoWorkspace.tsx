@@ -61,6 +61,10 @@ const COLOR_NAVY = "FF1A2B4A";
 const COLOR_TH_BG = "FFE2E8F0";
 const COLOR_GRIS = "FFF8FAFC";
 const COLOR_BORDE = "FFCBD5E1";
+const COLOR_BLANCO = "FFFFFFFF";
+// Tinte apagado por tipo de comprobante: Nota de Crédito (ámbar tenue), Nota de Débito (gris tenue)
+const COLOR_NC_BG = "FFF6E9DC";
+const COLOR_ND_BG = "FFE8EAED";
 
 async function exportarExcel(
   comprobantes: SireComprobanteDto[],
@@ -97,8 +101,9 @@ async function exportarExcel(
   sheet.mergeCells(1, 1, 1, totalCols);
   const tituloCell = sheet.getCell(1, 1);
   tituloCell.value = "SIRE — Registro de Ventas e Ingresos Electrónico (RVIE)";
-  tituloCell.font = { bold: true, size: 14, color: { argb: COLOR_NAVY } };
-  tituloCell.alignment = { vertical: "middle", horizontal: "left" };
+  tituloCell.font = { bold: true, size: 14, color: { argb: COLOR_BLANCO } };
+  tituloCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_NAVY } };
+  tituloCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
   sheet.getRow(1).height = 28;
 
   // Empresa / RUC / Periodo
@@ -138,6 +143,15 @@ async function exportarExcel(
   // Filas de datos
   comprobantes.forEach((c, i) => {
     const row = sheet.getRow(headerRowIndex + 1 + i);
+    const esNotaCredito = c.tipoComprobante === "07" || c.tipoComprobante === "87";
+    const esNotaDebito = c.tipoComprobante === "08" || c.tipoComprobante === "88";
+    const colorFila = esNotaCredito
+      ? COLOR_NC_BG
+      : esNotaDebito
+        ? COLOR_ND_BG
+        : i % 2 === 0
+          ? COLOR_GRIS
+          : COLOR_BLANCO;
     const valores: (string | number)[] = [
       c.fechaEmision ?? "",
       TIPO_COMPROBANTE[c.tipoComprobante ?? ""] ?? c.tipoComprobante ?? "",
@@ -158,7 +172,7 @@ async function exportarExcel(
       cell.value = valor;
       cell.font = { size: 10, color: { argb: COLOR_NAVY } };
       cell.alignment = { vertical: "middle", horizontal: columnas[ci].numero ? "right" : "left" };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: i % 2 === 0 ? COLOR_GRIS : "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: colorFila } };
       cell.border = {
         top: { style: "hair", color: { argb: COLOR_BORDE } },
         bottom: { style: "hair", color: { argb: COLOR_BORDE } },
@@ -179,21 +193,21 @@ async function exportarExcel(
   sheet.mergeCells(totalRowIndex, 1, totalRowIndex, 6);
   const totalLabelCell = totalRow.getCell(1);
   totalLabelCell.value = `TOTAL (${comprobantes.length})`;
-  totalLabelCell.font = { bold: true, size: 10, color: { argb: COLOR_NAVY } };
+  totalLabelCell.font = { bold: true, size: 10, color: { argb: COLOR_BLANCO } };
   totalLabelCell.alignment = { vertical: "middle", horizontal: "right" };
-  totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_TH_BG } };
+  totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_NAVY } };
 
   const totalValores = [totales.base, totales.igv, totales.total];
   [7, 8, 9].forEach((colIdx, i) => {
     const cell = totalRow.getCell(colIdx);
     cell.value = totalValores[i];
-    cell.font = { bold: true, size: 10, color: { argb: COLOR_NAVY } };
+    cell.font = { bold: true, size: 10, color: { argb: COLOR_BLANCO } };
     cell.numFmt = "#,##0.00";
     cell.alignment = { vertical: "middle", horizontal: "right" };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_TH_BG } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_NAVY } };
   });
   [10, 11, 12].forEach((colIdx) => {
-    totalRow.getCell(colIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_TH_BG } };
+    totalRow.getCell(colIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_NAVY } };
   });
   totalRow.height = 20;
 
