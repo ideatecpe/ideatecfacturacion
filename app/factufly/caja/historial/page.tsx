@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Banknote, Lock, Unlock, ChevronLeft, ChevronRight, Users, TrendingUp, RefreshCw,
+  Lock, Unlock, ChevronLeft, ChevronRight, Users, TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
@@ -140,24 +140,6 @@ export default function CajaPage() {
 
   return (
     <div className="space-y-3">
-      {/* Cabecera */}
-      <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
-             style={{ background: "rgba(15,46,100,0.08)" }}>
-          <Banknote className="w-4.5 h-4.5" style={{ color: "#0f2e64" }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold" style={{ color: "#0f2e64" }}>Caja</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Aperturas, cuadres por turno y cierres registrados
-          </p>
-        </div>
-        <Button variant="outline" onClick={cargar} className="!px-3 !py-1.5 !text-xs">
-          <RefreshCw className="w-3.5 h-3.5" />
-          Actualizar
-        </Button>
-      </div>
-
       {/* Filtros */}
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
         <label className="flex flex-col gap-1">
