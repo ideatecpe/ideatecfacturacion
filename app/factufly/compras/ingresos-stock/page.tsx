@@ -307,7 +307,17 @@ export default function OrdenesCompraPage() {
                     <tr key={o.compraProveedorId} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
                       <td className="px-3 py-2 text-gray-700">{o.nomProducto ?? "—"}</td>
                       <td className="px-3 py-2 text-right text-gray-500 whitespace-nowrap">
-                        {o.cantidad} {o.unidadMedida}
+                        <div>
+                          {o.cantidad} {o.unidadMedida}
+                          {o.saldoDisponible != null && o.saldoDisponible > 0 && o.cantidadConsumida != null && o.cantidadConsumida > 0 && (
+                            <span className="text-[10px] text-gray-400 font-normal ml-1">({o.saldoDisponible} und. disp.)</span>
+                          )}
+                        </div>
+                        {o.cantidadConsumida != null && o.cantidadConsumida > 0 && (
+                          <div className="text-[10px] text-rose-500 font-medium leading-tight">
+                            -{o.cantidadConsumida} und. salida
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right text-gray-500 whitespace-nowrap">
                         S/ {(o.precioCompra ?? 0).toFixed(2)}
@@ -410,7 +420,17 @@ export default function OrdenesCompraPage() {
                     <td className="px-3 py-2.5 text-gray-500">{o.nomSucursal ?? "—"}</td>
                   )}
                   <td className="px-3 py-2.5 text-right text-gray-700">
-                    {o.cantidad} {o.unidadMedida}
+                    <div>
+                      {o.cantidad} {o.unidadMedida}
+                      {o.saldoDisponible != null && o.saldoDisponible > 0 && o.cantidadConsumida != null && o.cantidadConsumida > 0 && (
+                        <span className="text-[10px] text-gray-400 font-normal ml-1">({o.saldoDisponible} und. disp.)</span>
+                      )}
+                    </div>
+                    {o.cantidadConsumida != null && o.cantidadConsumida > 0 && (
+                      <div className="text-[10px] text-rose-500 font-medium leading-tight">
+                        -{o.cantidadConsumida} und. salida
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-right text-gray-700">S/ {(o.precioCompra ?? 0).toFixed(2)}</td>
                   <td className="px-3 py-2.5 text-right font-bold text-brand-blue">

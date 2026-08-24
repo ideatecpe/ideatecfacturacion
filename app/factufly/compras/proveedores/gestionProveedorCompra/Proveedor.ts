@@ -53,6 +53,8 @@ export interface CompraProveedor {
   docReferencia: string | null;
   fechaCreacion: string;
   fechaVencimiento?: string | null;
+  saldoDisponible?: number | null;
+  cantidadConsumida?: number | null;
 }
 
 // ─── Para registrar una compra (POST) ─────────────────────────
