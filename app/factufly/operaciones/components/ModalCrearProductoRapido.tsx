@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { ProductoSucursal, NuevoProducto, Categoria } from "@/app/factufly/productos/gestioProductos/Producto";
 import { generarCodigoProducto } from "@/app/factufly/productos/gestioProductos/generarCodigoProducto";
+import { generarEAN13Interno } from "@/app/factufly/productos/gestioProductos/barcodeFormato";
 
 interface ModalCrearProductoRapidoProps {
   isOpen: boolean;
@@ -239,9 +240,18 @@ export default function ModalCrearProductoRapido({
         {/* Fila: Código de Barras y Categoría */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="block text-xs font-bold text-gray-700">
-              Código de Barras
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-gray-700">
+                Código de Barras
+              </label>
+              <button
+                type="button"
+                onClick={() => setCodigoBarras(generarEAN13Interno())}
+                className="text-[10px] font-semibold text-brand-blue hover:underline"
+              >
+                {codigoBarras ? "Regenerar" : "Generar auto"}
+              </button>
+            </div>
             <div className="relative">
               <Barcode className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input

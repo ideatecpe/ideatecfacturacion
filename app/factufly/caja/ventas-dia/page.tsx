@@ -4,7 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import {
-  Lock, ChevronLeft, ChevronRight, Calendar, FileText, Ban, Receipt, TrendingUp, Hash,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  FileText,
+  Ban,
+  Receipt,
+  TrendingUp,
+  Hash,
+  RefreshCw,
+  Banknote,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
@@ -15,7 +25,11 @@ import { fmtMonto } from "@/app/components/ui/formatoFecha";
 import { useComprobantesSucursalListado } from "@/app/factufly/comprobantes/gestionComprobantes/gestionComprobantesLista/UseComprobantesSucursalListado";
 import { useComprobanteDetalles } from "@/app/factufly/comprobantes/gestionComprobantes/gestionComprobantesLista/UseComprobanteDetalles";
 import { useUsuariosReporte } from "@/app/factufly/reportes/gestionReportes/UseUsuariosReporte";
-import { tipoLabel, formatFecha, formatFechaHora, COLORS } from "@/app/factufly/comprobantes/gestionComprobantes/helpers";
+import {
+  tipoLabel,
+  formatFecha,
+  COLORS,
+} from "@/app/factufly/comprobantes/gestionComprobantes/helpers";
 import type { ComprobanteListado } from "@/app/factufly/comprobantes/gestionComprobantes/Comprobante";
 
 const hoyISO = () => {
@@ -33,11 +47,23 @@ const sumarDias = (fechaISO: string, dias: number) => {
 const fechaLarga = (fechaISO: string) => {
   const [y, m, d] = fechaISO.split("-").map(Number);
   const fecha = new Date(y, m - 1, d);
-  const texto = fecha.toLocaleDateString("es-PE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  const texto = fecha.toLocaleDateString("es-PE", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 };
 
-const soles = (n: number, moneda = "PEN") => `${moneda === "USD" ? "$" : "S/"} ${fmtMonto(n)}`;
+const soles = (n: number, moneda = "PEN") =>
+  `${moneda === "USD" ? "$" : "S/"} ${fmtMonto(n)}`;
+
+// Muestra la hora tal cual viene de la BD (sin conversión de zona horaria), en formato 24h.
+const horaCruda = (fechaISO: string) => {
+  const match = fechaISO.match(/T?(\d{2}):(\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : fechaISO;
+};
 
 export default function VentasDelDiaPage() {
   const { user, accessToken } = useAuth();
@@ -53,13 +79,25 @@ export default function VentasDelDiaPage() {
   const [usuarioId, setUsuarioId] = useState<number | null>(null);
   const [seleccionadoId, setSeleccionadoId] = useState<number | null>(null);
 
-  const { comprobantes, loading, fetchComprobantes } = useComprobantesSucursalListado();
-  const { detalles, loading: loadingDetalle, fetchDetalles, reset: resetDetalles } = useComprobanteDetalles();
+  const { comprobantes, loading, fetchComprobantes } =
+    useComprobantesSucursalListado();
+  const {
+    detalles,
+    loading: loadingDetalle,
+    fetchDetalles,
+    reset: resetDetalles,
+  } = useComprobanteDetalles();
   const { usuarios, fetchUsuarios } = useUsuariosReporte();
 
-  useEffect(() => { fetchUsuarios(); }, [fetchUsuarios]);
+  useEffect(() => {
+    fetchUsuarios();
+  }, [fetchUsuarios]);
 
-  const filtroUsuarioId = esFacturador ? (user?.id ? Number(user.id) : null) : usuarioId;
+  const filtroUsuarioId = esFacturador
+    ? user?.id
+      ? Number(user.id)
+      : null
+    : usuarioId;
 
   const cargar = useCallback(() => {
     if (!sucursalId) return;
@@ -72,7 +110,9 @@ export default function VentasDelDiaPage() {
     });
   }, [sucursalId, fecha, filtroUsuarioId, fetchComprobantes]);
 
-  useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
 
   useEffect(() => {
     setSeleccionadoId(null);
@@ -84,21 +124,28 @@ export default function VentasDelDiaPage() {
     fetchDetalles(doc.comprobanteId);
   };
 
-  const seleccionado = comprobantes.find((c) => c.comprobanteId === seleccionadoId) ?? null;
+  const seleccionado =
+    comprobantes.find((c) => c.comprobanteId === seleccionadoId) ?? null;
 
   const resumen = useMemo(() => {
     const vigentes = comprobantes.filter((c) => c.estadoSunat !== "ANULADO");
     const totalesPorMoneda = new Map<string, number>();
     for (const c of vigentes) {
       const moneda = c.tipoMoneda ?? "PEN";
-      totalesPorMoneda.set(moneda, (totalesPorMoneda.get(moneda) ?? 0) + c.importeTotal);
+      const total = c.importeTotal + (c.totalComisionPagoTarjeta ?? 0);
+      totalesPorMoneda.set(moneda, (totalesPorMoneda.get(moneda) ?? 0) + total);
     }
-    return { cantidad: vigentes.length, totales: Array.from(totalesPorMoneda.entries()) };
+    return {
+      cantidad: vigentes.length,
+      totales: Array.from(totalesPorMoneda.entries()),
+    };
   }, [comprobantes]);
 
   const nombreCajero = useMemo(() => {
     if (!seleccionado?.usuarioCreacion) return "—";
-    const u = usuarios.find((x) => x.usuarioID === seleccionado.usuarioCreacion);
+    const u = usuarios.find(
+      (x) => x.usuarioID === seleccionado.usuarioCreacion,
+    );
     return u?.username ?? `Usuario ${seleccionado.usuarioCreacion}`;
   }, [seleccionado, usuarios]);
 
@@ -108,7 +155,8 @@ export default function VentasDelDiaPage() {
     );
   };
 
-  const [confirmAnularNV, setConfirmAnularNV] = useState<ComprobanteListado | null>(null);
+  const [confirmAnularNV, setConfirmAnularNV] =
+    useState<ComprobanteListado | null>(null);
   const [anulandoNV, setAnulandoNV] = useState(false);
 
   const anularNotaVenta = async () => {
@@ -142,38 +190,81 @@ export default function VentasDelDiaPage() {
       <div className="flex items-center justify-center py-24">
         <div className="max-w-sm text-center space-y-2">
           <Lock className="w-8 h-8 text-gray-300 mx-auto" />
-          <h3 className="text-base font-bold text-gray-800">Módulo no habilitado</h3>
+          <h3 className="text-base font-bold text-gray-800">
+            Módulo no habilitado
+          </h3>
           <p className="text-xs text-gray-500">
-            Activa &quot;Administrar apertura/cierres de caja&quot; en Empresa → Configuración.
+            Activa &quot;Administrar apertura/cierres de caja&quot; en Empresa →
+            Configuración.
           </p>
         </div>
       </div>
     );
   }
 
-  const esFacturaOBoleta = seleccionado?.tipoComprobante === "01" || seleccionado?.tipoComprobante === "03";
+  const esFacturaOBoleta =
+    seleccionado?.tipoComprobante === "01" ||
+    seleccionado?.tipoComprobante === "03";
   const esNotaVenta = seleccionado?.tipoComprobante === "NV";
   const estaAnulada = seleccionado?.estadoSunat === "ANULADO";
 
   return (
     <div className="space-y-3 h-full flex flex-col">
+      {/* Cabecera */}
+      <div className="flex items-center gap-3">
+        <div
+          className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: "rgba(15,46,100,0.08)" }}
+        >
+          <Banknote className="w-4.5 h-4.5" style={{ color: "#0f2e64" }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold" style={{ color: "#0f2e64" }}>
+            Caja
+          </h3>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Ventas del día por cajero
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={cargar}
+          className="px-3! py-1.5! text-xs!"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Actualizar
+        </Button>
+      </div>
+
       {/* Filtros + resumen */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
         <div className="flex flex-wrap items-start gap-3">
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Día</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+              Día
+            </span>
             <div className="flex items-center gap-1.5">
-              <button type="button" onClick={() => setFecha((f) => sumarDias(f, -1))}
-                      className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
+              <button
+                type="button"
+                onClick={() => setFecha((f) => sumarDias(f, -1))}
+                className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+              >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <label className="flex items-center gap-2 h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-brand-blue/50 focus-within:ring-2 focus-within:ring-brand-blue/10 transition-colors">
                 <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-                <input type="date" value={fecha} onChange={(e) => e.target.value && setFecha(e.target.value)}
-                       className="text-sm font-semibold text-gray-700 bg-transparent outline-none cursor-pointer" />
+                <input
+                  type="date"
+                  value={fecha}
+                  onChange={(e) => e.target.value && setFecha(e.target.value)}
+                  className="text-sm font-semibold text-gray-700 bg-transparent outline-none cursor-pointer"
+                />
               </label>
-              <button type="button" onClick={() => setFecha((f) => sumarDias(f, 1))}
-                      className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
+              <button
+                type="button"
+                onClick={() => setFecha((f) => sumarDias(f, 1))}
+                className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+              >
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
@@ -181,15 +272,21 @@ export default function VentasDelDiaPage() {
 
           {!esFacturador && (
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Cajero</span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                Cajero
+              </span>
               <select
                 value={usuarioId ?? ""}
-                onChange={(e) => setUsuarioId(e.target.value ? Number(e.target.value) : null)}
-                className="h-10 px-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/10 transition-colors min-w-[200px]"
+                onChange={(e) =>
+                  setUsuarioId(e.target.value ? Number(e.target.value) : null)
+                }
+                className="h-10 px-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/10 transition-colors min-w-50"
               >
                 <option value="">Todos los cajeros</option>
                 {usuarios.map((u) => (
-                  <option key={u.usuarioID} value={u.usuarioID}>{u.username}</option>
+                  <option key={u.usuarioID} value={u.usuarioID}>
+                    {u.username}
+                  </option>
                 ))}
               </select>
             </label>
@@ -203,26 +300,53 @@ export default function VentasDelDiaPage() {
               <Hash className="w-3.5 h-3.5 text-gray-400" />
             </div>
             <div className="leading-tight">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Ventas</p>
-              <p className="text-sm font-bold text-gray-800 tabular-nums">{loading ? "—" : resumen.cantidad}</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                Ventas
+              </p>
+              <p className="text-sm font-bold text-gray-800 tabular-nums">
+                {loading ? "—" : resumen.cantidad}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 h-12 pl-3 pr-4 rounded-lg"
-               style={{ background: "rgba(15,46,100,0.06)" }}>
-            <div className="h-8 w-8 rounded-md flex items-center justify-center shrink-0"
-                 style={{ background: "rgba(15,46,100,0.12)" }}>
-              <TrendingUp className="w-3.5 h-3.5" style={{ color: "#0f2e64" }} />
+          <div
+            className="flex items-center gap-2 h-12 pl-3 pr-4 rounded-lg"
+            style={{ background: "rgba(15,46,100,0.06)" }}
+          >
+            <div
+              className="h-8 w-8 rounded-md flex items-center justify-center shrink-0"
+              style={{ background: "rgba(15,46,100,0.12)" }}
+            >
+              <TrendingUp
+                className="w-3.5 h-3.5"
+                style={{ color: "#0f2e64" }}
+              />
             </div>
             <div className="leading-tight">
-              <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "#0f2e64", opacity: 0.7 }}>Total</p>
+              <p
+                className="text-[10px] font-bold uppercase tracking-wide"
+                style={{ color: "#0f2e64", opacity: 0.7 }}
+              >
+                Total
+              </p>
               {loading ? (
-                <p className="text-sm font-bold" style={{ color: "#0f2e64" }}>—</p>
+                <p className="text-sm font-bold" style={{ color: "#0f2e64" }}>
+                  —
+                </p>
               ) : resumen.totales.length === 0 ? (
-                <p className="text-sm font-bold tabular-nums" style={{ color: "#0f2e64" }}>{soles(0)}</p>
+                <p
+                  className="text-sm font-bold tabular-nums"
+                  style={{ color: "#0f2e64" }}
+                >
+                  {soles(0)}
+                </p>
               ) : (
                 resumen.totales.map(([moneda, total]) => (
-                  <p key={moneda} className="text-sm font-bold tabular-nums" style={{ color: "#0f2e64" }}>
+                  <p
+                    key={moneda}
+                    className="text-sm font-bold tabular-nums"
+                    style={{ color: "#0f2e64" }}
+                  >
                     {soles(total, moneda)}
                   </p>
                 ))
@@ -231,7 +355,9 @@ export default function VentasDelDiaPage() {
           </div>
         </div>
       </div>
-      <p className="text-sm font-medium text-gray-500 px-1">{fechaLarga(fecha)}</p>
+      <p className="text-sm font-medium text-gray-500 px-1">
+        {fechaLarga(fecha)}
+      </p>
 
       {/* Maestro-detalle */}
       <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-[1fr_340px] gap-3 items-start">
@@ -249,44 +375,70 @@ export default function VentasDelDiaPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading && (
-                  <tr><td colSpan={4} className="px-4 py-14 text-center text-gray-400">Cargando…</td></tr>
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-14 text-center text-gray-400"
+                    >
+                      Cargando…
+                    </td>
+                  </tr>
                 )}
                 {!loading && comprobantes.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-14 text-center text-gray-400">
+                    <td
+                      colSpan={4}
+                      className="px-4 py-14 text-center text-gray-400"
+                    >
                       <Receipt className="w-6 h-6 text-gray-200 mx-auto mb-2" />
                       Sin ventas con estos filtros
                     </td>
                   </tr>
                 )}
-                {!loading && comprobantes.map((doc) => {
-                  const activo = doc.comprobanteId === seleccionadoId;
-                  const anulado = doc.estadoSunat === "ANULADO";
-                  return (
-                    <tr key={doc.comprobanteId}
+                {!loading &&
+                  comprobantes.map((doc) => {
+                    const activo = doc.comprobanteId === seleccionadoId;
+                    const anulado = doc.estadoSunat === "ANULADO";
+                    return (
+                      <tr
+                        key={doc.comprobanteId}
                         onClick={() => seleccionar(doc)}
-                        className={`cursor-pointer transition-colors ${activo ? "bg-blue-50" : "hover:bg-gray-50"} ${anulado ? "opacity-50" : ""}`}>
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-800 uppercase">{doc.numeroCompleto}</p>
-                        <p className="text-[10px] text-gray-400">{tipoLabel(doc.tipoComprobante)}{anulado ? " · Anulado" : ""}</p>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-600 tabular-nums">{doc.cantidadItems ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap tabular-nums">
-                        {formatFechaHora(doc.horaEmision).split(" ")[1]}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <p className={`font-semibold tabular-nums ${anulado ? "text-gray-400 line-through" : "text-gray-800"}`}>
-                          {soles(doc.importeTotal, doc.tipoMoneda)}
-                        </p>
-                        {(doc.totalComisionPagoTarjeta ?? 0) > 0 && (
-                          <p className="text-[10px] text-cyan-600 tabular-nums">
-                            + {soles(doc.totalComisionPagoTarjeta!, doc.tipoMoneda)}
+                        className={`cursor-pointer transition-colors ${activo ? "bg-blue-50" : "hover:bg-gray-50"} ${anulado ? "opacity-50" : ""}`}
+                      >
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-gray-800 uppercase">
+                            {doc.numeroCompleto}
                           </p>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                          <p className="text-[10px] text-gray-400">
+                            {tipoLabel(doc.tipoComprobante)}
+                            {anulado ? " · Anulado" : ""}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
+                          {doc.cantidadItems ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap tabular-nums">
+                          {horaCruda(doc.horaEmision)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <p
+                            className={`font-semibold tabular-nums ${anulado ? "text-gray-400 line-through" : "text-gray-800"}`}
+                          >
+                            {soles(doc.importeTotal, doc.tipoMoneda)}
+                          </p>
+                          {(doc.totalComisionPagoTarjeta ?? 0) > 0 && (
+                            <p className="text-[10px] text-cyan-600 tabular-nums">
+                              +{" "}
+                              {soles(
+                                doc.totalComisionPagoTarjeta!,
+                                doc.tipoMoneda,
+                              )}
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -295,13 +447,17 @@ export default function VentasDelDiaPage() {
         {/* Detalle: fijo mientras se hace scroll en la lista, con su propio scroll interno si no cabe.
             key=seleccionadoId fuerza a React a remontar el panel al cambiar de venta, para que
             no arrastre la posición de scroll interna de la venta anterior. */}
-        <div key={seleccionado?.comprobanteId ?? "vacio"}
-             className="rounded-xl border border-gray-200 bg-white overflow-y-auto sticky top-3 max-h-[calc(100vh-6rem)] shadow-sm">
+        <div
+          key={seleccionado?.comprobanteId ?? "vacio"}
+          className="rounded-xl border border-gray-200 bg-white overflow-y-auto sticky top-3 max-h-[calc(100vh-6rem)] shadow-sm"
+        >
           {!seleccionado && (
             <div className="h-full flex items-center justify-center py-16 px-4">
               <div className="text-center space-y-2">
                 <Receipt className="w-7 h-7 text-gray-300 mx-auto" />
-                <p className="text-xs text-gray-400">Selecciona un comprobante para ver el detalle</p>
+                <p className="text-xs text-gray-400">
+                  Selecciona un comprobante para ver el detalle
+                </p>
               </div>
             </div>
           )}
@@ -310,69 +466,132 @@ export default function VentasDelDiaPage() {
             <div className="p-4 space-y-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-bold text-gray-800 uppercase">{seleccionado.numeroCompleto}</p>
-                  <p className="text-[11px] text-gray-400">{tipoLabel(seleccionado.tipoComprobante)} · {formatFecha(seleccionado.fechaEmision)}</p>
+                  <p className="text-sm font-bold text-gray-800 uppercase">
+                    {seleccionado.numeroCompleto}
+                  </p>
+                  <p className="text-[11px] text-gray-400">
+                    {tipoLabel(seleccionado.tipoComprobante)} ·{" "}
+                    {formatFecha(seleccionado.fechaEmision)}
+                  </p>
                 </div>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${(COLORS.sunat as Record<string, { badge: string }>)[seleccionado.estadoSunat]?.badge ?? "bg-gray-50 text-gray-500 border-gray-200"}`}>
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${(COLORS.sunat as Record<string, { badge: string }>)[seleccionado.estadoSunat]?.badge ?? "bg-gray-50 text-gray-500 border-gray-200"}`}
+                >
                   {seleccionado.estadoSunat}
                 </span>
               </div>
 
               <div className="space-y-1 text-xs">
-                <div className="flex justify-between"><span className="text-gray-400">Cajero</span><span className="text-gray-700 font-medium">{nombreCajero}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Cliente</span><span className="text-gray-700 font-medium text-right">{seleccionado.cliente?.razonSocial || "Cliente varios"}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Cajero</span>
+                  <span className="text-gray-700 font-medium">
+                    {nombreCajero}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Cliente</span>
+                  <span className="text-gray-700 font-medium text-right">
+                    {seleccionado.cliente?.razonSocial || "Cliente varios"}
+                  </span>
+                </div>
               </div>
 
-              {loadingDetalle && <p className="text-xs text-gray-400 py-4 text-center">Cargando detalle…</p>}
-
-              {!loadingDetalle && detalles && detalles.comprobanteId === seleccionado.comprobanteId && (
-                <>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Artículos</p>
-                    <div className="rounded-lg border border-gray-100 divide-y divide-gray-50 overflow-hidden">
-                      {detalles.details.map((item, i) => (
-                        <div key={`${item.detalleId}-${i}`} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-                          <div className="min-w-0">
-                            <p className="text-gray-700 truncate">{item.descripcion}</p>
-                            <p className="text-[10px] text-gray-400">x{item.cantidad}</p>
-                          </div>
-                          <span className="font-medium text-gray-800 tabular-nums shrink-0">{soles(item.totalVentaItem, seleccionado.tipoMoneda)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Medio de pago</p>
-                    <div className="space-y-1">
-                      {detalles.pagos.map((p, i) => (
-                        <div key={i} className="flex justify-between text-xs">
-                          <span className="text-gray-500">{p.medioPago}</span>
-                          <span className="text-gray-700 font-medium tabular-nums">{soles(p.monto, seleccionado.tipoMoneda)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
+              {loadingDetalle && (
+                <p className="text-xs text-gray-400 py-4 text-center">
+                  Cargando detalle…
+                </p>
               )}
 
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg"
-                   style={{ background: "rgba(15,46,100,0.06)" }}>
-                <span className="text-sm font-bold" style={{ color: "#0f2e64" }}>Total</span>
-                <span className="text-base font-bold tabular-nums" style={{ color: "#0f2e64" }}>
-                  {soles(seleccionado.importeTotal, seleccionado.tipoMoneda)}
+              {!loadingDetalle &&
+                detalles &&
+                detalles.comprobanteId === seleccionado.comprobanteId && (
+                  <>
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">
+                        Artículos
+                      </p>
+                      <div className="rounded-lg border border-gray-100 divide-y divide-gray-50 overflow-hidden">
+                        {detalles.details.map((item, i) => (
+                          <div
+                            key={`${item.detalleId}-${i}`}
+                            className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-gray-700 truncate">
+                                {item.descripcion}
+                              </p>
+                              <p className="text-[10px] text-gray-400">
+                                x{item.cantidad}
+                              </p>
+                            </div>
+                            <span className="font-medium text-gray-800 tabular-nums shrink-0">
+                              {soles(
+                                item.totalVentaItem,
+                                seleccionado.tipoMoneda,
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">
+                        Medio de pago
+                      </p>
+                      <div className="space-y-1">
+                        {detalles.pagos.map((p, i) => (
+                          <div key={i} className="flex justify-between text-xs">
+                            <span className="text-gray-500">{p.medioPago}</span>
+                            <span className="text-gray-700 font-medium tabular-nums">
+                              {soles(p.monto, seleccionado.tipoMoneda)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+              <div
+                className="flex items-center justify-between px-3 py-2.5 rounded-lg"
+                style={{ background: "rgba(15,46,100,0.06)" }}
+              >
+                <span
+                  className="text-sm font-bold"
+                  style={{ color: "#0f2e64" }}
+                >
+                  Total
+                </span>
+                <span
+                  className="text-base font-bold tabular-nums"
+                  style={{ color: "#0f2e64" }}
+                >
+                  {soles(
+                    seleccionado.importeTotal +
+                      (seleccionado.totalComisionPagoTarjeta ?? 0),
+                    seleccionado.tipoMoneda,
+                  )}
                 </span>
               </div>
 
               <div className="flex flex-col gap-2 pt-1">
                 {esFacturaOBoleta && (
-                  <Button variant="outline" onClick={() => generarNotaCredito(seleccionado)} className="!text-xs">
+                  <Button
+                    variant="outline"
+                    onClick={() => generarNotaCredito(seleccionado)}
+                    className="text-xs!"
+                  >
                     <FileText className="w-3.5 h-3.5" />
                     Generar Nota de Crédito
                   </Button>
                 )}
                 {esNotaVenta && !estaAnulada && (
-                  <Button variant="danger" onClick={() => setConfirmAnularNV(seleccionado)} className="!text-xs">
+                  <Button
+                    variant="danger"
+                    onClick={() => setConfirmAnularNV(seleccionado)}
+                    className="text-xs!"
+                  >
                     <Ban className="w-3.5 h-3.5" />
                     Anular venta
                   </Button>
@@ -383,14 +602,31 @@ export default function VentasDelDiaPage() {
         </div>
       </div>
 
-      <Modal isOpen={!!confirmAnularNV} onClose={() => setConfirmAnularNV(null)} title="Anular nota de venta" className="max-w-sm">
+      <Modal
+        isOpen={!!confirmAnularNV}
+        onClose={() => setConfirmAnularNV(null)}
+        title="Anular nota de venta"
+        className="max-w-sm"
+      >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            ¿Confirmas anular la nota de venta <b>{confirmAnularNV?.numeroCompleto}</b>? Esta acción devuelve el stock vendido.
+            ¿Confirmas anular la nota de venta{" "}
+            <b>{confirmAnularNV?.numeroCompleto}</b>? Esta acción devuelve el
+            stock vendido.
           </p>
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setConfirmAnularNV(null)} disabled={anulandoNV}>Cancelar</Button>
-            <Button variant="danger" onClick={anularNotaVenta} disabled={anulandoNV}>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmAnularNV(null)}
+              disabled={anulandoNV}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              onClick={anularNotaVenta}
+              disabled={anulandoNV}
+            >
               {anulandoNV ? "Anulando…" : "Anular venta"}
             </Button>
           </div>
