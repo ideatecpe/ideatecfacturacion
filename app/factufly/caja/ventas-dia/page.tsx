@@ -28,7 +28,6 @@ import { useUsuariosReporte } from "@/app/factufly/reportes/gestionReportes/UseU
 import {
   tipoLabel,
   formatFecha,
-  formatFechaHora,
   COLORS,
 } from "@/app/factufly/comprobantes/gestionComprobantes/helpers";
 import type { ComprobanteListado } from "@/app/factufly/comprobantes/gestionComprobantes/Comprobante";
@@ -59,6 +58,12 @@ const fechaLarga = (fechaISO: string) => {
 
 const soles = (n: number, moneda = "PEN") =>
   `${moneda === "USD" ? "$" : "S/"} ${fmtMonto(n)}`;
+
+// Muestra la hora tal cual viene de la BD (sin conversión de zona horaria), en formato 24h.
+const horaCruda = (fechaISO: string) => {
+  const match = fechaISO.match(/T?(\d{2}):(\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : fechaISO;
+};
 
 export default function VentasDelDiaPage() {
   const { user, accessToken } = useAuth();
@@ -127,10 +132,8 @@ export default function VentasDelDiaPage() {
     const totalesPorMoneda = new Map<string, number>();
     for (const c of vigentes) {
       const moneda = c.tipoMoneda ?? "PEN";
-      totalesPorMoneda.set(
-        moneda,
-        (totalesPorMoneda.get(moneda) ?? 0) + c.importeTotal,
-      );
+      const total = c.importeTotal + (c.totalComisionPagoTarjeta ?? 0);
+      totalesPorMoneda.set(moneda, (totalesPorMoneda.get(moneda) ?? 0) + total);
     }
     return {
       cantidad: vigentes.length,
@@ -415,7 +418,7 @@ export default function VentasDelDiaPage() {
                           {doc.cantidadItems ?? "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-600 whitespace-nowrap tabular-nums">
-                          {formatFechaHora(doc.horaEmision).split(" ")[1]}
+                          {horaCruda(doc.horaEmision)}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <p
@@ -564,7 +567,11 @@ export default function VentasDelDiaPage() {
                   className="text-base font-bold tabular-nums"
                   style={{ color: "#0f2e64" }}
                 >
-                  {soles(seleccionado.importeTotal, seleccionado.tipoMoneda)}
+                  {soles(
+                    seleccionado.importeTotal +
+                      (seleccionado.totalComisionPagoTarjeta ?? 0),
+                    seleccionado.tipoMoneda,
+                  )}
                 </span>
               </div>
 
