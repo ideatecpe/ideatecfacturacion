@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
 import { Camera, X as XIcon, ImageOff, ScanBarcode, CameraOff, CalendarClock, PackageX } from "lucide-react";
 import { scanImageData } from "@undecaf/zbar-wasm";
+import dynamic from "next/dynamic";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
@@ -15,6 +16,9 @@ import { useProductosEmpresaLista } from "./useProductosEmpresaLista";
 import ModalCatalogoSunat from "./ModalCatalogoSunat";
 import { SelectConBuscador } from "@/app/components/ui/SelectConBuscador";
 import { esUnidadContable } from "./unidadMedida";
+import { generarEAN13Interno, formatoBarcodeSeguro } from "./barcodeFormato";
+
+const BarcodePreview = dynamic(() => import("react-barcode"), { ssr: false });
 
 interface Props {
   isOpen: boolean;
@@ -1100,63 +1104,99 @@ function FormEditarProducto({
         ) : <div />}
       </div>
 
-      {/* ── 4. Códigos (Interno y Barras) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-end">
-        <InputBase
-          compact
-          className="h-9"
-          label="Código"
-          value={form.codigo}
-          onChange={onChange("codigo")}
-          placeholder="PROD-001"
-          required
-        />
+      {/* ── 4. Códigos (Interno comentado y Barras) ── */}
+      {/* Campo Código interno comentado temporalmente */}
+      {/* <InputBase
+        compact
+        className="h-9"
+        label="Código"
+        value={form.codigo}
+        onChange={onChange("codigo")}
+        placeholder="PROD-001"
+        required
+      /> */}
 
-        {esUnidadContable(form.unidadMedida) ? (
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 uppercase flex items-center justify-between">
-              <span>
-                Código de Barras{" "}
-                <span className="text-gray-400 font-normal normal-case">(opcional)</span>
-              </span>
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1 min-w-0">
-                <input
-                  type="text"
-                  value={form.codigoBarras ?? ""}
-                  onChange={onChange("codigoBarras")}
-                  placeholder="EAN13 / Code128 o escanear..."
-                  className="w-full h-9 px-4 py-1.5 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand-blue/50 text-gray-800"
-                />
-                {form.codigoBarras && (
-                  <button
-                    type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
-                    title="Borrar código"
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 transition-colors"
-                  >
-                    <XIcon className="w-2.5 h-2.5" />
-                  </button>
-                )}
-              </div>
+      {esUnidadContable(form.unidadMedida) && (
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-gray-500 uppercase flex items-center justify-between">
+            <span>
+              Código de Barras{" "}
+              <span className="text-gray-400 font-normal normal-case">(opcional)</span>
+            </span>
+          </label>
+          <div className="w-full rounded-xl border border-dashed border-brand-blue/40 bg-blue-50/50 p-2.5 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.codigoBarras ?? ""}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    codigoBarras: e.target.value.replace(/\s/g, ""),
+                  }))
+                }
+                placeholder="Escribe o pega el código…"
+                className="flex-1 min-w-0 h-9 px-3 py-1.5 text-xs font-mono bg-white border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 text-gray-800"
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setForm((prev) => ({ ...prev, codigoBarras: generarEAN13Interno() }))
+                }
+                title={form.codigoBarras ? "Regenerar código automático" : "Generar código automático"}
+                className="h-9 shrink-0 flex items-center gap-1 px-2.5 text-xs font-semibold text-brand-blue bg-white hover:bg-blue-50 border border-brand-blue/30 rounded-lg transition-colors shadow-2xs"
+              >
+                <ScanBarcode className="w-3.5 h-3.5" />
+                <span>{form.codigoBarras ? "Regenerar" : "Generar"}</span>
+              </button>
               <button
                 type="button"
                 onClick={isScanning ? stopScanning : startScanning}
-                className={`h-9 shrink-0 flex items-center gap-1.5 px-3.5 text-xs font-semibold rounded-xl transition-colors border ${
+                className={`h-9 shrink-0 flex items-center gap-1 px-2.5 text-xs font-semibold rounded-lg transition-colors border shadow-2xs ${
                   isScanning
                     ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
-                    : "bg-blue-50 border-blue-200 text-brand-blue hover:bg-blue-100"
+                    : "bg-white border-brand-blue/30 text-brand-blue hover:bg-blue-50"
                 }`}
                 title="Escanear código de barras con la cámara"
               >
-                <ScanBarcode className="w-4 h-4" />
+                <Camera className="w-3.5 h-3.5" />
                 <span>{isScanning ? "Cerrar" : "Escanear"}</span>
               </button>
+              {form.codigoBarras && (
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, codigoBarras: "" }))}
+                  title="Quitar código"
+                  className="h-9 w-8 shrink-0 flex items-center justify-center text-rose-500 hover:bg-rose-50 border border-rose-200 bg-white rounded-lg transition-colors shadow-2xs"
+                >
+                  <XIcon className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
+
+            {form.codigoBarras ? (
+              <div className="flex items-center justify-center bg-white rounded-lg px-3 py-1.5 border border-gray-100 shadow-2xs">
+                <BarcodePreview
+                  value={form.codigoBarras}
+                  format={formatoBarcodeSeguro(form.codigoBarras)}
+                  width={1.5}
+                  height={38}
+                  fontSize={12}
+                  margin={0}
+                  displayValue
+                  background="transparent"
+                  lineColor="#1e293b"
+                />
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-400 text-center">
+                Escribe tu propio código, escanéalo o genera uno EAN-13 automático
+              </p>
+            )}
           </div>
-        ) : <div />}
-      </div>
+        </div>
+      )}
 
       {/* Visor de Cámara si está activo */}
       {isScanning && esUnidadContable(form.unidadMedida) && (
