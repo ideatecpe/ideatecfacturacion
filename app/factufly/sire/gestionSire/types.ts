@@ -21,8 +21,8 @@ export interface SireComprobanteDto {
   razonSocialEmisor: string | null;
   periodo: string | null;
   carSunat: string | null;
-  correlativo: string | null;
   fechaEmision: string | null;
+  fechaVctoPago: string | null;
   tipoComprobante: string | null;
   serie: string | null;
   numero: string | null;
@@ -56,6 +56,61 @@ export interface SireRegistrarPreliminarResponse {
   success: boolean;
   mensaje: string | null;
   respuestaCruda: string | null;
+}
+
+export interface SireComprobanteEliminarDto {
+  numSerieCDP: string;
+  numCDP: string;
+  codCar: string;
+  codTipoCDP: string;
+}
+
+export interface SireEliminarComprobanteResponse {
+  success: boolean;
+  mensaje: string | null;
+}
+
+export interface SireComprobanteNuevoDto {
+  fechaEmision: string; // dd/mm/aaaa
+  fechaVctoPago?: string | null;
+  tipoComprobante: string;
+  serie: string;
+  numero: string;
+  tipoDocCliente?: string | null;
+  numDocCliente?: string | null;
+  razonSocialCliente?: string | null;
+  baseImponible: number;
+  igv: number;
+  importeTotal: number;
+  codMoneda: string;
+  tipoCambio?: number | null;
+  valorFacturadoExportacion?: number;
+  mtoExonerado?: number;
+  mtoInafecto?: number;
+  isc?: number;
+  icbper?: number;
+  fechaEmisionDocModificado?: string | null;
+  tipoCPModificado?: string | null;
+  serieCPModificado?: string | null;
+  nroCPModificado?: string | null;
+}
+
+export interface SireImportarComprobantesResponse {
+  success: boolean;
+  mensaje: string | null;
+  numTicket: string | null;
+}
+
+export interface SireEditarTipoCambioDto {
+  codCar: string;
+  codMoneda: string;
+  mtoTipoCambio: number;
+  mtoCambioMonedaExt?: number | null;
+}
+
+export interface SireEditarTipoCambioResponse {
+  success: boolean;
+  mensaje: string | null;
 }
 
 export interface SireRegistro {

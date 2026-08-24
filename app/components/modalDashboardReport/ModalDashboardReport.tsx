@@ -90,7 +90,7 @@ export function ModalDashboardReport({
 
   const setAtajo = (tipo: "hoy" | "semana" | "mes" | "anio") => {
     const hoy = new Date();
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const fmt = (d: Date) => d.toLocaleDateString("en-CA");
     setPeriodoActivo(tipo);
     setHasta(fmt(hoy));
 

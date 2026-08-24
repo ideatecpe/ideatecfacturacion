@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Banknote, Lock, ChevronLeft, ChevronRight, RefreshCw, TrendingUp, TrendingDown, Calendar,
+  Banknote, Lock, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Calendar,
   Wallet, CreditCard, Tags, ArrowDownCircle, MessageSquare, Receipt, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
-import { Button } from "@/app/components/ui/Button";
 import { soles } from "@/app/components/caja/ModalCuadrarCaja";
 import type { CajaRetiro, MedioPagoResumen } from "@/hooks/useCaja";
 
@@ -133,24 +132,6 @@ export default function CajaPage() {
 
   return (
     <div className="space-y-4">
-      {/* Cabecera */}
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
-             style={{ background: "linear-gradient(135deg, #0f2e64 0%, #1a4180 100%)" }}>
-          <Receipt className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-base font-bold" style={{ color: "#0f2e64" }}>Corte de caja</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Resumen diario del efectivo, ventas y retiros por cajero
-          </p>
-        </div>
-        <Button variant="outline" onClick={cargar} className="!px-3 !py-1.5 !text-xs">
-          <RefreshCw className="w-3.5 h-3.5" />
-          Actualizar
-        </Button>
-      </div>
-
       {/* Filtros: fecha y cajero */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E2EAF6] bg-white px-4 py-3 shadow-sm">
         <div className="flex flex-wrap items-start gap-3">

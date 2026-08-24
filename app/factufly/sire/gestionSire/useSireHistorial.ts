@@ -19,12 +19,25 @@ export const useSireHistorial = () => {
         const response = await fetch(url.toString(), {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
-        if (!response.ok) throw new Error(`Error ${response.status}`);
+
+        if (!response.ok) {
+          let mensaje = `Error ${response.status} al consultar el historial SIRE`;
+          try {
+            const body = await response.json();
+            if (body?.mensaje) mensaje = body.mensaje;
+          } catch {
+            // el cuerpo no es JSON; se conserva el mensaje genérico con el status
+          }
+          throw new Error(mensaje);
+        }
+
         const data: SireRegistro[] = await response.json();
         setHistorial(data);
         return data;
-      } catch {
-        showToast("Error al cargar el historial SIRE", "error");
+      } catch (err) {
+        const mensaje = err instanceof Error ? err.message : "Error al cargar el historial SIRE";
+        console.error("[SIRE] Error consultando historial:", err);
+        showToast(mensaje, "error");
         setHistorial([]);
         return [];
       } finally {
