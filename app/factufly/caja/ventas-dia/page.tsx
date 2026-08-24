@@ -4,17 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import {
- 
   Lock,
   ChevronLeft,
   ChevronRight,
   Calendar,
- 
   FileText,
   Ban,
   Receipt,
   TrendingUp,
   Hash,
+  RefreshCw,
+  Banknote,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
