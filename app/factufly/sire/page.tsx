@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { RefreshCw, Info, Lock, History, CalendarDays, FileStack } from "lucide-react";
 import { cn } from "@/app/utils/cn";
 import { useAuth } from "@/context/AuthContext";
@@ -7,7 +7,7 @@ import { Card } from "@/app/components/ui/Card";
 import { useSirePeriodos } from "./gestionSire/useSirePeriodos";
 import { useSireHistorial } from "./gestionSire/useSireHistorial";
 import { SireEjercicioDto, SirePeriodoDto } from "./gestionSire/types";
-import { PeriodoWorkspace } from "@/app/components/sire/PeriodoWorkspace";
+import { PeriodoWorkspace, type PeriodoWorkspaceHandle } from "@/app/components/sire/PeriodoWorkspace";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -68,6 +68,7 @@ export default function SirePage() {
   const [anioSel, setAnioSel] = useState<string | null>(null);
   const [mesSel, setMesSel] = useState<string | null>(null);
   const [pageTab, setPageTab] = useState<"consultar" | "historial">("consultar");
+  const workspaceRef = useRef<PeriodoWorkspaceHandle>(null);
 
   const { loading: loadingPeriodos, consultarPeriodos } = useSirePeriodos();
   const { historial, loading: loadingHistorial, fetchHistorial } = useSireHistorial();
@@ -181,64 +182,82 @@ export default function SirePage() {
         <div className="space-y-3">
           {/* Selector Año / Mes */}
           <Card className="p-0 rounded-2xl overflow-hidden">
-            <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-2.5">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-gray-400" />
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Periodo a consultar</p>
-                  <p className="text-[11px] text-gray-400">Selecciona el año y mes para revisar su estado ante SUNAT</p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-gray-500">Año</label>
-                  <select
-                    value={anioSel ?? ""}
-                    onChange={(e) => handleAnioChange(e.target.value)}
-                    disabled={loadingPeriodos || ejercicios.length === 0}
-                    className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white min-w-28 disabled:opacity-50"
-                  >
-                    {ejercicios.length === 0 && <option value="">—</option>}
-                    {ejercicios.map((e) => (
-                      <option key={e.anio ?? "—"} value={e.anio ?? ""}>
-                        {e.anio ?? "—"}
-                      </option>
-                    ))}
-                  </select>
+            <div className="flex divide-x divide-gray-200">
+              <div className="flex-1 min-w-0 px-4 py-3 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-gray-400" />
+                  <p className="text-sm font-semibold text-gray-900">Periodo</p>
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-gray-500">Mes</label>
-                  <select
-                    value={mesSel ?? ""}
-                    onChange={(e) => setMesSel(e.target.value || null)}
-                    disabled={loadingPeriodos || periodosDelAnio.length === 0}
-                    className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white min-w-48 disabled:opacity-50"
+                <div className="flex items-end gap-3">
+                  <div className="flex flex-col gap-1 w-28 shrink-0">
+                    <label className="text-xs font-medium text-gray-500">Año</label>
+                    <select
+                      value={anioSel ?? ""}
+                      onChange={(e) => handleAnioChange(e.target.value)}
+                      disabled={loadingPeriodos || ejercicios.length === 0}
+                      className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white w-full disabled:opacity-50"
+                    >
+                      {ejercicios.length === 0 && <option value="">—</option>}
+                      {ejercicios.map((e) => (
+                        <option key={e.anio ?? "—"} value={e.anio ?? ""}>
+                          {e.anio ?? "—"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1 w-44 shrink-0">
+                    <label className="text-xs font-medium text-gray-500">Mes</label>
+                    <select
+                      value={mesSel ?? ""}
+                      onChange={(e) => setMesSel(e.target.value || null)}
+                      disabled={loadingPeriodos || periodosDelAnio.length === 0}
+                      className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white w-full disabled:opacity-50"
+                    >
+                      <option value="">Seleccionar...</option>
+                      {periodosDelAnio.map((p) => (
+                        <option key={p.periodo ?? "—"} value={p.periodo ?? ""}>
+                          {formatMesEstadoLabel(p)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={() => workspaceRef.current?.cargarPropuesta()}
+                    disabled={!periodoActivo || loadingPeriodos}
+                    className="h-9 shrink-0 inline-flex items-center gap-1.5 px-4 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                   >
-                    <option value="">Seleccionar...</option>
-                    {periodosDelAnio.map((p) => (
-                      <option key={p.periodo ?? "—"} value={p.periodo ?? ""}>
-                        {formatMesEstadoLabel(p)}
-                      </option>
-                    ))}
-                  </select>
+                    <RefreshCw size={13} />
+                    Cargar propuesta
+                  </button>
                 </div>
+
+                {loadingPeriodos && (
+                  <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <RefreshCw size={12} className="animate-spin" /> Consultando periodos en SUNAT...
+                  </span>
+                )}
               </div>
+
+              {periodoActivo && (
+                <div className="flex-1 min-w-0 px-4 py-3 flex flex-col justify-center">
+                  <p className="text-sm font-semibold text-gray-900">{formatPeriodoLabel(periodoActivo.periodo ?? "")} ·</p>
+                  <p className="text-xs text-gray-500">
+                    {periodoActivo.periodo} · Estado SUNAT:{" "}
+                    <span className="font-medium text-gray-600">{periodoActivo.estado ?? "—"}</span>
+                    {periodoActivo.descripcion ? ` (${periodoActivo.descripcion})` : ""}
+                  </p>
+                </div>
+              )}
             </div>
-
-            {loadingPeriodos && (
-              <div className="px-4 pb-2.5">
-                <span className="text-xs text-gray-400 flex items-center gap-1.5">
-                  <RefreshCw size={12} className="animate-spin" /> Consultando periodos en SUNAT...
-                </span>
-              </div>
-            )}
           </Card>
 
           {/* Workspace del periodo seleccionado */}
           {periodoActivo ? (
             <PeriodoWorkspace
+              ref={workspaceRef}
               ruc={rucEmpresa}
               nombreEmpresa={user?.nombreEmpresa ?? null}
               perTributario={periodoActivo.periodo ?? ""}
