@@ -382,13 +382,16 @@ function NotaCreditoContent() {
   }, [detalles, codMotivo]);
 
   // ── Helpers edición por motivo ───────────────────────────────
+  // Para habilitar cantidad editable en más motivos en el futuro, agregar el código aquí:
+  const MOTIVOS_EDITAR_CANTIDAD = ["05"];
+
   const puedeEditarDescripcion = ["03", "04", "05", "07", "08", "09", "10"].includes(codMotivo);
-  const puedeEditarCantidad = ["07", "08"].includes(codMotivo);
+  const puedeEditarCantidad = ["07", "08"].includes(codMotivo) || MOTIVOS_EDITAR_CANTIDAD.includes(codMotivo);
   const puedeIngresarMontoConIgv = ["04", "05", "09"].includes(codMotivo);
   const puedeEditarLibre = codMotivo === "10"; // edición libre sin IGV
   const puedeEditarPrecioReferencial = codMotivo === "08";
   const puedeEliminarFila = ["05", "07", "08", "09", "10"].includes(codMotivo);
-  const puedeAgregarFila = codMotivo === "10";
+  const puedeAgregarFila = ["05", "10"].includes(codMotivo);
 
   // ── Actualizar descripción ────────────────────────────────────
   const actualizarDescripcion = (i: number, descripcion: string) =>
@@ -880,7 +883,7 @@ function NotaCreditoContent() {
     "02": "Anulación — montos iguales al original",
     "03": "Solo edita la descripción de cada ítem",
     "04": "Ingresa el monto a descontar con IGV incluido",
-    "05": "Ingresa el descuento por ítem con IGV incluido",
+    "05": "Ingresa el descuento por ítem con IGV incluido; puedes agregar, editar o eliminar ítems",
     "06": "Devolución total — montos iguales al original",
     "07": "Edita cantidad devuelta y elimina ítems no devueltos",
     "08": "Ingresa precio referencial — total siempre S/ 0.00",

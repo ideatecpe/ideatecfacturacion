@@ -25,18 +25,21 @@ function formatearFechaLocal(fechaISO: string): string {
   }
 }
 
-function estaProximoAVencer(fechaISO: string, diasAlerta: number): boolean {
+function diasHastaVencer(fechaISO: string): number {
   try {
     const soloFecha = fechaISO.slice(0, 10);
     const [y, m, d] = soloFecha.split("-").map(Number);
     const fechaLote = new Date(y, m - 1, d);
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
-    const diffDias = (fechaLote.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
-    return diffDias <= diasAlerta;
+    return (fechaLote.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
   } catch {
-    return false;
+    return Infinity;
   }
+}
+
+function estaProximoAVencer(fechaISO: string, diasAlerta: number): boolean {
+  return diasHastaVencer(fechaISO) <= diasAlerta;
 }
 
 interface ProductoCardProps {
@@ -307,9 +310,15 @@ export default function ProductoCard({
 
         const fechaFormateada = formatearFechaLocal(fecha);
 
-        // Menos de 30 días: advertencia real, sin importar el filtro.
+        // Menos de 30 días o ya vencido: advertencia real, sin importar el filtro.
         if (esUrgente) {
-          return (
+          const yaVencio = diasHastaVencer(fecha) < 0;
+          return yaVencio ? (
+            <div className="mt-1 flex items-center gap-1 w-fit text-[9px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5">
+              <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+              Hay stock vencido: {fechaFormateada}
+            </div>
+          ) : (
             <div className="mt-1 flex items-center gap-1 w-fit text-[9px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
               <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
               Hay stock por vencer: {fechaFormateada}
