@@ -123,6 +123,14 @@ export default function AgregarProducto({
   const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [currentImageId, setCurrentImageId] = useState<string | null>(null);
   const [confirmandoEliminarImagen, setConfirmandoEliminarImagen] = useState(false);
+  // true cuando la imagen actual fue subida a mano (cámara/archivo/pegar) — en ese
+  // caso una nueva búsqueda por código de barras nunca debe reemplazarla. Si es
+  // false (sin imagen, o imagen traída de una búsqueda anterior) sí se reemplaza.
+  const imagenManualRef = React.useRef(false);
+  // Último nombre autocompletado por la búsqueda de código de barras. Sirve para
+  // distinguir "el usuario escribió este nombre" (no se toca) de "lo puso una
+  // búsqueda anterior" (sí se reemplaza al escanear otro código).
+  const nombreAutoRef = React.useRef<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const [modalCatalogoOpen, setModalCatalogoOpen] = useState(false);
@@ -230,6 +238,7 @@ export default function AgregarProducto({
                     setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
                     showToast(`Código escaneado: ${decodedText}`, "success");
                     stopScanning();
+                    buscarProductoPorCodigoBarras(decodedText);
                     return;
                   }
                 }
@@ -267,6 +276,7 @@ export default function AgregarProducto({
                   setForm((prev) => ({ ...prev, codigoBarras: decodedText }));
                   showToast(`Código escaneado: ${decodedText}`, "success");
                   stopScanning();
+                  buscarProductoPorCodigoBarras(decodedText);
                   return;
                 }
               }
@@ -325,6 +335,57 @@ export default function AgregarProducto({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
+  // Busca datos del producto (nombre + imagen) por su código de barras en la
+  // API pública de Superfood, y completa el nombre (si está vacío) y la
+  // imagen (si no hay una) sin sobreescribir lo que el usuario ya escribió.
+  const buscarProductoPorCodigoBarras = async (codigo: string) => {
+    if (!codigo) return;
+    try {
+      const res = await fetch("/api/buscar-producto-superfood", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ barcode: codigo }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.encontrado) return;
+
+      setForm((prev) => {
+        // El nombre se reemplaza si está vacío o si lo puso una búsqueda previa;
+        // si lo escribió el usuario se respeta.
+        const nombreEsReemplazable =
+          prev.nomProducto.trim().length === 0 ||
+          prev.nomProducto === nombreAutoRef.current;
+        const nombreFinal =
+          nombreEsReemplazable && data.nombre ? data.nombre : prev.nomProducto;
+        const codigoAuto =
+          nombreFinal !== prev.nomProducto && nombreFinal.trim().length > 0
+            ? generarCodigoProducto(
+                nombreFinal,
+                productosEmpresa.length === 0 ? 0 : productosEmpresa.length,
+              )
+            : prev.codigo;
+        return {
+          ...prev,
+          nomProducto: nombreFinal,
+          codigo: codigoAuto,
+          // Solo una imagen subida a mano es intocable: la de una búsqueda
+          // anterior se reemplaza por la del código recién buscado.
+          urlImagenProducto: imagenManualRef.current
+            ? prev.urlImagenProducto
+            : (data.imagenUrl ?? null),
+        };
+      });
+      nombreAutoRef.current = data.nombre ?? null;
+      if (!imagenManualRef.current) {
+        setImgError(false);
+        setImgPreview(null);
+      }
+    } catch {
+      // Silencioso: si falla, el usuario completa nombre/imagen manualmente.
+    }
+  };
+
   const eliminarImagenCloudflare = async (imageId: string) => {
     try {
       await fetch("/api/upload-imagen", {
@@ -359,6 +420,7 @@ export default function AgregarProducto({
       return;
     }
 
+    imagenManualRef.current = true;
     setImgError(false);
     setImgPreview(URL.createObjectURL(file));
     setSubiendoImagen(true);
@@ -410,6 +472,7 @@ export default function AgregarProducto({
 
   const handleQuitarImagen = () => {
     const idAnterior = currentImageId;
+    imagenManualRef.current = false;
     setForm((prev) => ({ ...prev, urlImagenProducto: null }));
     setImgPreview(null);
     setImgError(false);
@@ -443,6 +506,8 @@ export default function AgregarProducto({
   const [errors, setErrors] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
+    imagenManualRef.current = false;
+    nombreAutoRef.current = null;
     if (isOpen) {
       setForm({ ...emptyForm, sucursalId: sucursalIdEfectivo });
       setCostoInput("");
@@ -548,6 +613,7 @@ export default function AgregarProducto({
           nomProducto: prev.nomProducto.trim() === codigo ? "" : prev.nomProducto,
           codigo: prev.nomProducto.trim() === codigo ? "" : prev.codigo,
         }));
+        buscarProductoPorCodigoBarras(codigo);
       }, 600);
     }
   };
@@ -819,6 +885,10 @@ export default function AgregarProducto({
                   <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
                     {(imgPreview || form.urlImagenProducto) && !imgError ? (
                       <img
+                        // La key fuerza a montar un <img> nuevo cuando cambia la URL,
+                        // para que al buscar otro código de barras no quede pintada
+                        // la foto del producto anterior.
+                        key={imgPreview ?? form.urlImagenProducto!}
                         src={imgPreview ?? form.urlImagenProducto!}
                         alt="Preview"
                         className="w-full h-full object-cover"
