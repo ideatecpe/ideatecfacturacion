@@ -19,7 +19,10 @@ import { ModalCerrarSesion } from "./ModalCerrarSesion";
  * de la venta, solo el panel para aperturarla.
  */
 export function ControlCaja({ children }: { children: React.ReactNode }) {
-  const { isOnline } = useOfflineSales();
+  const { isOnline, cantidadPendientes, cantidadError } = useOfflineSales();
+  // Ventas offline propias que aún no se subieron: el cuadre no puede
+  // incluirlas porque el servidor todavía no las conoce.
+  const ventasSinSincronizar = cantidadPendientes + cantidadError;
   const { user, logout } = useAuth();
   // La caja se lleva por sucursal, así que sin sucursal asignada no hay nada
   // que controlar y no tiene sentido bloquear la venta.
@@ -131,6 +134,7 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
         onClose={() => setCuadreAbierto(false)}
         cajaTurnoId={turnoIdCuadre}
         cerrarCaja={cerrandoCaja}
+        ventasSinSincronizar={ventasSinSincronizar}
         obtenerCuadre={obtenerCuadre}
         onConfirmar={onCuadrar}
       />

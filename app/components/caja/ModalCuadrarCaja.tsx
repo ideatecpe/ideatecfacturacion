@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Banknote, CreditCard, Smartphone, ArrowRightLeft, Wallet, Lock } from "lucide-react";
+import { Banknote, CreditCard, Smartphone, ArrowRightLeft, Wallet, Lock, AlertTriangle } from "lucide-react";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { InputBase } from "@/app/components/ui/InputBase";
@@ -24,6 +24,9 @@ interface Props {
   cajaTurnoId: number | null;
   /** true = este cuadre además cierra la caja del día. */
   cerrarCaja: boolean;
+  /** Ventas hechas offline por este usuario que aún no se subieron: no están
+   *  incluidas en el cuadre porque el servidor todavía no las conoce. */
+  ventasSinSincronizar?: number;
   obtenerCuadre: (cajaTurnoId: number) => Promise<CuadreTurno>;
   onConfirmar: (efectivoContado: number, observaciones?: string) => Promise<void>;
 }
@@ -33,6 +36,7 @@ export function ModalCuadrarCaja({
   onClose,
   cajaTurnoId,
   cerrarCaja,
+  ventasSinSincronizar = 0,
   obtenerCuadre,
   onConfirmar,
 }: Props) {
@@ -42,6 +46,7 @@ export function ModalCuadrarCaja({
   const [observaciones, setObservaciones] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [entiendoPendientes, setEntiendoPendientes] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !cajaTurnoId) return;
@@ -50,6 +55,7 @@ export function ModalCuadrarCaja({
     setContado("");
     setObservaciones("");
     setError(null);
+    setEntiendoPendientes(false);
     setCargando(true);
 
     let vigente = true;
@@ -69,9 +75,10 @@ export function ModalCuadrarCaja({
   // Un faltante o sobrante no debe pasar en silencio: queda en el histórico y
   // alguien va a preguntar por él, así que se explica en el momento.
   const faltaJustificar = hayDescuadre && observaciones.trim() === "";
+  const faltaConfirmarPendientes = ventasSinSincronizar > 0 && !entiendoPendientes;
 
   const confirmar = async () => {
-    if (!contadoValido || faltaJustificar || guardando) return;
+    if (!contadoValido || faltaJustificar || faltaConfirmarPendientes || guardando) return;
     setGuardando(true);
     setError(null);
     try {
@@ -103,6 +110,28 @@ export function ModalCuadrarCaja({
                 : "Cuenta el efectivo del cajón y confirma. Tu turno se cierra y el efectivo queda disponible para el siguiente usuario."}
             </p>
           </div>
+
+          {ventasSinSincronizar > 0 && (
+            <div className="space-y-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Tienes <strong>{ventasSinSincronizar}</strong> venta(s) hecha(s) sin conexión que
+                  todavía no se subieron al servidor: no están incluidas en este cuadre. Se sincronizarán
+                  solas en cuanto vuelva el internet, pero el efectivo que dejaron ya está en el cajón.
+                </p>
+              </div>
+              <label className="flex items-center gap-2 pl-8 text-xs text-amber-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={entiendoPendientes}
+                  onChange={(e) => setEntiendoPendientes(e.target.checked)}
+                  className="accent-amber-600"
+                />
+                Entiendo y quiero cuadrar de todas formas
+              </label>
+            </div>
+          )}
 
           {/* Recaudado por medio de pago */}
           <div>
@@ -219,7 +248,7 @@ export function ModalCuadrarCaja({
             <Button variant="outline" onClick={onClose} disabled={guardando}>
               Cancelar
             </Button>
-            <Button onClick={confirmar} disabled={!contadoValido || faltaJustificar || guardando}>
+            <Button onClick={confirmar} disabled={!contadoValido || faltaJustificar || faltaConfirmarPendientes || guardando}>
               {guardando ? "Confirmando…" : cerrarCaja ? "Cerrar caja" : "Confirmar cuadre"}
             </Button>
           </div>

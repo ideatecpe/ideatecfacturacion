@@ -26,6 +26,13 @@ export interface VentaPendiente {
   id: string;
   tipo: TipoVentaPendiente;
   createdAt: string;
+  /**
+   * Usuario que hizo la venta (según su sesión al momento de guardarla offline).
+   * La cola es del navegador, no del usuario: si otro cajero entra en la misma
+   * PC y hay pendientes ajenos, procesarCola los deja en espera hasta que su
+   * dueño vuelva a loguearse, para no imputarlos al turno del que sí está.
+   */
+  usuarioId: number;
   payload: Record<string, unknown>;
   stockItems: { sucursalProductoId: number; cantidad: number }[];
   resumenTicket: {
