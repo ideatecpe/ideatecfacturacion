@@ -994,8 +994,8 @@ const LoginClient: React.FC = () => {
                   disabled={status === LoginStatus.LOADING}
                   className={`w-full flex items-center justify-center gap-3 py-4 px-6 rounded-xl text-sm font-bold text-white transition-all ${
                     status === LoginStatus.LOADING
-                      ? "bg-blue-800 opacity-80 cursor-not-allowed"
-                      : "bg-blue-900 hover:bg-blue-950 hover:shadow-xl"
+                      ? "bg-[#0f2e64]/80 opacity-80 cursor-not-allowed"
+                      : "bg-[#0f2e64] hover:bg-[#091a3d] hover:shadow-xl"
                   }`}
                 >
                   {status === LoginStatus.LOADING ? (
@@ -1058,17 +1058,15 @@ const LoginClient: React.FC = () => {
           </div>
         </section>
 
-        {/* Right Column: Hero / Brand Panel */}
+        {/* Right Column: Hero / Brand Panel (Mismo gradiente del Sidebar) */}
         <section
-          className="hidden md:flex md:w-[55%] lg:w-[60%] bg-brand-blue relative overflow-hidden items-center justify-center p-8 lg:p-16"
+          className="hidden md:flex md:w-[55%] lg:w-[60%] relative overflow-hidden items-center justify-center p-8 lg:p-16"
           style={{
+            background: "linear-gradient(180deg, #0f2e64 0%, #091a3d 100%)",
             transform: doorOpen ? "translateX(100%)" : "translateX(0)",
             transition: doorOpen ? "transform 0.5s cubic-bezier(0.87, 0, 0.13, 1)" : "none",
           }}
         >
-          <div className="absolute top-0 right-0 w-1/2 h-full bg-linear-to-l from-red-600/15 to-transparent pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-red-600/5 rounded-full blur-[100px]" />
-
           <div className="relative z-10 w-full max-w-2xl">
             <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
               <h3 className="text-2xl lg:text-3xl xl:text-3xl font-brand font-extrabold text-white leading-tight">
@@ -1077,7 +1075,7 @@ const LoginClient: React.FC = () => {
                 <br />
                 del Perú.
               </h3>
-              <p className="text-blue-200 text-[12px] mt-4 leading-relaxed max-w-lg">
+              <p className="text-white text-[12px] mt-4 leading-relaxed max-w-lg">
                 Optimiza la gestión tributaria de tu empresa con cumplimiento
                 100% SUNAT, reportes en tiempo real y soporte especializado.
               </p>
@@ -1153,9 +1151,21 @@ const LoginClient: React.FC = () => {
               </div>
               <p className="text-blue-200 text-xs lg:text-sm">
                 <span className="text-white font-bold">Muchas empresas</span>{" "}
-                 peruanas <br /> ya confían en FactuFly.
+                 peruanas ya confían en FactuFly.
               </p>
             </div>
+          </div>
+
+          {/* Bandera de Perú en la esquina inferior derecha */}
+          <div className="absolute bottom-4 right-5 flex items-center gap-1.5 select-none pointer-events-none opacity-80">
+            <img
+              src="/peru.jpg"
+              alt="Perú"
+              className="w-5 h-3.5 object-cover rounded-xs shadow-sm border border-white/20"
+            />
+            <span className="text-[10px] font-semibold text-blue-200/60 uppercase tracking-wider font-mono">
+              PE
+            </span>
           </div>
         </section>
 
