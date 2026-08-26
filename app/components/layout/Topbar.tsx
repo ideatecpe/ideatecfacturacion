@@ -226,34 +226,7 @@ export const Topbar = ({
     ? `data:image/png;base64,${user.logoBase64}`
     : "/user.png";
 
-  useEffect(() => {
-    if (!user) return;
-    console.group("🧭 [TOPBAR & LAYOUT DATA SOURCES]");
-    console.log("👤 1. Datos de Sesión (NextAuth / JWT):", {
-      empresa: user?.nombreEmpresa,
-      ruc: user?.ruc,
-      sucursal: user?.nombreSucursal,
-      sucursalID: user?.sucursalID,
-      usuario: user?.username,
-      email: user?.email,
-      rol: user?.rol,
-      entorno: user?.environment || "production",
-      origen: "Decodificado desde sesión NextAuth (cookie JWT)",
-    });
-    console.log("⚡ 2. WebSocket de Notificaciones en Vivo (useNotifications):", {
-      url: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080",
-      suscripcion: {
-        sucursalId: isSuperAdmin ? null : user?.sucursalID ? Number(user.sucursalID) : null,
-        empresaRuc: isSuperAdmin ? user?.ruc : null,
-      },
-      servicios: ["Notificaciones de Yape en tiempo real", "Estado de Comprobantes SUNAT", "Alerta Vencimiento Certificado Digital"],
-    });
-    console.log("⚙️ 3. API Configuración de Empresa (useConfiguracion):", {
-      url: `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${user?.ruc}`,
-      metodo: "GET",
-    });
-    console.groupEnd();
-  }, [user]);
+
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -321,10 +294,10 @@ export const Topbar = ({
             {/* Botón hamburguesa */}
             <button
               onClick={toggleSidebar}
-              className={`p-2 rounded-lg border transition-all shadow-sm shrink-0 ${
+              className={`p-2 rounded-lg transition-colors shrink-0 ${
                 isBeta
-                  ? "bg-amber-100 border-amber-200 text-amber-700 hover:bg-amber-200"
-                  : "bg-white border-[#D9E4F5] text-brand-blue hover:bg-[#EEF3FB] hover:border-brand-blue/20"
+                  ? "text-amber-700 hover:bg-amber-100"
+                  : "text-brand-blue hover:bg-[#EEF3FB]"
               }`}
             >
               {isSidebarOpen ? (
@@ -365,10 +338,10 @@ export const Topbar = ({
               disabled={recargando}
               title="Recargar la página"
               aria-label="Recargar la página"
-              className={`p-2 rounded-lg border transition-all shadow-sm shrink-0 disabled:cursor-wait ${
+              className={`p-2 rounded-lg transition-colors shrink-0 disabled:cursor-wait ${
                 isBeta
-                  ? "bg-amber-100 border-amber-200 text-amber-700 hover:bg-amber-200"
-                  : "bg-white border-[#D9E4F5] text-brand-blue hover:bg-[#EEF3FB] hover:border-brand-blue/20"
+                  ? "text-amber-700 hover:bg-amber-100"
+                  : "text-brand-blue hover:bg-[#EEF3FB]"
               }`}
             >
               <RefreshCw className={`w-4 h-4 ${recargando ? "animate-spin" : ""}`} />

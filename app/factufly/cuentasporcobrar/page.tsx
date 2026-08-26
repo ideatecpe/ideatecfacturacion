@@ -9,7 +9,6 @@ import {
 import { cn } from '@/app/utils/cn';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/app/components/ui/Toast';
-import { Card } from '@/app/components/ui/Card';
 import { useCuentasPorCobrar } from './gestionCuentasPorCobrar/UseCuentasPorCobrar';
 import { useCuotasComprobante } from './gestionCuentasPorCobrar/UseCuotasComprobante';
 import { usePagarCuota } from './gestionCuentasPorCobrar/UsePagarCuota';
@@ -282,18 +281,18 @@ export default function CuentasPorCobrarPage() {
         .cpc-table thead { width: 100%; }
       `}</style>
 
-      <Card className="p-0 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-[#E2EAF6] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse cpc-table">
             <thead>
               <tr className="bg-gray-100" style={{borderTopLeftRadius: '12px', borderTopRightRadius: '12px', overflow: 'hidden'}}>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32">Fecha</th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-44">Comprobante</th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Importe</th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Crédito</th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20 text-center">Moneda</th>
-                <th className="px-5 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-40 text-center">Ver</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-32">Fecha</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-44">Comprobante</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Importe</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Crédito</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-20 text-center">Moneda</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-40 text-center">Ver</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -310,26 +309,26 @@ export default function CuentasPorCobrarPage() {
                 </td></tr>
               ) : filtered.map(c => (
                 <tr key={c.comprobanteId} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-2 text-sm text-gray-900 font-medium whitespace-nowrap w-32">{formatFecha(c.fechaEmision)}</td>
-                  <td className="px-5 py-2 whitespace-nowrap w-44">
-                    <p className="text-sm font-medium text-gray-900">{c.numeroCompleto}</p>
-                    <p className="text-xs text-gray-400">{tipoComprobanteLabel(c.tipoComprobante)}</p>
+                  <td className="px-3 py-2 text-xs text-gray-900 font-medium whitespace-nowrap w-32">{formatFecha(c.fechaEmision)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap w-44">
+                    <p className="text-xs font-medium text-gray-900">{c.numeroCompleto}</p>
+                    <p className="text-[11px] text-gray-400">{tipoComprobanteLabel(c.tipoComprobante)}</p>
                   </td>
-                  <td className="px-5 py-4">
-                    <p className="text-sm font-semibold text-gray-900">{c.clienteRznSocial}</p>
-                    <p className="text-xs text-gray-400">{c.clienteNumDoc}</p>
+                  <td className="px-3 py-4">
+                    <p className="text-xs font-semibold text-gray-900">{c.clienteRznSocial}</p>
+                    <p className="text-[11px] text-gray-400">{c.clienteNumDoc}</p>
                   </td>
-                  <td className="px-5 py-2 text-sm font-semibold text-gray-900 text-right whitespace-nowrap w-32">{formatMoneda(c.importeTotal, c.tipoMoneda)}</td>
-                  <td className="px-5 py-2 text-sm font-semibold text-blue-700 text-right whitespace-nowrap w-32">
+                  <td className="px-3 py-2 text-xs font-semibold text-gray-900 text-right whitespace-nowrap w-32">{formatMoneda(c.importeTotal, c.tipoMoneda)}</td>
+                  <td className="px-3 py-2 text-xs font-semibold text-blue-700 text-right whitespace-nowrap w-32">
                     {formatMoneda((!c.montoCredito || c.montoCredito === 0) ? c.importeTotal : c.montoCredito, c.tipoMoneda)}
                   </td>
-                  <td className="px-5 py-2 text-center w-20">
-                    <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{c.tipoMoneda}</span>
+                  <td className="px-3 py-2 text-center w-20">
+                    <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{c.tipoMoneda}</span>
                   </td>
-                  <td className="px-5 py-2 text-center w-36">
+                  <td className="px-3 py-2 text-center w-36">
                     <button
                       onClick={() => verCuotas(c)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
                     >
                       <Eye size={13} /> Ver cuotas
                     </button>
@@ -339,7 +338,7 @@ export default function CuentasPorCobrarPage() {
             </tbody>
           </table>
         </div>
-      </Card>
+      </div>
 
       {/* Modal detalle cuotas */}
       {comprobanteSeleccionado && (

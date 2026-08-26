@@ -73,11 +73,6 @@ export function useConfiguracion() {
       }
 
       const configUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${ruc}`;
-      console.log("⚙️ [API CONFIGURACIÓN SOLICITADA]:", {
-        metodo: "GET",
-        url: configUrl,
-        ruc,
-      });
 
       fetch(
         configUrl,

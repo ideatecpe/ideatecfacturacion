@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import {
-  Search, Printer, ShieldCheck, ChevronLeft, Download,
+  Search, Printer, ShieldCheck, Download,
   ExternalLink, UserRound, ClipboardList, Trash2, Plus, X, Info, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/Button";
@@ -882,21 +882,9 @@ function NotaCreditoContent() {
         <div className="lg:col-span-2 space-y-3">
 
           {/* Header */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => router.push("/factufly/dashboard")}
-              className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
-              style={{ background: "rgba(15,46,100,0.08)" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "rgba(15,46,100,0.08)")}
-            >
-              <ChevronLeft className="w-4 h-4" style={{ color: "#0f2e64" }} />
-            </button>
-            <div>
-              <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>Nueva Nota de Crédito</h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">Emisión de comprobante electrónico</p>
-            </div>
+          <div>
+            <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>Nueva Nota de Crédito</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">Emisión de comprobante electrónico</p>
           </div>
 
           <Card >

@@ -63,7 +63,6 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
     // 🌐 PASO 2: Petición en segundo plano al servidor (Background Sync)
     try {
       const url = `${process.env.NEXT_PUBLIC_API_URL}/api/productos/${sucursalId}`;
-      console.log("URL productos:", url);
       const res = await axios.get<ProductoSucursal[]>(
         url,
         {
