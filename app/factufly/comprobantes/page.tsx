@@ -651,12 +651,25 @@ export default function VerComprobantesPage() {
   // ── Detalles Adicionales (RUC 20512134832, solo factura) ──
   const RUC_DETALLES_ADICIONALES = "20512134832";
   const esRucDetallesAdicionales = rucEmpresa === RUC_DETALLES_ADICIONALES;
+  const SPOT_DEFAULTS = {
+    leyenda: "Leyenda: Operación sujeta al SPOT con el Gobierno Central",
+    bienServicio: "Bien o Servicio: 019 Arrendamiento de bienes",
+    medioPago: "Medio de pago: 001 Depósito en cuenta",
+    cuentaBanco: "N° Cta. Banco de la Nación: 00068273250",
+    porcentaje: "10",
+  };
+
   const [modalDetallesAdicionales, setModalDetallesAdicionales] = useState<{
     comprobanteId: number;
     serie: string;
     correlativo: string;
     ordenServicio: string;
     spot: boolean;
+    spotLeyenda: string;
+    spotBienServicio: string;
+    spotMedioPago: string;
+    spotCuentaBanco: string;
+    spotPorcentaje: string;
   } | null>(null);
   const [guardandoDetalles, setGuardandoDetalles] = useState(false);
 
@@ -667,24 +680,50 @@ export default function VerComprobantesPage() {
       correlativo: c.correlativo,
       ordenServicio: "",
       spot: false,
+      spotLeyenda: SPOT_DEFAULTS.leyenda,
+      spotBienServicio: SPOT_DEFAULTS.bienServicio,
+      spotMedioPago: SPOT_DEFAULTS.medioPago,
+      spotCuentaBanco: SPOT_DEFAULTS.cuentaBanco,
+      spotPorcentaje: SPOT_DEFAULTS.porcentaje,
     });
   };
 
   const guardarDetallesAdicionales = async () => {
     if (!modalDetallesAdicionales) return;
+
+    const body: Record<string, string | boolean | number> = {};
+    if (modalDetallesAdicionales.ordenServicio)
+      body.ordenServicio = modalDetallesAdicionales.ordenServicio;
+    if (modalDetallesAdicionales.spot) {
+      body.spot = modalDetallesAdicionales.spot;
+      body.spotLeyenda = modalDetallesAdicionales.spotLeyenda;
+      body.spotBienServicio = modalDetallesAdicionales.spotBienServicio;
+      body.spotMedioPago = modalDetallesAdicionales.spotMedioPago;
+      body.spotCuentaBanco = modalDetallesAdicionales.spotCuentaBanco;
+
+      // Vacío = ocultar la línea en el PDF (el backend usa -1 como marca para eso,
+      // y sigue calculando el monto con 10% por defecto)
+      if (modalDetallesAdicionales.spotPorcentaje.trim() === "") {
+        body.spotPorcentaje = -1;
+      } else {
+        const porcentaje = Number(
+          modalDetallesAdicionales.spotPorcentaje.replace(",", "."),
+        );
+        if (Number.isNaN(porcentaje) || porcentaje < 0) {
+          showToast("Ingresa un porcentaje de detracción válido", "error");
+          return;
+        }
+        body.spotPorcentaje = porcentaje;
+      }
+    }
+
+    if (Object.keys(body).length === 0) {
+      showToast("Selecciona al menos una opción", "error");
+      return;
+    }
+
     setGuardandoDetalles(true);
     try {
-      const body: Record<string, string | boolean> = {};
-      if (modalDetallesAdicionales.ordenServicio)
-        body.ordenServicio = modalDetallesAdicionales.ordenServicio;
-      if (modalDetallesAdicionales.spot)
-        body.spot = modalDetallesAdicionales.spot;
-
-      if (Object.keys(body).length === 0) {
-        showToast("Selecciona al menos una opción", "error");
-        return;
-      }
-
       await axios.patch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/comprobantes/${rucEmpresa}/${modalDetallesAdicionales.serie}/${modalDetallesAdicionales.correlativo}/orden-spot`,
         body,
@@ -801,6 +840,82 @@ export default function VerComprobantesPage() {
                 Operación sujeta al SPOT
               </label>
             </div>
+
+            {/* Contenido editable del recuadro SPOT del PDF */}
+            {modalDetallesAdicionales.spot && (
+              <div className="space-y-2 pl-1 border-l-2 border-brand-blue/30 ml-1">
+                <p className="text-[11px] text-gray-400 pl-3">
+                  Puedes editar o dejar en blanco cada línea del recuadro SPOT que se muestra en el PDF.
+                </p>
+                <div className="space-y-2 pl-3">
+                  <input
+                    type="text"
+                    value={modalDetallesAdicionales.spotLeyenda}
+                    onChange={(e) =>
+                      setModalDetallesAdicionales((prev) =>
+                        prev ? { ...prev, spotLeyenda: e.target.value } : prev,
+                      )
+                    }
+                    placeholder="Leyenda"
+                    className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
+                  />
+                  <input
+                    type="text"
+                    value={modalDetallesAdicionales.spotBienServicio}
+                    onChange={(e) =>
+                      setModalDetallesAdicionales((prev) =>
+                        prev ? { ...prev, spotBienServicio: e.target.value } : prev,
+                      )
+                    }
+                    placeholder="Bien o Servicio"
+                    className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
+                  />
+                  <input
+                    type="text"
+                    value={modalDetallesAdicionales.spotMedioPago}
+                    onChange={(e) =>
+                      setModalDetallesAdicionales((prev) =>
+                        prev ? { ...prev, spotMedioPago: e.target.value } : prev,
+                      )
+                    }
+                    placeholder="Medio de pago"
+                    className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
+                  />
+                  <input
+                    type="text"
+                    value={modalDetallesAdicionales.spotCuentaBanco}
+                    onChange={(e) =>
+                      setModalDetallesAdicionales((prev) =>
+                        prev ? { ...prev, spotCuentaBanco: e.target.value } : prev,
+                      )
+                    }
+                    placeholder="N° Cta. Banco de la Nación"
+                    className="w-full py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-600 whitespace-nowrap">
+                      Porcentaje de detracción
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={modalDetallesAdicionales.spotPorcentaje}
+                      onChange={(e) =>
+                        setModalDetallesAdicionales((prev) =>
+                          prev ? { ...prev, spotPorcentaje: e.target.value } : prev,
+                        )
+                      }
+                      placeholder="10"
+                      className="w-20 py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-blue/50"
+                    />
+                    <span className="text-xs text-gray-500">%</span>
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    Se usa para calcular el monto de detracción del PDF. Si lo dejas en blanco, la línea no se muestra pero el monto se calcula igual con 10%.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-1">
               <button
