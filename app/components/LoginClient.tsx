@@ -1072,7 +1072,7 @@ const LoginClient: React.FC = () => {
               <h3 className="text-2xl lg:text-3xl xl:text-3xl font-brand font-extrabold text-white leading-tight">
                 La Facturación
                 <span className="text-red-500 italic"> más confiable</span>{" "}
-                <br />
+             
                 del Perú.
               </h3>
               <p className="text-white text-[12px] mt-4 leading-relaxed max-w-lg">
@@ -1084,43 +1084,38 @@ const LoginClient: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
               {[
                 {
-                  icon: <Zap size={20} />,
-                  color: "bg-blue-500/20 text-blue-400",
+                  icon: <Zap size={18}  />,
+                  
                   title: "Emisión Instantánea",
                   desc: "Genera facturas, boletas y guías en segundos desde cualquier dispositivo.",
                 },
                 {
-                  icon: <ShieldCheck size={20} />,
-                  color: "bg-green-500/20 text-green-400",
-                  title: "Seguridad",
+                  icon: <ShieldCheck size={18} />,
+                  title: "Seguridad Bancaria",
                   desc: "Tus datos empresariales protegidos con los estándares más altos de encriptación.",
                 },
                 {
-                  icon: <BarChart3 size={20} />,
-                  color: "bg-red-500/20 text-red-400",
+                  icon: <BarChart3 size={18} />,
                   title: "Análisis Financiero",
                   desc: "Visualiza tus ventas y crecimiento con dashboards dinámicos y reportes PDF/Excel.",
                 },
                 {
-                  icon: <Globe size={20} />,
-                  color: "bg-amber-500/20 text-amber-400",
+                  icon: <Globe size={18} />,
                   title: "Conectividad SUNAT",
                   desc: "Sincronización directa y masiva con los sistemas de validación de SUNAT.",
                 },
               ].map((card, i) => (
                 <div
                   key={i}
-                  className="bg-white/10 backdrop-blur-md border border-white/10 p-3.5 lg:p-4 rounded-xl hover:bg-white/15 transition-all"
+                  className="bg-white/6 backdrop-blur-md border border-white/10 p-3.5 lg:p-4 rounded-xl hover:bg-white/10 hover:border-white/20 transition-all duration-200"
                 >
-                  <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${card.color}`}
-                  >
+                  <div className="w-8.5 h-8.5 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center mb-3 text-[#a9d6e5] shadow-inner">
                     {card.icon}
                   </div>
                   <h4 className="text-white font-bold mb-1 text-[13px] lg:text-[14px]">
                     {card.title}
                   </h4>
-                  <p className="text-blue-200/70 text-xs leading-snug">
+                  <p className="text-blue-100/70 text-xs leading-snug">
                     {card.desc}
                   </p>
                 </div>
