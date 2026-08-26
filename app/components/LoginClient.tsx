@@ -670,12 +670,17 @@ const LoginClient: React.FC = () => {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [environment, setEnvironment] = useState<"beta" | "production">("production");
   const [doorOpen, setDoorOpen] = useState(false);
+  const [sesionExpirada, setSesionExpirada] = useState(false);
 
-  // Detectar entorno desde la URL
+  // Detectar entorno y sesión expirada desde la URL
   useEffect(() => {
     if (typeof window !== "undefined") {
       const isBeta = window.location.pathname.startsWith("/beta");
       setEnvironment(isBeta ? "beta" : "production");
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("expirado") === "1" || params.get("sessionExpired") === "1") {
+        setSesionExpirada(true);
+      }
     }
   }, []);
 
@@ -905,6 +910,21 @@ const LoginClient: React.FC = () => {
                       </p>
                       <p className="text-xs text-orange-700 mt-0.5">
                         Estás accediendo al ambiente de pruebas y desarrollo.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Banner de Sesión Expirada */}
+                {sesionExpirada && !apiError && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-500">
+                    <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-amber-800 font-bold">
+                        Tu sesión ha expirado
+                      </p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        Por seguridad, ingresa tus credenciales nuevamente.
                       </p>
                     </div>
                   </div>

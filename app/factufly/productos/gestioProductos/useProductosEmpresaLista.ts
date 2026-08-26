@@ -29,6 +29,10 @@ export function useProductosEmpresaLista( enabled: boolean = true ) {
       )
       setProductosEmpresa(res.data)
     } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        // Sesión expirada: manejado por el interceptor global
+        return;
+      }
       if (!esFalloDeRed(err)) {
         showToast("Error al cargar productos de la empresa", "error")
       }

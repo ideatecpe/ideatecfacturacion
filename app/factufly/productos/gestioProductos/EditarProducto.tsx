@@ -587,7 +587,9 @@ export default function EditarProducto({
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
-        if (status === 404) {
+        if (status === 401) {
+          showToast("Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.", "error");
+        } else if (status === 404) {
           showToast("No se encontró el producto a actualizar.", "error");
         } else if (status === 400) {
           showToast(

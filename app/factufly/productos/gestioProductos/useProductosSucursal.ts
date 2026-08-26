@@ -86,6 +86,9 @@ export function useProductosSucursal(sucursalIdOverride?: number | null, enabled
       }
       return res.data
     } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        return productosSucursal;
+      }
       // Si la petición al servidor falló de verdad y no teníamos productos en pantalla, usamos caché
       if (!hayProductosRef.current) {
         const desdeCache = await aplicarCache(Number(sucursalId))

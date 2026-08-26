@@ -35,6 +35,9 @@ export function useCategoriasLista() {
       setCategorias(data)
       return data
     } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        return [];
+      }
       if (!esFalloDeRed(err)) {
         showToast("Error al cargar categorías", "error");
       }

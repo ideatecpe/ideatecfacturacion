@@ -1,8 +1,34 @@
 import NextAuth, { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-// TODO: Activar cuando el backend implemente refresh token
-// async function refreshAccessToken(token: any) { ... }
+// ── Función para renovar el access token usando el refresh token ──
+async function refreshAccessToken(token: any) {
+  try {
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/Auth/refresh-token`;
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: token.refreshToken }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      // El refresh token es inválido o expiró — forzar re-login
+      return { ...token, error: "RefreshAccessTokenError" };
+    }
+
+    return {
+      ...token,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      // Guardar la fecha de expiración del nuevo token (en ms)
+      accessTokenExpires: new Date(data.expiresAt).getTime(),
+    };
+  } catch {
+    return { ...token, error: "RefreshAccessTokenError" };
+  }
+}
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -27,12 +53,6 @@ export const authOptions: AuthOptions = {
             environment: credentials.environment || "production",
             rememberMe: credentials.rememberMe === "true",
           };
-
-          console.log("🔐 [NEXTAUTH BACKEND LOGIN API CALL]:", {
-            method: "POST",
-            url: apiUrl,
-            payload: payload,
-          });
 
           const response = await fetch(apiUrl, {
             method: "POST",
@@ -74,6 +94,8 @@ export const authOptions: AuthOptions = {
             tipoEmision: data.user.tipoEmision ?? true,
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
+            // Guardar cuándo expira el access token del backend
+            accessTokenExpires: new Date(data.expiresAt).getTime(),
           };
         } catch (error: any) {
           console.error("❌ Error en authorize:", error);
@@ -84,7 +106,7 @@ export const authOptions: AuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // Al hacer login, guardar datos del usuario
+      // Al hacer login, guardar datos del usuario + expiración
       if (user) {
         token.id = user.id;
         token.email = user.email;
@@ -99,7 +121,24 @@ export const authOptions: AuthOptions = {
         token.environment = user.environment;
         token.accessToken = user.accessToken;
         token.refreshToken = user.refreshToken;
+        token.accessTokenExpires = user.accessTokenExpires;
       }
+
+      // Si el access token aún es válido, devolver tal cual
+      // Se renueva 1 día antes de expirar para evitar cortes
+      const ahora = Date.now();
+      const expira = (token.accessTokenExpires as number) || 0;
+      const unDiaEnMs = 24 * 60 * 60 * 1000;
+
+      if (expira > 0 && ahora < expira - unDiaEnMs) {
+        return token;
+      }
+
+      // El token está a punto de expirar o ya expiró — renovar con refresh token
+      if (token.refreshToken) {
+        return await refreshAccessToken(token);
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -118,6 +157,10 @@ export const authOptions: AuthOptions = {
       };
       session.accessToken = token.accessToken as string;
       session.refreshToken = token.refreshToken as string;
+      // Propagar error de refresh al cliente para que pueda forzar re-login
+      if (token.error) {
+        (session as any).error = token.error;
+      }
 
       return session;
     },

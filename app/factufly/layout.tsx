@@ -27,6 +27,7 @@ import { OfflineSalesProvider, useOfflineSales } from "../components/offline/Off
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { MenuItem, View } from "../types";
 import { useAuth } from "@/context/AuthContext";
+import { signOut } from "next-auth/react";
 import axios from "axios";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import {
@@ -34,6 +35,18 @@ import {
   marcarPeticionIniciada,
   marcarPeticionTerminada,
 } from "@/lib/offline/senalRed";
+
+function SessionExpiredListener() {
+  const { showToast } = useToast();
+  React.useEffect(() => {
+    const handler = () => {
+      showToast("Tu sesión ha expirado por seguridad. Redirigiendo al inicio...", "error");
+    };
+    window.addEventListener("app:sesion-expirada", handler);
+    return () => window.removeEventListener("app:sesion-expirada", handler);
+  }, [showToast]);
+  return null;
+}
 
 // Única sección preparada para funcionar sin conexión: mientras no haya
 // internet, la navegación a cualquier otra pantalla se bloquea (en vez de
@@ -169,6 +182,19 @@ export default function DashboardLayout({
         const cancelado = error.code === "ERR_CANCELED" || axios.isCancel?.(error);
         // Si el servidor contestó (aunque sea un 4xx/5xx), la red funciona.
         if (error.response) avisarConexionViva();
+
+        // 🚨 Detectar token de autenticación expirado o inválido (401)
+        if (error.response?.status === 401) {
+          const globalObj = typeof window !== "undefined" ? (window as any) : null;
+          if (globalObj && !globalObj.__expirandoSesion) {
+            globalObj.__expirandoSesion = true;
+            window.dispatchEvent(new CustomEvent("app:sesion-expirada"));
+            setTimeout(() => {
+              signOut({ callbackUrl: "/?expirado=1" });
+            }, 1000);
+          }
+        }
+
         if (
           !cancelado &&
           (!error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED" || (typeof navigator !== "undefined" && !navigator.onLine))
@@ -192,6 +218,22 @@ export default function DashboardLayout({
         const response = await originalFetch(...args);
         // Llegó una respuesta del servidor: prueba directa de que hay conexión.
         if (!esPing) avisarConexionViva();
+
+        // 🚨 Detectar 401 en fetch (APIs del backend)
+        if (response.status === 401) {
+          const urlStr = typeof args[0] === "string" ? args[0] : (args[0] as any)?.url || "";
+          if (!urlStr.includes("/api/auth/")) {
+            const globalObj = typeof window !== "undefined" ? (window as any) : null;
+            if (globalObj && !globalObj.__expirandoSesion) {
+              globalObj.__expirandoSesion = true;
+              window.dispatchEvent(new CustomEvent("app:sesion-expirada"));
+              setTimeout(() => {
+                signOut({ callbackUrl: "/?expirado=1" });
+              }, 1000);
+            }
+          }
+        }
+
         // Solo registra fallos (sin body ni objetos pesados) para no saturar
         // la consola ni retener memoria durante sesiones largas.
         if (!response.ok) {
@@ -323,6 +365,7 @@ export default function DashboardLayout({
 
   return (
     <ToastProvider>
+      <SessionExpiredListener />
       <OfflineSalesProvider>
         <OfflineGuard>
           <div className="h-screen flex overflow-hidden" style={{ background: "#F5F8FD" }}>

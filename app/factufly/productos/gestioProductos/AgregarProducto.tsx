@@ -798,7 +798,9 @@ export default function AgregarProducto({
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
-        if (status === 409) {
+        if (status === 401) {
+          showToast("Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.", "error");
+        } else if (status === 409) {
           showToast(error.response?.data?.mensaje, "info");
         } else if (status === 400) {
           showToast(

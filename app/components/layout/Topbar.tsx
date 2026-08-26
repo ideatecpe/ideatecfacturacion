@@ -352,32 +352,27 @@ export const Topbar = ({
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             {/* Context badge */}
             <div className="hidden lg:flex items-center gap-2 px-3 py-2">
-              <div className="flex flex-col leading-none">
-                <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">
-                  Empresa
-                </span>
-                <span
-                  className={`text-xs font-black uppercase tracking-wide mt-0.5 ${
-                    isBeta ? "text-amber-800" : "text-brand-blue"
-                  }`}
-                >
-                  {user?.nombreEmpresa}
-                </span>
-              </div>
+              <span
+                className={`text-xs font-black uppercase tracking-wide ${
+                  isBeta ? "text-amber-800" : "text-brand-blue"
+                }`}
+              >
+                {user?.nombreEmpresa}
+              </span>
 
               {!isSuperAdmin && user?.nombreSucursal && (
                 <>
-                  <div className="w-px h-5 bg-[#D9E4F5] mx-1" />
-                  <MapPin
-                    className={`w-3.5 h-3.5 shrink-0 ${
-                      isBeta ? "text-amber-600" : "text-brand-blue/80"
-                    }`}
-                  />
-                  <div className="flex flex-col leading-none">
-                    <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest">
-                      Sucursal
+                  <div className="w-px h-4 bg-[#D9E4F5] mx-1" />
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <MapPin
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        isBeta ? "text-amber-600" : "text-brand-blue/80"
+                      }`}
+                    />
+                    <span className="text-xs font-medium text-slate-500">
+                      Sucursal:
                     </span>
-                    <span className="text-xs font-bold text-slate-700 mt-0.5 truncate">
+                    <span className="text-xs font-bold text-slate-700 truncate">
                       {user.nombreSucursal}
                     </span>
                   </div>
@@ -386,13 +381,13 @@ export const Topbar = ({
 
               {isSuperAdmin && (
                 <>
-                  <div className="w-px h-5 bg-[#D9E4F5] mx-1" />
-                  <Globe className="w-3 h-3 text-emerald-500 shrink-0" />
-                  <div className="flex flex-col leading-none">
-                    <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">
-                      Acceso
+                  <div className="w-px h-4 bg-[#D9E4F5] mx-1" />
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <Globe className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span className="text-xs font-medium text-slate-400">
+                      Acceso:
                     </span>
-                    <span className="text-xs font-bold text-emerald-400 mt-0.5">
+                    <span className="text-xs font-bold text-emerald-500">
                       Global
                     </span>
                   </div>
