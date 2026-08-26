@@ -10,7 +10,6 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
-  Building2,
   Globe,
   LifeBuoy,
   FileText,
@@ -30,7 +29,6 @@ import {
 import IncaPattern from "./IncaPattern";
 import { InstallAppButton } from "./InstallAppButton";
 
-// ─── Enums & Interfaces ────────────────────────────────────────────────────────
 
 enum LoginStatus {
   IDLE = "IDLE",
@@ -670,21 +668,31 @@ const LoginClient: React.FC = () => {
     }
   }, []);
 
-  // Cargar credenciales guardadas al montar el componente
+  // Cargar identificador guardado al montar el componente (sin contraseñas por seguridad)
   useEffect(() => {
     try {
       const saved = localStorage.getItem("rememberedCredentials");
       if (saved) {
-        const { identifier, password } = JSON.parse(saved) as {
-          identifier: string;
-          password: string;
-        };
-        setFormData((prev) => ({
-          ...prev,
-          identifier: identifier ?? "",
-          password: password ?? "",
-          rememberMe: true,
-        }));
+        const parsed = JSON.parse(saved);
+        const savedIdentifier =
+          typeof parsed === "string" ? parsed : (parsed?.identifier ?? "");
+
+        if (savedIdentifier) {
+          setFormData((prev) => ({
+            ...prev,
+            identifier: savedIdentifier,
+            password: "",
+            rememberMe: true,
+          }));
+
+          // Si el storage contenía una contraseña guardada antigua, sanitizarla inmediatamente
+          if (parsed?.password) {
+            localStorage.setItem(
+              "rememberedCredentials",
+              JSON.stringify({ identifier: savedIdentifier }),
+            );
+          }
+        }
       }
     } catch {
       // Si hay algún error leyendo localStorage, ignorar silenciosamente
@@ -730,10 +738,6 @@ const LoginClient: React.FC = () => {
     setStatus(LoginStatus.LOADING);
     setApiError("");
     try {
-      // ── NUEVO: Limpiar cualquier sesión previa antes de intentar una nueva ──
-      // Esto asegura que no queden tokens "sucios" de otros ambientes
-      await signOut({ redirect: false });
-
       const result = await signIn("credentials", {
         identifier: formData.identifier,
         password: formData.password,
@@ -752,7 +756,6 @@ const LoginClient: React.FC = () => {
             "rememberedCredentials",
             JSON.stringify({
               identifier: formData.identifier,
-              password: formData.password,
             }),
           );
         } else {
@@ -828,25 +831,23 @@ const LoginClient: React.FC = () => {
           <IncaPattern />
 
           <div className="w-full max-w-md mx-auto space-y-8 relative z-10">
-            <div className="w-full max-w-md mx-auto space-y-8 relative z-10">
-              {/* Logo */}
-              <div className="flex items-center gap-3 mb-8">
-                {/* Imagen a la izquierda */}
-                <img
-                  src="/logofnsb.png"
-                  alt=""
-                  className="w-20 h-20 object-contain rounded-lg bg-[#00296b]"
-                />
+            {/* Logo */}
+            <div className="flex items-center gap-3 mb-8">
+              {/* Imagen a la izquierda */}
+              <img
+                src="/logofnsb.png"
+                alt=""
+                className="w-20 h-20 object-contain rounded-lg bg-[#00296b]"
+              />
 
-                {/* Textos a la derecha, uno debajo del otro */}
-                <div className="flex flex-col">
-                  <h1 className="text-2xl font-extrabold text-[#00296b] tracking-[0.02em] leading-tight">
-                    FACTU<span className="text-[#a80a0a]">FLY</span>
-                  </h1>
-                  <p className="text-sm text-[#6c757d] font-medium tracking-wide">
-                    Facturación electrónica
-                  </p>
-                </div>
+              {/* Textos a la derecha, uno debajo del otro */}
+              <div className="flex flex-col">
+                <h1 className="text-2xl font-extrabold text-[#00296b] tracking-[0.02em] leading-tight">
+                  FACTU<span className="text-[#a80a0a]">FLY</span>
+                </h1>
+                <p className="text-sm text-[#6c757d] font-medium tracking-wide">
+                  Facturación electrónica
+                </p>
               </div>
             </div>
 

@@ -5,7 +5,6 @@ import axios from "axios";
 import {
   PackagePlus,
   Loader2,
-  Sparkles,
   Barcode,
   Tag,
   DollarSign,
@@ -418,10 +417,7 @@ export default function ModalCrearProductoRapido({
                 Registrando...
               </>
             ) : (
-              <>
-                <Sparkles className="w-3.5 h-3.5" />
-                Registrar y Vender
-              </>
+              "Registrar y Vender"
             )}
           </Button>
         </div>

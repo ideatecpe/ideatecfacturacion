@@ -56,7 +56,13 @@ export default function BoletaFacturaElectronicaPage() {
     return () => { sharedVentaStore.clear(); };
   }, []);
 
-  if (!user || loadingConfig) return null;
+  if (!user || loadingConfig) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-16">
+        <div className="w-8 h-8 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const isNV = tipo === "notaventa";
   const cajaAutopago = !!(config?.isStock && config?.isCajaAutopago);

@@ -13,21 +13,13 @@ import { ModalCuadrarCaja, soles } from "./ModalCuadrarCaja";
 import { ModalRetiroCaja } from "./ModalRetiroCaja";
 import { ModalCerrarSesion } from "./ModalCerrarSesion";
 
-/**
- * Envuelve el módulo de venta cuando la configuración "Administrar
- * apertura/cierres de caja" está activa: sin caja abierta no se renderiza nada
- * de la venta, solo el panel para aperturarla.
- */
+
 export function ControlCaja({ children }: { children: React.ReactNode }) {
   const { isOnline, cantidadPendientes, cantidadError } = useOfflineSales();
-  // Ventas offline propias que aún no se subieron: el cuadre no puede
-  // incluirlas porque el servidor todavía no las conoce.
   const ventasSinSincronizar = cantidadPendientes + cantidadError;
   const { user, logout } = useAuth();
-  // La caja se lleva por sucursal, así que sin sucursal asignada no hay nada
-  // que controlar y no tiene sentido bloquear la venta.
   const sinSucursal = !user?.sucursalID;
-  const { estado, loading, error, abrirCaja, iniciarTurno, obtenerCuadre, cuadrar, registrarRetiro } =
+  const { estado, error, abrirCaja, iniciarTurno, obtenerCuadre, cuadrar, registrarRetiro } =
     useCaja({ autoIniciarTurno: true, activo: isOnline && !sinSucursal });
   const { showToast } = useToast();
   const router = useRouter();
@@ -37,22 +29,12 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
   const [retiroAbierto, setRetiroAbierto] = useState(false);
   const [cerrandoCaja, setCerrandoCaja] = useState(false);
   const [preguntarSesion, setPreguntarSesion] = useState(false);
-  // Turno concreto que se está cuadrando: no siempre es el propio (puede ser el
-  // ajeno pendiente, o uno recién creado para cerrar una caja rezagada).
   const [turnoIdCuadre, setTurnoIdCuadre] = useState<number | null>(null);
-
-  // El turno a cuadrar es el propio; si otro usuario olvidó cuadrar, se cuadra el suyo.
   const turno = estado?.turnoActual ?? estado?.turnoDeOtroUsuario ?? null;
-
-  // Descartar el aviso de caja vieja se recuerda por caja y por pestaña: no
-  // vuelve a interrumpir cada vez que se entra a Nueva Venta, pero reaparece
-  // en una sesión nueva porque la caja sigue sin cerrarse.
   const claveAviso = estado?.caja ? `caja-dia-anterior-${estado.caja.cajaAperturaId}` : null;
   const [descartadoAhora, setDescartadoAhora] = useState(false);
 
-  // Se lee en el render y no en un efecto: cuando claveAviso deja de ser null
-  // ya estamos en cliente (depende del fetch del estado), así que no hay riesgo
-  // de tocar sessionStorage durante el render del servidor.
+
   const avisoDescartado =
     descartadoAhora ||
     (claveAviso !== null && typeof window !== "undefined" && sessionStorage.getItem(claveAviso) === "1");
@@ -68,12 +50,9 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
       })
     : "";
 
-  // Sin internet no se puede consultar ni registrar nada de la caja, y bloquear
-  // aquí dejaría al usuario sin la venta offline que el resto de la app sí
-  // soporta. El control vuelve a aplicarse en cuanto haya conexión.
-  if (!isOnline || sinSucursal) return <>{children}</>;
 
-  if (loading) return null;
+
+  if (!isOnline || sinSucursal) return <>{children}</>;
 
   const onAbrirCaja = async (montoInicial: number, observaciones?: string) => {
     await abrirCaja(montoInicial, observaciones);
@@ -87,11 +66,7 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
     setCuadreAbierto(true);
   };
 
-  /**
-   * Cerrar una caja que quedó de días atrás cuando ya nadie tiene turno
-   * abierto: el cierre se cuadra sobre un turno, así que quien cuenta el
-   * dinero abre el suyo primero. Queda registrado que fue él.
-   */
+
   const cerrarCajaRezagada = async () => {
     try {
       let cajaTurnoId = estado?.turnoActual?.cajaTurnoId;
@@ -151,12 +126,11 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
     </>
   );
 
-  // ── Caja cerrada: la venta no se monta, solo la invitación a aperturar ──
-  if (!estado?.cajaAbierta) {
+  if (estado && !estado.cajaAbierta) {
     return (
       <>
         <PanelCentrado
-          icono={<Lock className="w-7 h-7 text-[#0f2e64]" />}
+          icono={<Lock className="w-7 h-7 text-brand-blue" />}
           titulo="La caja está cerrada"
           descripcion="Para empezar a vender debes aperturar la caja e indicar con cuánto efectivo inicias el día."
           error={error}
@@ -171,8 +145,7 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // ── Turno ajeno sin cuadrar: hay que cerrarlo antes de poder vender ──
-  if (estado.turnoDeOtroUsuario) {
+  if (estado?.turnoDeOtroUsuario) {
     return (
       <>
         <PanelCentrado
@@ -207,10 +180,8 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // ── Caja de un día anterior: sugerir cerrarla, sin obligar ──
-  // Va antes de las ramas de turno porque una caja rezagada importa más que el
-  // estado del turno propio, y puede no haber ninguno abierto todavía.
-  if (estado.cajaDeDiaAnterior && !avisoDescartado) {
+
+  if (estado?.cajaDeDiaAnterior && !avisoDescartado) {
     return (
       <>
         <PanelCentrado
@@ -234,11 +205,7 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Sin turno y sin haber cuadrado: el auto-inicio está en vuelo, no parpadees.
-  if (!estado.turnoActual && !estado.usuarioYaCuadro) return null;
-
-  // ── Ya cuadró en esta caja: un turno nuevo solo si lo pide ──
-  if (!estado.turnoActual) {
+  if (estado && !estado.turnoActual && estado.usuarioYaCuadro) {
     return (
       <>
         <PanelCentrado
@@ -263,38 +230,38 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // ── Caja abierta con turno propio: barra + módulo de venta ──
   return (
     <div className="flex flex-col h-full gap-2">
-      <div className="shrink-0 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
+      <div className="shrink-0 flex flex-wrap items-center gap-2 rounded-lg">
         <div className="flex items-center gap-2 mr-auto min-w-0">
-          {/* Tras descartar el aviso, la caja vieja sigue señalada aquí. */}
-          {estado.cajaDeDiaAnterior ? (
+      
+          {estado?.cajaDeDiaAnterior ? (
             <span className="flex items-center gap-1.5 rounded-md bg-amber-50 border border-amber-200 px-2 py-1">
               <CalendarClock className="w-3 h-3 text-amber-600" />
               <span className="text-[11px] font-semibold text-amber-700">Caja del {fechaCaja}</span>
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 rounded-md bg-emerald-50 border border-emerald-100 px-2 py-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="flex items-center gap-1.5 rounded-md  px-2 py-1">
               <span className="text-[11px] font-semibold text-emerald-700">Caja abierta</span>
             </span>
           )}
           <span className="text-xs text-gray-500 truncate">
             En caja:{" "}
-            <span className="font-bold text-[#0f2e64] tabular-nums">{soles(estado.saldoEfectivo)}</span>
+            <span className="font-bold text-brand-blue tabular-nums">
+              {estado ? soles(estado.saldoEfectivo) : "…"}
+            </span>
           </span>
         </div>
 
-        <Button variant="outline" onClick={() => setRetiroAbierto(true)} className="!px-3 !py-1.5 !text-xs">
+        <Button variant="outline" onClick={() => setRetiroAbierto(true)} className="px-3! py-1.5! text-xs!">
           <Banknote className="w-3.5 h-3.5" />
           Retirar efectivo
         </Button>
-        <Button variant="outline" onClick={() => abrirCuadre(false)} className="!px-3 !py-1.5 !text-xs">
+        <Button variant="outline" onClick={() => abrirCuadre(false)} className="px-3! py-1.5! text-xs!">
           <Banknote className="w-3.5 h-3.5" />
           Cuadrar Caja
         </Button>
-        <Button variant="danger" onClick={() => abrirCuadre(true)} className="!px-3 !py-1.5 !text-xs">
+        <Button variant="danger" onClick={() => abrirCuadre(true)} className="px-3! py-1.5! text-xs!">
           <Lock className="w-3.5 h-3.5" />
           Cerrar Caja
         </Button>
