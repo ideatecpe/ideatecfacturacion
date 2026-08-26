@@ -1,11 +1,9 @@
 "use client";
-import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
   Printer,
   ShieldCheck,
-  ChevronLeft,
   Truck,
   FileText,
   X,
@@ -99,7 +97,6 @@ const labelClass = "text-[10px] font-bold text-gray-500 uppercase";
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 function GuiaRemisionContent() {
-  const router = useRouter();
   const { accessToken, user } = useAuth();
   const { showToast } = useToast();
 
@@ -1345,25 +1342,13 @@ function GuiaRemisionContent() {
   return (
     <div className="space-y-3 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => router.push("/factufly/dashboard")}
-          className="h-8 w-8 flex items-center justify-center rounded-lg shrink-0 transition-colors"
-          style={{ background: "rgba(15,46,100,0.08)" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(15,46,100,0.15)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "rgba(15,46,100,0.08)")}
-        >
-          <ChevronLeft className="w-4 h-4" style={{ color: "#0f2e64" }} />
-        </button>
-        <div>
-          <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>
-            Nueva Guía de Remisión
-          </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Emisión de comprobante electrónico
-          </p>
-        </div>
+      <div>
+        <h3 className="text-sm font-bold leading-tight" style={{ color: "#0f2e64" }}>
+          Nueva Guía de Remisión
+        </h3>
+        <p className="text-[11px] text-slate-400 mt-0.5">
+          Emisión de comprobante electrónico
+        </p>
       </div>
 
       {/* ── Selector de tipo de guía ─────────────────────────────────────── */}
@@ -2080,22 +2065,20 @@ function GuiaRemisionContent() {
 
                 {/* Aviso SPOT/IVAP */}
                 {avisoSpotVisible && (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
-                    <p className="text-sm text-amber-800 leading-relaxed">
+                  <div className="flex items-center justify-between gap-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                    <p className="leading-snug text-[11px] sm:text-xs">
                       Le recordamos que si va a trasladar bienes afectos al{" "}
                       <strong>SPOT</strong> o al <strong>IVAP</strong> se debe
                       consignar los números de las Constancias de Depósito
                       respectivas en esta sección.
                     </p>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setAvisoSpotVisible(false)}
-                        className="px-4 py-1.5 text-xs font-medium text-amber-800 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200 transition-colors"
-                      >
-                        Entendido
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAvisoSpotVisible(false)}
+                      className="shrink-0 px-2.5 py-1 text-[11px] font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-md transition-colors"
+                    >
+                      Entendido
+                    </button>
                   </div>
                 )}
 
@@ -2241,7 +2224,7 @@ function GuiaRemisionContent() {
                       {bienes.reduce((acc, b) => acc + b.cantidad, 0)}
                     </span>
                   </div>
-                  <div className="flex justify-end gap-8 text-lg font-bold text-brand-blue">
+                  <div className="flex justify-end gap-8 text-sm font-bold text-brand-blue">
                     <span>Peso bruto total:</span>
                     <span>
                       {bienes.reduce((acc, b) => acc + b.pesoKg, 0).toFixed(2)}{" "}

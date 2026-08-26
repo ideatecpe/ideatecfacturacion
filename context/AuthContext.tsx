@@ -34,7 +34,7 @@ interface AuthContextValue {
   isLoading: boolean;
   logout: () => void;
   setEnvironment: (env: string) => void;
-  refreshLogo: () => Promise<void>;
+  refreshLogo: (newLogo?: string | null, newLogoPdf?: string | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -57,12 +57,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     return null;
   });
 
+  // ── ⚡ Carga INMEDIATA desde Caché Local (0ms para 3G y Offline) ──────────
+  useEffect(() => {
+    const ruc = session?.user?.ruc;
+    if (!ruc || typeof window === "undefined") return;
+    try {
+      const cachedLogo = localStorage.getItem(`logo_cache_${ruc}`);
+      const cachedLogoPdf = localStorage.getItem(`logo_pdf_cache_${ruc}`);
+      if (cachedLogo) {
+        setLogoOverride(cachedLogo);
+      }
+      if (cachedLogoPdf) {
+        setLogoPdfOverride(cachedLogoPdf);
+      }
+    } catch (e) {
+      // Ignorar errores de lectura de localStorage
+    }
+  }, [session?.user?.ruc]);
+
   const fetchCompanyData = useCallback(
     async (ruc: string, token: string | null) => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+        const companyUrl = `${apiUrl}/api/companies/${ruc}?t=${Date.now()}`;
+
         // Añadimos timestamp para evitar caché del navegador entre ambientes
-        const r = await fetch(`${apiUrl}/api/companies/${ruc}?t=${Date.now()}`, {
+        const r = await fetch(companyUrl, {
           headers: { 
             Authorization: `Bearer ${token}`,
             "Cache-Control": "no-cache",
@@ -71,59 +91,77 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           cache: "no-store"
         });
 
-        if (!r.ok) return;
-
-        let data = await r.json();
-        // Si el backend devuelve un array, tomamos el primer elemento
-        if (Array.isArray(data)) {
-          data = data[0];
+        if (r.ok) {
+          let data = await r.json();
+          if (Array.isArray(data)) data = data[0];
+          if (data) {
+            if (data.igv) setIgvOverride(data.igv);
+            if (data.environment) {
+              setEnvironmentOverride(data.environment === "production" ? "production" : "beta");
+            }
+            if (data.tipoEmision !== undefined) {
+              setTipoEmisionOverride(data.tipoEmision);
+              try { localStorage.setItem("AuthContext_tipoEmision", String(data.tipoEmision)); } catch {}
+            }
+          }
         }
 
-        if (!data) return;
-
-        if (data.igv) setIgvOverride(data.igv);
-        if (data.environment) {
-          setEnvironmentOverride(data.environment === "production" ? "production" : "beta");
-        }
-        if (data.tipoEmision !== undefined) {
-          setTipoEmisionOverride(data.tipoEmision);
-          localStorage.setItem("AuthContext_tipoEmision", String(data.tipoEmision));
-        }
-
+        // ── 🖼️ Fetch Logo Avatar (Topbar) ──
         try {
-          const logoRes = await fetch(`${apiUrl}/api/companies/logo?ruc=${ruc}`, {
-            headers: { Authorization: `Bearer ${token}` }
+          const logoUrl = `${apiUrl}/api/companies/logo?ruc=${ruc}&t=${Date.now()}`;
+          const logoRes = await fetch(logoUrl, {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              "Cache-Control": "no-cache",
+              "Pragma": "no-cache"
+            },
+            cache: "no-store"
           });
           if (logoRes.ok) {
             const logoData = await logoRes.json();
             if (logoData.success && logoData.logoBase64) {
               setLogoOverride(logoData.logoBase64);
+              try {
+                localStorage.setItem(`logo_cache_${ruc}`, logoData.logoBase64);
+              } catch {}
             } else {
               setLogoOverride(null);
+              try {
+                localStorage.removeItem(`logo_cache_${ruc}`);
+              } catch {}
             }
-          } else {
-            setLogoOverride(null);
           }
         } catch (logoErr) {
-          setLogoOverride(null);
+          // Si hay fallo de red (ej. 3G lento o sin conexión), se mantiene la versión en caché sin borrarla
         }
 
+        // ── 📄 Fetch Logo PDF ──
         try {
-          const logoPdfRes = await fetch(`${apiUrl}/api/companies/logo?ruc=${ruc}&tipo=pdf`, {
-            headers: { Authorization: `Bearer ${token}` }
+          const logoPdfUrl = `${apiUrl}/api/companies/logo?ruc=${ruc}&tipo=pdf&t=${Date.now()}`;
+          const logoPdfRes = await fetch(logoPdfUrl, {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              "Cache-Control": "no-cache",
+              "Pragma": "no-cache"
+            },
+            cache: "no-store"
           });
           if (logoPdfRes.ok) {
             const logoPdfData = await logoPdfRes.json();
             if (logoPdfData.success && logoPdfData.logoBase64) {
               setLogoPdfOverride(logoPdfData.logoBase64);
+              try {
+                localStorage.setItem(`logo_pdf_cache_${ruc}`, logoPdfData.logoBase64);
+              } catch {}
             } else {
               setLogoPdfOverride(null);
+              try {
+                localStorage.removeItem(`logo_pdf_cache_${ruc}`);
+              } catch {}
             }
-          } else {
-            setLogoPdfOverride(null);
           }
         } catch (logoPdfErr) {
-          setLogoPdfOverride(null);
+          // Mantener caché local de PDF si falla la red
         }
       } catch (error) {
         console.error("Error fetching company data:", error);
@@ -139,12 +177,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     fetchCompanyData(ruc, token);
   }, [session?.user?.ruc, session?.accessToken, status, fetchCompanyData]);
 
-  const refreshLogo = useCallback(async () => {
-    const ruc = session?.user?.ruc;
-    const token = session?.accessToken ?? null;
-    if (!ruc) return;
-    await fetchCompanyData(ruc, token);
-  }, [session?.user?.ruc, session?.accessToken, fetchCompanyData]);
+  const refreshLogo = useCallback(
+    async (newLogo?: string | null, newLogoPdf?: string | null) => {
+      const ruc = session?.user?.ruc;
+      const token = session?.accessToken ?? null;
+      if (!ruc) return;
+
+      // Actualización instantánea inmediata en estado y caché (0ms)
+      if (newLogo !== undefined) {
+        setLogoOverride(newLogo);
+        try {
+          if (newLogo) localStorage.setItem(`logo_cache_${ruc}`, newLogo);
+          else localStorage.removeItem(`logo_cache_${ruc}`);
+        } catch {}
+      }
+
+      if (newLogoPdf !== undefined) {
+        setLogoPdfOverride(newLogoPdf);
+        try {
+          if (newLogoPdf) localStorage.setItem(`logo_pdf_cache_${ruc}`, newLogoPdf);
+          else localStorage.removeItem(`logo_pdf_cache_${ruc}`);
+        } catch {}
+      }
+
+      await fetchCompanyData(ruc, token);
+    },
+    [session?.user?.ruc, session?.accessToken, fetchCompanyData]
+  );
 
   const user: AuthUser | null = useMemo(() => {
     if (!session?.user) return null;

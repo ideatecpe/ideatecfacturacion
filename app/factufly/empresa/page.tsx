@@ -699,6 +699,24 @@ export default function ConfiguracionPage() {
     email: "",
   });
 
+  // ── Pre-cargar logos de inmediato desde caché local ────────────────────────
+  useEffect(() => {
+    const ruc = user?.ruc;
+    if (!ruc || typeof window === "undefined") return;
+    try {
+      const cachedLogo = localStorage.getItem(`logo_cache_${ruc}`);
+      const cachedLogoPdf = localStorage.getItem(`logo_pdf_cache_${ruc}`);
+      if (cachedLogo) {
+        setLogoBase64Pure(cachedLogo);
+        setLogoDataUrl(toDataUrl(cachedLogo));
+      }
+      if (cachedLogoPdf) {
+        setLogoPdfBase64Pure(cachedLogoPdf);
+        setLogoPdfDataUrl(toDataUrl(cachedLogoPdf));
+      }
+    } catch {}
+  }, [user?.ruc]);
+
   // ── GET empresa ───────────────────────────────────────────────────────────
   useEffect(() => {
     const ruc = user?.ruc;
@@ -741,44 +759,62 @@ export default function ConfiguracionPage() {
       })
       .finally(() => setLoadingEmpresa(false));
 
-    // Cargar logo desde nueva API
+    // Cargar logo desde nueva API con anti-caché
     axios
-      .get(`${BASE_URL}/api/companies/logo?ruc=${ruc}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      .get(`${BASE_URL}/api/companies/logo?ruc=${ruc}&t=${Date.now()}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
       })
       .then((res) => {
         const data = res.data;
         if (data.success && data.logoBase64) {
           setLogoBase64Pure(data.logoBase64);
           setLogoDataUrl(toDataUrl(data.logoBase64));
+          try {
+            localStorage.setItem(`logo_cache_${ruc}`, data.logoBase64);
+          } catch {}
         } else {
           setLogoBase64Pure(null);
           setLogoDataUrl("");
+          try {
+            localStorage.removeItem(`logo_cache_${ruc}`);
+          } catch {}
         }
       })
       .catch(() => {
-        setLogoBase64Pure(null);
-        setLogoDataUrl("");
+        // En caso de fallo de red, no borrar si ya existía en memoria
       });
 
-    // Logo específico para documentos PDF (respaldo automático al de comprobantes si no está configurado)
+    // Logo específico para documentos PDF con anti-caché
     axios
-      .get(`${BASE_URL}/api/companies/logo?ruc=${ruc}&tipo=pdf`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      .get(`${BASE_URL}/api/companies/logo?ruc=${ruc}&tipo=pdf&t=${Date.now()}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
       })
       .then((res) => {
         const data = res.data;
         if (data.success && data.logoBase64) {
           setLogoPdfBase64Pure(data.logoBase64);
           setLogoPdfDataUrl(toDataUrl(data.logoBase64));
+          try {
+            localStorage.setItem(`logo_pdf_cache_${ruc}`, data.logoBase64);
+          } catch {}
         } else {
           setLogoPdfBase64Pure(null);
           setLogoPdfDataUrl("");
+          try {
+            localStorage.removeItem(`logo_pdf_cache_${ruc}`);
+          } catch {}
         }
       })
       .catch(() => {
-        setLogoPdfBase64Pure(null);
-        setLogoPdfDataUrl("");
+        // En caso de fallo de red, no borrar si ya existía en memoria
       });
   }, [user?.ruc, accessToken]);
 
@@ -977,7 +1013,7 @@ export default function ConfiguracionPage() {
           "Content-Type": "application/json",
         },
       });
-      await refreshLogo();
+      await refreshLogo(logoBase64Pure, logoPdfBase64Pure);
       showToast("Datos de empresa actualizados correctamente", "success");
     } catch {
       showToast("Error al guardar los datos. Verifica tu conexión.", "error");
