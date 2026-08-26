@@ -2474,7 +2474,6 @@ function FacturaContent() {
             `SUNAT no disponible. La factura ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`,
             "error",
           );
-          reintentarEnSegundoPlano(comprobanteId); // ← sin await
           descontarStockSiAplica(comprobanteId);
         } else {
           showToast(`La factura ${serieCorrelativo} fue rechazada.`, "error");
@@ -2495,10 +2494,9 @@ function FacturaContent() {
         setErrorEmision(mensaje || "Comprobante rechazado por SUNAT");
         if (estadoSunat === "PENDIENTE") {
           showToast(
-            `SUNAT no disponible. La factura ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`,
+            `SUNAT no disponible. La factura ${serieCorrelativo} quedó PENDIENTE.`,
             "error",
           );
-          reintentarEnSegundoPlano(comprobanteId); // ← sin await
           descontarStockSiAplica(comprobanteId);
         } else {
           showToast(`La factura ${serieCorrelativo} fue rechazada.`, "error");
@@ -2516,7 +2514,6 @@ function FacturaContent() {
         setEmitido(true);
         descontarStockSiAplica(comprobanteId);
         procesarSegundoPlano(comprobanteId);
-        reintentarEnSegundoPlano(comprobanteId); // ← sin await
       }
     }
   };
@@ -2742,26 +2739,6 @@ function FacturaContent() {
       serie: resSucursal.data.serieFactura,
       correlativo: String(resSucursal.data.correlativoFactura).padStart(8, "0"),
     }));
-  };
-
-  // ── Reintento silencioso — solo si SUNAT no responde ────────
-  // Reintento en segundo plano, 100% silencioso (sin toasts en éxito ni en fallo).
-  // El backend ya garantiza que solo llega a RECHAZADO si SUNAT devolvió un CDR
-  // real; este delay solo reduce la chance de chocar con un documento que SUNAT
-  // aún tiene "en proceso" y reparte los reintentos si hay varios comprobantes
-  // pendientes a la vez (evita una ráfaga si SUNAT tuvo una caída sostenida).
-  const reintentarEnSegundoPlano = async (comprobanteId: number) => {
-    const delayConJitter = 30000 + Math.random() * 20000; // 30-50s
-    await new Promise((res) => setTimeout(res, delayConJitter));
-    try {
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/enviar-sunat`,
-        null,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-    } catch {
-      // silencioso
-    }
   };
 
   //limpiamos para nueva factura

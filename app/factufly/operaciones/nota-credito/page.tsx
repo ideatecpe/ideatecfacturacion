@@ -728,7 +728,6 @@ function NotaCreditoContent() {
         showToast(`SUNAT no disponible. La nota ${serieCorrelativo} quedó PENDIENTE y se reintentará el envío.`, "error");
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
-        reintentarEnSegundoPlano(comprobanteId); // ← sin await
         actualizarStockSiAplica(comprobanteId);
       } else {
         // ❌ SUNAT rechazó con respuesta (error de validación real)
@@ -756,7 +755,6 @@ function NotaCreditoContent() {
         showToast(`La nota ${serieCorrelativo} fue generada. Verificar estado en sección Comprobantes.`, "error");
         setEmitido(true);
         await cargarPdf(comprobanteId, tamanoPdf);
-        reintentarEnSegundoPlano(comprobanteId); // ← sin await
         actualizarStockSiAplica(comprobanteId);
       }
     }
@@ -841,24 +839,6 @@ function NotaCreditoContent() {
     }
   };
 
-  // Reintento en segundo plano, 100% silencioso (sin toasts en éxito ni en fallo).
-  // El backend ya garantiza que solo llega a RECHAZADO si SUNAT devolvió un CDR
-  // real; este delay solo reduce la chance de chocar con un documento que SUNAT
-  // aún tiene "en proceso" y reparte los reintentos si hay varias notas
-  // pendientes a la vez (evita una ráfaga si SUNAT tuvo una caída sostenida).
-  const reintentarEnSegundoPlano = async (comprobanteId: number) => {
-    const delayConJitter = 30000 + Math.random() * 20000; // 30-50s
-    await new Promise(res => setTimeout(res, delayConJitter));
-    try {
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/notes/${comprobanteId}/send`,
-        null,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-    } catch {
-      // silencioso
-    }
-  };
 
   // ── Limpiar / reset ──────────────────────────────────────────
   const limpiarBuscador = () => {
