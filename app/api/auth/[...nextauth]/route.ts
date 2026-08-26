@@ -21,18 +21,25 @@ export const authOptions: AuthOptions = {
 
         try {
           const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/Auth/login`;
+          const payload = {
+            identifier: credentials.identifier,
+            password: credentials.password,
+            environment: credentials.environment || "production",
+            rememberMe: credentials.rememberMe === "true",
+          };
+
+          console.log("🔐 [NEXTAUTH BACKEND LOGIN API CALL]:", {
+            method: "POST",
+            url: apiUrl,
+            payload: payload,
+          });
 
           const response = await fetch(apiUrl, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              identifier: credentials.identifier,
-              password: credentials.password,
-              environment: credentials.environment || "production",
-              rememberMe: credentials.rememberMe === "true",
-            }),
+            body: JSON.stringify(payload),
           });
 
           const contentType = response.headers.get("content-type");

@@ -113,12 +113,20 @@ interface Opciones {
   activo?: boolean;
 }
 
+// Último estado conocido por sucursal: al volver a montar (p.ej. navegando
+// fuera de Nueva Venta y volviendo) se pinta de inmediato con este valor
+// mientras se revalida en segundo plano, en vez de mostrar la barra vacía o
+// asumir "caja abierta" a ciegas.
+const cacheEstado = new Map<number, CajaEstado>();
+
 export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = {}) {
   const { user, accessToken } = useAuth();
   const sucursalId = user?.sucursalID ? Number(user.sucursalID) : null;
 
-  const [estado, setEstado] = useState<CajaEstado | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [estado, setEstado] = useState<CajaEstado | null>(
+    () => (sucursalId ? cacheEstado.get(sucursalId) ?? null : null),
+  );
+  const [loading, setLoading] = useState(estado === null);
   const [error, setError] = useState<string | null>(null);
 
   // Evita que dos renders seguidos disparen dos POST de inicio de turno.
@@ -132,6 +140,14 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
     [accessToken],
   );
 
+  const guardarEstado = useCallback(
+    (data: CajaEstado) => {
+      setEstado(data);
+      if (sucursalId) cacheEstado.set(sucursalId, data);
+    },
+    [sucursalId],
+  );
+
   const refrescar = useCallback(async (): Promise<CajaEstado | null> => {
     if (!sucursalId || !accessToken || !activo) {
       setLoading(false);
@@ -142,7 +158,7 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo consultar la caja"));
 
       const data: CajaEstado = await res.json();
-      setEstado(data);
+      guardarEstado(data);
       setError(null);
       return data;
     } catch (e) {
@@ -151,7 +167,7 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
     } finally {
       setLoading(false);
     }
-  }, [sucursalId, accessToken, activo, headers]);
+  }, [sucursalId, accessToken, activo, headers, guardarEstado]);
 
   useEffect(() => {
     refrescar();
@@ -171,10 +187,10 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo abrir la caja"));
 
       const data: CajaEstado = await res.json();
-      setEstado(data);
+      guardarEstado(data);
       return data;
     },
-    [sucursalId, headers],
+    [sucursalId, headers, guardarEstado],
   );
 
   const iniciarTurno = useCallback(async () => {
@@ -186,9 +202,9 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
     if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo iniciar el turno"));
 
     const data: CajaEstado = await res.json();
-    setEstado(data);
+    guardarEstado(data);
     return data;
-  }, [sucursalId, headers]);
+  }, [sucursalId, headers, guardarEstado]);
 
   const obtenerCuadre = useCallback(
     async (cajaTurnoId: number): Promise<CuadreTurno> => {
@@ -226,10 +242,10 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo registrar el retiro"));
 
       const data: CajaEstado = await res.json();
-      setEstado(data);
+      guardarEstado(data);
       return data;
     },
-    [headers],
+    [headers, guardarEstado],
   );
 
   // Segundo usuario del día: la caja sigue abierta y nadie tiene turno, así que

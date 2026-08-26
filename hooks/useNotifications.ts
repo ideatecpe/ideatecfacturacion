@@ -77,16 +77,17 @@ export function useNotifications({
 
       ws.onopen = () => {
         setConnected(true);
-        ws.send(
-          JSON.stringify({
-            sucursalId: sucursalId ?? null,
-            empresaRuc: empresaRuc ?? null,
-          }),
-        );
+        const subData = {
+          sucursalId: sucursalId ?? null,
+          empresaRuc: empresaRuc ?? null,
+        };
+        console.log("⚡ [TOPBAR WEBSOCKET CONECTADO]:", ws.url, "Suscripción enviada:", subData);
+        ws.send(JSON.stringify(subData));
       };
 
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
+        console.log("📩 [TOPBAR WEBSOCKET EVENTO RECIBIDO]:", msg.type, msg.data);
         if (msg.type === "yape") {
           setYapeAlert(msg.data as YapeAlert);
           return;

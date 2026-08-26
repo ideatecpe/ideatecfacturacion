@@ -227,6 +227,35 @@ export const Topbar = ({
     : "/user.png";
 
   useEffect(() => {
+    if (!user) return;
+    console.group("🧭 [TOPBAR & LAYOUT DATA SOURCES]");
+    console.log("👤 1. Datos de Sesión (NextAuth / JWT):", {
+      empresa: user?.nombreEmpresa,
+      ruc: user?.ruc,
+      sucursal: user?.nombreSucursal,
+      sucursalID: user?.sucursalID,
+      usuario: user?.username,
+      email: user?.email,
+      rol: user?.rol,
+      entorno: user?.environment || "production",
+      origen: "Decodificado desde sesión NextAuth (cookie JWT)",
+    });
+    console.log("⚡ 2. WebSocket de Notificaciones en Vivo (useNotifications):", {
+      url: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080",
+      suscripcion: {
+        sucursalId: isSuperAdmin ? null : user?.sucursalID ? Number(user.sucursalID) : null,
+        empresaRuc: isSuperAdmin ? user?.ruc : null,
+      },
+      servicios: ["Notificaciones de Yape en tiempo real", "Estado de Comprobantes SUNAT", "Alerta Vencimiento Certificado Digital"],
+    });
+    console.log("⚙️ 3. API Configuración de Empresa (useConfiguracion):", {
+      url: `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${user?.ruc}`,
+      metodo: "GET",
+    });
+    console.groupEnd();
+  }, [user]);
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node))
         setNotifOpen(false);

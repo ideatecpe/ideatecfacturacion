@@ -54,6 +54,10 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
 
   if (!isOnline || sinSucursal) return <>{children}</>;
 
+  // Sin nada en caché (primera vez en la sesión) no hay forma de saber si la
+  // caja está abierta o cerrada: recién aquí toca esperar a la respuesta.
+  if (!estado) return <CargandoPanel error={error} />;
+
   const onAbrirCaja = async (montoInicial: number, observaciones?: string) => {
     await abrirCaja(montoInicial, observaciones);
     setAbrirAbierto(false);
@@ -270,6 +274,19 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
       <div className="flex-1 min-h-0">{children}</div>
       {modales}
     </div>
+  );
+}
+
+function CargandoPanel({ error }: { error?: string | null }) {
+  return (
+    <PanelCentrado
+      icono={<Wallet className="w-6 h-6 text-gray-400 animate-pulse" />}
+      titulo="Cargando estado de caja..."
+      descripcion="Consultando si la caja del día está abierta o cerrada."
+      error={error}
+    >
+      <div className="w-5 h-5 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
+    </PanelCentrado>
   );
 }
 

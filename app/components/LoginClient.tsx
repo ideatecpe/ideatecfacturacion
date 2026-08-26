@@ -63,6 +63,17 @@ const Modal: React.FC<{
   onClose: () => void;
   children: React.ReactNode;
 }> = ({ open, onClose, children }) => {
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -709,9 +720,16 @@ const LoginClient: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    const val = type === "checkbox" ? checked : value;
+    // Si es identifier (RUC/Usuario), limpiamos espacios accidentales al inicio y final
+    const val =
+      type === "checkbox"
+        ? checked
+        : name === "identifier"
+          ? value.trim()
+          : value;
+
     setFormData((prev) => ({ ...prev, [name]: val }));
-    const error = validate(name, val as string);
+    const error = validate(name, typeof val === "string" ? val : "");
     setErrors((prev) => ({ ...prev, [name]: error }));
     setApiError("");
   };
@@ -729,7 +747,8 @@ const LoginClient: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const idError = validate("identifier", formData.identifier);
+    const cleanIdentifier = formData.identifier.trim();
+    const idError = validate("identifier", cleanIdentifier);
     const passError = validate("password", formData.password);
     if (idError || passError) {
       setErrors({ identifier: idError, password: passError });
@@ -738,8 +757,21 @@ const LoginClient: React.FC = () => {
     setStatus(LoginStatus.LOADING);
     setApiError("");
     try {
+      const loginPayload = {
+        identifier: cleanIdentifier,
+        password: formData.password,
+        environment: environment,
+        rememberMe: formData.rememberMe,
+      };
+
+      console.group("🚀 [LOGIN API CONSUMPTION]");
+      console.log("📍 URL:", `${process.env.NEXT_PUBLIC_API_URL}/api/Auth/login`);
+      console.log("📡 Método:", "POST");
+      console.log("📦 Datos enviados:", loginPayload);
+      console.groupEnd();
+
       const result = await signIn("credentials", {
-        identifier: formData.identifier,
+        identifier: cleanIdentifier,
         password: formData.password,
         environment: environment,
         rememberMe: formData.rememberMe.toString(),
@@ -755,7 +787,7 @@ const LoginClient: React.FC = () => {
           localStorage.setItem(
             "rememberedCredentials",
             JSON.stringify({
-              identifier: formData.identifier,
+              identifier: cleanIdentifier,
             }),
           );
         } else {

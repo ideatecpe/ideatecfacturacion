@@ -72,8 +72,15 @@ export function useConfiguracion() {
           .catch(() => {});
       }
 
+      const configUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${ruc}`;
+      console.log("⚙️ [API CONFIGURACIÓN SOLICITADA]:", {
+        metodo: "GET",
+        url: configUrl,
+        ruc,
+      });
+
       fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Configuracion/${ruc}`,
+        configUrl,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       )
         .then((r) => (r.ok ? r.json() : null))
