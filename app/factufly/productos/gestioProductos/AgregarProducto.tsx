@@ -117,7 +117,7 @@ export default function AgregarProducto({
   const [nombreNuevaCategoria, setNombreNuevaCategoria] = useState("");
 
   const [isModalCategoriaOpen, setIsModalCategoriaOpen] = useState(false);
-  const [showMayorista, setShowMayorista] = useState(false);
+  const [showOpcionesAvanzadas, setShowOpcionesAvanzadas] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [imgPreview, setImgPreview] = useState<string | null>(null);
   const [subiendoImagen, setSubiendoImagen] = useState(false);
@@ -526,7 +526,7 @@ export default function AgregarProducto({
       setShowNuevaCategoria(false);
       setNombreNuevaCategoria("");
       setIsModalCategoriaOpen(false);
-      setShowMayorista(false);
+      setShowOpcionesAvanzadas(false);
       setImgError(false);
       setImgPreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1418,47 +1418,6 @@ export default function AgregarProducto({
         </div>
 
 
-        {/* ── Código SUNAT (UNSPSC) (Comentado temporalmente) ── */}
-        {/* {!soloSucursal && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">
-              Código SUNAT{" "}
-              <span className="text-gray-400 font-normal normal-case">(opcional)</span>
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1 min-w-0">
-                <input
-                  type="text"
-                  value={codigoSunatLabel || form.codigoSunat || ""}
-                  readOnly
-                  placeholder="Seleccionar desde catálogo..."
-                  title={codigoSunatLabel}
-                  className="w-full px-4 py-2.5 pr-8 bg-gray-100 border border-gray-200 rounded-xl text-sm truncate text-gray-600 cursor-default outline-none"
-                />
-                {(form.codigoSunat) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm((prev) => ({ ...prev, codigoSunat: "" }));
-                      setCodigoSunatLabel("");
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-300 hover:bg-gray-400 text-white transition-colors"
-                  >
-                    <XIcon className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setModalCatalogoOpen(true)}
-                className="shrink-0 px-3 py-2 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors"
-              >
-                Ver catálogo
-              </button>
-            </div>
-          </div>
-        )} */}
-
         {/* ¿Es un paquete/caja? — fila propia */}
         {!soloSucursal && config?.isStock && (
           <label className="flex items-center gap-2 pt-1 cursor-pointer select-none w-fit">
@@ -1528,91 +1487,142 @@ export default function AgregarProducto({
           </>
         )}
 
-        {/* ── Mayorista y Promoción (comprimido, no es prioritario al registrar) ── */}
-        {!soloSucursal && config?.isStock && form.tipoProducto === "BIEN" && (
+        {/* ── Opciones avanzadas (Código SUNAT, Mayorista, Promoción) ── */}
+        {!soloSucursal && (
           <div className="border border-gray-200 rounded-xl overflow-hidden">
             <button
               type="button"
-              onClick={() => setShowMayorista((prev) => !prev)}
-              className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+              onClick={() => setShowOpcionesAvanzadas((prev) => !prev)}
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left cursor-pointer"
             >
               <span className="text-xs font-bold text-gray-500 uppercase">
-                Mayorista y Promoción <span className="text-gray-400 font-normal">(opcional)</span>
+                Opciones avanzadas <span className="text-gray-400 font-normal normal-case">(Código SUNAT, Mayorista, Promoción)</span>
               </span>
               <ChevronDown
-                className={`w-4 h-4 text-gray-400 transition-transform ${showMayorista ? "rotate-180" : ""}`}
+                className={`w-4 h-4 text-gray-400 transition-transform ${showOpcionesAvanzadas ? "rotate-180" : ""}`}
               />
             </button>
 
-            {showMayorista && (
-              <div className="p-3 space-y-3 border-t border-gray-200">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <InputBase
-                    compact
-                    label="Precio Mayorista"
-                    labelOptional="(opcional)"
-                    type="number"
-                    step="0.01"
-                    value={String(form.precioMayorista ?? "")}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        precioMayorista: e.target.value === "" ? null : Number(e.target.value),
-                      }))
-                    }
-                    placeholder="0.00"
-                    showError={false}
-                  />
-                  <InputBase
-                    compact
-                    label="Cantidad mínima para mayorista"
-                    labelOptional={form.esPaquete ? "(paquetes)" : "(unidades)"}
-                    type="number"
-                    value={String(form.cantidadMinimaMayorista ?? "")}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        cantidadMinimaMayorista: e.target.value === "" ? null : Number(e.target.value),
-                      }))
-                    }
-                    placeholder="Ej: 12"
-                    showError={false}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={!!form.enPromocion}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, enPromocion: e.target.checked }))
-                    }
-                    className="w-4 h-4 accent-brand-blue"
-                  />
-                  <label className="text-xs font-semibold text-gray-600">
-                    ¿Producto en promoción?
+            {showOpcionesAvanzadas && (
+              <div className="p-3.5 space-y-3.5 border-t border-gray-200 bg-white">
+                {/* ── Código SUNAT (UNSPSC) ── */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-500 uppercase">
+                    Código SUNAT{" "}
+                    <span className="text-gray-400 font-normal normal-case">(opcional)</span>
                   </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={codigoSunatLabel || form.codigoSunat || ""}
+                        readOnly
+                        placeholder="Seleccionar desde catálogo..."
+                        title={codigoSunatLabel}
+                        className="w-full px-4 py-2 pr-8 bg-gray-50 border border-gray-200 rounded-xl text-xs truncate text-gray-700 cursor-default outline-none"
+                      />
+                      {form.codigoSunat && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setForm((prev) => ({ ...prev, codigoSunat: "" }));
+                            setCodigoSunatLabel("");
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-gray-300 hover:bg-gray-400 text-white transition-colors cursor-pointer"
+                          title="Quitar código SUNAT"
+                        >
+                          <XIcon className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModalCatalogoOpen(true)}
+                      className="shrink-0 px-3 py-2 text-xs font-semibold text-brand-blue bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Ver catálogo
+                    </button>
+                  </div>
                 </div>
 
-                {form.enPromocion && (
-                  <InputBase
-                    compact
-                    label="% Descuento"
-                    type="number"
-                    step="0.01"
-                    value={String(form.porcentajeDescuento ?? "")}
-                    showError={!!errors.porcentajeDescuento}
-                    errorMessage="Ingresa el % de descuento de la promoción"
-                    onChange={(e) => {
-                      if (errors.porcentajeDescuento)
-                        setErrors((prev) => ({ ...prev, porcentajeDescuento: false }));
-                      setForm((prev) => ({
-                        ...prev,
-                        porcentajeDescuento: e.target.value === "" ? null : Number(e.target.value),
-                      }));
-                    }}
-                    placeholder="Ej: 50"
-                  />
+                {/* ── Mayorista y Promoción ── */}
+                {config?.isStock && form.tipoProducto === "BIEN" && (
+                  <>
+                    <div className="pt-2 border-t border-gray-100">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <InputBase
+                          compact
+                          label="Precio Mayorista"
+                          labelOptional="(opcional)"
+                          type="number"
+                          step="0.01"
+                          value={String(form.precioMayorista ?? "")}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              precioMayorista: e.target.value === "" ? null : Number(e.target.value),
+                            }))
+                          }
+                          placeholder="0.00"
+                          showError={false}
+                        />
+                        <InputBase
+                          compact
+                          label="Cantidad mínima para mayorista"
+                          labelOptional={form.esPaquete ? "(paquetes)" : "(unidades)"}
+                          type="number"
+                          value={String(form.cantidadMinimaMayorista ?? "")}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              cantidadMinimaMayorista: e.target.value === "" ? null : Number(e.target.value),
+                            }))
+                          }
+                          placeholder="Ej: 12"
+                          showError={false}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Promoción */}
+                    <div className="pt-2 border-t border-gray-100 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!form.enPromocion}
+                          onChange={(e) =>
+                            setForm((prev) => ({ ...prev, enPromocion: e.target.checked }))
+                          }
+                          className="w-4 h-4 accent-brand-blue cursor-pointer"
+                          id="chk-promocion-agregar"
+                        />
+                        <label htmlFor="chk-promocion-agregar" className="text-xs font-semibold text-gray-600 cursor-pointer select-none">
+                          ¿Producto en promoción?
+                        </label>
+                      </div>
+
+                      {form.enPromocion && (
+                        <InputBase
+                          compact
+                          label="% Descuento"
+                          type="number"
+                          step="0.01"
+                          value={String(form.porcentajeDescuento ?? "")}
+                          showError={!!errors.porcentajeDescuento}
+                          errorMessage="Ingresa el % de descuento de la promoción"
+                          onChange={(e) => {
+                            if (errors.porcentajeDescuento)
+                              setErrors((prev) => ({ ...prev, porcentajeDescuento: false }));
+                            setForm((prev) => ({
+                              ...prev,
+                              porcentajeDescuento: e.target.value === "" ? null : Number(e.target.value),
+                            }));
+                          }}
+                          placeholder="Ej: 50"
+                        />
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             )}
