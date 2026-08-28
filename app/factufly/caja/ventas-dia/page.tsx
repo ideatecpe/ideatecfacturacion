@@ -130,8 +130,7 @@ export default function VentasDelDiaPage() {
     const totalesPorMoneda = new Map<string, number>();
     for (const c of vigentes) {
       const moneda = c.tipoMoneda ?? "PEN";
-      const total = c.importeTotal + (c.totalComisionPagoTarjeta ?? 0);
-      totalesPorMoneda.set(moneda, (totalesPorMoneda.get(moneda) ?? 0) + total);
+      totalesPorMoneda.set(moneda, (totalesPorMoneda.get(moneda) ?? 0) + c.importeTotal);
     }
     return {
       cantidad: vigentes.length,
@@ -542,11 +541,7 @@ export default function VentasDelDiaPage() {
                   className="text-sm font-bold tabular-nums"
                   style={{ color: "#0f2e64" }}
                 >
-                  {soles(
-                    seleccionado.importeTotal +
-                      (seleccionado.totalComisionPagoTarjeta ?? 0),
-                    seleccionado.tipoMoneda,
-                  )}
+                  {soles(seleccionado.importeTotal, seleccionado.tipoMoneda)}
                 </span>
               </div>
 
