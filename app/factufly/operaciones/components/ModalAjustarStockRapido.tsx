@@ -57,7 +57,7 @@ export default function ModalAjustarStockRapido({
 
   if (!producto) return null;
 
-  const unidad = abreviaturaUnidad(producto.unidadMedida);
+  const unidad = producto.esPaquete ? "und." : abreviaturaUnidad(producto.unidadMedida);
   const precioVenta = producto.sucursalProducto.precioUnitario ?? 0;
   const costoNum = costoInput.trim() === "" ? null : parseFloat(costoInput);
   const costoValido = costoNum != null && !isNaN(costoNum) && costoNum > 0;
