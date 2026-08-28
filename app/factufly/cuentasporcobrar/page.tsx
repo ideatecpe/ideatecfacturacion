@@ -141,7 +141,7 @@ export default function CuentasPorCobrarPage() {
   const loading = hookCuentas.loading || !huboIntentoInicial;
 
   return (
-    <div className="space-y-3 py-1 animate-in fade-in duration-500">
+    <div className="space-y-3 animate-in fade-in duration-500">
       {showModalReporte && (
         <ModalReporteCuentasPorCobrar
           empresaRuc={rucEmpresa}
@@ -172,7 +172,7 @@ export default function CuentasPorCobrarPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por cliente, RUC/DNI o N° comprobante..."
-              className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+              className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all  text-xs"
             />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -183,7 +183,7 @@ export default function CuentasPorCobrarPage() {
           <div className="flex items-center gap-2 flex-wrap shrink-0">
             <button
               onClick={() => setShowModalReporte(true)}
-              className="flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border border-gray-200 rounded-md transition-all shadow-sm bg-white text-gray-700 hover:bg-gray-50 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border border-gray-200 rounded-md transition-all bg-white text-gray-700 hover:bg-gray-50 whitespace-nowrap"
             >
               <FileSpreadsheet size={14} /> Reporte Excel
             </button>
@@ -194,7 +194,7 @@ export default function CuentasPorCobrarPage() {
                     value={sucursalFiltro ?? ''}
                     onChange={e => setSucursalFiltro(e.target.value || null)}
                     className={cn(
-                      "appearance-none pl-3 pr-8 py-2.5 text-xs font-medium border rounded-md outline-none cursor-pointer transition-all shadow-sm",
+                      "appearance-none pl-3 pr-8 py-2.5 text-xs font-medium border rounded-md outline-none cursor-pointer transition-all ",
                       sucursalFiltro
                         ? "bg-blue-50 border-blue-300 text-blue-700"
                         : "bg-white border-gray-200 text-gray-600"
@@ -214,7 +214,7 @@ export default function CuentasPorCobrarPage() {
             <button
               onClick={() => setShowAvanzado(o => !o)}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md transition-all shadow-sm",
+                "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md transition-all ",
                 showAvanzado ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
               )}
             >
@@ -230,23 +230,23 @@ export default function CuentasPorCobrarPage() {
         </div>
 
         {showAvanzado && (
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-in slide-in-from-top-2 duration-200">
+          <div className="bg-white border border-gray-200 rounded-md overflow-hidden animate-in slide-in-from-top-2 duration-200">
             <div className="px-5 py-4">
               <div className="flex flex-wrap items-end gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Nº Doc. Cliente</label>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase ">Nº Doc. Cliente</label>
                   <input type="text" value={avClienteDoc} onChange={e => setAvClienteDoc(e.target.value)}
                     placeholder="RUC o DNI"
                     className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all w-44" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Fecha desde</label>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase ">Fecha desde</label>
                   <input type="date" value={avFechaDesde} max={hoy}
                     onChange={e => { setAvFechaDesde(e.target.value); if (avFechaHasta && e.target.value > avFechaHasta) setAvFechaHasta(''); }}
                     className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Fecha hasta</label>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase ">Fecha hasta</label>
                   <input type="date" value={avFechaHasta} min={avFechaDesde || undefined} max={hoy}
                     onChange={e => setAvFechaHasta(e.target.value)}
                     className="h-8 py-0 px-3 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-blue-50 focus:bg-white transition-all" />
@@ -346,20 +346,20 @@ export default function CuentasPorCobrarPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 flex flex-col animate-in zoom-in-95 duration-200" style={{ maxHeight: '90vh' }}>
 
             {/* Header */}
-            <div className="bg-blue-600 rounded-t-2xl px-6 py-4 flex items-center justify-between shrink-0">
+            <div className="bg-white border-b border-gray-100 rounded-t-2xl px-6 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
-                  <DollarSign size={18} className="text-white" />
+                <div className="w-10 h-10 bg-[#EEF3FB] border border-[#D0E0F7] rounded-xl flex items-center justify-center shrink-0">
+                  <DollarSign size={18} className="text-brand-blue" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">{comprobanteSeleccionado.numeroCompleto}</h3>
-                  <p className="text-blue-200 text-xs mt-0.5">
+                  <h3 className="text-base font-bold text-gray-900">{comprobanteSeleccionado.numeroCompleto}</h3>
+                  <p className="text-gray-500 text-xs mt-0.5">
                     {tipoComprobanteLabel(comprobanteSeleccionado.tipoComprobante)} · {formatFecha(comprobanteSeleccionado.fechaEmision)}
                   </p>
                 </div>
               </div>
-              <button onClick={cerrarModal} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
-                <X size={17} className="text-white" />
+              <button onClick={cerrarModal} className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-lg transition-colors cursor-pointer">
+                <X size={17} />
               </button>
             </div>
 
@@ -535,12 +535,12 @@ export default function CuentasPorCobrarPage() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+            <div className="px-6 py-3.5 border-t border-gray-100 flex justify-end shrink-0 bg-gray-50/40 rounded-b-2xl">
               <button
                 onClick={cerrarModal}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 transition-colors"
+                className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 hover:border-red-300 active:scale-[0.98] transition-all shadow-xs cursor-pointer"
               >
-                <X size={15} /> Cerrar
+                <X size={14} /> Cerrar
               </button>
             </div>
           </div>
@@ -572,7 +572,7 @@ const DropdownFiltro = ({ label, value, options, onChange }: DropdownFiltroProps
       <button
         onClick={() => setOpen(o => !o)}
         className={cn(
-          "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md outline-none transition-all shadow-sm whitespace-nowrap",
+          "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md outline-none transition-all whitespace-nowrap",
           active ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
         )}
       >

@@ -219,17 +219,17 @@ export const EditarClienteModal: React.FC<Props> = ({
   const esDni = form.tipoDocumento.tipoDocumentoId !== "06";
 
   return (
-    <Modal isOpen onClose={onClose} title="Editar Cliente">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-500 uppercase">
+    <Modal isOpen onClose={onClose} title="Editar Cliente" className="max-w-lg">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-gray-500 uppercase block">
               Tipo Documento
             </label>
             <select
               value={form.tipoDocumento.tipoDocumentoId}
               disabled
-              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"
+              className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none text-gray-700 font-medium"
             >
               <option value="01">DNI</option>
               <option value="06">RUC</option>
@@ -238,19 +238,20 @@ export const EditarClienteModal: React.FC<Props> = ({
           </div>
 
           {/* Número + botón Rellenar solo para RUC */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <InputBase
               label="Número"
               value={form.numeroDocumento}
               disabled
               showError={false}
+              compact
             />
             {!esDni && (
               <button
                 type="button"
                 onClick={handleRellenar}
                 disabled={isRellenando}
-                className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:text-brand-blue/80 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-brand-blue hover:text-brand-blue/80 disabled:opacity-50 transition-colors pt-0.5"
               >
                 <RefreshCw
                   className={`w-3 h-3 ${isRellenando ? "animate-spin" : ""}`}
@@ -270,33 +271,39 @@ export const EditarClienteModal: React.FC<Props> = ({
           value={form.razonSocialNombre}
           onChange={(e) => updateForm("razonSocialNombre", e.target.value)}
           showError={false}
+          compact
         />
 
-        <InputBase
-          label="Correo Electrónico"
-          labelOptional="(opcional)"
-          value={form.correo ?? ""}
-          onChange={(e) => updateForm("correo", e.target.value || null)}
-          showError={false}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <InputBase
+            label="Correo Electrónico"
+            labelOptional="(opcional)"
+            value={form.correo ?? ""}
+            onChange={(e) => updateForm("correo", e.target.value || null)}
+            showError={false}
+            compact
+          />
 
-        <InputBase
-          label="Teléfono"
-          labelOptional="(opcional)"
-          value={form.telefono ?? ""}
-          onChange={(e) => updateForm("telefono", e.target.value || null)}
-          showError={false}
-        />
+          <InputBase
+            label="Teléfono"
+            labelOptional="(opcional)"
+            value={form.telefono ?? ""}
+            onChange={(e) => updateForm("telefono", e.target.value || null)}
+            showError={false}
+            compact
+          />
+        </div>
 
         {/* ───────── Dirección RUC — siempre visible ───────── */}
         {!esDni && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-gray-50/60 p-3 rounded-xl border border-gray-200">
             <InputBase
               label="Ubigeo"
               labelOptional="(opcional)"
               value={form.direccion?.[0]?.ubigeo ?? ""}
               onChange={(e) => updateDireccion("ubigeo", e.target.value)}
               showError={false}
+              compact
             />
             <InputBase
               label="Dirección"
@@ -305,6 +312,7 @@ export const EditarClienteModal: React.FC<Props> = ({
                 updateDireccion("direccionLineal", e.target.value)
               }
               showError={false}
+              compact
             />
             <InputBase
               label="Distrito"
@@ -312,6 +320,7 @@ export const EditarClienteModal: React.FC<Props> = ({
               value={form.direccion?.[0]?.distrito ?? ""}
               onChange={(e) => updateDireccion("distrito", e.target.value)}
               showError={false}
+              compact
             />
             <InputBase
               label="Provincia"
@@ -319,6 +328,7 @@ export const EditarClienteModal: React.FC<Props> = ({
               value={form.direccion?.[0]?.provincia ?? ""}
               onChange={(e) => updateDireccion("provincia", e.target.value)}
               showError={false}
+              compact
             />
             <InputBase
               label="Departamento"
@@ -326,6 +336,7 @@ export const EditarClienteModal: React.FC<Props> = ({
               value={form.direccion?.[0]?.departamento ?? ""}
               onChange={(e) => updateDireccion("departamento", e.target.value)}
               showError={false}
+              compact
             />
             <InputBase
               label="Tipo Dirección"
@@ -333,6 +344,7 @@ export const EditarClienteModal: React.FC<Props> = ({
               value={form.direccion?.[0]?.tipoDireccion ?? ""}
               onChange={(e) => updateDireccion("tipoDireccion", e.target.value)}
               showError={false}
+              compact
             />
           </div>
         )}
@@ -340,12 +352,12 @@ export const EditarClienteModal: React.FC<Props> = ({
         {/* ───────── Dirección DNI/CE — opcional con toggle ───────── */}
         {esDni && (
           <div
-            className={`border rounded-xl transition-colors ${mostrarDireccion ? "border-brand-blue" : "border-gray-200"}`}
+            className={`border rounded-xl transition-colors ${mostrarDireccion ? "border-brand-blue/40 bg-gray-50/30" : "border-gray-200"}`}
           >
             <button
               type="button"
               onClick={() => setMostrarDireccion((prev) => !prev)}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-gray-500 hover:text-brand-blue transition-colors"
+              className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-semibold text-gray-600 hover:text-brand-blue transition-colors cursor-pointer"
             >
               <span>Dirección (opcional)</span>
               <ChevronDown
@@ -354,7 +366,7 @@ export const EditarClienteModal: React.FC<Props> = ({
             </button>
 
             {mostrarDireccion && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 pb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 px-3.5 pb-3">
                 <InputBase
                   label="Dirección"
                   labelOptional="(opcional)"
@@ -363,6 +375,7 @@ export const EditarClienteModal: React.FC<Props> = ({
                     updateDireccion("direccionLineal", e.target.value)
                   }
                   showError={false}
+                  compact
                 />
                 <InputBase
                   label="Tipo Dirección"
@@ -372,17 +385,18 @@ export const EditarClienteModal: React.FC<Props> = ({
                     updateDireccion("tipoDireccion", e.target.value)
                   }
                   showError={false}
+                  compact
                 />
               </div>
             )}
           </div>
         )}
 
-        <div className="pt-4 flex justify-end gap-3">
-          <Button variant="outline" type="button" onClick={onClose}>
+        <div className="pt-2 flex justify-end gap-2">
+          <Button variant="outline" type="button" onClick={onClose} className="px-3.5 py-1.5 text-xs">
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} className="px-4 py-1.5 text-xs">
             {isSubmitting ? "Guardando..." : "Guardar cambios"}
           </Button>
         </div>

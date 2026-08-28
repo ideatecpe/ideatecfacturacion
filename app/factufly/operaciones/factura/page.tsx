@@ -3032,7 +3032,7 @@ function FacturaContent() {
                           <button
                             type="button"
                             onClick={() => setShowModalCliente(true)}
-                            className="w-8 h-8 shrink-0 flex items-center justify-center bg-brand-blue hover:bg-blue-700 text-white rounded-full text-lg font-bold transition-colors"
+                            className="w-8 h-8 shrink-0 flex items-center justify-center bg-brand-blue hover:bg-[#0a2050] text-white rounded-full text-lg font-bold transition-colors cursor-pointer"
                             title="Guardar cliente"
                           >
                             +

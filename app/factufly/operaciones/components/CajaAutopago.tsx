@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   Receipt,
   FileText,
-  Users,
   ImageOff,
   ImageIcon,
   CheckCircle2,
@@ -77,6 +76,7 @@ import { imprimirTicketProvisional } from "@/app/factufly/operaciones/components
 import { cacheProductos } from "@/lib/offline/offlineDb";
 import ModalAjustarStockRapido from "@/app/factufly/operaciones/components/ModalAjustarStockRapido";
 import ModalCrearProductoRapido from "@/app/factufly/operaciones/components/ModalCrearProductoRapido";
+import VentasRapidas from "@/app/factufly/operaciones/components/VentasRapidas";
 
 interface MedioPagoOpcion {
   nombre: string;
@@ -121,7 +121,7 @@ function obtenerMontosRapidos(total: number): number[] {
 }
 const TAMANO_MAP: Record<"80" | "58" | "A4", string> = { "80": "Ticket80mm", "58": "Ticket58mm", A4: "A4" };
 
-interface ItemCarrito {
+export interface ItemCarrito {
   key: string;
   productoId: number;
   sucursalProductoId: number;
@@ -138,22 +138,17 @@ interface ItemCarrito {
   tieneVencido: boolean;
 }
 
-// Un carrito vacío estable: si se pasara `[]` en línea, cada render sería una
-// referencia nueva y recalcularía el stock disponible de todo el grid.
-const SIN_RESERVAS: ItemCarrito[] = [];
+export const SIN_RESERVAS: ItemCarrito[] = [];
 
-// Configuración de las ventas rápidas: las tres comparten el mismo estilo azul
-// de la caja principal. F3 y F4 se activan solo cuando el cajero las usa por
-// primera vez (tecla o clic). Si se quisiera agregar más, basta con añadir una
-// entrada aquí; el resto del código itera sobre este array.
-const VENTAS_RAPIDAS_CONFIG = [
-  { key: "F1", label: "Venta rápida 1", color: "bg-brand-blue", hoverColor: "hover:bg-blue-700", shadowColor: "rgba(15,46,100,0.7)" },
-  { key: "F2", label: "Venta rápida 2", color: "bg-brand-blue", hoverColor: "hover:bg-blue-700", shadowColor: "rgba(15,46,100,0.7)" },
-  { key: "F3", label: "Venta rápida 3", color: "bg-brand-blue", hoverColor: "hover:bg-blue-700", shadowColor: "rgba(15,46,100,0.7)" },
+export const VENTAS_RAPIDAS_CONFIG = [
+  { key: "F1", label: "Venta rápida 1", color: "bg-brand-blue", hoverColor: "hover:bg-[#0a2050]", shadowColor: "rgba(15,46,100,0.7)" },
+  { key: "F2", label: "Venta rápida 2", color: "bg-brand-blue", hoverColor: "hover:bg-[#0a2050]", shadowColor: "rgba(15,46,100,0.7)" },
+  { key: "F3", label: "Venta rápida 3", color: "bg-brand-blue", hoverColor: "hover:bg-[#0a2050]", shadowColor: "rgba(15,46,100,0.7)" },
+  { key: "F4", label: "Venta rápida 4", color: "bg-brand-blue", hoverColor: "hover:bg-[#0a2050]", shadowColor: "rgba(15,46,100,0.7)" },
 ] as const;
 
 /** Info de una venta rápida que la caja principal necesita para sus botones/barras. */
-interface VentaRapidaInfo {
+export interface VentaRapidaInfo {
   configIndex: number;
   items: number;
   total: number;
@@ -162,9 +157,7 @@ interface VentaRapidaInfo {
   onAbrir: () => void;
 }
 
-// Precio de venta efectivo: si el producto está en promoción, aplica el
-// porcentaje de descuento sobre precioUnitario (mismo cálculo que en
-// productos/lista/ProductoCard.tsx y en boleta/factura/nota-venta).
+
 const precioConDescuento = (p: ProductoSucursal) => {
   const base = p.sucursalProducto.precioUnitario ?? 0;
   const { enPromocion, porcentajeDescuento } = p.sucursalProducto;
@@ -174,9 +167,7 @@ const precioConDescuento = (p: ProductoSucursal) => {
   return base;
 };
 
-// Cuántas unidades adicionales del producto `p` caben en el pool compartido de stock,
-// descontando lo que el carrito ya tiene comprometido (incluyendo paquetes × factor).
-// Devuelve null cuando isStock está apagado o el producto es un servicio.
+
 function calcularDisponible(
   p: ProductoSucursal,
   cartItems: ItemCarrito[],
@@ -322,12 +313,7 @@ function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
   return false;
 }
 
-// Coincidencia ESTRICTA de código (solo puntos 1, 2 y 4 de coincideCodigoOBarras):
-// exacta, numérica exacta (ignorando ceros a la izquierda) o normalizada exacta.
-// A diferencia de coincideCodigoOBarras, NO hace matching difuso por substring ni por
-// nombre de producto: se usa para el auto-agregado instantáneo mientras el usuario
-// todavía está tecleando (lector físico), donde un match parcial por nombre borraría
-// el campo de búsqueda apenas se escriben un par de letras.
+
 function coincideCodigoExacto(p: ProductoSucursal, q: string): boolean {
   const query = q.trim().toLowerCase();
   if (!query) return false;
@@ -366,10 +352,7 @@ function coincideCodigoExacto(p: ProductoSucursal, q: string): boolean {
   return false;
 }
 
-// Tarjeta de producto para el grid de la izquierda (imagen + nombre + precio).
-// Tamaño responsivo que corresponde a las columnas del grid (8→7→6→5→4→3 cols):
-// le indica al navegador cuán ancha se va a renderizar la imagen para que, si el
-// CDN ofrece varias resoluciones, descargue la más liviana posible.
+
 const GRID_IMG_SIZES =
   "(min-width: 1536px) 12.5vw, (min-width: 1280px) 14.3vw, (min-width: 1024px) 16.7vw, (min-width: 768px) 20vw, (min-width: 640px) 25vw, 33.3vw";
 
@@ -434,7 +417,7 @@ const ProductoGridCard = memo(function ProductoGridCard({
           : "border-gray-100 bg-white hover:border-brand-blue hover:shadow-md active:scale-[0.97]"
       }`}
     >
-      <div className="aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden relative p-2">
+      <div className="aspect-square w-full bg-white flex items-center justify-center overflow-hidden relative p-2">
         {mostrarImg ? (
           <img
             src={conVarianteImagen(p.urlImagenProducto as string, "thumbnail")}
@@ -448,17 +431,17 @@ const ProductoGridCard = memo(function ProductoGridCard({
           />
         ) : tieneImagen ? (
           /* Placeholder liviano mientras la tarjeta no está en el viewport (0 peticiones de red) */
-          <div className="w-full h-full bg-gray-100/60 rounded flex items-center justify-center">
+          <div className="w-full h-full bg-white rounded flex items-center justify-center">
             <ImageIcon className="w-5 h-5 text-gray-300/70 animate-pulse" />
           </div>
         ) : (
           <ImageOff className="w-5 h-5 text-gray-300" />
         )}
 
-        {/* Badge de Stock en la parte superior derecha */}
+        {/* Badge de Stock en forma de etiqueta/cinta en la parte superior derecha */}
         {stockDisp !== null && stockDisp !== undefined && (
           <span
-            className={`absolute top-1 right-1 flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold text-white z-10 shadow-2xs tabular-nums ${
+            className={`absolute top-0 right-2 flex items-center justify-center gap-0.5 px-1.5 pt-0.5 pb-0.5 rounded-b-md text-[9px] font-bold text-white z-10 shadow-xs tabular-nums ${
               stockDisp <= 0
                 ? "bg-rose-600"
                 : stockDisp <= 5
@@ -484,7 +467,7 @@ const ProductoGridCard = memo(function ProductoGridCard({
           </span>
         )}
       </div>
-      <div className="p-1">
+      <div className={`p-1 flex-1 w-full ${seleccionado ? "bg-[#008000]/10" : "bg-gray-50"}`}>
         <p className={`text-[11px] font-semibold line-clamp-1 leading-tight ${seleccionado ? "text-[#008000] font-bold" : "text-gray-800"}`}>
           {p.nomProducto}
         </p>
@@ -512,7 +495,7 @@ const ProductoGridCard = memo(function ProductoGridCard({
 // <CajaAutopago /> y se pasan a cada vista. Si cada caja tuviera su propia copia,
 // la venta rápida y la principal mostrarían stock distinto del mismo producto y
 // podrían vender dos veces la última unidad.
-interface RecursosCaja {
+export interface RecursosCaja {
   productos: ReturnType<typeof useProductosSucursal>;
   recursoSucursal: ReturnType<typeof useSucursal>;
   recursoEmpresa: ReturnType<typeof useEmpresaEmisor>;
@@ -520,7 +503,7 @@ interface RecursosCaja {
   ultimaRevalidacionRef: { current: number };
 }
 
-interface CajaAutopagoVistaProps {
+export interface CajaAutopagoVistaProps {
   recursos: RecursosCaja;
   /** Solo la caja enfocada escucha el teclado global y usa la cámara. */
   activo: boolean;
@@ -536,7 +519,7 @@ interface CajaAutopagoVistaProps {
   onVentaTerminada?: () => void;
 }
 
-function CajaAutopagoVista({
+export function CajaAutopagoVista({
   recursos,
   activo,
   esRapida = false,
@@ -575,19 +558,13 @@ function CajaAutopagoVista({
     Parameters<typeof imprimirTicketProvisional>[0] | null
   >(null);
 
-  // La carga de categorías y la revalidación periódica del stock viven en
-  // <CajaAutopago />: son recursos compartidos y con dos cajas montadas se
-  // dispararían dos veces cada una.
+ 
 
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
 
-  // ── Stock compartido entre las dos cajas abiertas ────────────────────
-  // Lo que la otra caja ya tiene en su carrito está comprometido aunque todavía
-  // no se haya emitido: si no se descontara aquí, las dos podrían agregar la
-  // última unidad del mismo producto y una de las dos ventas se caería recién
-  // en el backend (que descuenta stock de forma atómica).
+
   const reservasRef = useRef<ItemCarrito[]>(reservasOtraCaja);
   useEffect(() => { reservasRef.current = reservasOtraCaja; });
 
@@ -2548,7 +2525,7 @@ function CajaAutopagoVista({
                 setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
                 setModalCrearRapidoAbierto(true);
               }}
-              className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-emerald-600 text-white rounded-md text-xs font-semibold hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
+              className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-[#EEF3FB] text-brand-blue border border-[#D0E0F7] rounded-md text-xs font-bold hover:bg-[#D9E7FB] hover:border-[#BBD4F7] active:scale-[0.98] transition-all shadow-xs shrink-0 cursor-pointer"
               title="Registrar producto nuevo rápidamente"
             >
               <PackagePlus size={14} />
@@ -2560,7 +2537,7 @@ function CajaAutopagoVista({
               <button
                 type="button"
                 onClick={ventasRapidas[0].onAbrir}
-                className="relative h-9.5 flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
+                className="relative h-9.5 flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-[#0a2050] active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
                 title="Atender otra venta en paralelo sin perder este carrito (F1)"
               >
                 <Zap size={14} />
@@ -2597,7 +2574,7 @@ function CajaAutopagoVista({
               <button
                 type="button"
                 onClick={startScanning}
-                className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
+                className="h-9.5 flex items-center justify-center gap-1.5 px-3 bg-brand-blue text-white rounded-md text-xs font-semibold hover:bg-[#0a2050] active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
               >
                 <ScanBarcode size={14} />
                 <span className="hidden sm:inline">Cámara</span>
@@ -2699,10 +2676,10 @@ function CajaAutopagoVista({
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 gap-1.5 animate-pulse">
                 {Array.from({ length: 24 }).map((_, i) => (
                   <div key={i} className="flex flex-col rounded-md border border-gray-100 bg-white overflow-hidden">
-                    <div className="aspect-square w-full bg-gray-100" />
-                    <div className="p-1 space-y-1.5">
-                      <div className="h-2.5 bg-gray-100 rounded w-3/4" />
-                      <div className="h-3 bg-gray-100 rounded w-1/2" />
+                    <div className="aspect-square w-full bg-white" />
+                    <div className="p-1 space-y-1.5 bg-gray-50">
+                      <div className="h-2.5 bg-gray-200 rounded w-3/4" />
+                      <div className="h-3 bg-gray-200 rounded w-1/2" />
                     </div>
                   </div>
                 ))}
@@ -2723,7 +2700,7 @@ function CajaAutopagoVista({
                       setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
                       setModalCrearRapidoAbierto(true);
                     }}
-                    className="mt-3 px-4 py-2 bg-brand-blue hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="mt-3 px-4 py-2 bg-brand-blue hover:bg-[#0a2050] text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <PackagePlus size={14} />
                     Registrar &quot;{busqueda}&quot; como nuevo producto
@@ -3027,7 +3004,7 @@ function CajaAutopagoVista({
             <button
               onClick={abrirPago}
               disabled={items.length === 0}
-              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-[#0a2050] active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 cursor-pointer"
             >
               Cobrar S/ {totales.total.toFixed(2)}
               <ArrowRight className="w-4.5 h-4.5" />
@@ -3042,7 +3019,7 @@ function CajaAutopagoVista({
           <button
             type="button"
             onClick={() => setMostrarCarritoMobile(true)}
-            className="flex items-center gap-2.5 min-w-0 text-left"
+            className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer"
           >
             <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-brand-blue/10 text-brand-blue shrink-0">
               <ShoppingBag className="w-5 h-5 text-brand-blue" />
@@ -3063,7 +3040,7 @@ function CajaAutopagoVista({
           <button
             type="button"
             onClick={abrirPago}
-            className="flex items-center justify-center gap-2 rounded-xl bg-brand-blue px-5 py-3 text-white text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all shrink-0"
+            className="flex items-center justify-center gap-2 rounded-xl bg-brand-blue px-5 py-3 text-white text-sm font-bold shadow-md hover:bg-[#0a2050] active:scale-95 transition-all shrink-0 cursor-pointer"
           >
             Cobrar S/ {totales.total.toFixed(2)}
             <ArrowRight className="w-4 h-4" />
@@ -3285,7 +3262,7 @@ function CajaAutopagoVista({
                   setMostrarCarritoMobile(false);
                   abrirPago();
                 }}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-blue py-3.5 text-white text-base font-bold shadow-md hover:bg-blue-700 active:scale-[0.99] transition-all"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-blue py-3.5 text-white text-base font-bold shadow-md hover:bg-[#0a2050] active:scale-[0.99] transition-all cursor-pointer"
               >
                 Cobrar S/ {totales.total.toFixed(2)}
                 <ArrowRight className="w-4.5 h-4.5" />
@@ -3947,7 +3924,7 @@ function CajaAutopagoVista({
             <button
               onClick={emitirVenta}
               disabled={!puedeEmitir}
-              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-[#0a2050] active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               {emitiendo ? (
                 <>
@@ -4102,7 +4079,7 @@ function CajaAutopagoVista({
 
               <button
                 onClick={nuevaVenta}
-                className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-4 text-white text-lg font-bold shadow-sm hover:bg-blue-700 active:scale-[0.99] transition-all mt-2 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-4 text-white text-lg font-bold shadow-sm hover:bg-[#0a2050] active:scale-[0.99] transition-all mt-2 cursor-pointer"
               >
                 Nueva venta
                 <ArrowRight className="w-5 h-5" />
@@ -4174,7 +4151,9 @@ export default function CajaAutopago() {
 
   // ── Revalidación del stock mientras la caja está abierta ─────────────
   const fetchProductosRef = useRef(productos.fetchProductosSucursal);
-  useEffect(() => { fetchProductosRef.current = productos.fetchProductosSucursal; });
+  useEffect(() => {
+    fetchProductosRef.current = productos.fetchProductosSucursal;
+  });
 
   useEffect(() => {
     if (!sucursalId || ventasSincronizadas === 0) return;
@@ -4190,322 +4169,10 @@ export default function CajaAutopago() {
     ultimaRevalidacionRef,
   };
 
-  // ── Estado de las ventanas flotantes arrastrables (Estilo Windows) ──
-  interface VentanaSlot {
-    montada: boolean;
-    abierta: boolean;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    zIndex: number;
-  }
-
-  const [slots, setSlots] = useState<VentanaSlot[]>(() => {
-    const isClient = typeof window !== "undefined";
-    const screenW = isClient ? window.innerWidth : 1400;
-    const screenH = isClient ? window.innerHeight : 900;
-    const defW = Math.round(screenW * 0.7);
-    const defH = Math.min(840, Math.max(520, Math.round(screenH * 0.84)));
-    const startX = Math.max(15, Math.round((screenW - defW) / 2));
-    const startY = Math.max(15, Math.round((screenH - defH) / 2));
-    return VENTAS_RAPIDAS_CONFIG.map((_, i) => ({
-      montada: false,
-      abierta: false,
-      x: startX + i * 30,
-      y: startY + i * 25,
-      width: defW,
-      height: defH,
-      zIndex: 100 + i,
-    }));
-  });
-
-  const [slotEnfocado, setSlotEnfocado] = useState<number | null>(null);
-  const zIndexTopRef = useRef(110);
-
   const [carritoPrincipal, setCarritoPrincipal] = useState<ItemCarrito[]>(SIN_RESERVAS);
-  const [carritosRapidos, setCarritosRapidos] = useState<ItemCarrito[][]>(() =>
-    VENTAS_RAPIDAS_CONFIG.map(() => SIN_RESERVAS)
-  );
-
-  // Traer una ventana al frente (mayor zIndex)
-  const traerAlFrente = useCallback((idx: number) => {
-    zIndexTopRef.current += 1;
-    const newZ = zIndexTopRef.current;
-    setSlots(prev => prev.map((s, i) => i === idx ? { ...s, zIndex: newZ } : s));
-    setSlotEnfocado(idx);
-  }, []);
-
-  // Abrir ventana flotante
-  const abrirSlot = useCallback((idx: number) => {
-    zIndexTopRef.current += 1;
-    const newZ = zIndexTopRef.current;
-    setSlots(prev => prev.map((s, i) =>
-      i === idx ? { ...s, montada: true, abierta: true, zIndex: newZ } : s
-    ));
-    setSlotEnfocado(idx);
-  }, []);
-
-  // Minimizar ventana flotante
-  const minimizarSlot = useCallback((idx: number) => {
-    setSlots(prev => prev.map((s, i) =>
-      i === idx ? { ...s, abierta: false } : s
-    ));
-    setSlotEnfocado(prev => {
-      if (prev === idx) {
-        const otro = slots.findIndex((s, i) => i !== idx && s.abierta);
-        return otro !== -1 ? otro : null;
-      }
-      return prev;
-    });
-  }, [slots]);
-
-  // Arrastrar ventana con requestAnimationFrame (60/120 FPS ultra fluido)
-  const iniciarArrastre = useCallback((idx: number, e: React.MouseEvent | React.TouchEvent) => {
-    if ("button" in e && e.button !== 0) return;
-    const target = e.target as HTMLElement;
-    if (target.closest("button") || target.closest("input") || target.closest("select")) return;
-
-    traerAlFrente(idx);
-    const slot = slots[idx];
-
-    const startMouseX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const startMouseY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    const startX = slot.x;
-    const startY = slot.y;
-
-    let rafId: number | null = null;
-    let latestCurX = startMouseX;
-    let latestCurY = startMouseY;
-
-    // Evitar selección de texto molesta durante el arrastre
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "grabbing";
-
-    const updatePosition = () => {
-      const deltaX = latestCurX - startMouseX;
-      const deltaY = latestCurY - startMouseY;
-      const newX = Math.max(0, Math.min(window.innerWidth - 150, startX + deltaX));
-      const newY = Math.max(0, Math.min(window.innerHeight - 80, startY + deltaY));
-
-      setSlots(prev => prev.map((s, i) => i === idx ? { ...s, x: newX, y: newY } : s));
-      rafId = null;
-    };
-
-    const onMove = (moveEvt: MouseEvent | TouchEvent) => {
-      latestCurX = "touches" in moveEvt ? moveEvt.touches[0].clientX : moveEvt.clientX;
-      latestCurY = "touches" in moveEvt ? moveEvt.touches[0].clientY : moveEvt.clientY;
-
-      if (!rafId) {
-        rafId = requestAnimationFrame(updatePosition);
-      }
-    };
-
-    const onEnd = () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-        updatePosition();
-      }
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onEnd);
-      window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("touchend", onEnd);
-    };
-
-    window.addEventListener("mousemove", onMove, { passive: true });
-    window.addEventListener("mouseup", onEnd);
-    window.addEventListener("touchmove", onMove, { passive: true });
-    window.addEventListener("touchend", onEnd);
-  }, [slots, traerAlFrente]);
-
-  // Redimensionar ventana con requestAnimationFrame (60/120 FPS ultra fluido)
-  const iniciarRedimension = useCallback((idx: number, e: React.MouseEvent | React.TouchEvent) => {
-    if ("button" in e && e.button !== 0) return;
-    e.stopPropagation();
-    e.preventDefault();
-
-    traerAlFrente(idx);
-    const slot = slots[idx];
-
-    const startMouseX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const startMouseY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    const startW = slot.width;
-    const startH = slot.height;
-
-    let rafId: number | null = null;
-    let latestCurX = startMouseX;
-    let latestCurY = startMouseY;
-
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "se-resize";
-
-    const updateSize = () => {
-      const deltaX = latestCurX - startMouseX;
-      const deltaY = latestCurY - startMouseY;
-      const newW = Math.max(480, Math.min(window.innerWidth - slot.x - 10, startW + deltaX));
-      const newH = Math.max(400, Math.min(window.innerHeight - slot.y - 10, startH + deltaY));
-
-      setSlots(prev => prev.map((s, i) => i === idx ? { ...s, width: newW, height: newH } : s));
-      rafId = null;
-    };
-
-    const onMove = (moveEvt: MouseEvent | TouchEvent) => {
-      latestCurX = "touches" in moveEvt ? moveEvt.touches[0].clientX : moveEvt.clientX;
-      latestCurY = "touches" in moveEvt ? moveEvt.touches[0].clientY : moveEvt.clientY;
-
-      if (!rafId) {
-        rafId = requestAnimationFrame(updateSize);
-      }
-    };
-
-    const onEnd = () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-        updateSize();
-      }
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onEnd);
-      window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("touchend", onEnd);
-    };
-
-    window.addEventListener("mousemove", onMove, { passive: true });
-    window.addEventListener("mouseup", onEnd);
-    window.addEventListener("touchmove", onMove, { passive: true });
-    window.addEventListener("touchend", onEnd);
-  }, [slots, traerAlFrente]);
-
-  // Callbacks estables por slot
-  const abrirSlot0 = useCallback(() => abrirSlot(0), [abrirSlot]);
-  const abrirSlot1 = useCallback(() => abrirSlot(1), [abrirSlot]);
-  const abrirSlot2 = useCallback(() => abrirSlot(2), [abrirSlot]);
-  const minimizarSlot0 = useCallback(() => minimizarSlot(0), [minimizarSlot]);
-  const minimizarSlot1 = useCallback(() => minimizarSlot(1), [minimizarSlot]);
-  const minimizarSlot2 = useCallback(() => minimizarSlot(2), [minimizarSlot]);
-  const abridores = useMemo(() => [abrirSlot0, abrirSlot1, abrirSlot2], [abrirSlot0, abrirSlot1, abrirSlot2]);
-  const minimizadores = useMemo(() => [minimizarSlot0, minimizarSlot1, minimizarSlot2], [minimizarSlot0, minimizarSlot1, minimizarSlot2]);
-
-  // Setters estables por carrito
-  const setCarritoRapido0 = useCallback((items: ItemCarrito[]) => setCarritosRapidos(p => { const c = [...p]; c[0] = items; return c; }), []);
-  const setCarritoRapido1 = useCallback((items: ItemCarrito[]) => setCarritosRapidos(p => { const c = [...p]; c[1] = items; return c; }), []);
-  const setCarritoRapido2 = useCallback((items: ItemCarrito[]) => setCarritosRapidos(p => { const c = [...p]; c[2] = items; return c; }), []);
-  const settersCarrito = useMemo(() => [setCarritoRapido0, setCarritoRapido1, setCarritoRapido2], [setCarritoRapido0, setCarritoRapido1, setCarritoRapido2]);
-
-  // Conteo y estado
-  const abiertasIndices = useMemo(
-    () => slots.map((s, i) => (s.abierta ? i : -1)).filter(i => i !== -1),
-    [slots]
-  );
-  const abiertasCount = abiertasIndices.length;
-  const algunaAbierta = abiertasCount > 0;
-
-  // Slot enfocado para el teclado y escáner
-  const slotActivo = useMemo(() => {
-    if (abiertasCount === 0) return null;
-    if (slotEnfocado !== null && slots[slotEnfocado]?.abierta) return slotEnfocado;
-    return abiertasIndices[abiertasIndices.length - 1];
-  }, [abiertasCount, slotEnfocado, slots, abiertasIndices]);
-
-  // Reservas cruzadas de stock
-  const reservasParaPrincipal = useMemo(
-    () => carritosRapidos.flat(),
-    [carritosRapidos]
-  );
-  const reservasParaRapida = useMemo(
-    () => VENTAS_RAPIDAS_CONFIG.map((_, i) => [
-      ...carritoPrincipal,
-      ...carritosRapidos.filter((_, j) => j !== i).flat(),
-    ]),
-    [carritoPrincipal, carritosRapidos]
-  );
-
-  // Totales por slot
-  const totalesRapidos = useMemo(
-    () => carritosRapidos.map(c => c.reduce((t, i) => t + i.precio * i.cantidad, 0)),
-    [carritosRapidos]
-  );
-
-  // Info para los botones/barras de la caja principal
-  const ventasRapidasInfo: VentaRapidaInfo[] = useMemo(
-    () => VENTAS_RAPIDAS_CONFIG.map((_, i) => ({
-      configIndex: i,
-      items: carritosRapidos[i].length,
-      total: totalesRapidos[i],
-      minimizada: slots[i].montada && !slots[i].abierta && carritosRapidos[i].length > 0,
-      montada: slots[i].montada,
-      onAbrir: abridores[i],
-    })),
-    [carritosRapidos, totalesRapidos, slots, abridores]
-  );
-
-  // Teclas F1, F2, F3 y Escape
-  useEffect(() => {
-    const alPulsar = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setSlots(prev => {
-          const abiertas = prev.map((s, i) => (s.abierta ? i : -1)).filter(i => i !== -1);
-          if (abiertas.length === 0) return prev;
-          const targetIdx = (slotActivo !== null && prev[slotActivo]?.abierta)
-            ? slotActivo
-            : abiertas[abiertas.length - 1];
-          return prev.map((s, i) => i === targetIdx ? { ...s, abierta: false } : s);
-        });
-        return;
-      }
-
-      const idx = VENTAS_RAPIDAS_CONFIG.findIndex(c => c.key === e.key);
-      if (idx === -1) return;
-      e.preventDefault();
-      setSlots(prev => {
-        const actual = prev[idx];
-        if (actual.abierta) {
-          return prev.map((s, i) => i === idx ? { ...s, abierta: false } : s);
-        }
-        return prev.map((s, i) =>
-          i === idx
-            ? { ...s, montada: true, abierta: true, zIndex: zIndexTopRef.current + 1 }
-            : s
-        );
-      });
-      traerAlFrente(idx);
-    };
-    window.addEventListener("keydown", alPulsar);
-    return () => window.removeEventListener("keydown", alPulsar);
-  }, [slotActivo, traerAlFrente]);
-
-  // ── Paneles y Clic fuera de las ventanas flotantes = minimizar ───
-  const panelesRef = useRef<(HTMLDivElement | null)[]>([null, null, null]);
-  const setPanelRef = useCallback((idx: number) => (el: HTMLDivElement | null) => {
-    panelesRef.current[idx] = el;
-  }, []);
-
-  useEffect(() => {
-    if (abiertasCount === 0) return;
-    const alPresionar = (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-
-      // Si el clic fue dentro de alguna ventana flotante, no minimizar
-      const dentroDeVentana = panelesRef.current.some(panel => panel && panel.contains(target));
-      if (dentroDeVentana) return;
-
-      // Si el clic fue en un modal, menú o portal flotante, no minimizar
-      if (target.closest('[role="dialog"]') || target.closest(".modal-portal")) return;
-
-      // Si el clic fue en un botón de la toolbar o barra de espera de la caja principal
-      if (target.closest('button[title*="Venta"]') || target.closest('button[title*="Retomar"]')) return;
-
-      // Clic afuera en la caja principal -> minimizar todas las ventas flotantes abiertas
-      setSlots(prev => prev.map(s => (s.abierta ? { ...s, abierta: false } : s)));
-    };
-
-    window.addEventListener("mousedown", alPresionar);
-    return () => window.removeEventListener("mousedown", alPresionar);
-  }, [abiertasCount]);
+  const [reservasParaPrincipal, setReservasParaPrincipal] = useState<ItemCarrito[]>(SIN_RESERVAS);
+  const [ventasRapidasInfo, setVentasRapidasInfo] = useState<VentaRapidaInfo[]>([]);
+  const [algunaAbierta, setAlgunaAbierta] = useState(false);
 
   return (
     <>
@@ -4517,99 +4184,13 @@ export default function CajaAutopago() {
         ventasRapidas={ventasRapidasInfo}
       />
 
-      {/* Ventanas flotantes arrastrables y redimensionables estilo Windows */}
-      {VENTAS_RAPIDAS_CONFIG.map((cfg, idx) => {
-        const slot = slots[idx];
-        if (!slot.montada) return null;
-        const isEnfocado = slotActivo === idx;
-
-        const estiloPosicion: React.CSSProperties = {
-          position: "fixed",
-          top: `${slot.y}px`,
-          left: `${slot.x}px`,
-          width: `${slot.width}px`,
-          height: `${slot.height}px`,
-          zIndex: slot.zIndex,
-        };
-
-        return (
-          <div
-            key={cfg.key}
-            ref={setPanelRef(idx)}
-            onMouseDown={() => traerAlFrente(idx)}
-            style={estiloPosicion}
-            className={`flex flex-col rounded-xl bg-gray-50 overflow-hidden transition-shadow duration-150 ${
-              slot.abierta ? "block" : "hidden"
-            } ${
-              isEnfocado
-                ? "shadow-[0_25px_65px_-12px_rgba(15,23,42,0.55)] ring-2 ring-brand-blue"
-                : "shadow-[0_12px_35px_-10px_rgba(15,23,42,0.30)] ring-1 ring-slate-900/15"
-            }`}
-          >
-            {/* Barra de título arrastrable */}
-            <div
-              onMouseDown={(e) => iniciarArrastre(idx, e)}
-              onTouchStart={(e) => iniciarArrastre(idx, e)}
-              className={`shrink-0 flex items-center justify-between gap-2 px-3.5 py-2 ${cfg.color} text-white cursor-grab active:cursor-grabbing select-none`}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <GripHorizontal className="w-4 h-4 opacity-70 shrink-0" />
-                <span className="text-xs sm:text-sm font-bold tracking-tight truncate">
-                  {cfg.label}
-                </span>
-                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-mono font-bold">
-                  {cfg.key}
-                </span>
-                {isEnfocado && (
-                  <span className="hidden sm:inline-flex items-center text-[10px] bg-emerald-500/30 border border-emerald-400/40 text-emerald-100 px-1.5 py-0.5 rounded font-semibold">
-                    En foco
-                  </span>
-                )}
-              </div>
-
-              {/* Botón único de Minimizar */}
-              <div className="flex items-center gap-1 shrink-0" onMouseDown={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  onClick={() => minimizarSlot(idx)}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/20 hover:bg-white/30 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
-                  title={`Minimizar (${cfg.key} o Esc)`}
-                >
-                  <Minus className="w-3.5 h-3.5 stroke-[3]" />
-                  <span>Minimizar</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Contenido de la Caja Autopago */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-1.5 sm:p-2 bg-gray-50 cursor-default">
-              <CajaAutopagoVista
-                recursos={recursos}
-                activo={slot.abierta && isEnfocado}
-                esRapida
-                reservasOtraCaja={reservasParaRapida[idx]}
-                onCarritoCambio={settersCarrito[idx]}
-                onVentaTerminada={() => minimizarSlot(idx)}
-              />
-            </div>
-
-            {/* Agarrador para redimensionar en esquina inferior derecha */}
-            <div
-              onMouseDown={(e) => iniciarRedimension(idx, e)}
-              onTouchStart={(e) => iniciarRedimension(idx, e)}
-              className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-end justify-end p-0.5 z-20 text-gray-400 hover:text-gray-700 select-none"
-              title="Arrastra para redimensionar el tamaño"
-            >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="opacity-70">
-                  <line x1="8" y1="2" x2="2" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="9" y1="5" x2="5" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="9" y1="8" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </div>
-          </div>
-        );
-      })}
-
+      <VentasRapidas
+        recursos={recursos}
+        carritoPrincipal={carritoPrincipal}
+        onReservasChange={setReservasParaPrincipal}
+        onInfoChange={setVentasRapidasInfo}
+        onAlgunaAbiertaChange={setAlgunaAbierta}
+      />
     </>
   );
 }

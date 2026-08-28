@@ -2,14 +2,11 @@
 import React, { useState, useMemo,  } from 'react';
 import axios from 'axios';
 import {
-  Search, Plus, Send, Edit2, Trash2, X,
-  ChevronDown
+  Search, Plus, Send, Edit2, Trash2, X
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/Button';
-import { Card } from '@/app/components/ui/Card';
 import { CardTable } from '@/app/components/ui/CardTable';
 import { Badge } from '@/app/components/ui/Badge';
-import { cn } from '@/app/utils/cn';
 import { ModalEliminar } from '@/app/components/ui/ModalEliminar';
 import { AgregarCliente } from './gestionClientes/AgregarCliente';
 import { EditarClienteModal } from './gestionClientes/EditarCliente';
@@ -46,14 +43,14 @@ const formatFecha = (fecha: string | null): string => {
   }
 };
 
-// ─── Page Principal ────────────────────────────────────────────────────────────
+
 export default function ClientesPage() {
   const { showToast } = useToast();
   const { accessToken, user } = useAuth();
   const isSuperAdmin = user?.rol === "superadmin";
   const isBeta = user?.environment === "beta";
 
-  // Hook correcto según rol
+
   const { clientes: clientesEmpresa, setClientes: setClientesEmpresa, loadingClientes: loadingEmpresa } = useClientesRuc(isSuperAdmin);
   const { clientes: clientesSucursal, setClientes: setClientesSucursal, loadingClientes: loadingSucursal } = useClientesSucursal(undefined, !isSuperAdmin);
 
@@ -70,18 +67,16 @@ export default function ClientesPage() {
   const [clienteEditar, setClienteEditar] = useState<Cliente | null>(null);  
   const [eliminarCliente, setEliminarCliente] = useState<Cliente | null>(null);
 
-  //sucursal para superadmin
+
   const { sucursales } = useSucursalRuc(isSuperAdmin);
   const [sucursalSeleccionada, setSucursalSeleccionada] = useState<number>(0);
 
-  //filtro por sucursales
   const [filtroSucursal, setFiltroSucursal] = useState<number>(0);
 
   const sucursalIdEfectivo = isSuperAdmin
     ? sucursalSeleccionada
     : parseInt(user?.sucursalID ?? "0");
 
-  // ── Nuevo cliente form ──
   const nuevoClienteInicial = {
     sucursalID: sucursalIdEfectivo ,
     tipoDocumentoId: '01',
@@ -137,7 +132,6 @@ export default function ClientesPage() {
         return;
       }
 
-      // validar longitud solo si ya tiene contenido
       if (field.key === "numeroDocumento") {
         if (nuevoCliente.tipoDocumentoId === "01" && value.length !== 8) {
           newLengthErrors.numeroDocumento = "El DNI debe tener 8 dígitos";
@@ -155,10 +149,8 @@ export default function ClientesPage() {
     return Object.keys(newErrors).length === 0 && Object.keys(newLengthErrors).length === 0;
   };
 
-  //N Crear Nuevo Cliente
   const handleNuevoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Si hay algún campo obligatorio vacío, no continuar
     if (!validateAll() || isSubmitting) return; 
     setIsSubmitting(true);
 
@@ -170,7 +162,7 @@ export default function ClientesPage() {
         sucursalID: sucursalIdEfectivo
       };
 
-      // ── DNI ──
+
       const emptyToNull = (val: string) => val.trim() === '' ? null : val;
       if (nuevoCliente.tipoDocumentoId === "01") {
         if (nuevoCliente.correo) payload.correo = nuevoCliente.correo;
@@ -221,7 +213,7 @@ export default function ClientesPage() {
       const status = error.response?.status;
 
       if (status === 409) {
-        showToast(error.response?.data?.mensaje, "info"); // este sí es útil para el usuario
+        showToast(error.response?.data?.mensaje, "info");
       } else if (status === 400) {
         showToast("Los datos ingresados no son válidos.", "error");
       } else {
@@ -291,8 +283,7 @@ export default function ClientesPage() {
     .sort((a, b) => new Date(b.fechaCreacion ?? 0).getTime() - new Date(a.fechaCreacion ?? 0).getTime()),
   [clientes, search, filterStatus, filterTipo, filtroSucursal]);
 
-  const activeFilters = (filterStatus !== 'Todos' ? 1 : 0) + (filterTipo !== 'Todos' ? 1 : 0);
-  const totalWidth = isSuperAdmin ? 1400 : 1270; 
+
 
   return (
   <div className="space-y-2 animate-in fade-in duration-500">
@@ -338,7 +329,7 @@ export default function ClientesPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Buscar por RUC, DNI o Nombre..."
-          className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+          className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all text-xs"
         />
         {search && (
           <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">

@@ -57,7 +57,7 @@ export default function OrdenesCompraPage() {
   const [deleteTarget, setDeleteTarget] = useState<CompraProveedor | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CompraProveedor | null>(null);
-  // Agrupar por documento: desactivado por defecto, muestra la lista plana actual.
+
   const [agruparPorDoc, setAgruparPorDoc] = useState(false);
 
   const proveedorIdSeleccionado =
@@ -83,7 +83,8 @@ export default function OrdenesCompraPage() {
   useEffect(() => {
     if (!user?.ruc) return;
     recargar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  
+    
   }, [user?.ruc, proveedorIdSeleccionado, sucursalIdSeleccionado, sucursales.length]);
 
   const filtered = useMemo(() => {
@@ -169,7 +170,7 @@ export default function OrdenesCompraPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por producto, proveedor o doc. referencia..."
-              className="w-full h-9 pl-10 pr-4 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+              className="w-full h-9 pl-10 pr-4 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-xs"
             />
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           </div>
@@ -190,7 +191,7 @@ export default function OrdenesCompraPage() {
               />
             )}
 
-            <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-md px-2.5 shadow-sm">
+            <div className="flex items-center h-9 gap-1.5 bg-white border border-gray-200 rounded-md px-2.5">
               <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
               <input
                 type="date"
@@ -231,7 +232,7 @@ export default function OrdenesCompraPage() {
               type="button"
               onClick={() => setAgruparPorDoc((prev) => !prev)}
               className={cn(
-                "flex items-center h-9 gap-1.5 px-2.5 text-xs font-semibold border rounded-md shadow-sm transition-all whitespace-nowrap",
+                "flex items-center h-9 gap-1.5 px-2.5 text-xs font-semibold border rounded-md transition-all whitespace-nowrap",
                 agruparPorDoc
                   ? "bg-blue-50 border-blue-300 text-blue-700"
                   : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
