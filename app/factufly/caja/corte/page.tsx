@@ -40,6 +40,7 @@ interface CorteDiario {
   ventasTotales: number;
   cantidadComprobantes: number;
   gananciaDia?: number | null;
+  totalComisionTarjeta: number;
   otrosMediosPago: MedioPagoResumen[];
   ventasPorCategoria: VentaCategoria[];
   retiros: CajaRetiro[];
@@ -205,6 +206,11 @@ export default function CajaPage() {
             ))}
             {otrosSinEfectivo.length > 0 && (
               <Linea etiqueta="Total" valor={soles(totalOtrosSinEfectivo)} destacado />
+            )}
+            {corte.totalComisionTarjeta > 0 && (
+              <p className="text-[11px] text-gray-400 mt-2 pt-2 border-t border-gray-50">
+                Comisión POS cobrada (informativa, no incluida en los totales): {soles(corte.totalComisionTarjeta)}
+              </p>
             )}
           </Seccion>
 
