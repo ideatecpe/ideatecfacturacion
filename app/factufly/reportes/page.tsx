@@ -232,7 +232,7 @@ export default function ReportesPage() {
   const stats = useMemo(() => [
     {
       label: 'Total Ventas (Inc. IGV)',
-      value: kpi ? formatNum(kpi.totalVentas + (incluirNV && totalNV > 0 ? totalNV : 0)) : '—',
+      value: kpi ? formatNum(kpi.totalVentas + (incluirNV && totalNV > 0 ? totalNV : 0) + totalComisionTarjeta) : '—',
       trend: kpi ? calcTrend(kpi.totalVentas, kpi.totalVentasAnterior) : { pct: '—', isUp: true },
       icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50',
       toggleNV: totalNV > 0,
@@ -597,8 +597,11 @@ export default function ReportesPage() {
                             <p style={{ color: '#d97706', margin: 0 }}>N. de Venta : S/ {data.ventasNV.toLocaleString('es-PE')}</p>
                           )}
                           <p style={{ color: '#0052CC', margin: 0 }}>Ventas Tributarias : S/ {data.ventas.toLocaleString('es-PE')}</p>
+                          {totalComisionTarjeta > 0 && (
+                            <p style={{ color: '#6366f1', margin: 0 }}>Comisión POS : S/ {totalComisionTarjeta.toLocaleString('es-PE')}</p>
+                          )}
                           {totalNV > 0 && incluirNV && (
-                            <p style={{ color: '#0ea5e9', margin: 0 }}>Ventas Totales : S/ {data.ventasConNV.toLocaleString('es-PE')}</p>
+                            <p style={{ color: '#0ea5e9', margin: 0 }}>Ventas Totales : S/ {(data.ventasConNV + totalComisionTarjeta).toLocaleString('es-PE')}</p>
                           )}
                         </div>
                       );
