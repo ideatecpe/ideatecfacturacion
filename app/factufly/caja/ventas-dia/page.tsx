@@ -13,8 +13,6 @@ import {
   Receipt,
   TrendingUp,
   Hash,
-  RefreshCw,
-  Banknote,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
@@ -209,78 +207,54 @@ export default function VentasDelDiaPage() {
   const estaAnulada = seleccionado?.estadoSunat === "ANULADO";
 
   return (
-    <div className="space-y-3 h-full flex flex-col">
-      {/* Cabecera */}
-      <div className="flex items-center gap-3">
-        <div
-          className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: "rgba(15,46,100,0.08)" }}
-        >
-          <Banknote className="w-4.5 h-4.5" style={{ color: "#0f2e64" }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold" style={{ color: "#0f2e64" }}>
-            Caja
-          </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Ventas del día por cajero
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          onClick={cargar}
-          className="px-3! py-1.5! text-xs!"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Actualizar
-        </Button>
-      </div>
-
+    <div className="space-y-2.5 h-full flex flex-col">
       {/* Filtros + resumen */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
-              Día
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2 shadow-xs">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              Día:
             </span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setFecha((f) => sumarDias(f, -1))}
-                className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+                className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors cursor-pointer"
+                title="Día anterior"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-4 h-4" />
               </button>
-              <label className="flex items-center gap-2 h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-brand-blue/50 focus-within:ring-2 focus-within:ring-brand-blue/10 transition-colors">
-                <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+              <label className="flex items-center gap-1.5 h-8 px-2.5 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-brand-blue/50 focus-within:ring-2 focus-within:ring-brand-blue/10 transition-colors cursor-pointer">
+                <Calendar className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                 <input
                   type="date"
                   value={fecha}
                   onChange={(e) => e.target.value && setFecha(e.target.value)}
-                  className="text-sm font-semibold text-gray-700 bg-transparent outline-none cursor-pointer"
+                  className="text-xs font-semibold text-gray-700 bg-transparent outline-none cursor-pointer"
                 />
               </label>
               <button
                 type="button"
                 onClick={() => setFecha((f) => sumarDias(f, 1))}
-                className="h-10 w-10 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+                className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors cursor-pointer"
+                title="Día siguiente"
               >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {!esFacturador && (
-            <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
-                Cajero
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                Cajero:
               </span>
               <select
                 value={usuarioId ?? ""}
                 onChange={(e) =>
                   setUsuarioId(e.target.value ? Number(e.target.value) : null)
                 }
-                className="h-10 px-3 text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/10 transition-colors min-w-50"
+                className="h-8 px-2.5 text-xs font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/10 transition-colors min-w-[170px]"
               >
                 <option value="">Todos los cajeros</option>
                 {usuarios.map((u) => (
@@ -289,53 +263,53 @@ export default function VentasDelDiaPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           )}
         </div>
 
         {/* Resumen: cantidad y total de ventas filtradas */}
-        <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-          <div className="flex items-center gap-2 h-12 pl-3 pr-4 rounded-lg border border-gray-100 bg-gray-50">
-            <div className="h-8 w-8 rounded-md flex items-center justify-center shrink-0 bg-white border border-gray-200">
-              <Hash className="w-3.5 h-3.5 text-gray-400" />
+        <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 h-9 pl-2.5 pr-3 rounded-lg border border-gray-100 bg-gray-50">
+            <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0 bg-white border border-gray-200">
+              <Hash className="w-3 h-3 text-gray-400" />
             </div>
             <div className="leading-tight">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">
                 Ventas
               </p>
-              <p className="text-sm font-bold text-gray-800 tabular-nums">
+              <p className="text-xs font-bold text-gray-800 tabular-nums">
                 {loading ? "—" : resumen.cantidad}
               </p>
             </div>
           </div>
 
           <div
-            className="flex items-center gap-2 h-12 pl-3 pr-4 rounded-lg"
+            className="flex items-center gap-2 h-9 pl-2.5 pr-3 rounded-lg"
             style={{ background: "rgba(15,46,100,0.06)" }}
           >
             <div
-              className="h-8 w-8 rounded-md flex items-center justify-center shrink-0"
+              className="h-6 w-6 rounded-md flex items-center justify-center shrink-0"
               style={{ background: "rgba(15,46,100,0.12)" }}
             >
               <TrendingUp
-                className="w-3.5 h-3.5"
+                className="w-3 h-3"
                 style={{ color: "#0f2e64" }}
               />
             </div>
             <div className="leading-tight">
               <p
-                className="text-[10px] font-bold uppercase tracking-wide"
+                className="text-[9px] font-bold uppercase tracking-wide"
                 style={{ color: "#0f2e64", opacity: 0.7 }}
               >
                 Total
               </p>
               {loading ? (
-                <p className="text-sm font-bold" style={{ color: "#0f2e64" }}>
+                <p className="text-xs font-bold" style={{ color: "#0f2e64" }}>
                   —
                 </p>
               ) : resumen.totales.length === 0 ? (
                 <p
-                  className="text-sm font-bold tabular-nums"
+                  className="text-xs font-bold tabular-nums"
                   style={{ color: "#0f2e64" }}
                 >
                   {soles(0)}
@@ -344,7 +318,7 @@ export default function VentasDelDiaPage() {
                 resumen.totales.map(([moneda, total]) => (
                   <p
                     key={moneda}
-                    className="text-sm font-bold tabular-nums"
+                    className="text-xs font-bold tabular-nums"
                     style={{ color: "#0f2e64" }}
                   >
                     {soles(total, moneda)}
@@ -355,22 +329,25 @@ export default function VentasDelDiaPage() {
           </div>
         </div>
       </div>
-      <p className="text-sm font-medium text-gray-500 px-1">
-        {fechaLarga(fecha)}
-      </p>
+
+      <div className="flex items-center justify-between px-1">
+        <p className="text-xs font-medium text-gray-500">
+          {fechaLarga(fecha)}
+        </p>
+      </div>
 
       {/* Maestro-detalle */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-[1fr_340px] gap-3 items-start">
+      <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-[1fr_320px] gap-2.5 items-start">
         {/* Lista */}
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-xs">
           <div>
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-gray-50 z-10 border-b border-gray-100">
                 <tr className="text-gray-500 uppercase text-[10px]">
-                  <th className="text-left font-bold px-4 py-3">Folio</th>
-                  <th className="text-center font-bold px-4 py-3">Arts</th>
-                  <th className="text-left font-bold px-4 py-3">Hora</th>
-                  <th className="text-right font-bold px-4 py-3">Total</th>
+                  <th className="text-left font-bold px-3 py-2">Folio</th>
+                  <th className="text-center font-bold px-3 py-2">Arts</th>
+                  <th className="text-left font-bold px-3 py-2">Hora</th>
+                  <th className="text-right font-bold px-3 py-2">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -378,7 +355,7 @@ export default function VentasDelDiaPage() {
                   <tr>
                     <td
                       colSpan={4}
-                      className="px-4 py-14 text-center text-gray-400"
+                      className="px-3 py-10 text-center text-gray-400 text-xs"
                     >
                       Cargando…
                     </td>
@@ -388,9 +365,9 @@ export default function VentasDelDiaPage() {
                   <tr>
                     <td
                       colSpan={4}
-                      className="px-4 py-14 text-center text-gray-400"
+                      className="px-3 py-10 text-center text-gray-400 text-xs"
                     >
-                      <Receipt className="w-6 h-6 text-gray-200 mx-auto mb-2" />
+                      <Receipt className="w-5 h-5 text-gray-300 mx-auto mb-1.5" />
                       Sin ventas con estos filtros
                     </td>
                   </tr>
@@ -405,8 +382,8 @@ export default function VentasDelDiaPage() {
                         onClick={() => seleccionar(doc)}
                         className={`cursor-pointer transition-colors ${activo ? "bg-blue-50" : "hover:bg-gray-50"} ${anulado ? "opacity-50" : ""}`}
                       >
-                        <td className="px-4 py-3">
-                          <p className="font-semibold text-gray-800 uppercase">
+                        <td className="px-3 py-2">
+                          <p className="font-semibold text-gray-800 uppercase text-xs">
                             {doc.numeroCompleto}
                           </p>
                           <p className="text-[10px] text-gray-400">
@@ -414,15 +391,15 @@ export default function VentasDelDiaPage() {
                             {anulado ? " · Anulado" : ""}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-center text-gray-600 tabular-nums">
+                        <td className="px-3 py-2 text-center text-gray-600 tabular-nums text-xs">
                           {doc.cantidadItems ?? "—"}
                         </td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap tabular-nums">
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap tabular-nums text-xs">
                           {horaCruda(doc.horaEmision)}
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-3 py-2 text-right">
                           <p
-                            className={`font-semibold tabular-nums ${anulado ? "text-gray-400 line-through" : "text-gray-800"}`}
+                            className={`font-semibold tabular-nums text-xs ${anulado ? "text-gray-400 line-through" : "text-gray-800"}`}
                           >
                             {soles(doc.importeTotal, doc.tipoMoneda)}
                           </p>
@@ -444,17 +421,15 @@ export default function VentasDelDiaPage() {
           </div>
         </div>
 
-        {/* Detalle: fijo mientras se hace scroll en la lista, con su propio scroll interno si no cabe.
-            key=seleccionadoId fuerza a React a remontar el panel al cambiar de venta, para que
-            no arrastre la posición de scroll interna de la venta anterior. */}
+        {/* Detalle: fijo mientras se hace scroll en la lista */}
         <div
           key={seleccionado?.comprobanteId ?? "vacio"}
-          className="rounded-xl border border-gray-200 bg-white overflow-y-auto sticky top-3 max-h-[calc(100vh-6rem)] shadow-sm"
+          className="rounded-xl border border-gray-200 bg-white overflow-y-auto sticky top-3 max-h-[calc(100vh-6rem)] shadow-xs"
         >
           {!seleccionado && (
-            <div className="h-full flex items-center justify-center py-16 px-4">
-              <div className="text-center space-y-2">
-                <Receipt className="w-7 h-7 text-gray-300 mx-auto" />
+            <div className="h-full flex items-center justify-center py-12 px-3">
+              <div className="text-center space-y-1.5">
+                <Receipt className="w-6 h-6 text-gray-300 mx-auto" />
                 <p className="text-xs text-gray-400">
                   Selecciona un comprobante para ver el detalle
                 </p>
@@ -463,41 +438,41 @@ export default function VentasDelDiaPage() {
           )}
 
           {seleccionado && (
-            <div className="p-4 space-y-4">
+            <div className="p-3.5 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-bold text-gray-800 uppercase">
+                  <p className="text-xs sm:text-sm font-bold text-gray-800 uppercase">
                     {seleccionado.numeroCompleto}
                   </p>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-[10px] text-gray-400">
                     {tipoLabel(seleccionado.tipoComprobante)} ·{" "}
                     {formatFecha(seleccionado.fechaEmision)}
                   </p>
                 </div>
                 <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${(COLORS.sunat as Record<string, { badge: string }>)[seleccionado.estadoSunat]?.badge ?? "bg-gray-50 text-gray-500 border-gray-200"}`}
+                  className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${(COLORS.sunat as Record<string, { badge: string }>)[seleccionado.estadoSunat]?.badge ?? "bg-gray-50 text-gray-500 border-gray-200"}`}
                 >
                   {seleccionado.estadoSunat}
                 </span>
               </div>
 
-              <div className="space-y-1 text-xs">
+              <div className="space-y-0.5 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Cajero</span>
-                  <span className="text-gray-700 font-medium">
+                  <span className="text-gray-400 text-[11px]">Cajero</span>
+                  <span className="text-gray-700 font-medium text-xs">
                     {nombreCajero}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Cliente</span>
-                  <span className="text-gray-700 font-medium text-right">
+                  <span className="text-gray-400 text-[11px]">Cliente</span>
+                  <span className="text-gray-700 font-medium text-right text-xs">
                     {seleccionado.cliente?.razonSocial || "Cliente varios"}
                   </span>
                 </div>
               </div>
 
               {loadingDetalle && (
-                <p className="text-xs text-gray-400 py-4 text-center">
+                <p className="text-xs text-gray-400 py-3 text-center">
                   Cargando detalle…
                 </p>
               )}
@@ -507,24 +482,24 @@ export default function VentasDelDiaPage() {
                 detalles.comprobanteId === seleccionado.comprobanteId && (
                   <>
                     <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">
                         Artículos
                       </p>
                       <div className="rounded-lg border border-gray-100 divide-y divide-gray-50 overflow-hidden">
                         {detalles.details.map((item, i) => (
                           <div
                             key={`${item.detalleId}-${i}`}
-                            className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
+                            className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs"
                           >
                             <div className="min-w-0">
-                              <p className="text-gray-700 truncate">
+                              <p className="text-gray-700 truncate text-[11px]">
                                 {item.descripcion}
                               </p>
                               <p className="text-[10px] text-gray-400">
                                 x{item.cantidad}
                               </p>
                             </div>
-                            <span className="font-medium text-gray-800 tabular-nums shrink-0">
+                            <span className="font-medium text-gray-800 tabular-nums shrink-0 text-xs">
                               {soles(
                                 item.totalVentaItem,
                                 seleccionado.tipoMoneda,
@@ -536,14 +511,14 @@ export default function VentasDelDiaPage() {
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">
                         Medio de pago
                       </p>
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         {detalles.pagos.map((p, i) => (
                           <div key={i} className="flex justify-between text-xs">
-                            <span className="text-gray-500">{p.medioPago}</span>
-                            <span className="text-gray-700 font-medium tabular-nums">
+                            <span className="text-gray-500 text-[11px]">{p.medioPago}</span>
+                            <span className="text-gray-700 font-medium tabular-nums text-xs">
                               {soles(p.monto, seleccionado.tipoMoneda)}
                             </span>
                           </div>
@@ -554,17 +529,17 @@ export default function VentasDelDiaPage() {
                 )}
 
               <div
-                className="flex items-center justify-between px-3 py-2.5 rounded-lg"
+                className="flex items-center justify-between px-2.5 py-2 rounded-lg"
                 style={{ background: "rgba(15,46,100,0.06)" }}
               >
                 <span
-                  className="text-sm font-bold"
+                  className="text-xs font-bold"
                   style={{ color: "#0f2e64" }}
                 >
                   Total
                 </span>
                 <span
-                  className="text-base font-bold tabular-nums"
+                  className="text-sm font-bold tabular-nums"
                   style={{ color: "#0f2e64" }}
                 >
                   {soles(
@@ -575,12 +550,12 @@ export default function VentasDelDiaPage() {
                 </span>
               </div>
 
-              <div className="flex flex-col gap-2 pt-1">
+              <div className="flex flex-col gap-1.5 pt-0.5">
                 {esFacturaOBoleta && (
                   <Button
                     variant="outline"
                     onClick={() => generarNotaCredito(seleccionado)}
-                    className="text-xs!"
+                    className="text-xs! py-1.5!"
                   >
                     <FileText className="w-3.5 h-3.5" />
                     Generar Nota de Crédito
@@ -590,7 +565,7 @@ export default function VentasDelDiaPage() {
                   <Button
                     variant="danger"
                     onClick={() => setConfirmAnularNV(seleccionado)}
-                    className="text-xs!"
+                    className="text-xs! py-1.5!"
                   >
                     <Ban className="w-3.5 h-3.5" />
                     Anular venta
