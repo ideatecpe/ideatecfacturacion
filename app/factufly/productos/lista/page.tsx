@@ -20,7 +20,6 @@ import {
   Pencil,
   Tag,
   Boxes,
-  AlertTriangle,
   Printer,
   CalendarClock,
   ScanBarcode,
@@ -63,18 +62,12 @@ const STOCK_MINIMO_UNIDAD = 5;
 // Umbral de stock bajo (alerta visual) para productos paquete/caja, en paquetes equivalentes.
 const STOCK_MINIMO_PAQUETE = 2;
 
-// Cantidad de filas por archivo a partir de la cual se recomienda dividir la importación.
-// No es un límite duro: el proceso envía un producto por petición, así que un archivo muy
-// grande tarda varios minutos y mantiene el modal bloqueado todo ese tiempo.
+
 const MAX_FILAS_RECOMENDADO = 300;
 
-// Empresas cuyos facturadores solo pueden ver el catálogo (sin editar/eliminar).
-// TODO: idealmente esto debería venir de la config/permisos del backend, no quemado aquí.
+
 const RUCS_CATALOGO_SOLO_LECTURA = ["10073587382"];
 
-// Traduce el fallo de una fila de la importación a un motivo legible.
-// Sin esto, cuando la petición no llega a responder (internet caído, API apagada)
-// no hay `response` y el mensaje quedaba en un inútil "Error undefined".
 function describirErrorImport(err: unknown, fila: number): string {
   if (!axios.isAxiosError(err)) return "Error inesperado en la aplicación.";
 
@@ -85,9 +78,7 @@ function describirErrorImport(err: unknown, fila: number): string {
   }
 
   const { status, data } = err.response;
-  // console.debug y no console.error: una fila rechazada ("ya existe", código de
-  // barras repetido) es un resultado esperado del proceso, no un fallo de la app.
-  // Con console.error, el overlay de Next levantaba un "Issue" por cada fila.
+
   console.debug("Import fila", fila, "rechazada:", JSON.stringify(data));
 
   if (status === 401) return "Tu sesión expiró. Vuelve a iniciar sesión.";
@@ -958,7 +949,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                   }
                 }}
                 placeholder="Buscar por nombre, código o escanear código de barras..."
-                className="w-full pl-10 pr-8 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+                className="w-full pl-10 pr-8 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue/50 outline-none transition-all text-xs"
               />
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               {search && (
@@ -1015,7 +1006,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
             <button
               onClick={() => setShowFiltrosAvanzados((prev) => !prev)}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md transition-all whitespace-nowrap shadow-sm",
+                "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md transition-all whitespace-nowrap",
                 filtrosAvanzadosActivos
                   ? "bg-green-50 border-green-300 text-green-700"
                   : "bg-white border-gray-200 text-gray-600 hover:border-gray-300",

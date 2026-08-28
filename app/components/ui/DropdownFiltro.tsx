@@ -62,7 +62,7 @@ export const DropdownFiltro = ({
       <button
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md outline-none transition-all shadow-sm whitespace-nowrap",
+          "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md outline-none transition-all whitespace-nowrap",
           active
             ? "bg-blue-600 text-white border-blue-600"
             : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50",

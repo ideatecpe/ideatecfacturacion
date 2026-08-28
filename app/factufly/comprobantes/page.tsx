@@ -52,7 +52,7 @@ import {
 } from "./gestionComprobantes/helpers";
 import { fmtMonto } from "@/app/components/ui/formatoFecha";
 import { useRouter } from "next/navigation";
-import { Card } from "@/app/components/ui/Card";
+
 import { createPortal } from "react-dom";
 import { Button } from "@/app/components/ui/Button";
 import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
@@ -1094,7 +1094,7 @@ export default function VerComprobantesPage() {
                 : <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               }
               <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente, RUC/DNI o N° comprobante"
-                className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
+                className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all text-xs"
               />
               {search && !serverSearchLoading && (
                 <button onClick={() => { setSearch(""); setServerSearch(null); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -1107,7 +1107,7 @@ export default function VerComprobantesPage() {
             <button
               onClick={() => setShowAvanzado((o) => !o)}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md transition-all shadow-sm",
+                "flex items-center gap-1.5 px-2.5 py-2.5 text-xs font-medium border rounded-md transition-all",
                 showAvanzado ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50",
               )}
             >
@@ -1129,7 +1129,7 @@ export default function VerComprobantesPage() {
               />
             )}
             {pendientes.length >= 2 && (
-              <Button className="py-2.5 px-3 text-xs rounded-md h-auto bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 shadow-sm" onClick={() => setShowModalEnvioMasivo(true)}>
+              <Button className="py-2.5 px-3 text-xs rounded-md h-auto bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100" onClick={() => setShowModalEnvioMasivo(true)}>
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Enviar pendientes ({pendientes.length})</span>
                 <span className="sm:hidden">({pendientes.length})</span>
@@ -1148,7 +1148,7 @@ export default function VerComprobantesPage() {
           </div>
 
           {showAvanzado && (
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-in slide-in-from-top-2 duration-200">
+            <div className="bg-white border border-gray-200 rounded-md overflow-hidden animate-in slide-in-from-top-2 duration-200">
               <div className="flex border-b border-gray-100 overflow-x-auto">
                 {(
                   [
@@ -1207,8 +1207,8 @@ export default function VerComprobantesPage() {
                     modoAvanzado === "usuario") && (
                     <>
                       {modoAvanzado === "cliente" && (
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-semibold text-gray-500 uppercase">
+                        <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+                          <label className="text-[10px] font-semibold text-gray-500 uppercase block">
                             Nº Doc. Cliente
                           </label>
                           <input
@@ -1220,8 +1220,8 @@ export default function VerComprobantesPage() {
                         </div>
                       )}
                       {modoAvanzado === "usuario" && (
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-semibold text-gray-500 uppercase">
+                        <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+                          <label className="text-[10px] font-semibold text-gray-500 uppercase block">
                             ID Usuario
                           </label>
                           <input
@@ -1233,57 +1233,55 @@ export default function VerComprobantesPage() {
                           />
                         </div>
                       )}
-                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-end gap-2 sm:gap-3">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-semibold text-gray-500 uppercase">
-                            Fecha desde
-                          </label>
-                          <input
-                            type="date"
-                            value={avFechaDesde}
-                            max={hoy}
-                            onChange={(e) => {
-                              setAvFechaDesde(e.target.value);
-                              if (!avFechaHasta && e.target.value) {
-                                setAvFechaHasta(e.target.value);
-                              } else if (avFechaHasta && e.target.value > avFechaHasta) {
-                                setAvFechaHasta(e.target.value);
-                              }
-                            }}
-                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-semibold text-gray-500 uppercase">
-                            Fecha hasta
-                          </label>
-                          <input
-                            type="date"
-                            value={avFechaHasta}
-                            min={avFechaDesde || undefined}
-                            max={hoy}
-                            onChange={(e) => setAvFechaHasta(e.target.value)}
-                            className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
-                          />
-                        </div>
+                      <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase block">
+                          Fecha desde
+                        </label>
+                        <input
+                          type="date"
+                          value={avFechaDesde}
+                          max={hoy}
+                          onChange={(e) => {
+                            setAvFechaDesde(e.target.value);
+                            if (!avFechaHasta && e.target.value) {
+                              setAvFechaHasta(e.target.value);
+                            } else if (avFechaHasta && e.target.value > avFechaHasta) {
+                              setAvFechaHasta(e.target.value);
+                            }
+                          }}
+                          className="w-full sm:w-36 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase block">
+                          Fecha hasta
+                        </label>
+                        <input
+                          type="date"
+                          value={avFechaHasta}
+                          min={avFechaDesde || undefined}
+                          max={hoy}
+                          onChange={(e) => setAvFechaHasta(e.target.value)}
+                          className="w-full sm:w-36 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                        />
                       </div>
                     </>
                   )}
                   {modoAvanzado === "unico" && (
-                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-end gap-2 sm:gap-3">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase">
+                    <>
+                      <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase block">
                           Serie
                         </label>
                         <input
                           value={avSerie}
                           onChange={(e) => setAvSerie(e.target.value)}
                           placeholder="F001"
-                          className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                          className="w-full sm:w-28 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-semibold text-gray-500 uppercase">
+                      <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+                        <label className="text-[10px] font-semibold text-gray-500 uppercase block">
                           Número
                         </label>
                         <input
@@ -1291,17 +1289,17 @@ export default function VerComprobantesPage() {
                           value={avNumero}
                           onChange={(e) => setAvNumero(e.target.value)}
                           placeholder="135"
-                          className="w-full py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
+                          className="w-full sm:w-28 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-md text-xs outline-none focus:border-brand-blue/50 focus:bg-white focus:ring-2 focus:ring-blue-50 transition-all"
                         />
                       </div>
-                    </div>
+                    </>
                   )}
                   <div className="flex items-center gap-2 self-end">
                     <button
                       onClick={() => buscarAvanzado(0)}
                       disabled={loading}
                       className={cn(
-                        "flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white rounded-md transition-all shadow-sm",
+                        "flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white rounded-md transition-all",
                         COLORS.btnPrimary,
                         loading && COLORS.btnDisabled,
                       )}
@@ -1942,7 +1940,7 @@ const DropdownOpciones = ({
               left: pos.left,
               zIndex: 9999,
             }}
-            className="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-50"
+            className="bg-white border border-gray-200 rounded-xl  overflow-hidden min-w-50"
           >
             {esPendiente && (
               <button

@@ -409,7 +409,7 @@ export default function ModalCrearProductoRapido({
           <Button
             type="submit"
             disabled={guardando}
-            className="bg-brand-blue hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
+            className="bg-brand-blue hover:bg-[#0a2050] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
           >
             {guardando ? (
               <>
