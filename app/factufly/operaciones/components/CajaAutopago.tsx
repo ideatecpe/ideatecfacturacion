@@ -450,9 +450,9 @@ const ProductoGridCard = memo(function ProductoGridCard({
                     ? "bg-[#ca5310]"
                     : "bg-[#007200]"
             }`}
-            title={`Stock disponible: ${formatearCantidadUnidad(stockDisp, p.unidadMedida)} ${abreviaturaUnidad(p.unidadMedida)}`}
+            title={`Stock disponible: ${p.esPaquete ? `${stockDisp} und.` : `${formatearCantidadUnidad(stockDisp, p.unidadMedida)} ${abreviaturaUnidad(p.unidadMedida)}`}`}
           >
-            {formatearCantidadUnidad(stockDisp, p.unidadMedida)} {abreviaturaUnidad(p.unidadMedida)}
+            {p.esPaquete ? `${stockDisp} und.` : `${formatearCantidadUnidad(stockDisp, p.unidadMedida)} ${abreviaturaUnidad(p.unidadMedida)}`}
           </span>
         )}
 
@@ -2901,9 +2901,9 @@ export function CajaAutopagoVista({
                                       ? "bg-amber-100 text-amber-800 border border-amber-200"
                                       : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                               }`}
-                              title={`Stock restante disponible: ${formatearCantidadUnidad(stockDisp, i.unidadMedida)} ${abreviaturaUnidad(i.unidadMedida)}`}
+                              title={`Stock restante disponible: ${prodInfo?.esPaquete ? `${stockDisp} und.` : `${formatearCantidadUnidad(stockDisp, i.unidadMedida)} ${abreviaturaUnidad(i.unidadMedida)}`}`}
                             >
-                              Stock: {formatearCantidadUnidad(stockDisp, i.unidadMedida)}
+                              Stock: {prodInfo?.esPaquete ? `${stockDisp} und.` : `${formatearCantidadUnidad(stockDisp, i.unidadMedida)} ${abreviaturaUnidad(i.unidadMedida)}`}
                             </span>
                           )}
                         </div>
@@ -3179,9 +3179,9 @@ export function CajaAutopagoVista({
                                       ? "bg-amber-100 text-amber-800 border border-amber-200"
                                       : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                               }`}
-                              title={`Stock restante disponible: ${formatearCantidadUnidad(stockDisp, i.unidadMedida)}`}
+                              title={`Stock restante disponible: ${prodInfo?.esPaquete ? `${stockDisp} und.` : `${formatearCantidadUnidad(stockDisp, i.unidadMedida)} ${abreviaturaUnidad(i.unidadMedida)}`}`}
                             >
-                              Stock: {formatearCantidadUnidad(stockDisp, i.unidadMedida)}
+                              Stock: {prodInfo?.esPaquete ? `${stockDisp} und.` : `${formatearCantidadUnidad(stockDisp, i.unidadMedida)} ${abreviaturaUnidad(i.unidadMedida)}`}
                             </span>
                           )}
                         </div>
