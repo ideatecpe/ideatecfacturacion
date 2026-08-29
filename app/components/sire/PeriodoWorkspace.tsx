@@ -667,7 +667,7 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                           {hayInafecto && <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Inafecto</th>}
                           <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Total</th>
                           <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
-                          {canManage && <th className="px-4 py-2.5" />}
+                          {canManage && <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center">Opciones</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">

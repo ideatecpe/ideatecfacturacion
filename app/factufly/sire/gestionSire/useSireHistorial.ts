@@ -1,11 +1,9 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useToast } from "@/app/components/ui/Toast";
 import { SireRegistro } from "./types";
 
 export const useSireHistorial = () => {
   const { accessToken } = useAuth();
-  const { showToast } = useToast();
   const [historial, setHistorial] = useState<SireRegistro[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -35,9 +33,7 @@ export const useSireHistorial = () => {
         setHistorial(data);
         return data;
       } catch (err) {
-        const mensaje = err instanceof Error ? err.message : "Error al cargar el historial SIRE";
         console.error("[SIRE] Error consultando historial:", err);
-        showToast(mensaje, "error");
         setHistorial([]);
         return [];
       } finally {
