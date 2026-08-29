@@ -658,7 +658,7 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
             ) : comprobantesFiltrados.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-12">Ningún comprobante coincide con los filtros aplicados.</p>
             ) : (
-                  <div className="overflow-auto max-h-[calc(100vh-320px)] min-h-[240px] rounded-lg border border-gray-100">
+                  <div className="overflow-auto max-h-[calc(100vh-400px)] min-h-[240px] rounded-lg border border-gray-100">
                     <table className="w-full text-left border-collapse">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-gray-100">
@@ -740,7 +740,7 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                       </tr>
                         ))}
                       </tbody>
-                      <tfoot>
+                      <tfoot className="sticky bottom-0 z-10">
                         <tr className="bg-gray-100 font-semibold">
                           <td className="px-4 py-2 text-xs text-gray-700" colSpan={3}>
                             Totales ({comprobantesFiltrados.length})
