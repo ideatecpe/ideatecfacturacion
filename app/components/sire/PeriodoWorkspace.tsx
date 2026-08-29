@@ -654,7 +654,7 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
             ) : comprobantesFiltrados.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-12">Ningún comprobante coincide con los filtros aplicados.</p>
             ) : (
-                  <div className="overflow-auto max-h-[calc(100vh-520px)] min-h-[240px] rounded-lg border border-gray-100">
+                  <div className="overflow-auto max-h-[calc(100vh-440px)] min-h-[240px] rounded-lg border border-gray-100">
                     <table className="w-full text-left border-collapse">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-gray-100">
