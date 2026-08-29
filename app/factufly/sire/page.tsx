@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { RefreshCw, Info, Lock, History, CalendarDays, FileStack } from "lucide-react";
+import { RefreshCw, Lock, History, CalendarDays, FileStack } from "lucide-react";
 import { cn } from "@/app/utils/cn";
 import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/app/components/ui/Card";
@@ -121,13 +121,6 @@ export default function SirePage() {
         SIRE
       </h1>
 
-      {/* Info banner */}
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl">
-        <Info className="w-4 h-4 text-blue-500 shrink-0" />
-        <p className="text-xs text-blue-700 font-medium">
-          El SIRE (Registro de Ventas - RVIE) consolida todos los comprobantes emitidos bajo tu RUC. No hay ambiente de pruebas: cada consulta y cierre se hace directamente contra producción de SUNAT.
-        </p>
-      </div>
 
       {!canManage && (
         <div className="flex items-center gap-2.5 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">

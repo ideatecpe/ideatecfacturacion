@@ -72,6 +72,9 @@ async function exportarExcel(
   ruc: string,
   nombreEmpresa?: string | null,
 ) {
+  const hayExoneradoExcel = comprobantes.some((c) => c.mtoExonerado !== 0);
+  const hayInafectoExcel = comprobantes.some((c) => c.mtoInafecto !== 0);
+
   const columnas: { header: string; key: string; width: number; numero?: boolean }[] = [
     { header: "Fecha Emisión", key: "fecha", width: 14 },
     { header: "Tipo", key: "tipo", width: 16 },
@@ -81,6 +84,8 @@ async function exportarExcel(
     { header: "Doc. Cliente", key: "docCliente", width: 16 },
     { header: "Base Imponible", key: "base", width: 16, numero: true },
     { header: "IGV", key: "igv", width: 14, numero: true },
+    ...(hayExoneradoExcel ? [{ header: "Exonerado", key: "exonerado", width: 14, numero: true }] : []),
+    ...(hayInafectoExcel ? [{ header: "Inafecto", key: "inafecto", width: 14, numero: true }] : []),
     { header: "Total", key: "total", width: 14, numero: true },
     { header: "Moneda", key: "moneda", width: 10 },
     { header: "Estado", key: "estado", width: 12 },
@@ -161,6 +166,8 @@ async function exportarExcel(
       c.numDocCliente ?? "",
       c.baseImponible,
       c.igv,
+      ...(hayExoneradoExcel ? [c.mtoExonerado] : []),
+      ...(hayInafectoExcel ? [c.mtoInafecto] : []),
       c.importeTotal,
       c.codMoneda ?? "",
       c.activo ? "Activo" : "Anulado",
@@ -185,8 +192,14 @@ async function exportarExcel(
 
   // Fila de totales
   const totales = comprobantes.reduce(
-    (acc, c) => ({ base: acc.base + c.baseImponible, igv: acc.igv + c.igv, total: acc.total + c.importeTotal }),
-    { base: 0, igv: 0, total: 0 },
+    (acc, c) => ({
+      base: acc.base + c.baseImponible,
+      igv: acc.igv + c.igv,
+      exonerado: acc.exonerado + c.mtoExonerado,
+      inafecto: acc.inafecto + c.mtoInafecto,
+      total: acc.total + c.importeTotal,
+    }),
+    { base: 0, igv: 0, exonerado: 0, inafecto: 0, total: 0 },
   );
   const totalRowIndex = headerRowIndex + 1 + comprobantes.length;
   const totalRow = sheet.getRow(totalRowIndex);
@@ -197,18 +210,30 @@ async function exportarExcel(
   totalLabelCell.alignment = { vertical: "middle", horizontal: "right" };
   totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_NAVY } };
 
-  const totalValores = [totales.base, totales.igv, totales.total];
-  [7, 8, 9].forEach((colIdx, i) => {
-    const cell = totalRow.getCell(colIdx);
-    cell.value = totalValores[i];
+  // Columnas numéricas dinámicas: Base(7), IGV(8), [Exon], [Inaf], Total, Moneda, Estado, Inconsistencias
+  const colNumericas: number[] = [7, 8];
+  if (hayExoneradoExcel) colNumericas.push(colNumericas.length + 7);
+  if (hayInafectoExcel) colNumericas.push(colNumericas.length + 7);
+  const colTotal = 7 + 2 + (hayExoneradoExcel ? 1 : 0) + (hayInafectoExcel ? 1 : 0);
+  const totalValores = [
+    totales.base,
+    totales.igv,
+    ...(hayExoneradoExcel ? [totales.exonerado] : []),
+    ...(hayInafectoExcel ? [totales.inafecto] : []),
+    totales.total,
+  ];
+  totalValores.forEach((val, i) => {
+    const cell = totalRow.getCell(7 + i);
+    cell.value = val;
     cell.font = { bold: true, size: 10, color: { argb: COLOR_BLANCO } };
     cell.numFmt = "#,##0.00";
     cell.alignment = { vertical: "middle", horizontal: "right" };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_NAVY } };
   });
-  [10, 11, 12].forEach((colIdx) => {
-    totalRow.getCell(colIdx).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_NAVY } };
-  });
+  // Rellenar resto de columnas (Moneda, Estado, Inconsistencias)
+  for (let ci = colTotal + 1; ci <= totalCols; ci++) {
+    totalRow.getCell(ci).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_NAVY } };
+  }
   totalRow.height = 20;
 
   sheet.views = [{ state: "frozen", ySplit: headerRowIndex }];
