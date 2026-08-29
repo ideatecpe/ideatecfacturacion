@@ -31,11 +31,14 @@ export interface SireComprobanteDto {
   razonSocialCliente: string | null;
   baseImponible: number;
   igv: number;
+  mtoExonerado: number;
+  mtoInafecto: number;
   importeTotal: number;
   activo: boolean;
   tipoCambio: number | null;
   codMoneda: string | null;
   inconsistencias: string | null;
+  fechaEmisionDocModificado: string | null;
 }
 
 export interface SireDescargarPropuestaResponse {

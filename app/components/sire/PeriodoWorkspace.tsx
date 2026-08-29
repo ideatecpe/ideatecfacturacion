@@ -363,6 +363,23 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
     return acc;
   }, {});
 
+  // Detecta si una NC modifica un comprobante de otro período (formato dd/mm/aaaa → YYYYMM)
+  function esPeriodoCruzado(fechaDocMod: string | null): boolean {
+    if (!fechaDocMod) return false;
+    const partes = fechaDocMod.split("/");
+    if (partes.length !== 3) return false;
+    const [d, m, y] = partes;
+    if (!d || !m || !y || y.length !== 4) return false;
+    const periodoDoc = `${y}${m.padStart(2, "0")}`;
+    return periodoDoc !== perTributario;
+  }
+
+  const hayExonerado = useMemo(() => (comprobantes ?? []).some((c) => c.mtoExonerado !== 0), [comprobantes]);
+  const hayInafecto = useMemo(() => (comprobantes ?? []).some((c) => c.mtoInafecto !== 0), [comprobantes]);
+
+  const totalesTablaExonerado = comprobantesFiltrados.reduce((acc, c) => acc + c.mtoExonerado, 0);
+  const totalesTablaInafecto = comprobantesFiltrados.reduce((acc, c) => acc + c.mtoInafecto, 0);
+
   const rangoFechaPeriodo = useMemo(() => {
     if (!/^\d{6}$/.test(perTributario)) return null;
     const anio = Number(perTributario.slice(0, 4));
@@ -504,6 +521,23 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                   </tbody>
                 </table>
               </div>
+
+              {conInconsistencias.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+                    <FileWarning size={13} /> Comprobantes con inconsistencias
+                  </p>
+                  <div className="space-y-1">
+                    {conInconsistencias.map((c, i) => (
+                      <div key={i} className="flex items-start gap-2 text-[11px] text-amber-800">
+                        <span className="font-semibold whitespace-nowrap">{c.serie}-{c.numero}</span>
+                        <span className="text-amber-600">—</span>
+                        <span>{c.inconsistencias}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )
         )}
@@ -608,6 +642,8 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                           <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
                           <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Base Imp.</th>
                           <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">IGV</th>
+                          {hayExonerado && <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Exonerado</th>}
+                          {hayInafecto && <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Inafecto</th>}
                           <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Total</th>
                           <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
                           {canManage && <th className="px-4 py-2.5" />}
@@ -625,6 +661,11 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                               <FileWarning size={10} /> {c.inconsistencias}
                             </p>
                           )}
+                          {(c.tipoComprobante === "07" || c.tipoComprobante === "08" || c.tipoComprobante === "87" || c.tipoComprobante === "88") && esPeriodoCruzado(c.fechaEmisionDocModificado) && (
+                            <p className="text-[10px] text-blue-500 font-medium flex items-center gap-1 mt-0.5" title={`Modifica comprobante del ${c.fechaEmisionDocModificado}`}>
+                              <AlertTriangle size={10} /> Afecta doc. de otro período
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-2">
                           <p className="text-xs font-medium text-gray-900 truncate max-w-52">{c.razonSocialCliente ?? "—"}</p>
@@ -632,6 +673,8 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                         </td>
                         <td className="px-4 py-2 text-xs text-gray-700 text-right whitespace-nowrap">{formatMoneda(c.baseImponible, c.codMoneda)}</td>
                         <td className="px-4 py-2 text-xs text-gray-700 text-right whitespace-nowrap">{formatMoneda(c.igv, c.codMoneda)}</td>
+                        {hayExonerado && <td className="px-4 py-2 text-xs text-gray-700 text-right whitespace-nowrap">{formatMoneda(c.mtoExonerado, c.codMoneda)}</td>}
+                        {hayInafecto && <td className="px-4 py-2 text-xs text-gray-700 text-right whitespace-nowrap">{formatMoneda(c.mtoInafecto, c.codMoneda)}</td>}
                         <td className="px-4 py-2 text-xs font-semibold text-gray-900 text-right whitespace-nowrap">{formatMoneda(c.importeTotal, c.codMoneda)}</td>
                         <td className="px-4 py-2 text-center">
                           {c.activo ? (
@@ -679,6 +722,8 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                           </td>
                           <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTabla.base, null)}</td>
                           <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTabla.igv, null)}</td>
+                          {hayExonerado && <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTablaExonerado, null)}</td>}
+                          {hayInafecto && <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTablaInafecto, null)}</td>}
                           <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTabla.total, null)}</td>
                           <td className="px-4 py-2" />
                           {canManage && <td className="px-4 py-2" />}
