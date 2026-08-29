@@ -210,10 +210,6 @@ async function exportarExcel(
   totalLabelCell.alignment = { vertical: "middle", horizontal: "right" };
   totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR_NAVY } };
 
-  // Columnas numéricas dinámicas: Base(7), IGV(8), [Exon], [Inaf], Total, Moneda, Estado, Inconsistencias
-  const colNumericas: number[] = [7, 8];
-  if (hayExoneradoExcel) colNumericas.push(colNumericas.length + 7);
-  if (hayInafectoExcel) colNumericas.push(colNumericas.length + 7);
   const colTotal = 7 + 2 + (hayExoneradoExcel ? 1 : 0) + (hayInafectoExcel ? 1 : 0);
   const totalValores = [
     totales.base,
@@ -393,17 +389,14 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
     if (!fechaDocMod) return false;
     const partes = fechaDocMod.split("/");
     if (partes.length !== 3) return false;
-    const [d, m, y] = partes;
-    if (!d || !m || !y || y.length !== 4) return false;
+    const [, m, y] = partes;
+    if (!m || !y || y.length !== 4) return false;
     const periodoDoc = `${y}${m.padStart(2, "0")}`;
     return periodoDoc !== perTributario;
   }
 
   const hayExonerado = useMemo(() => (comprobantes ?? []).some((c) => c.mtoExonerado !== 0), [comprobantes]);
   const hayInafecto = useMemo(() => (comprobantes ?? []).some((c) => c.mtoInafecto !== 0), [comprobantes]);
-
-  const totalesTablaExonerado = comprobantesFiltrados.reduce((acc, c) => acc + c.mtoExonerado, 0);
-  const totalesTablaInafecto = comprobantesFiltrados.reduce((acc, c) => acc + c.mtoInafecto, 0);
 
   const rangoFechaPeriodo = useMemo(() => {
     if (!/^\d{6}$/.test(perTributario)) return null;
@@ -443,6 +436,9 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
     (acc, c) => ({ base: acc.base + c.baseImponible, igv: acc.igv + c.igv, total: acc.total + c.importeTotal }),
     { base: 0, igv: 0, total: 0 },
   );
+
+  const totalesTablaExonerado = comprobantesFiltrados.reduce((acc, c) => acc + c.mtoExonerado, 0);
+  const totalesTablaInafecto = comprobantesFiltrados.reduce((acc, c) => acc + c.mtoInafecto, 0);
 
   const hayFiltrosActivos = !!(busqueda || filtroFecha || filtroTipo);
   const limpiarFiltros = () => {
