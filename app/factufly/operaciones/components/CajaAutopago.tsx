@@ -993,6 +993,21 @@ export function CajaAutopagoVista({
   const sinDocumento = documentoTrim.length === 0;
   const esRuc = documentoTrim.length === 11;
 
+  // Dígitos permitidos en el input de documento DENTRO del modal de cobro, donde
+  // el comprobante ya está elegido:
+  //   Boleta         → solo DNI (8)
+  //   Nota de Venta  → DNI o RUC (hasta 11)
+  //   Factura        → solo RUC (11)
+  // Fuera del modal el documento es libre (8/9/11): es justamente lo que decide
+  // el comprobante al abrir el cobro.
+  const maxDocLen = tipoComprobante === "Boleta" ? 8 : 11;
+  const docPlaceholder =
+    tipoComprobante === "Factura"
+      ? "RUC de la empresa (11 dígitos)"
+      : tipoComprobante === "Nota de Venta"
+        ? "DNI o RUC del cliente (opcional)"
+        : "DNI del cliente (8 dígitos, opcional)";
+
   // Consulta el nombre / razón social en cuanto se escribe un documento válido
   // (8=DNI, 9=CE, 11=RUC), con debounce. Guarda el último documento consultado
   // para no repetir la llamada al abrir el modal de cobro: una sola consulta a la
@@ -2110,6 +2125,14 @@ export function CajaAutopagoVista({
     if (tipoComprobante === "Boleta" && totales.total >= 700 && sinDocumento) {
       showToast("Aviso: SUNAT exige registrar DNI o CE del cliente para Boletas a partir de S/ 700.00", "info");
     }
+    // El documento decide el comprobante con el que se abre el cobro, para que
+    // el modal nunca arranque en un tipo incompatible con lo escrito. La Nota de
+    // Venta admite DNI y RUC, así que si ya está elegida se respeta tal cual.
+    if (len === 11 && tipoComprobante === "Boleta") {
+      setTipoComprobante("Factura");
+    } else if (len > 0 && len < 11 && tipoComprobante === "Factura") {
+      setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
+    }
     // El cliente ya se consultó al escribir el documento (efecto con debounce),
     // así que aquí no se vuelve a llamar a la API. Si el debounce aún no disparó
     // (clic muy rápido), el efecto pendiente lo resuelve una sola vez.
@@ -2133,6 +2156,14 @@ export function CajaAutopagoVista({
 
   const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta" | "Factura") => {
     setTipoComprobante(t);
+    // Un RUC no es un DNI: al pasar a Boleta (único comprobante que no admite
+    // RUC) el documento se LIMPIA, nunca se recorta. Recortar 11 → 8 dígitos
+    // produce un DNI inventado pero con formato válido, que RENIEC resuelve al
+    // nombre de OTRA persona y terminaría emitido en el comprobante.
+    if (t === "Boleta" && documentoTrim.length > 8) {
+      setDocumento("");
+      showToast("Se quitó el RUC: la Boleta solo admite DNI (8 dígitos)", "info");
+    }
   };
 
   // ── Venta sin conexión: se encola localmente ────────────────────
@@ -3534,7 +3565,11 @@ export function CajaAutopagoVista({
                   <div className="flex items-center justify-between text-gray-700">
                     <span className="font-bold text-[11px] text-gray-600 uppercase tracking-wide flex items-center gap-1">
                       <UserRound className="w-3.5 h-3.5 text-brand-blue" />
-                      {tipoComprobante === "Factura" || documentoTrim.length === 11 ? "RUC / Empresa *" : "Cliente (DNI / RUC)"}
+                      {tipoComprobante === "Factura"
+                        ? "RUC / Empresa *"
+                        : tipoComprobante === "Nota de Venta"
+                          ? "Cliente (DNI / RUC)"
+                          : "Cliente (DNI)"}
                     </span>
                     {sinDocumento && tipoComprobante !== "Factura" && (
                       <span className="text-[11px] text-gray-400 font-medium">Clientes varios (opcional)</span>
@@ -3547,13 +3582,13 @@ export function CajaAutopagoVista({
                       type="text"
                       inputMode="numeric"
                       value={documento}
-                      onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                      onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, maxDocLen))}
                       placeholder={
                         tipoComprobante === "Factura"
                           ? "Ingresa RUC de la empresa (11 dígitos) *"
                           : totales.total >= 700 && tipoComprobante === "Boleta"
                             ? "Ingresa DNI (8 dígitos) - Requerido por SUNAT"
-                            : "DNI o RUC del cliente (opcional)"
+                            : docPlaceholder
                       }
                       className={`w-full h-8.5 pl-3 pr-7 bg-white rounded border text-xs font-semibold outline-none transition-all ${
                         tipoComprobante === "Factura" && documentoTrim.length !== 11
