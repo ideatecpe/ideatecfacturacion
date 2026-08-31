@@ -107,14 +107,15 @@ export default function RentabilidadPage() {
   }, [sucursalId, desdeCalculado, hastaCalculado, config?.isStock, fetchRentabilidad]);
 
   useEffect(() => {
-    if (expandido !== null) {
+    if (expandido !== null && sucursalId > 0) {
       fetchRentabilidadDiaria({
-        sucursalProductoId: expandido,
+        sucursalId,
+        productoId: expandido,
         desde: desdeCalculado,
         hasta: hastaCalculado,
       });
     }
-  }, [expandido, desdeCalculado, hastaCalculado, fetchRentabilidadDiaria]);
+  }, [expandido, sucursalId, desdeCalculado, hastaCalculado, fetchRentabilidadDiaria]);
 
   const handleFechaDesdeChange = (val: string) => {
     setFechaDesde(val);
@@ -140,11 +141,11 @@ export default function RentabilidadPage() {
   };
 
   const toggleExpandido = (r: (typeof rentabilidad)[number]) => {
-    if (expandido === r.sucursalProductoId) {
+    if (expandido === r.productoId) {
       setExpandido(null);
       return;
     }
-    setExpandido(r.sucursalProductoId);
+    setExpandido(r.productoId);
   };
 
   const totales = useMemo(
@@ -391,7 +392,7 @@ export default function RentabilidadPage() {
 
             {!loadingRentabilidad &&
               rentabilidadFiltrada.map((r, idx) => {
-                const isOpen = expandido === r.sucursalProductoId;
+                const isOpen = expandido === r.productoId;
                 return (
                   <React.Fragment key={r.productoId}>
                     <tr
@@ -405,7 +406,16 @@ export default function RentabilidadPage() {
                       }`}
                     >
                       <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.codigo ?? "—"}</td>
-                      <td className="px-3 py-2.5 font-semibold text-gray-800">{r.nomProducto ?? "—"}</td>
+                      <td className="px-3 py-2.5 font-semibold text-gray-800">
+                        <span className="inline-flex items-center gap-1.5">
+                          {r.nomProducto ?? "—"}
+                          {r.esPaquete && (
+                            <span className="text-[9px] font-bold text-brand-blue bg-brand-blue/10 rounded-full px-1.5 py-0.5 uppercase tracking-wide">
+                              Paquete
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">{r.cantidadVendida}</td>
                       <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">S/ {r.ingresoVentas.toFixed(2)}</td>
                       <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">S/ {r.costoVentas.toFixed(2)}</td>

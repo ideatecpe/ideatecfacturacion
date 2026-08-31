@@ -47,7 +47,7 @@ interface OfflineSalesContextValue {
   ventasSincronizadas: number;
   enqueueVenta: (
     payload: Record<string, unknown>,
-    stockItems: { sucursalProductoId: number; cantidad: number }[],
+    stockItems: { sucursalProductoId: number; cantidad: number; item?: number }[],
     resumenTicket: VentaPendiente["resumenTicket"],
     tipo?: TipoVentaPendiente,
   ) => Promise<string>;
@@ -321,7 +321,7 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
   const enqueueVenta = useCallback(
     async (
       payload: Record<string, unknown>,
-      stockItems: { sucursalProductoId: number; cantidad: number }[],
+      stockItems: { sucursalProductoId: number; cantidad: number; item?: number }[],
       resumenTicket: VentaPendiente["resumenTicket"],
       tipo: TipoVentaPendiente = "comprobante",
     ) => {

@@ -173,7 +173,7 @@ export default function CajaPage() {
               <select
                 value={usuarioId ?? ""}
                 onChange={(e) => setUsuarioId(e.target.value ? Number(e.target.value) : null)}
-                className="h-8 px-2.5 text-xs font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:bg-white transition-colors min-w-[170px]"
+                className="h-8 px-2.5 text-xs font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:bg-white transition-colors min-w-42.5"
               >
                 <option value="">Todos los cajeros</option>
                 {corte?.cajerosDelDia.map((c) => (
