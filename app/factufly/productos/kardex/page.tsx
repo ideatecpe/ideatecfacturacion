@@ -120,6 +120,17 @@ export default function KardexPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Un paquete/sixpack no tiene lotes propios (comparte el stock/kardex de su producto
+  // base), así que para ver "su" kardex hay que consultar el sucursalProductoId del BASE
+  // y filtrar por el productoId del paquete — igual que Rentabilidad separa sus filas.
+  const productoBase = productoSeleccionado?.esPaquete
+    ? productosSucursal.find((p) => p.productoId === productoSeleccionado.productoBaseId)
+    : null;
+  const sucursalProductoIdConsulta =
+    productoBase?.sucursalProducto.sucursalProductoId ??
+    productoSeleccionado?.sucursalProducto.sucursalProductoId ??
+    0;
+  const productoIdFiltro = productoSeleccionado?.esPaquete ? productoSeleccionado.productoId : undefined;
   const sucursalProductoId = productoSeleccionado?.sucursalProducto.sucursalProductoId ?? 0;
   const { kardex, loadingKardex, fetchKardex } = useKardexLista();
 
@@ -251,13 +262,14 @@ export default function KardexPage() {
   }, [fechaDesde, fechaHasta]);
 
   useEffect(() => {
-    if (!sucursalProductoId) return;
+    if (!sucursalProductoIdConsulta) return;
     fetchKardex({
-      sucursalProductoId,
+      sucursalProductoId: sucursalProductoIdConsulta,
+      productoId: productoIdFiltro,
       desde: desdeCalculado,
       hasta: hastaCalculado,
     });
-  }, [sucursalProductoId, desdeCalculado, hastaCalculado, fetchKardex]);
+  }, [sucursalProductoIdConsulta, productoIdFiltro, desdeCalculado, hastaCalculado, fetchKardex]);
 
   const handleFechaDesdeChange = (val: string) => {
     setFechaDesde(val);
@@ -320,7 +332,7 @@ export default function KardexPage() {
           )}
 
           {/* ── Buscador de producto con nombre o código de barras ── */}
-          <div className="relative flex-1 min-w-[280px] sm:min-w-[340px] max-w-lg">
+          <div className="relative flex-1 min-w-70 sm:min-w-85 max-w-lg">
             <div className="relative flex items-center">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
               <input
@@ -477,6 +489,7 @@ export default function KardexPage() {
             <tr>
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Fecha</th>
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Movimiento</th>
+              <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Producto</th>
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Cantidad</th>
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Costo Unit.</th>
               <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Costo Total</th>
@@ -486,7 +499,7 @@ export default function KardexPage() {
             {loadingKardex &&
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i} className="border-b border-gray-100 animate-pulse">
-                  <td className="px-3 py-3" colSpan={5}>
+                  <td className="px-3 py-3" colSpan={6}>
                     <div className="h-3 bg-gray-200 rounded w-full" />
                   </td>
                 </tr>
@@ -494,7 +507,7 @@ export default function KardexPage() {
 
             {!loadingKardex && sucursalProductoId === 0 && (
               <tr>
-                <td colSpan={5} className="py-16 text-center">
+                <td colSpan={6} className="py-16 text-center">
                   <div className="flex flex-col items-center">
                     <div className="bg-gray-100 rounded-full p-4 mb-3">
                       <PackageSearch className="w-10 h-10 text-gray-300" />
@@ -510,7 +523,7 @@ export default function KardexPage() {
 
             {!loadingKardex && sucursalProductoId > 0 && kardex.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-16 text-center">
+                <td colSpan={6} className="py-16 text-center">
                   <div className="flex flex-col items-center">
                     <div className="bg-gray-100 rounded-full p-4 mb-3">
                       <PackageSearch className="w-10 h-10 text-gray-300" />
@@ -539,12 +552,28 @@ export default function KardexPage() {
                     <td className="px-3 py-2.5">
                       <MovimientoBadge tipo={m.tipoMovimiento} />
                     </td>
+                    <td className="px-3 py-2.5 text-gray-700">
+                      <span className="inline-flex items-center gap-1.5">
+                        {m.nomProducto ?? productoSeleccionado?.nomProducto ?? "—"}
+                        {m.esPaquete && (
+                          <span className="text-[9px] font-bold text-brand-blue bg-brand-blue/10 rounded-full px-1.5 py-0.5 uppercase tracking-wide">
+                            Paquete
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className={`px-3 py-2.5 text-right font-semibold ${style.cantidad}`}>
                       {style.signo}
-                      {m.cantidad}
+                      {m.cantidadVenta}
                     </td>
                     <td className="px-3 py-2.5 text-right text-gray-700">
-                      {m.costoUnitarioPromedio != null ? (
+                      {m.esPaquete ? (
+                        m.costoVenta != null && m.cantidadVenta > 0 ? (
+                          `S/ ${(m.costoVenta / m.cantidadVenta).toFixed(2)}`
+                        ) : (
+                          "—"
+                        )
+                      ) : m.costoUnitarioPromedio != null ? (
                         <>
                           S/ {m.costoUnitarioPromedio.toFixed(2)}
                           {m.lotesConsumidos > 1 && (
@@ -556,7 +585,9 @@ export default function KardexPage() {
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right text-gray-700">
-                      {m.costoTotal != null ? `S/ ${m.costoTotal.toFixed(2)}` : "—"}
+                      {(m.costoVenta ?? m.costoTotal) != null
+                        ? `S/ ${(m.costoVenta ?? m.costoTotal!).toFixed(2)}`
+                        : "—"}
                     </td>
                   </tr>
                 );

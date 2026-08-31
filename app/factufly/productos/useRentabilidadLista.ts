@@ -11,7 +11,8 @@ interface FetchRentabilidadParams {
 }
 
 interface FetchRentabilidadDiariaParams {
-  sucursalProductoId: number;
+  sucursalId: number;
+  productoId: number;
   desde?: string;
   hasta?: string;
 }
@@ -61,8 +62,8 @@ export function useRentabilidadLista() {
   );
 
   const fetchRentabilidadDiaria = useCallback(
-    async ({ sucursalProductoId, desde, hasta }: FetchRentabilidadDiariaParams) => {
-      if (!sucursalProductoId) return;
+    async ({ sucursalId, productoId, desde, hasta }: FetchRentabilidadDiariaParams) => {
+      if (!sucursalId || !productoId) return;
 
       abortDiariaRef.current?.abort();
       const controller = new AbortController();
@@ -71,7 +72,7 @@ export function useRentabilidadLista() {
       setLoadingRentabilidadDiaria(true);
       try {
         const res = await axios.get<RentabilidadDiaria[]>(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/Inventario/rentabilidad/producto/${sucursalProductoId}/detalle`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Inventario/rentabilidad/sucursal/${sucursalId}/producto/${productoId}/detalle`,
           {
             params: { desde: desde || undefined, hasta: hasta || undefined },
             headers: { Authorization: `Bearer ${accessToken}` },

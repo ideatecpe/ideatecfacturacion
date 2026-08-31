@@ -6,6 +6,10 @@ import { useToast } from "@/app/components/ui/Toast";
 
 interface FetchKardexParams {
   sucursalProductoId: number;
+  // Si se selecciona un paquete (que no tiene lotes propios, comparte el
+  // sucursalProductoId de su producto base), filtra el kardex del base a solo las
+  // líneas atribuibles a ese paquete.
+  productoId?: number;
   desde?: string;
   hasta?: string;
 }
@@ -18,7 +22,7 @@ export function useKardexLista() {
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchKardex = useCallback(
-    async ({ sucursalProductoId, desde, hasta }: FetchKardexParams) => {
+    async ({ sucursalProductoId, productoId, desde, hasta }: FetchKardexParams) => {
       if (!sucursalProductoId) return;
 
       // Cancela la petición anterior para que una respuesta lenta con
@@ -32,7 +36,7 @@ export function useKardexLista() {
         const res = await axios.get<KardexMovimiento[]>(
           `${process.env.NEXT_PUBLIC_API_URL}/api/Inventario/kardex/${sucursalProductoId}`,
           {
-            params: { desde: desde || undefined, hasta: hasta || undefined },
+            params: { productoId: productoId || undefined, desde: desde || undefined, hasta: hasta || undefined },
             headers: { Authorization: `Bearer ${accessToken}` },
             signal: controller.signal,
           },
