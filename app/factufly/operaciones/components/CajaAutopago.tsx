@@ -1935,14 +1935,19 @@ export function CajaAutopagoVista({
   // ── Descontar stock (solo si config.isStock) ───────────────────
   const calcularStockItems = () => {
     const acumulado = new Map<number, number>();
-    items.forEach((it) => {
-      if (it.tipoProducto !== "BIEN" || !it.sucursalProductoId) return;
-      acumulado.set(it.sucursalProductoId, (acumulado.get(it.sucursalProductoId) ?? 0) + it.cantidad);
-    });
-    return { acumulado, items: Array.from(acumulado.entries()).map(([sucursalProductoId, cantidad]) => ({
-      sucursalProductoId,
-      cantidad,
-    })) };
+    // Un item por línea (no agregado por sucursalProductoId): el backend necesita poder
+    // atar cada descuento de stock a su línea de comprobante exacta (vía `item`, el mismo
+    // idx+1 con el que se numeran las líneas en `detalles`/`prepararNotaVenta`), para
+    // distinguir p.ej. la venta de un paquete/sixpack de la de su producto base aunque
+    // compartan el mismo sucursalProductoId.
+    const stockItems = items
+      .map((it, idx) => ({ it, item: idx + 1 }))
+      .filter(({ it }) => it.tipoProducto === "BIEN" && it.sucursalProductoId)
+      .map(({ it, item }) => {
+        acumulado.set(it.sucursalProductoId!, (acumulado.get(it.sucursalProductoId!) ?? 0) + it.cantidad);
+        return { sucursalProductoId: it.sucursalProductoId!, cantidad: it.cantidad, item };
+      });
+    return { acumulado, items: stockItems };
   };
 
   // El backend descuenta el stock ATÓMICAMENTE al crear la venta (ver StockItems

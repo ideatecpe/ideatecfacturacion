@@ -17,6 +17,7 @@ export interface KardexMovimiento {
   tipoMovimiento: string; // "ENTRADA_COMPRA" | "ENTRADA_SALDO_INICIAL" | "SALIDA_VENTA" | "SALIDA_NOTA" | "ENTRADA_DEVOLUCION" | "AJUSTE"
   referenciaTipo: string | null;
   referenciaId: number | null;
+  comprobanteDetalleId: number | null;
   cantidad: number;
   costoUnitarioPromedio: number | null;
   costoTotal: number | null;
@@ -24,6 +25,14 @@ export interface KardexMovimiento {
   saldoValorPost: number;
   fechaMovimiento: string;
   lotesConsumidos: number;
+  // Qué se vendió realmente en esa línea (puede ser un paquete, no el producto base
+  // cuyo stock ledger es este). Igual que en RentabilidadProducto.esPaquete.
+  productoId: number | null;
+  nomProducto: string | null;
+  codigo: string | null;
+  esPaquete: boolean;
+  cantidadVenta: number;
+  costoVenta: number | null;
 }
 
 // ─── Stock valorizado (por producto, con detalle de lotes) ─────
@@ -43,6 +52,7 @@ export interface RentabilidadProducto {
   sucursalProductoId: number;
   nomProducto: string | null;
   codigo: string | null;
+  esPaquete: boolean;
   cantidadVendida: number;
   ingresoVentas: number;
   costoVentas: number;

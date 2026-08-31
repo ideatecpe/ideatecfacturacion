@@ -34,7 +34,7 @@ export interface VentaPendiente {
    */
   usuarioId: number;
   payload: Record<string, unknown>;
-  stockItems: { sucursalProductoId: number; cantidad: number }[];
+  stockItems: { sucursalProductoId: number; cantidad: number; item?: number }[];
   resumenTicket: {
     clienteNombre: string;
     items: VentaPendienteTicketItem[];

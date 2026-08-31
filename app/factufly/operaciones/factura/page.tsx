@@ -2140,16 +2140,20 @@ function FacturaContent() {
   // atómicamente al crear el comprobante (van dentro del payload).
   const calcularStockItems = () => {
     const acumulado = new Map<number, number>();
-    detalles
+    // Un item por línea (no agregado por sucursalProductoId): el backend necesita poder
+    // atar cada descuento de stock a su línea de comprobante exacta (vía `item`), para
+    // distinguir p.ej. la venta de un paquete/sixpack de la de su producto base aunque
+    // compartan el mismo sucursalProductoId. El acumulado por producto (para el aviso de
+    // stock bajo) se sigue calculando aparte, sumando sobre todas las líneas.
+    const items = detalles
       .filter((d) => !d._esIcbper && d._tipoProducto === "BIEN" && d._sucursalProductoId)
-      .forEach((d) => {
-        const id = d._sucursalProductoId as number;
+      .map((d) => {
+        const sucursalProductoId = d._sucursalProductoId as number;
         const cantidad = Number(d.cantidad) || 0;
-        acumulado.set(id, (acumulado.get(id) ?? 0) + cantidad);
+        acumulado.set(sucursalProductoId, (acumulado.get(sucursalProductoId) ?? 0) + cantidad);
+        return { sucursalProductoId, cantidad, item: d.item };
       });
-    return { acumulado, items: Array.from(acumulado.entries()).map(
-      ([sucursalProductoId, cantidad]) => ({ sucursalProductoId, cantidad }),
-    ) };
+    return { acumulado, items };
   };
 
   // ── Preparar y emitir ────────────────────────────────────────
