@@ -72,7 +72,8 @@ import {
   esErrorTransitorio,
 } from "@/app/factufly/operaciones/boleta/gestionBoletas/emitirBoletaApi";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
-import { imprimirTicketProvisional } from "@/app/factufly/operaciones/components/TicketProvisional";
+import { construirHtmlTicket, imprimirTicketProvisional } from "@/app/factufly/operaciones/components/TicketProvisional";
+import { detectarAgente, imprimirHtmlConAgente } from "@/lib/impresion/agente";
 import { cacheProductos } from "@/lib/offline/offlineDb";
 import ModalAjustarStockRapido from "@/app/factufly/operaciones/components/ModalAjustarStockRapido";
 import ModalCrearProductoRapido from "@/app/factufly/operaciones/components/ModalCrearProductoRapido";
@@ -628,6 +629,13 @@ export function CajaAutopagoVista({
   const [medioPagoEmitido, setMedioPagoEmitido] = useState("Efectivo");
   const [vueltoEmitido, setVueltoEmitido] = useState(0);
   const [imprimiendo, setImprimiendo] = useState(false);
+  // Cuál de los tres botones se pulsó, para que el spinner salga solo en ese
+  // y no en los tres a la vez.
+  const [tamanoImprimiendo, setTamanoImprimiendo] = useState<"80" | "58" | "A4" | null>(null);
+  // Comprobantes ya descargados de la API, por id y tamaño. La BD es remota y
+  // cada descarga cuesta cientos de ms: sin esto, reimprimir o cambiar de
+  // tamaño vuelve a pagar la espera completa.
+  const comprobantesDescargados = useRef(new Map<string, Blob>());
   const [telWhatsapp, setTelWhatsapp] = useState("");
   const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false);
   const [mostrarFechaManual, setMostrarFechaManual] = useState(false);
@@ -676,6 +684,9 @@ export function CajaAutopagoVista({
     setSerieCorrelativoEmitido(null);
     setOfflineEncolada(false);
     setUltimoTicketOffline(null);
+    setTamanoImprimiendo(null);
+    // Los comprobantes de la venta anterior ya no se van a reimprimir.
+    comprobantesDescargados.current.clear();
     setMostrarPago(false);
     setMostrarCarritoMobile(false);
     setConfirmarLimpiarTodo(false);
@@ -2073,6 +2084,10 @@ export function CajaAutopagoVista({
     comprobanteId: number,
     tamano: string,
   ): Promise<Blob | null> => {
+    const clave = `${comprobanteId}:${tamano}`;
+    const guardado = comprobantesDescargados.current.get(clave);
+    if (guardado) return guardado;
+
     const esTicket = tamano === "Ticket58mm" || tamano === "Ticket80mm";
     try {
       if (esTicket) {
@@ -2081,14 +2096,18 @@ export function CajaAutopagoVista({
           { headers: { Authorization: `Bearer ${accessToken}` } },
         );
         if (!res.ok) return null;
-        return new Blob([await res.text()], { type: "text/html" });
+        const ticket = new Blob([await res.text()], { type: "text/html" });
+        comprobantesDescargados.current.set(clave, ticket);
+        return ticket;
       }
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/pdf?tamano=${tamano}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       if (!res.ok) return null;
-      return new Blob([await res.blob()], { type: "application/pdf" });
+      const pdf = new Blob([await res.blob()], { type: "application/pdf" });
+      comprobantesDescargados.current.set(clave, pdf);
+      return pdf;
     } catch {
       return null;
     }
@@ -2125,26 +2144,128 @@ export function CajaAutopagoVista({
     };
   };
 
+  // ── Impresión directa por el agente local ───────────────────────
+  // El agente es un programa que el cliente instala en su PC y que imprime sin
+  // el diálogo de Chrome, imposible de suprimir desde una página web. Si no
+  // está instalado, todo cae al flujo de iframe + window.print() de siempre y
+  // el cajero no nota ninguna diferencia.
+
+  /** Nombre del cliente tal como debe salir impreso. */
+  const nombreClienteTicket = () => {
+    const coincide = cliente?.numeroDocumento === documentoTrim;
+    const nombreValido = (nombreManualCliente.trim() || (coincide ? (cliente?.razonSocial || "") : "")).trim();
+    return nombreValido || (sinDocumento ? "Clientes Varios" : documentoTrim ? `DNI: ${documentoTrim}` : "Cliente");
+  };
+
+  /**
+   * Ancho del rollo térmico configurado, o null si el negocio imprime en A4.
+   * En A4 no se usa el agente: el comprobante va en PDF a una láser, que sí
+   * puede pasar por el diálogo normal del navegador.
+   */
+  const anchoTermico = (): "58" | "80" | null =>
+    config?.tamañoImpresion === "80" ? "80" : config?.tamañoImpresion === "58" ? "58" : null;
+
+  /**
+   * Intenta imprimir por el agente el MISMO HTML que devuelve la API.
+   *
+   * Importante: no se reconstruye el ticket aquí. El HTML del backend ya trae
+   * el logo, el QR de SUNAT y la redacción legal — un ticket armado en el front
+   * saldría parecido pero sin QR, y una boleta sin QR no es válida.
+   *
+   * @returns true si el agente lo imprimió; false si hay que usar el navegador.
+   */
+  const imprimirHtmlSiHayAgente = async (
+    blob: Blob,
+    ancho: "58" | "80",
+    documento: string,
+  ) => {
+    try {
+      const html = await blob.text();
+      if (!html.trim()) return false;
+      return await imprimirHtmlConAgente(html, ancho === "80" ? 80 : 58, { documento });
+    } catch {
+      // La venta ya quedó registrada: un fallo imprimiendo nunca debe tumbarla.
+      return false;
+    }
+  };
+
   // ── Impresión automática (según config.isImprime), justo al emitir ──
-  const imprimirSiAplica = async (comprobanteId: number) => {
+  // El serie-correlativo llega por parámetro y no del estado: `setSerieCorrelativoEmitido`
+  // se acaba de llamar en `emitirVenta` y todavía no se reflejó en este render.
+  const imprimirSiAplica = async (comprobanteId: number, serieCorrelativo: string | null) => {
     if (!config?.isImprime) return;
     setImprimiendo(true);
-    const tamanoMap: Record<string, string> = { "58": "Ticket58mm", "80": "Ticket80mm", A4: "A4" };
-    const tamano = config?.tamañoImpresion ? (tamanoMap[config.tamañoImpresion] ?? "A4") : "A4";
-    const blob = await obtenerBlobComprobante(comprobanteId, tamano);
-    if (blob) imprimirBlob(blob);
-    setImprimiendo(false);
+    try {
+      const ancho = anchoTermico();
+      const tamano = ancho ? TAMANO_MAP[ancho] : "A4";
+
+      // Una sola descarga alimenta las dos rutas: el agente recibe este mismo
+      // HTML y, si no está, el blob se imprime por el iframe de siempre.
+      const blob = await obtenerBlobComprobante(comprobanteId, tamano);
+      if (!blob) return;
+
+      const documento = serieCorrelativo ?? `Comprobante ${comprobanteId}`;
+      if (ancho && (await imprimirHtmlSiHayAgente(blob, ancho, documento))) return;
+
+      imprimirBlob(blob);
+    } finally {
+      setImprimiendo(false);
+    }
   };
+
+  // ¿Hay agente en este equipo? Se averigua al abrir la caja, no al imprimir.
+  //
+  // En un equipo SIN agente el intento de conexión tarda ~2 s en fallar (el
+  // firewall de Windows descarta el paquete en vez de rechazarlo), así que si
+  // esto ocurriera al pulsar el botón, cada cliente sin agente esperaría eso en
+  // cada venta. Adelantándolo al montaje, para cuando llega la primera venta la
+  // respuesta ya está en memoria.
+  useEffect(() => {
+    detectarAgente().catch(() => {});
+  }, []);
+
+  // Apenas se emite, se baja el comprobante en segundo plano mientras el cajero
+  // lee el vuelto. Así, cuando pulsa 58mm/80mm, ya está en memoria y la
+  // impresión sale al instante en vez de esperar a la API.
+  useEffect(() => {
+    if (!emitido || !comprobanteIdEmitido) return;
+    const ancho = anchoTermico();
+    if (!ancho) return;
+    // Se revalida el agente junto con el comprobante: si el cajero lo cerró a
+    // media jornada, el fallback al navegador ya está decidido antes del clic.
+    detectarAgente().catch(() => {});
+    obtenerBlobComprobante(comprobanteIdEmitido, TAMANO_MAP[ancho]).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emitido, comprobanteIdEmitido]);
 
   // ── Reimpresión manual desde la pantalla de éxito ───────────────
   const imprimirManual = async (tamanoKey: "80" | "58" | "A4") => {
-    if (!comprobanteIdEmitido) return;
-    const blob = await obtenerBlobComprobante(comprobanteIdEmitido, TAMANO_MAP[tamanoKey]);
-    if (!blob) {
-      showToast("No se pudo generar el comprobante", "error");
-      return;
+    if (!comprobanteIdEmitido || imprimiendo) return;
+    setImprimiendo(true);
+    setTamanoImprimiendo(tamanoKey);
+    const t0 = performance.now();
+    try {
+      const blob = await obtenerBlobComprobante(comprobanteIdEmitido, TAMANO_MAP[tamanoKey]);
+      const t1 = performance.now();
+      console.log(`[impresion] comprobante: ${Math.round(t1 - t0)} ms ${t1 - t0 < 30 ? "(cache)" : "(API)"}`);
+      if (!blob) {
+        showToast("No se pudo generar el comprobante", "error");
+        return;
+      }
+
+      // A4 nunca pasa por el agente: es un PDF para láser, no un ticket.
+      const documento = serieCorrelativoEmitido ?? `Comprobante ${comprobanteIdEmitido}`;
+      if (tamanoKey !== "A4") {
+        const ok = await imprimirHtmlSiHayAgente(blob, tamanoKey, documento);
+        console.log(`[impresion] agente: ${Math.round(performance.now() - t1)} ms (imprimio: ${ok})`);
+        if (ok) return;
+      }
+
+      imprimirBlob(blob);
+    } finally {
+      setImprimiendo(false);
+      setTamanoImprimiendo(null);
     }
-    imprimirBlob(blob);
   };
 
   const descargarPDF = async () => {
@@ -2267,11 +2388,8 @@ export function CajaAutopagoVista({
   ) => {
     const stockItems = config?.isStock ? calcularStockItems().items : [];
 
-    const coincide = cliente?.numeroDocumento === documentoTrim;
-    const nombreValido = (nombreManualCliente.trim() || (coincide ? (cliente?.razonSocial || "") : "")).trim();
     const resumenTicket = {
-      clienteNombre:
-        nombreValido || (sinDocumento ? "Clientes Varios" : documentoTrim ? `DNI: ${documentoTrim}` : "Cliente"),
+      clienteNombre: nombreClienteTicket(),
       items: items.map((it) => ({
         descripcion: it.descripcion,
         cantidad: it.cantidad,
@@ -2296,7 +2414,20 @@ export function CajaAutopagoVista({
     // Mismo criterio que la impresión automática online (imprimirSiAplica):
     // solo imprime solo si el negocio activó "Auto-imprimir" en Empresa.
     // Si está apagado, el ticket queda disponible para reimprimir manual.
-    if (config?.isImprime) imprimirTicketProvisional(datosTicket);
+    if (config?.isImprime) {
+      // Sin conexión no hay API que consultar, así que el HTML lo arma el mismo
+      // módulo del ticket provisional: el agente imprime exactamente lo que
+      // mostraría el navegador.
+      const ancho = anchoTermico();
+      const porAgente = ancho
+        ? await imprimirHtmlConAgente(
+            construirHtmlTicket(datosTicket),
+            ancho === "80" ? 80 : 58,
+            { documento: `Ticket provisional ${ventaId}` },
+          ).catch(() => false)
+        : false;
+      if (!porAgente) imprimirTicketProvisional(datosTicket);
+    }
 
     showToast(
       "Sin conexión: la venta se guardó localmente y se enviará al reconectar.",
@@ -2354,6 +2485,9 @@ export function CajaAutopagoVista({
 
       // Congelamos serie-correlativo mostrados ANTES de emitir (el backend
       // los asigna y luego el refetch de sucursal muestra el siguiente).
+      // Se guarda además en una local porque la impresión de más abajo corre en
+      // este mismo tick, cuando el estado todavía no se actualizó.
+      let serieCorrelativoTicket: string | null = null;
       if (sucursal) {
         const serie =
           tipoComprobante === "Factura"
@@ -2367,7 +2501,8 @@ export function CajaAutopagoVista({
             : tipoComprobante === "Nota de Venta"
               ? sucursal.correlativoNotaVenta
               : sucursal.correlativoBoleta;
-        setSerieCorrelativoEmitido(serie && correlativo ? `${serie}-${String(correlativo).padStart(8, "0")}` : null);
+        serieCorrelativoTicket = serie && correlativo ? `${serie}-${String(correlativo).padStart(8, "0")}` : null;
+        setSerieCorrelativoEmitido(serieCorrelativoTicket);
       }
 
       const esNotaVenta = tipoComprobante === "Nota de Venta";
@@ -2428,7 +2563,7 @@ export function CajaAutopagoVista({
       // actualización de correlativos). El stock ya se descontó ATÓMICAMENTE en el
       // backend al crear la venta; aquí solo se refleja en la UI.
       actualizarStockLocalTrasVenta();
-      imprimirSiAplica(comprobanteId);
+      imprimirSiAplica(comprobanteId, serieCorrelativoTicket);
       fetchSucursal();
     } catch (err) {
       const data = (err as { response?: { data?: { mensaje?: string; message?: string; detalle?: string } } })?.response?.data;
@@ -4092,23 +4227,26 @@ export function CajaAutopagoVista({
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => imprimirManual("80")}
-                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors cursor-pointer"
+                  disabled={imprimiendo}
+                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
-                  <Printer className="w-4 h-4" />
+                  {tamanoImprimiendo === "80" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                   <span className="text-[10px] font-semibold">80mm</span>
                 </button>
                 <button
                   onClick={() => imprimirManual("58")}
-                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors cursor-pointer"
+                  disabled={imprimiendo}
+                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
-                  <Printer className="w-4 h-4" />
+                  {tamanoImprimiendo === "58" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                   <span className="text-[10px] font-semibold">58mm</span>
                 </button>
                 <button
                   onClick={() => imprimirManual("A4")}
-                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors cursor-pointer"
+                  disabled={imprimiendo}
+                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
-                  <Printer className="w-4 h-4" />
+                  {tamanoImprimiendo === "A4" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                   <span className="text-[10px] font-semibold">A4</span>
                 </button>
               </div>

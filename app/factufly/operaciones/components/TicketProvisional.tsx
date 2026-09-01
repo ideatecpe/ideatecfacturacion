@@ -1,4 +1,4 @@
-interface TicketProvisionalData {
+export interface TicketProvisionalData {
   id: string;
   fecha: Date;
   clienteNombre: string;
@@ -30,7 +30,9 @@ function medidas(tamanoImpresion?: string | null) {
   return { paginaMm: "58mm", anchoMm: "54mm", margenMm: "1mm" };
 }
 
-function construirHtmlTicket(data: TicketProvisionalData) {
+// Se exporta para que el agente de impresión pueda imprimir exactamente el
+// mismo ticket que vería el navegador, sin duplicar el maquetado.
+export function construirHtmlTicket(data: TicketProvisionalData) {
   const simbolo = data.moneda === "USD" ? "$" : "S/";
   const { paginaMm, anchoMm, margenMm } = medidas(data.tamanoImpresion);
 

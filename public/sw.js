@@ -1,7 +1,7 @@
-const CACHE_NAME = 'factufly-shell-v2';
-const STATIC_CACHE_NAME = 'factufly-static-v2';
-const PAGES_CACHE_NAME = 'factufly-pages-v2';
-const IMAGES_CACHE_NAME = 'factufly-images-v2';
+const CACHE_NAME = 'factufly-shell-v3';
+const STATIC_CACHE_NAME = 'factufly-static-v3';
+const PAGES_CACHE_NAME = 'factufly-pages-v3';
+const IMAGES_CACHE_NAME = 'factufly-images-v3';
 const APP_SHELL = [
   '/android-chrome-192x192.png',
   '/android-chrome-512x512.png',
@@ -33,10 +33,21 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// El agente de impresión corre en la propia PC del cajero. Sus llamadas no se
+// cachean ni se interceptan: cuando no está instalado la conexión se rechaza al
+// instante, y eso es justo lo que la app necesita saber para caer al diálogo del
+// navegador.
+const PUERTO_AGENTE_IMPRESION = '9631';
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
+
+  if (url.port === PUERTO_AGENTE_IMPRESION &&
+      (url.hostname === '127.0.0.1' || url.hostname === 'localhost')) {
+    return;
+  }
 
   // 1. Assets estáticos de Next (inmutables por hash)
   if (url.origin === self.location.origin && url.pathname.startsWith('/_next/static/')) {
@@ -104,6 +115,12 @@ self.addEventListener('fetch', (event) => {
 
   // Red primero para todo lo demás: evita servir datos de facturación desactualizados.
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(async () => {
+      // `caches.match` devuelve undefined cuando no hay copia guardada, y
+      // `respondWith(undefined)` revienta con "Failed to convert value to
+      // 'Response'". Siempre se responde algo, aunque sea un 504.
+      const cached = await caches.match(event.request);
+      return cached || new Response('', { status: 504, statusText: 'Sin conexión' });
+    })
   );
 });
