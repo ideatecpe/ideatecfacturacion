@@ -50,6 +50,71 @@ export interface InfoAgente {
   soportaHtml: boolean;
 }
 
+/**
+ * Clave por equipo. El agente se instala en UNA computadora, así que la
+ * decisión de usarlo también es de esa computadora, no de la empresa.
+ */
+const CLAVE_ACTIVADO = "factufly_impresion_directa";
+
+/**
+ * ¿Este equipo activó la impresión directa?
+ *
+ * Apagado por defecto, y es importante que así sea: al intentar hablar con
+ * 127.0.0.1, Chrome le muestra al usuario un permiso que dice "quiere acceder a
+ * otras aplicaciones y servicios en este dispositivo". A un cajero que no sabe
+ * nada del agente eso le da miedo y le da Bloquear — y encima ese bloqueo se
+ * queda guardado para el sitio.
+ *
+ * Así, solo ve ese permiso quien activó la función a propósito, sabiendo lo que
+ * va a aparecer.
+ */
+export function impresionDirectaActivada(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(CLAVE_ACTIVADO) === "1";
+  } catch {
+    // Modo incógnito o cookies bloqueadas: se comporta como apagado.
+    return false;
+  }
+}
+
+export function activarImpresionDirecta(activada: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (activada) localStorage.setItem(CLAVE_ACTIVADO, "1");
+    else localStorage.removeItem(CLAVE_ACTIVADO);
+  } catch {
+    // Sin almacenamiento no se puede recordar; la sesión actual sigue igual.
+  }
+  cache = null;
+  for (const avisar of suscriptores) avisar();
+}
+
+// ── Suscripción para React ──────────────────────────────────────────
+// El interruptor vive en localStorage, que para React es un almacén externo.
+// Exponerlo así permite leerlo con `useSyncExternalStore` en vez de copiarlo a
+// un estado dentro de un efecto.
+
+const suscriptores = new Set<() => void>();
+
+export function suscribirImpresionDirecta(alCambiar: () => void): () => void {
+  suscriptores.add(alCambiar);
+
+  // Si el cajero lo activa en otra pestaña, esta se entera.
+  const enOtraPestana = (e: StorageEvent) => {
+    if (e.key === CLAVE_ACTIVADO) {
+      cache = null;
+      alCambiar();
+    }
+  };
+  window.addEventListener("storage", enOtraPestana);
+
+  return () => {
+    suscriptores.delete(alCambiar);
+    window.removeEventListener("storage", enOtraPestana);
+  };
+}
+
 let cache: { info: InfoAgente | null; en: number } | null = null;
 let enVuelo: Promise<InfoAgente | null> | null = null;
 
@@ -67,8 +132,17 @@ async function pedir(ruta: string, init: RequestInit, timeoutMs: number): Promis
  * ¿Hay agente en este equipo? Devuelve sus datos, o null si no está.
  * El resultado se cachea (también el negativo) para no pingear en cada venta.
  */
+/**
+ * @param forzar Salta la caché Y el interruptor de este equipo. Se usa solo
+ *   desde la pantalla de configuración, donde el usuario pidió comprobar y por
+ *   tanto el permiso de Chrome es esperado.
+ */
 export async function detectarAgente(forzar = false): Promise<InfoAgente | null> {
   if (typeof window === "undefined") return null;
+
+  // Sin activar no se toca la red: es lo que evita el permiso de Chrome en los
+  // equipos que nunca van a usar el agente.
+  if (!forzar && !impresionDirectaActivada()) return null;
 
   const vigencia = cache?.info ? VIGENCIA_MS : VIGENCIA_AUSENTE_MS;
   if (!forzar && cache && Date.now() - cache.en < vigencia) return cache.info;
