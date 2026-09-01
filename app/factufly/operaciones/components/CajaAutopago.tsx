@@ -2243,11 +2243,8 @@ export function CajaAutopagoVista({
     if (!comprobanteIdEmitido || imprimiendo) return;
     setImprimiendo(true);
     setTamanoImprimiendo(tamanoKey);
-    const t0 = performance.now();
     try {
       const blob = await obtenerBlobComprobante(comprobanteIdEmitido, TAMANO_MAP[tamanoKey]);
-      const t1 = performance.now();
-      console.log(`[impresion] comprobante: ${Math.round(t1 - t0)} ms ${t1 - t0 < 30 ? "(cache)" : "(API)"}`);
       if (!blob) {
         showToast("No se pudo generar el comprobante", "error");
         return;
@@ -2255,11 +2252,7 @@ export function CajaAutopagoVista({
 
       // A4 nunca pasa por el agente: es un PDF para láser, no un ticket.
       const documento = serieCorrelativoEmitido ?? `Comprobante ${comprobanteIdEmitido}`;
-      if (tamanoKey !== "A4") {
-        const ok = await imprimirHtmlSiHayAgente(blob, tamanoKey, documento);
-        console.log(`[impresion] agente: ${Math.round(performance.now() - t1)} ms (imprimio: ${ok})`);
-        if (ok) return;
-      }
+      if (tamanoKey !== "A4" && (await imprimirHtmlSiHayAgente(blob, tamanoKey, documento))) return;
 
       imprimirBlob(blob);
     } finally {
