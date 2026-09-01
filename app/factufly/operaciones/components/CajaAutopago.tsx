@@ -612,6 +612,93 @@ export function CajaAutopagoVista({
   const abrirPagoRef = useRef<() => void>(() => {});
   const modalAbiertoAtRef = useRef<number>(0);
 
+  // Estados de pago y emisión
+  const [medioPago, setMedioPago] = useState("Efectivo");
+  const [montoRecibido, setMontoRecibido] = useState("");
+  const [notaPago, setNotaPago] = useState("");
+  const [emitiendo, setEmitiendo] = useState(false);
+  const [emitido, setEmitido] = useState(false);
+  const emitidoRef = useRef(emitido);
+  useEffect(() => {
+    emitidoRef.current = emitido;
+  }, [emitido]);
+  const [totalEmitido, setTotalEmitido] = useState(0);
+  const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<number | null>(null);
+  const [serieCorrelativoEmitido, setSerieCorrelativoEmitido] = useState<string | null>(null);
+  const [medioPagoEmitido, setMedioPagoEmitido] = useState("Efectivo");
+  const [vueltoEmitido, setVueltoEmitido] = useState(0);
+  const [imprimiendo, setImprimiendo] = useState(false);
+  const [telWhatsapp, setTelWhatsapp] = useState("");
+  const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false);
+  const [mostrarFechaManual, setMostrarFechaManual] = useState(false);
+  const [fechaEmisionManual, setFechaEmisionManual] = useState("");
+  const [pagoDividido, setPagoDividido] = useState(false);
+  const [pagosDivididos, setPagosDivididos] = useState<
+    { id: string; medioPago: string; monto: string }[]
+  >([]);
+  const [esCredito, setEsCredito] = useState(false);
+  const [adelantoCredito, setAdelantoCredito] = useState("");
+  const [numeroCuotasCredito, setNumeroCuotasCredito] = useState(1);
+  const [cuotasCredito, setCuotasCredito] = useState<
+    { numeroCuota: string; monto: string; fechaVencimiento: string }[]
+  >([]);
+
+  // Focus en el buscador cuando se muestra la pantalla de éxito (para escanear el sgte producto directo)
+  useEffect(() => {
+    if (emitido && activo) {
+      const isMobile =
+        typeof window !== "undefined" &&
+        ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
+      if (!isMobile) {
+        inputRef.current?.focus({ preventScroll: true });
+      }
+    }
+  }, [emitido, activo]);
+
+  const resetearEstadoVenta = useCallback(() => {
+    setDocumento("");
+    setNombreManualCliente("");
+    setDireccionManualCliente("");
+    setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
+    setMedioPago("Efectivo");
+    setMontoRecibido("");
+    setNotaPago("");
+    setMostrarFechaManual(false);
+    setFechaEmisionManual("");
+    setPagoDividido(false);
+    setPagosDivididos([]);
+    setEsCredito(false);
+    setAdelantoCredito("");
+    setNumeroCuotasCredito(1);
+    setCuotasCredito([]);
+    setTelWhatsapp("");
+    setComprobanteIdEmitido(null);
+    setSerieCorrelativoEmitido(null);
+    setOfflineEncolada(false);
+    setUltimoTicketOffline(null);
+    setMostrarPago(false);
+    setMostrarCarritoMobile(false);
+    setConfirmarLimpiarTodo(false);
+    setBusqueda("");
+    setEmitido(false);
+    emitidoRef.current = false;
+    fetchProductosSucursal();
+  }, [config?.useNotaVenta, config?.isBoletaOrFactura, fetchProductosSucursal]);
+
+  const nuevaVenta = useCallback(() => {
+    setItems([]);
+    resetearEstadoVenta();
+    setTimeout(() => {
+      const isMobile =
+        typeof window !== "undefined" &&
+        ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
+      if (!isMobile && activo) {
+        inputRef.current?.focus({ preventScroll: true });
+      }
+    }, 50);
+    onVentaTerminada?.();
+  }, [resetearEstadoVenta, activo, onVentaTerminada]);
+
   const registrarVentaReciente = useCallback(
     (soldItems: { productoId: number }[]) => {
       if (!soldItems || soldItems.length === 0) return;
@@ -659,30 +746,37 @@ export function CajaAutopagoVista({
       showToast("⚠ Este producto tiene lotes vencidos sin retirar del inventario", "error");
     }
 
+    const eraEmitido = emitidoRef.current;
+    if (eraEmitido) {
+      resetearEstadoVenta();
+      onVentaTerminada?.();
+    }
+
     setItems((prev) => {
+      const baseItems = eraEmitido ? [] : prev;
       const disp = calcularDisponible(
         p,
-        reservasRef.current.length ? [...prev, ...reservasRef.current] : prev,
+        reservasRef.current.length ? [...baseItems, ...reservasRef.current] : baseItems,
         productosSucursal,
         config?.isStock ?? false,
         productosPorId,
       );
       if (disp !== null && disp <= 0) {
         setProductoSinStock(p);
-        return prev;
+        return baseItems;
       }
 
-      const idx = prev.findIndex((i) => i.productoId === p.productoId);
+      const idx = baseItems.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
         // Re-adding a product already in cart: check stock before incrementing
         if (disp !== null && disp < 1) {
           showToast(`Stock insuficiente: solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${p.nomProducto}"`, "info");
-          return prev;
+          return baseItems;
         }
-        const itemActualizado = { ...prev[idx], cantidad: prev[idx].cantidad + 1 };
+        const itemActualizado = { ...baseItems[idx], cantidad: baseItems[idx].cantidad + 1 };
         setUltimoItemAgregadoKey(itemActualizado.key);
         // Ponemos el producto actualizado al inicio de la lista para que el cajero lo vea al instante
-        const otros = prev.filter((_, i) => i !== idx);
+        const otros = baseItems.filter((_, i) => i !== idx);
         return [itemActualizado, ...otros];
       }
 
@@ -703,11 +797,19 @@ export function CajaAutopagoVista({
         tieneVencido,
       };
       setUltimoItemAgregadoKey(nuevoItem.key);
-      return [nuevoItem, ...prev];
+      return [nuevoItem, ...baseItems];
     });
 
     setBusqueda("");
-  }, [showToast, config?.isStock, productosSucursal, productosPorId]);
+    const isMobile =
+      typeof window !== "undefined" &&
+      ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
+    if (!isMobile && activo) {
+      setTimeout(() => {
+        inputRef.current?.focus({ preventScroll: true });
+      }, 50);
+    }
+  }, [showToast, config?.isStock, productosSucursal, productosPorId, resetearEstadoVenta, onVentaTerminada, activo]);
 
   const handleStockGuardado = useCallback(
     (productoActualizado: ProductoSucursal, autoAgregar: boolean) => {
@@ -1323,6 +1425,11 @@ export function CajaAutopagoVista({
 
       if (exacto) {
         if (config?.isStock && exacto.tipoProducto === "BIEN" && (exacto.sucursalProducto.stock ?? 0) <= 0) {
+          if (emitidoRef.current) {
+            resetearEstadoVenta();
+            setItems([]);
+            onVentaTerminada?.();
+          }
           setProductoSinStock(exacto);
           setBusqueda("");
           return;
@@ -1336,6 +1443,11 @@ export function CajaAutopagoVista({
       if (!esCodigoEscaneado && productosGrid.length > 0) {
         const matchGrid = productosGrid[0];
         if (config?.isStock && matchGrid.tipoProducto === "BIEN" && (matchGrid.sucursalProducto.stock ?? 0) <= 0) {
+          if (emitidoRef.current) {
+            resetearEstadoVenta();
+            setItems([]);
+            onVentaTerminada?.();
+          }
           setProductoSinStock(matchGrid);
           setBusqueda("");
           return;
@@ -1346,6 +1458,11 @@ export function CajaAutopagoVista({
       }
 
       // 6. Código escaneado o tecleado sin ninguna coincidencia: se abre modal para registrar
+      if (emitidoRef.current) {
+        resetearEstadoVenta();
+        setItems([]);
+        onVentaTerminada?.();
+      }
       showToast(`No se encontró ningún producto con el código "${queryOverride ?? q}"`, "error");
       const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
       setCodigoBarrasNuevoProducto(raw);
@@ -1353,7 +1470,7 @@ export function CajaAutopagoVista({
       setModalCrearRapidoAbierto(true);
       setBusqueda("");
     },
-    [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, esLecturaDuplicada],
+    [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, esLecturaDuplicada, resetearEstadoVenta, onVentaTerminada],
   );
 
   // Foco inicial único al cargar la página (solo en computadoras/laptops).
@@ -1426,6 +1543,9 @@ export function CajaAutopagoVista({
         if (queryToUse) {
           e.preventDefault();
           onEnterBusqueda(queryToUse, esCodigoEscaneado);
+        } else if (emitidoRef.current) {
+          e.preventDefault();
+          nuevaVenta();
         } else if (itemsRef.current.length > 0) {
           e.preventDefault();
           abrirPagoRef.current?.();
@@ -1443,7 +1563,7 @@ export function CajaAutopagoVista({
 
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [activo, onEnterBusqueda, mostrarPago, modalCrearRapidoAbierto, productoSinStock, confirmarLimpiarTodo, busqueda]);
+  }, [activo, onEnterBusqueda, mostrarPago, modalCrearRapidoAbierto, productoSinStock, confirmarLimpiarTodo, busqueda, nuevaVenta]);
 
   // ── Totales (con desglose por afectación de IGV, para el payload real) ──
   const totales = useMemo(() => {
@@ -1482,13 +1602,6 @@ export function CajaAutopagoVista({
     };
   }, [items, igvPct]);
 
-  // ── Pago ────────────────────────────────────────────────────
-  const [medioPago, setMedioPago] = useState("Efectivo");
-  const [montoRecibido, setMontoRecibido] = useState("");
-  const [notaPago, setNotaPago] = useState("");
-  const [emitiendo, setEmitiendo] = useState(false);
-  const [emitido, setEmitido] = useState(false);
-
   // Publica el carrito propio para que la otra caja lo descuente de su stock.
   // Una vez emitida la venta el carrito deja de reservar: esas unidades ya se
   // descontaron del catálogo compartido (descontarStockLocal) y seguir
@@ -1497,30 +1610,15 @@ export function CajaAutopagoVista({
   useEffect(() => {
     onCarritoCambio(emitido ? SIN_RESERVAS : items);
   }, [items, emitido, onCarritoCambio]);
-  const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<number | null>(null);
-  const [serieCorrelativoEmitido, setSerieCorrelativoEmitido] = useState<string | null>(null);
-  const [medioPagoEmitido, setMedioPagoEmitido] = useState("Efectivo");
-  const [vueltoEmitido, setVueltoEmitido] = useState(0);
-  const [imprimiendo, setImprimiendo] = useState(false);
-  const [telWhatsapp, setTelWhatsapp] = useState("");
-  const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false);
 
   // Emitir con otra fecha (fecha de emisión manual, en vez de la fecha/hora actual)
   // SUNAT permite emitir hasta 3 días atrás de la fecha actual.
-  const [mostrarFechaManual, setMostrarFechaManual] = useState(false);
-  const [fechaEmisionManual, setFechaEmisionManual] = useState("");
   const fechaMinimaEmision = (() => {
     const d = new Date();
     d.setDate(d.getDate() - 3);
     const pad = (n: number) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   })();
-
-  // Pago dividido (varios medios de pago para un mismo comprobante)
-  const [pagoDividido, setPagoDividido] = useState(false);
-  const [pagosDivididos, setPagosDivididos] = useState<
-    { id: string; medioPago: string; monto: string }[]
-  >([]);
 
   // Focus y auto-selección del monto al abrir el modal de pago en efectivo
   useEffect(() => {
@@ -1576,15 +1674,6 @@ export function CajaAutopagoVista({
 
   const medioEnUsoEnOtraFila = (nombre: string, idActual: string) =>
     pagosDivididos.some((p) => p.id !== idActual && p.medioPago === nombre);
-
-  // Al crédito (mismo motor de tipoPago Contado/Credito/CreditoInicial de
-  // boleta/factura/nota-venta): solo disponible con DNI/RUC del cliente.
-  const [esCredito, setEsCredito] = useState(false);
-  const [adelantoCredito, setAdelantoCredito] = useState("");
-  const [numeroCuotasCredito, setNumeroCuotasCredito] = useState(1);
-  const [cuotasCredito, setCuotasCredito] = useState<
-    { numeroCuota: string; monto: string; fechaVencimiento: string }[]
-  >([]);
 
   const saldoPendienteCredito = Math.max(
     0,
@@ -2222,8 +2311,10 @@ export function CajaAutopagoVista({
     setComprobanteIdEmitido(null);
     setMedioPagoEmitido(esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago);
     setVueltoEmitido(esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto);
+    setTotalEmitido(totales.total);
     registrarVentaReciente(itemsRef.current);
     setOfflineEncolada(true);
+    emitidoRef.current = true;
     setEmitido(true);
   };
 
@@ -2327,7 +2418,9 @@ export function CajaAutopagoVista({
       setComprobanteIdEmitido(comprobanteId);
       setMedioPagoEmitido(esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago);
       setVueltoEmitido(esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto);
+      setTotalEmitido(totales.total);
       registrarVentaReciente(itemsRef.current);
+      emitidoRef.current = true;
       setEmitido(true);
       setEmitiendo(false);
 
@@ -2396,66 +2489,6 @@ export function CajaAutopagoVista({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activo, mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRuc, facturaSinRazonSocial]);
-
-  const nuevaVenta = () => {
-    setItems([]);
-    setDocumento("");
-    setNombreManualCliente("");
-    setDireccionManualCliente("");
-    setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
-    setMedioPago("Efectivo");
-    setMontoRecibido("");
-    setNotaPago("");
-    setMostrarFechaManual(false);
-    setFechaEmisionManual("");
-    setPagoDividido(false);
-    setPagosDivididos([]);
-    setEsCredito(false);
-    setAdelantoCredito("");
-    setNumeroCuotasCredito(1);
-    setTelWhatsapp("");
-    setComprobanteIdEmitido(null);
-    setSerieCorrelativoEmitido(null);
-    setOfflineEncolada(false);
-    setUltimoTicketOffline(null);
-    setMostrarPago(false);
-    setMostrarCarritoMobile(false);
-    setConfirmarLimpiarTodo(false);
-    setBusqueda("");
-    setEmitido(false);
-    // Sincronización silenciosa: refresca el catálogo desde el servidor
-    // para reconciliar stock real. Como los productos ya están en pantalla
-    // el hook NO muestra skeletons, solo actualiza datos en segundo plano.
-    fetchProductosSucursal();
-    setTimeout(() => {
-      const isMobile = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
-      if (!isMobile && activo) {
-        inputRef.current?.focus();
-      }
-    }, 50);
-    // En la ventana rápida, "Nueva venta" significa "ya terminé con este
-    // cliente": la pantalla de éxito se queda hasta aquí (para reimprimir o
-    // mandar el ticket) y recién ahora la ventana se quita de encima y devuelve
-    // el foco a la venta principal, que sigue esperando su cobro.
-    onVentaTerminada?.();
-  };
-
-  // Enter para "Nueva venta" cuando se muestra la pantalla de éxito
-  useEffect(() => {
-    if (!emitido || !activo) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        const activeEl = document.activeElement;
-        if (activeEl && activeEl.tagName === "INPUT" && telWhatsapp.trim()) {
-          return;
-        }
-        e.preventDefault();
-        nuevaVenta();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activo, emitido, telWhatsapp]);
 
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
@@ -4008,7 +4041,7 @@ export function CajaAutopagoVista({
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white/20 mb-3">
                 <CheckCircle2 className="w-9 h-9" />
               </div>
-              <p className="text-3xl font-extrabold tabular-nums">S/ {totales.total.toFixed(2)}</p>
+              <p className="text-3xl font-extrabold tabular-nums">S/ {totalEmitido.toFixed(2)}</p>
               {(medioPagoEmitido === "Efectivo" || medioPagoEmitido === "Pago dividido") && vueltoEmitido > 0 && (
                 <p className="text-emerald-50 text-sm font-semibold mt-1">
                   Vuelto: S/ {vueltoEmitido.toFixed(2)}
@@ -4093,6 +4126,12 @@ export function CajaAutopagoVista({
                   <input
                     value={telWhatsapp}
                     onChange={(e) => setTelWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && telWhatsapp.trim() && !enviandoWhatsapp) {
+                        e.preventDefault();
+                        enviarComprobantePorWhatsapp();
+                      }
+                    }}
                     placeholder="WhatsApp del cliente"
                     className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
                   />
