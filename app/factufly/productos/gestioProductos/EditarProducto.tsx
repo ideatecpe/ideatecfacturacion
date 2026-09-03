@@ -46,6 +46,9 @@ interface FormFieldsProps {
   umbralStockBajo?: number | null;
   productosEmpresa: ProductoSucursal[];
   productoActualId?: number;
+  originalEsPaquete?: boolean;
+  originalProductoBaseId?: number | null;
+  originalFactorConversion?: number | null;
   imgError: boolean;
   setImgError: React.Dispatch<React.SetStateAction<boolean>>;
   imgPreview: string | null;
@@ -440,6 +443,16 @@ export default function EditarProducto({
       return;
     }
 
+    if (form.esPaquete && (!form.productoBaseId || !form.factorConversion || form.factorConversion <= 0)) {
+      showToast("Seleccioná el producto base y las unidades por paquete.", "info");
+      return;
+    }
+
+    if (form.esPaquete && form.factorConversion && (!Number.isInteger(form.factorConversion) || form.factorConversion < 2)) {
+      showToast("Las unidades por paquete deben ser un número entero mayor o igual a 2.", "info");
+      return;
+    }
+
     if (form.esPaquete && form.stock !== null && form.stock !== undefined) {
       if (form.stock < 0 || !Number.isInteger(form.stock)) {
         showToast("La cantidad de cajas/paquetes debe ser un número entero mayor o igual a 0.", "info");
@@ -629,6 +642,9 @@ export default function EditarProducto({
           umbralStockBajo={config?.umbralStockBajo}
           productosEmpresa={productosEmpresa}
           productoActualId={producto?.productoId}
+          originalEsPaquete={producto?.esPaquete ?? false}
+          originalProductoBaseId={producto?.productoBaseId ?? null}
+          originalFactorConversion={producto?.factorConversion ?? null}
           imgError={imgError}
           setImgError={setImgError}
           imgPreview={imgPreview}
@@ -671,6 +687,9 @@ function FormEditarProducto({
   umbralStockBajo,
   productosEmpresa,
   productoActualId,
+  originalEsPaquete,
+  originalProductoBaseId,
+  originalFactorConversion,
   imgError,
   setImgError,
   imgPreview,
@@ -1070,23 +1089,41 @@ function FormEditarProducto({
         ) : <div />}
 
         {isStock && form.tipoProducto === "BIEN" ? (
-          <InputBase
-            compact
-            className="h-9"
-            label="Stock"
-            labelOptional={form.esPaquete ? "(cajas)" : "(unidades)"}
-            type="number"
-            step={form.esPaquete ? 1 : "any"}
-            min={0}
-            value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
-            onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                stock: e.target.value === "" ? null : Number(e.target.value),
-              }))
-            }
-            placeholder={form.esPaquete ? "Ej: 3" : "Ej: 50"}
-          />
+          <div className="flex flex-col gap-1">
+            <InputBase
+              compact
+              className="h-9"
+              label="Stock"
+              labelOptional={form.esPaquete ? "(cajas)" : "(unidades)"}
+              type="number"
+              step={form.esPaquete ? 1 : "any"}
+              min={0}
+              value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  stock: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+              placeholder={form.esPaquete ? "Ej: 3" : "Ej: 50"}
+            />
+            {(() => {
+              if (!form.esPaquete || !form.productoBaseId || !form.factorConversion || form.factorConversion <= 0) return null;
+              const base = productosEmpresa.find((p) => p.productoId === form.productoBaseId);
+              const stockBase = base?.sucursalProducto?.stock ?? 0;
+              const paqCompletos = Math.floor(stockBase / form.factorConversion);
+              const sueltas = stockBase % form.factorConversion;
+              const cambioConfig =
+                form.factorConversion !== (originalFactorConversion ?? null) ||
+                form.productoBaseId !== (originalProductoBaseId ?? null);
+              const label = cambioConfig ? "Con este factor quedarían" : "Stock actual";
+              return (
+                <p className="text-[11px] text-gray-400 leading-tight">
+                  {label}: <span className="font-semibold text-gray-500">{paqCompletos} paq + {sueltas} und ({stockBase} und)</span>
+                </p>
+              );
+            })()}
+          </div>
         ) : <div />}
 
         {isStock && form.tipoProducto === "BIEN" ? (
@@ -1243,66 +1280,79 @@ function FormEditarProducto({
 
       {/* ── 5. Paquete / Caja (opcional) ── */}
       {isStock && (
-        <div className="flex items-center gap-2 pt-0.5">
-          <input
-            type="checkbox"
-            id="checkbox-esPaquete"
-            checked={!!form.esPaquete}
-            onChange={(e) => {
-              const checked = e.target.checked;
-              setForm((prev) => ({
-                ...prev,
-                esPaquete: checked,
-                productoBaseId: checked ? prev.productoBaseId : null,
-                factorConversion: checked ? prev.factorConversion : null,
-              }));
-            }}
-            className="w-3.5 h-3.5 accent-brand-blue"
-          />
-          <label htmlFor="checkbox-esPaquete" className="text-xs font-semibold text-gray-600 cursor-pointer">
-            ¿Es un paquete/caja con unidades dentro?
-          </label>
-        </div>
+        <>
+          <div className="flex items-center gap-2 pt-0.5">
+            <input
+              type="checkbox"
+              id="checkbox-esPaquete"
+              checked={!!form.esPaquete}
+              onChange={(e) => {
+                setForm((prev) => ({ ...prev, esPaquete: e.target.checked }));
+              }}
+              className="w-3.5 h-3.5 accent-brand-blue"
+            />
+            <label htmlFor="checkbox-esPaquete" className="text-xs font-semibold text-gray-600 cursor-pointer">
+              ¿Es un paquete/caja con unidades dentro?
+            </label>
+          </div>
+          {!!form.esPaquete !== !!(originalEsPaquete ?? false) && (
+            <p className="text-[11px] text-rose-500 font-medium">
+              {form.esPaquete
+                ? "Estás convirtiendo este producto de unidad normal a paquete. Seleccioná el producto base y el factor de conversión."
+                : "Estás convirtiendo este producto de paquete a unidad normal. El stock pasará a manejarse de forma independiente."}
+            </p>
+          )}
+        </>
       )}
 
       {isStock && form.esPaquete && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100">
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-gray-500 uppercase">
-              Producto Base (unidad)
-            </label>
-            <SelectConBuscador
-              value={form.productoBaseId ?? null}
-              onChange={(val) =>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-gray-500 uppercase">
+                Producto Base (unidad)
+              </label>
+              <SelectConBuscador
+                value={form.productoBaseId ?? null}
+                onChange={(val) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    productoBaseId: val,
+                  }))
+                }
+                placeholder="Seleccione el producto unidad"
+                opciones={productosEmpresa
+                  .filter((p) => p.productoId !== productoActualId && !p.esPaquete)
+                  .map((p) => ({
+                    value: p.productoId,
+                    label: `${p.nomProducto} (${p.codigo})`,
+                  }))}
+              />
+            </div>
+
+            <InputBase
+              compact
+              label="Unidades por paquete"
+              type="number"
+              value={String(form.factorConversion ?? "")}
+              onChange={(e) =>
                 setForm((prev) => ({
                   ...prev,
-                  productoBaseId: val,
+                  factorConversion: e.target.value === "" ? null : Number(e.target.value),
                 }))
               }
-              placeholder="Seleccione el producto unidad"
-              opciones={productosEmpresa
-                .filter((p) => p.productoId !== productoActualId && !p.esPaquete)
-                .map((p) => ({
-                  value: p.productoId,
-                  label: `${p.nomProducto} (${p.codigo})`,
-                }))}
+              placeholder="Ej: 12"
             />
           </div>
-
-          <InputBase
-            compact
-            label="Unidades por paquete"
-            type="number"
-            value={String(form.factorConversion ?? "")}
-            onChange={(e) =>
-              setForm((prev) => ({
-                ...prev,
-                factorConversion: e.target.value === "" ? null : Number(e.target.value),
-              }))
-            }
-            placeholder="Ej: 12"
-          />
-        </div>
+          {originalEsPaquete && (
+            form.productoBaseId !== (originalProductoBaseId ?? null) ||
+            form.factorConversion !== (originalFactorConversion ?? null)
+          ) && (
+            <p className="text-[11px] text-amber-600 font-medium">
+              ⚠ Estás modificando la configuración del paquete. Los movimientos históricos en kardex se mantienen con los valores anteriores.
+            </p>
+          )}
+        </>
       )}
 
       {/* ── Opciones avanzadas (Código SUNAT, Mayorista, Promoción) ── */}

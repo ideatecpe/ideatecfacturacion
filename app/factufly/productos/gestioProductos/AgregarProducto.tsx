@@ -700,6 +700,9 @@ export default function AgregarProducto({
       newErrors.porcentajeDescuento = true;
     }
 
+    if (form.esPaquete && !form.productoBaseId) newErrors.productoBaseId = true;
+    if (form.esPaquete && (!form.factorConversion || form.factorConversion < 2 || !Number.isInteger(form.factorConversion))) newErrors.factorConversion = true;
+
     // Sin costo, el stock inicial genera un lote PEPS con costo 0 que luego se arrastra en
     // kardex/valorizado/rentabilidad hasta corregirlo a mano.
     if (
@@ -1384,23 +1387,52 @@ export default function AgregarProducto({
             />
           )}
 
-          {config?.isStock && form.tipoProducto === "BIEN" && (
-            <InputBase
-              compact
-              label="Stock Inicial"
-              labelOptional="(opcional)"
-              type="number"
-              value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
-              onChange={(e) => {
-                const nuevoStock = e.target.value === "" ? null : Number(e.target.value);
-                if (errors.costoUnitario && (nuevoStock ?? 0) <= 0)
-                  setErrors((prev) => ({ ...prev, costoUnitario: false }));
-                setForm((prev) => ({ ...prev, stock: nuevoStock }));
-              }}
-              placeholder="Ej: 50"
-              showError={false}
-            />
-          )}
+          {config?.isStock && form.tipoProducto === "BIEN" && (() => {
+            const esPaqueteConDatos =
+              !!form.esPaquete &&
+              !!form.productoBaseId &&
+              !!form.factorConversion &&
+              form.factorConversion > 0;
+
+            const stockBase = esPaqueteConDatos
+              ? (productosEmpresa.find((p) => p.productoId === form.productoBaseId)?.sucursalProducto?.stock ?? 0)
+              : 0;
+            const factor = form.factorConversion ?? 1;
+            const paqCompletos = esPaqueteConDatos ? Math.floor(stockBase / factor) : 0;
+            const sueltas = esPaqueteConDatos ? stockBase % factor : 0;
+
+            return (
+              <div className="flex flex-col gap-1">
+                <InputBase
+                  compact
+                  label="Stock Inicial"
+                  labelOptional={form.esPaquete ? undefined : "(opcional)"}
+                  type="number"
+                  value={form.stock === null || form.stock === undefined ? "" : String(form.stock)}
+                  onChange={(e) => {
+                    const nuevoStock = e.target.value === "" ? null : Number(e.target.value);
+                    if (errors.costoUnitario && (nuevoStock ?? 0) <= 0)
+                      setErrors((prev) => ({ ...prev, costoUnitario: false }));
+                    setForm((prev) => ({ ...prev, stock: nuevoStock }));
+                  }}
+                  placeholder={esPaqueteConDatos ? `${paqCompletos}` : "Ej: 50"}
+                  showError={false}
+                  disabled={!!form.esPaquete}
+                />
+                {esPaqueteConDatos && (
+                  stockBase === 0 ? (
+                    <p className="text-[11px] text-amber-500 leading-tight">
+                      El producto base no tiene stock actualmente.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-gray-400 leading-tight">
+                      Stock actual: <span className="font-semibold text-gray-500">{paqCompletos} paq + {sueltas} und ({stockBase} und)</span>
+                    </p>
+                  )
+                )}
+              </div>
+            );
+          })()}
 
           {/* Campo Código (auto) oculto/comentado porque se genera automáticamente */}
           {/* {!soloSucursal && (
@@ -1459,6 +1491,7 @@ export default function AgregarProducto({
                       }))
                     }
                     placeholder="Seleccione el producto unidad"
+                    showError={!!errors.productoBaseId}
                     opciones={productosEmpresa
                       .filter((p) => !p.esPaquete)
                       .map((p) => ({
@@ -1480,7 +1513,8 @@ export default function AgregarProducto({
                     }))
                   }
                   placeholder="Ej: 12"
-                  showError={false}
+                  showError={!!errors.factorConversion}
+                  errorMessage="Ingresá un número entero mayor o igual a 2"
                 />
               </div>
             )}
