@@ -1383,8 +1383,8 @@ export function CajaAutopagoVista({
   }, [busqueda, productosSucursal, buscarEnServidor]);
 
   // Enter en el buscador o escáner de código de barras físico:
-  // Agrega directo el producto encontrado por código de barras / código o el primero del grid,
-  // limpiando siempre la búsqueda para la siguiente lectura.
+  // Agrega directo el producto encontrado por código de barras o código exacto,
+  // o abre el modal de cobro si no hay búsqueda pendiente.
   const onEnterBusqueda = useCallback(
     async (queryOverride?: string, esCodigoEscaneado = false) => {
       const q = (queryOverride !== undefined ? queryOverride : busqueda).trim().toLowerCase();
@@ -1403,16 +1403,23 @@ export function CajaAutopagoVista({
 
       // 1. Buscar coincidencia por código de barras o código interno.
       // Un código escaneado (pistola o cámara) exige coincidencia ESTRICTA:
-      // jamás se "adivina" por substring o por nombre de producto, porque eso
-      // es lo que causaba agregar un producto distinto al físicamente leído.
+      // jamás se "adivina" por substring o por nombre de producto.
       let exacto = productosSucursal.find((p) =>
         esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
       );
 
-      // 2. Si el grid tiene exactamente 1 producto que coincide con la búsqueda
-      // (solo para búsqueda manual tecleada, nunca para un código escaneado).
-      if (!exacto && !esCodigoEscaneado && productosGrid.length === 1) {
-        exacto = productosGrid[0];
+      // 2. Si es búsqueda manual:
+      // - Si el grid tiene exactamente 1 producto que coincide
+      // - O si hay un producto cuyo nombre coincide exactamente
+      if (!exacto && !esCodigoEscaneado) {
+        if (productosGrid.length === 1) {
+          exacto = productosGrid[0];
+        } else if (productosGrid.length > 1) {
+          const matchExactoNombre = productosGrid.find(
+            (p) => p.nomProducto.trim().toLowerCase() === q,
+          );
+          if (matchExactoNombre) exacto = matchExactoNombre;
+        }
       }
 
       // 3. Si en el grid hay algún producto cuyo código coincide
@@ -1430,7 +1437,16 @@ export function CajaAutopagoVista({
           const exactoRemoto = remotos.find((p) =>
             esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
           );
-          exacto = exactoRemoto ?? (esCodigoEscaneado ? undefined : remotos[0]);
+          if (exactoRemoto) {
+            exacto = exactoRemoto;
+          } else if (!esCodigoEscaneado && remotos.length === 1) {
+            exacto = remotos[0];
+          } else if (!esCodigoEscaneado) {
+            const matchNombre = remotos.find(
+              (p) => p.nomProducto.trim().toLowerCase() === q,
+            );
+            if (matchNombre) exacto = matchNombre;
+          }
         }
       }
 
@@ -1450,25 +1466,13 @@ export function CajaAutopagoVista({
         return;
       }
 
-      // 5. Búsqueda manual sin coincidencia de código pero con resultados en grid
-      if (!esCodigoEscaneado && productosGrid.length > 0) {
-        const matchGrid = productosGrid[0];
-        if (config?.isStock && matchGrid.tipoProducto === "BIEN" && (matchGrid.sucursalProducto.stock ?? 0) <= 0) {
-          if (emitidoRef.current) {
-            resetearEstadoVenta();
-            setItems([]);
-            onVentaTerminada?.();
-          }
-          setProductoSinStock(matchGrid);
-          setBusqueda("");
-          return;
-        }
-        agregarProducto(matchGrid);
-        setBusqueda("");
+      // Si es búsqueda manual y hay múltiples productos en el grid, NO agregar arbitrariamente el primero.
+      // Se mantiene el filtro visible para que el cajero seleccione el producto deseado.
+      if (!esCodigoEscaneado && productosGrid.length > 1) {
         return;
       }
 
-      // 6. Código escaneado o tecleado sin ninguna coincidencia: se abre modal para registrar
+      // 5. Código escaneado o tecleado sin ninguna coincidencia: se abre modal para registrar
       if (emitidoRef.current) {
         resetearEstadoVenta();
         setItems([]);
@@ -1499,7 +1503,7 @@ export function CajaAutopagoVista({
   }, [activo, mostrarPago]);
 
   // Captura global de lecturas de códigos de barras (escáner físico USB/Bluetooth)
-  // incluso si el usuario hace clic afuera del input.
+  // e interacción con la tecla Enter para cobrar o iniciar nueva venta.
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // Con las dos cajas montadas, solo la que tiene el foco puede consumir la
@@ -1540,27 +1544,42 @@ export function CajaAutopagoVista({
       }
 
       if (e.key === "Enter") {
-        const barcodeFromScanner = scannerBufferRef.current.text.trim();
+        // Solo es un código escaneado si los caracteres llegaron en ráfaga rápida (<100ms) y es reciente
+        const isScannerBurst = scannerBufferRef.current.text.length >= 3 && timeDiff < 100;
+        const barcodeFromScanner = isScannerBurst ? scannerBufferRef.current.text.trim() : "";
+        const isFocusOnSearch = document.activeElement === inputRef.current;
         const currentQuery = (inputRef.current?.value || busqueda).trim();
-        const esCodigoEscaneado = barcodeFromScanner.length >= 3;
-        // Preferir el valor más completo entre lo capturado por el buffer y el input
-        const queryToUse =
-          barcodeFromScanner.length >= currentQuery.length && barcodeFromScanner.length >= 3
-            ? barcodeFromScanner
-            : currentQuery || barcodeFromScanner;
 
         scannerBufferRef.current = { text: "", lastTime: 0 };
 
-        if (queryToUse) {
+        // 1. Si vino del lector de códigos de barras físico
+        if (barcodeFromScanner) {
           e.preventDefault();
-          onEnterBusqueda(queryToUse, esCodigoEscaneado);
-        } else if (emitidoRef.current) {
+          onEnterBusqueda(barcodeFromScanner, true);
+          return;
+        }
+
+        // 2. Si el foco está en el input de búsqueda y hay texto escrito por el usuario
+        if (isFocusOnSearch && currentQuery) {
+          e.preventDefault();
+          onEnterBusqueda(currentQuery, false);
+          return;
+        }
+
+        // 3. Si la venta ya fue emitida (pantalla de éxito visible) -> Iniciar Nueva Venta
+        if (emitidoRef.current) {
           e.preventDefault();
           nuevaVenta();
-        } else if (itemsRef.current.length > 0) {
+          return;
+        }
+
+        // 4. Si hay productos en el carrito y no hay búsqueda pendiente -> Abrir modal de Cobro
+        if (itemsRef.current.length > 0) {
           e.preventDefault();
           abrirPagoRef.current?.();
+          return;
         }
+
         return;
       }
 
@@ -2113,12 +2132,84 @@ export function CajaAutopagoVista({
     }
   };
 
+  const imprimirHtmlNavegador = (html: string) => {
+    try {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const blobUrl = URL.createObjectURL(blob);
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
+
+      let impreso = false;
+      const ejecutar = () => {
+        if (impreso) return;
+        impreso = true;
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (err) {
+          console.warn("Error al abrir diálogo de impresión:", err);
+        }
+        setTimeout(() => {
+          try {
+            if (document.body.contains(iframe)) document.body.removeChild(iframe);
+          } catch {}
+          URL.revokeObjectURL(blobUrl);
+        }, 30000);
+      };
+
+      iframe.onload = ejecutar;
+      iframe.src = blobUrl;
+      document.body.appendChild(iframe);
+
+      // Fallback para navegadores que no disparen onload en blob de forma asíncrona
+      setTimeout(() => {
+        if (!impreso) ejecutar();
+      }, 350);
+    } catch (err) {
+      console.warn("Error al abrir impresión:", err);
+    }
+  };
+
+  const ejecutarImpresionComprobante = async (
+    comprobanteId: number,
+    serieCorrelativo: string | null,
+  ) => {
+    // Detectar tamaño configurado en Empresa (58mm u 80mm). Por defecto 80mm en caja si no se especificó.
+    const raw = String(config?.tamañoImpresion || "").toLowerCase();
+    const es58 = raw.includes("58");
+    const anchoMm: 58 | 80 = es58 ? 58 : 80;
+    const tamanoParam = es58 ? "Ticket58mm" : "Ticket80mm";
+    const documento = serieCorrelativo ?? `Comprobante ${comprobanteId}`;
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobanteId}/html?tamano=${tamanoParam}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+
+      if (!res.ok) {
+        console.warn("Fallo al obtener HTML del comprobante:", res.status);
+        return;
+      }
+
+      const html = await res.text();
+      if (!html || !html.trim()) return;
+
+      // 1. Intentar impresión directa por agente local
+      const porAgente = await imprimirHtmlConAgente(html, anchoMm, { documento }).catch(() => false);
+      if (porAgente) return;
+
+      // 2. Si no hay agente, imprimir directo con el navegador
+      imprimirHtmlNavegador(html);
+    } catch (err) {
+      console.warn("Error en ejecución de impresión:", err);
+    }
+  };
+
   const imprimirBlob = (blob: Blob) => {
     const blobUrl = URL.createObjectURL(blob);
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
-    iframe.src = blobUrl;
-    document.body.appendChild(iframe);
 
     const cleanup = () => {
       try {
@@ -2131,17 +2222,26 @@ export function CajaAutopagoVista({
       URL.revokeObjectURL(blobUrl);
     };
 
-    iframe.onload = () => {
+    let impreso = false;
+    const ejecutar = () => {
+      if (impreso) return;
+      impreso = true;
       try {
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
       } catch (err) {
         console.warn("Error al abrir diálogo de impresión:", err);
       }
-      // Se concede 60s antes de destruir el iframe para que las impresoras térmicas
-      // con spooling en cola reciban todo el documento sin truncarlo, y se revoca la URL blob.
-      setTimeout(cleanup, 60000);
+      setTimeout(cleanup, 30000);
     };
+
+    iframe.onload = ejecutar;
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
+
+    setTimeout(() => {
+      if (!impreso) ejecutar();
+    }, 350);
   };
 
   // ── Impresión directa por el agente local ───────────────────────
@@ -2378,17 +2478,20 @@ export function CajaAutopagoVista({
   const manejarVentaSinConexion = async (
     payload: Record<string, unknown>,
     tipo: "comprobante" | "notaventa",
+    conImpresion = false,
+    itemsSnapshot: ItemCarrito[] = itemsRef.current,
   ) => {
-    const stockItems = config?.isStock ? calcularStockItems().items : [];
+    const stockItems = (payload.stockItems ?? payload.StockItems ?? []) as { sucursalProductoId: number; cantidad: number }[];
 
+    const totalVenta = Number(payload.total ?? payload.Total ?? totales.total) || 0;
     const resumenTicket = {
       clienteNombre: nombreClienteTicket(),
-      items: items.map((it) => ({
+      items: itemsSnapshot.map((it) => ({
         descripcion: it.descripcion,
         cantidad: it.cantidad,
         precioVenta: it.precio,
       })),
-      total: totales.total,
+      total: totalVenta,
       moneda: "PEN",
       medioPago: esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago,
     };
@@ -2404,45 +2507,27 @@ export function CajaAutopagoVista({
       ...resumenTicket,
     };
     setUltimoTicketOffline(datosTicket);
-    // Mismo criterio que la impresión automática online (imprimirSiAplica):
-    // solo imprime solo si el negocio activó "Auto-imprimir" en Empresa.
-    // Si está apagado, el ticket queda disponible para reimprimir manual.
-    if (config?.isImprime) {
-      // Sin conexión no hay API que consultar, así que el HTML lo arma el mismo
-      // módulo del ticket provisional: el agente imprime exactamente lo que
-      // mostraría el navegador.
-      const ancho = anchoTermico();
-      const porAgente = ancho
-        ? await imprimirHtmlConAgente(
-            construirHtmlTicket(datosTicket),
-            ancho === "80" ? 80 : 58,
-            { documento: `Ticket provisional ${ventaId}` },
-          ).catch(() => false)
-        : false;
+    // Impresión del ticket provisional si el cajero eligió "Confirmar e Imprimir"
+    if (conImpresion) {
+      const rawConfig = String(config?.tamañoImpresion || "").toLowerCase();
+      const anchoMm: 58 | 80 = rawConfig.includes("58") ? 58 : 80;
+      const porAgente = await imprimirHtmlConAgente(
+        construirHtmlTicket(datosTicket),
+        anchoMm,
+        { documento: `Ticket provisional ${ventaId}` },
+      ).catch(() => false);
       if (!porAgente) imprimirTicketProvisional(datosTicket);
     }
+
+    registrarVentaReciente(itemsSnapshot);
 
     showToast(
       "Sin conexión: la venta se guardó localmente y se enviará al reconectar.",
       "success",
     );
-
-    // El serie-correlativo que se había "congelado" antes de intentar guardar
-    // es solo una previsualización optimista: como la venta no llegó al
-    // backend, ese número no está confirmado (y podría no ser el que se le
-    // asigne realmente al sincronizar). Se limpia para no mostrar un dato falso.
-    setSerieCorrelativoEmitido(null);
-    setComprobanteIdEmitido(null);
-    setMedioPagoEmitido(esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago);
-    setVueltoEmitido(esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto);
-    setTotalEmitido(totales.total);
-    registrarVentaReciente(itemsRef.current);
-    setOfflineEncolada(true);
-    emitidoRef.current = true;
-    setEmitido(true);
   };
 
-  const emitirVenta = async () => {
+  const emitirVenta = async (conImpresion = false) => {
     if (!empresa) {
       showToast("No se pudo cargar la empresa emisora. Intenta de nuevo.", "error");
       return;
@@ -2451,11 +2536,21 @@ export function CajaAutopagoVista({
       showToast("No se pudo cargar la sucursal (serie/correlativo). Intenta de nuevo.", "error");
       return;
     }
-    if (tipoComprobante === "Boleta" && totales.total >= 700 && sinDocumento) {
-      showToast(
-        "Por normativa de SUNAT, las Boletas a partir de S/ 700.00 requieren identificar obligatoriamente al cliente con su DNI/CE.",
-        "error",
-      );
+    if (tipoComprobante === "Boleta") {
+      if (totales.total >= 700 && (!documentoTrim || ![8, 9].includes(documentoTrim.length))) {
+        showToast(
+          "Por normativa de SUNAT, las Boletas a partir de S/ 700.00 requieren identificar obligatoriamente al cliente con su DNI/CE.",
+          "error",
+        );
+        return;
+      }
+      if (documentoTrim.length > 0 && ![8, 9].includes(documentoTrim.length)) {
+        showToast("El DNI debe tener 8 dígitos (o CE de 9 dígitos), o bórralo para Clientes Varios", "error");
+        return;
+      }
+    }
+    if (tipoComprobante === "Nota de Venta" && documentoTrim.length > 0 && ![8, 9, 11].includes(documentoTrim.length)) {
+      showToast("El documento debe tener 8 (DNI), 9 (CE) u 11 (RUC) dígitos, o déjalo vacío", "error");
       return;
     }
     if (tipoComprobante === "Factura") {
@@ -2470,113 +2565,108 @@ export function CajaAutopagoVista({
         return;
       }
     }
-    setMostrarPago(false);
-    setEmitiendo(true);
-    setOfflineEncolada(false);
-    try {
-      let comprobanteId: number;
 
-      // Congelamos serie-correlativo mostrados ANTES de emitir (el backend
-      // los asigna y luego el refetch de sucursal muestra el siguiente).
-      // Se guarda además en una local porque la impresión de más abajo corre en
-      // este mismo tick, cuando el estado todavía no se actualizó.
-      let serieCorrelativoTicket: string | null = null;
-      if (sucursal) {
-        const serie =
-          tipoComprobante === "Factura"
-            ? sucursal.serieFactura
-            : tipoComprobante === "Nota de Venta"
-              ? sucursal.serieNotaVenta
-              : sucursal.serieBoleta;
-        const correlativo =
-          tipoComprobante === "Factura"
-            ? sucursal.correlativoFactura
-            : tipoComprobante === "Nota de Venta"
-              ? sucursal.correlativoNotaVenta
-              : sucursal.correlativoBoleta;
-        serieCorrelativoTicket = serie && correlativo ? `${serie}-${String(correlativo).padStart(8, "0")}` : null;
-        setSerieCorrelativoEmitido(serieCorrelativoTicket);
-      }
-
-      const esNotaVenta = tipoComprobante === "Nota de Venta";
-      const payload = esNotaVenta
-        ? prepararNotaVenta()
-        : prepararComprobante(tipoComprobante === "Factura" ? "01" : "03");
-
-      try {
-        if (esNotaVenta) {
-          const res = await crearNotaVenta(payload, accessToken);
-          comprobanteId = (res.comprobanteId ?? res.ComprobanteId) as number;
-        } else {
-          const res = await generarXml(payload, accessToken);
-          comprobanteId = res.comprobanteId;
-        }
-      } catch (errGuardar: any) {
-        if (esErrorTransitorio(errGuardar)) {
-          // Sin internet, o el backend respondió pero su propia infraestructura
-          // falló (ej. no pudo conectar a su base de datos): en ambos casos no
-          // es culpa de la venta, así que se guarda como pendiente en vez de perderla.
-          await manejarVentaSinConexion(payload, esNotaVenta ? "notaventa" : "comprobante");
-          return;
-        }
-        throw errGuardar;
-      }
-
-      if (!esNotaVenta) {
-        // Envío a SUNAT: si SUNAT rechaza o no responde, el comprobante ya quedó
-        // registrado en el sistema (igual que en Boleta/Factura), así que no
-        // detenemos el flujo de caja — solo avisamos el resultado.
-        try {
-          const resSunat = await enviarASunatApi(comprobanteId, accessToken);
-          showToast(
-            resSunat.exitoso
-              ? (resSunat.mensaje ?? `${tipoComprobante} emitida correctamente.`)
-              : (resSunat.mensaje ?? `${tipoComprobante} quedó pendiente/rechazada por SUNAT.`),
-            resSunat.exitoso ? "success" : "error",
-          );
-        } catch (errSunat) {
-          const errRes = errSunat as { response?: { data?: { mensaje?: string } } };
-          showToast(
-            errRes?.response?.data?.mensaje ?? "No se pudo conectar con SUNAT. Verifica el estado en Comprobantes.",
-            "error",
-          );
-        }
-      }
-
-      setComprobanteIdEmitido(comprobanteId);
-      setMedioPagoEmitido(esCredito ? "Crédito" : pagoDividido ? "Pago dividido" : medioPago);
-      setVueltoEmitido(esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto);
-      setTotalEmitido(totales.total);
-      registrarVentaReciente(itemsRef.current);
-      emitidoRef.current = true;
-      setEmitido(true);
-      setEmitiendo(false);
-
-      // Tareas secundarias post-emisión (reflejar stock en memoria, impresión y
-      // actualización de correlativos). El stock ya se descontó ATÓMICAMENTE en el
-      // backend al crear la venta; aquí solo se refleja en la UI.
-      actualizarStockLocalTrasVenta();
-      imprimirSiAplica(comprobanteId, serieCorrelativoTicket);
-      fetchSucursal();
-    } catch (err) {
-      const data = (err as { response?: { data?: { mensaje?: string; message?: string; detalle?: string } } })?.response?.data;
-      const mensaje = data?.mensaje ?? data?.message ?? "Error al generar el comprobante";
-      const detalle = data?.detalle;
-      showToast(detalle ? `${mensaje}: ${detalle}` : mensaje, "error");
-
-      // Si la venta se rechazó por stock insuficiente (el backend descuenta de forma
-      // atómica al crear, así que la venta NO quedó registrada), recargamos el stock
-      // real del servidor para que la caja muestre las unidades correctas.
-      if (/insuficiente|no encontrado|no existe|sin stock|stock/i.test(`${mensaje} ${detalle ?? ""}`)) {
-        fetchProductosSucursal().catch(() => {});
-      }
-    } finally {
-      setEmitiendo(false);
+    // Snapshot inmediato de los datos de la venta actual antes de limpiar la caja
+    const itemsVendidos = [...items];
+    const tipoComprobanteVenta = tipoComprobante;
+    const vueltoFinal = esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto;
+    let serieCorrelativoTicket: string | null = null;
+    if (sucursal) {
+      const serie =
+        tipoComprobante === "Factura"
+          ? sucursal.serieFactura
+          : tipoComprobante === "Nota de Venta"
+            ? sucursal.serieNotaVenta
+            : sucursal.serieBoleta;
+      const correlativo =
+        tipoComprobante === "Factura"
+          ? sucursal.correlativoFactura
+          : tipoComprobante === "Nota de Venta"
+            ? sucursal.correlativoNotaVenta
+            : sucursal.correlativoBoleta;
+      serieCorrelativoTicket = serie && correlativo ? `${serie}-${String(correlativo).padStart(8, "0")}` : null;
     }
+
+    const esNotaVenta = tipoComprobante === "Nota de Venta";
+    const payload = esNotaVenta
+      ? prepararNotaVenta()
+      : prepararComprobante(tipoComprobante === "Factura" ? "01" : "03");
+
+    // Descontar stock local y registrar venta de inmediato en la UI
+    actualizarStockLocalTrasVenta();
+    registrarVentaReciente(itemsVendidos);
+
+    // CERRAR MODAL Y PREPARAR LA CAJA AL INSTANTE PARA EL SIGUIENTE CLIENTE
+    nuevaVenta();
+
+    // Proceso de emisión en segundo plano (sin bloquear la caja)
+    void (async () => {
+      try {
+        let comprobanteId: number;
+        try {
+          if (esNotaVenta) {
+            const res = await crearNotaVenta(payload, accessToken);
+            comprobanteId = (res.comprobanteId ?? res.ComprobanteId) as number;
+          } else {
+            const res = await generarXml(payload, accessToken);
+            comprobanteId = res.comprobanteId;
+          }
+        } catch (errGuardar: any) {
+          if (esErrorTransitorio(errGuardar)) {
+            await manejarVentaSinConexion(payload, esNotaVenta ? "notaventa" : "comprobante", conImpresion, itemsVendidos);
+            return;
+          }
+          throw errGuardar;
+        }
+
+        if (!esNotaVenta) {
+          try {
+            const resSunat = await enviarASunatApi(comprobanteId, accessToken);
+            if (!resSunat.exitoso) {
+              showToast(resSunat.mensaje ?? `${tipoComprobanteVenta} quedó pendiente en SUNAT`, "error");
+            }
+          } catch {
+            showToast("No se pudo conectar con SUNAT. Verifica el estado en Comprobantes.", "error");
+          }
+        }
+
+        fetchSucursal();
+
+        // Impresión en segundo plano si el cajero eligió "Confirmar e Imprimir"
+        if (conImpresion) {
+          await ejecutarImpresionComprobante(comprobanteId, serieCorrelativoTicket);
+        }
+
+        // Toast de confirmación
+        const serieInfo = serieCorrelativoTicket ? ` · ${serieCorrelativoTicket}` : "";
+        const vueltoInfo = vueltoFinal > 0 ? ` · Vuelto: S/ ${vueltoFinal.toFixed(2)}` : "";
+        showToast(`${tipoComprobanteVenta} emitida${serieInfo}${vueltoInfo}`, "success");
+      } catch (err) {
+        const data = (err as { response?: { data?: { mensaje?: string; message?: string; detalle?: string } } })?.response?.data;
+        const mensaje = data?.mensaje ?? data?.message ?? "Error al generar el comprobante";
+        const detalle = data?.detalle;
+        showToast(detalle ? `${mensaje}: ${detalle}` : mensaje, "error");
+
+        if (/insuficiente|no encontrado|no existe|sin stock|stock/i.test(`${mensaje} ${detalle ?? ""}`)) {
+          fetchProductosSucursal().catch(() => {});
+        }
+      }
+    })();
   };
 
   // Validación de si se puede emitir el comprobante actual
-  const boletaMayor700SinDoc = tipoComprobante === "Boleta" && totales.total >= 700 && (!documentoTrim || documentoTrim.length < 8);
+  const boletaMayor700SinDoc =
+    tipoComprobante === "Boleta" &&
+    totales.total >= 700 &&
+    (!documentoTrim || ![8, 9].includes(documentoTrim.length));
+  const boletaDniIncompleto =
+    tipoComprobante === "Boleta" &&
+    documentoTrim.length > 0 &&
+    ![8, 9].includes(documentoTrim.length);
+  const notaVentaDocIncompleto =
+    tipoComprobante === "Nota de Venta" &&
+    documentoTrim.length > 0 &&
+    ![8, 9, 11].includes(documentoTrim.length);
   const facturaSinRuc = tipoComprobante === "Factura" && documentoTrim.length !== 11;
   const onlineReal = isOnline && (typeof navigator !== "undefined" ? navigator.onLine : true);
   const facturaSinRazonSocial = tipoComprobante === "Factura" && onlineReal && (!nombreManualCliente.trim() && !cliente?.razonSocial);
@@ -2586,6 +2676,8 @@ export function CajaAutopagoVista({
     !(pagoDividido && faltanteDividido > 0) &&
     !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0))) &&
     !boletaMayor700SinDoc &&
+    !boletaDniIncompleto &&
+    !notaVentaDocIncompleto &&
     !facturaSinRuc &&
     !facturaSinRazonSocial;
 
@@ -2601,10 +2693,16 @@ export function CajaAutopagoVista({
         }
         if (puedeEmitir) {
           e.preventDefault();
-          emitirVenta();
+          emitirVenta(false);
         } else if (boletaMayor700SinDoc) {
           e.preventDefault();
           showToast("SUNAT exige registrar el DNI del cliente para Boletas a partir de S/ 700.00", "error");
+        } else if (boletaDniIncompleto) {
+          e.preventDefault();
+          showToast("Ingresa un DNI de 8 dígitos o bórralo para Clientes Varios", "error");
+        } else if (notaVentaDocIncompleto) {
+          e.preventDefault();
+          showToast("El documento debe tener 8 (DNI), 9 (CE) u 11 (RUC) dígitos, o bórralo", "error");
         } else if (facturaSinRuc) {
           e.preventDefault();
           showToast("Ingresa un RUC válido de 11 dígitos para la Factura", "error");
@@ -2616,7 +2714,16 @@ export function CajaAutopagoVista({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activo, mostrarPago, puedeEmitir, boletaMayor700SinDoc, facturaSinRuc, facturaSinRazonSocial]);
+  }, [
+    activo,
+    mostrarPago,
+    puedeEmitir,
+    boletaMayor700SinDoc,
+    boletaDniIncompleto,
+    notaVentaDocIncompleto,
+    facturaSinRuc,
+    facturaSinRazonSocial,
+  ]);
 
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
@@ -3487,9 +3594,9 @@ export function CajaAutopagoVista({
         title={`Confirmar Pago · ${items.length} producto${items.length === 1 ? "" : "s"}`}
         className="max-w-4xl"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           {/* ── Izquierda: resumen de productos ── */}
-          <div className="space-y-3">
+          <div className="space-y-3 flex flex-col justify-between">
             <div className="rounded-md border border-gray-100 overflow-hidden">
               <div className="max-h-56 overflow-y-auto divide-y divide-gray-100">
                 {items.map((i) => (
@@ -3531,16 +3638,18 @@ export function CajaAutopagoVista({
                 <span className="tabular-nums">S/ {totales.total.toFixed(2)}</span>
               </div>
               {totalComisionPagoTarjeta > 0 && (
-                <div className="pt-1.5 border-t border-gray-200 space-y-0.5">
-                  <div className="flex justify-between text-xs text-cyan-700">
+                <div className="mt-2.5 rounded-lg border-2 border-cyan-400 bg-cyan-50/90 p-3 shadow-xs space-y-1">
+                  <div className="flex justify-between text-xs font-semibold text-cyan-800">
                     <span>Comisión POS ({comisionPagoTarjetaPct}%)</span>
-                    <span className="tabular-nums font-medium">+S/ {totalComisionPagoTarjeta.toFixed(2)}</span>
+                    <span className="tabular-nums font-bold">+S/ {totalComisionPagoTarjeta.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-sm font-bold text-cyan-800">
-                    <span>Total + Comisión</span>
-                    <span className="tabular-nums">S/ {(totales.total + totalComisionPagoTarjeta).toFixed(2)}</span>
+                  <div className="flex items-baseline justify-between pt-1.5 border-t border-cyan-200">
+                    <span className="text-base font-extrabold text-cyan-950">Total + Comisión</span>
+                    <span className="text-2xl font-black text-cyan-900 tabular-nums">
+                      S/ {(totales.total + totalComisionPagoTarjeta).toFixed(2)}
+                    </span>
                   </div>
-                  <p className="text-[10px] text-gray-400">Informativo — no afecta el comprobante</p>
+                  <p className="text-[10px] text-cyan-700/80 font-medium">Informativo — no afecta el comprobante</p>
                 </div>
               )}
             </div>
@@ -3654,10 +3763,45 @@ export function CajaAutopagoVista({
                 </div>
               </div>
             )}
+
+            {/* Botón en columna izquierda: Confirmar e Imprimir */}
+            <div className="pt-2 mt-auto">
+              <button
+                type="button"
+                onClick={() => emitirVenta(true)}
+                disabled={!puedeEmitir}
+                className="w-full flex items-center justify-center gap-2 rounded-md bg-[#004b23] py-3.5 px-4 text-white text-base font-bold shadow-sm hover:bg-[#00381a] active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-center"
+              >
+                {emitiendo ? (
+                  <>
+                    <Loader2 className="w-4.5 h-4.5 animate-spin shrink-0" /> Emitiendo...
+                  </>
+                ) : esCredito ? (
+                  <>
+                    <Printer className="w-4.5 h-4.5 shrink-0" /> Registrar al crédito e Imprimir
+                  </>
+                ) : boletaMayor700SinDoc ? (
+                  "Ingresa DNI (Boleta ≥ S/ 700)"
+                ) : boletaDniIncompleto ? (
+                  `Ingresa DNI de 8 dígitos (${documentoTrim.length}/8)`
+                ) : notaVentaDocIncompleto ? (
+                  "Ingresa DNI (8) o RUC (11)"
+                ) : facturaSinRuc ? (
+                  "Ingresa RUC (11 dígitos)"
+                ) : facturaSinRazonSocial ? (
+                  "Ingresa Razón Social"
+                ) : (
+                  <>
+                    <Printer className="w-4.5 h-4.5 shrink-0" />
+                    {`Confirmar e Imprimir S/ ${totales.total.toFixed(2)}`}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* ── Derecha: comprobante + pago ── */}
-          <div className="space-y-4">
+          <div className="space-y-4 flex flex-col justify-between">
             {/* Comprobante */}
             <div>
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Comprobante</p>
@@ -3761,7 +3905,9 @@ export function CajaAutopagoVista({
                           ? "border-brand-blue focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
                           : totales.total >= 700 && tipoComprobante === "Boleta" && (!documentoTrim || documentoTrim.length < 8)
                             ? "border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-200"
-                            : "border-gray-200 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                            : boletaDniIncompleto || notaVentaDocIncompleto
+                              ? "border-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-200"
+                              : "border-gray-200 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
                       }`}
                     />
                     {documento && (
@@ -3774,6 +3920,11 @@ export function CajaAutopagoVista({
                       </button>
                     )}
                   </div>
+                  {boletaDniIncompleto && (
+                    <p className="text-[10px] text-amber-600 font-medium">
+                      DNI incompleto: tiene {documentoTrim.length} de 8 dígitos requeridos (o bórralo para Clientes Varios)
+                    </p>
+                  )}
 
                   {/* Estado o Nombre del cliente */}
                   {documentoTrim ? (
@@ -3829,25 +3980,46 @@ export function CajaAutopagoVista({
                 </div>
               </div>
 
-              {/* Emitir con otra fecha */}
-              {!mostrarFechaManual ? (
-                <div className="mt-2 flex items-center justify-between">
+              {/* Opciones adicionales: Emitir con otra fecha y Pago dividido */}
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                {!mostrarFechaManual ? (
                   <button
+                    type="button"
                     onClick={() => setMostrarFechaManual(true)}
-                    className="text-xs text-gray-500 hover:text-brand-blue flex items-center gap-1 font-medium transition-colors"
+                    className="text-xs text-gray-500 hover:text-brand-blue flex items-center gap-1 font-medium transition-colors cursor-pointer"
                   >
-                    <CalendarClock className="w-3.5 h-3.5" /> Emitir con otra fecha
+                    <CalendarClock className="w-3.5 h-3.5 text-gray-400" /> Emitir con otra fecha
                   </button>
+                ) : (
                   <button
-                    onClick={togglePagoDividido}
-                    className={`text-xs flex items-center gap-1 font-medium transition-colors ${
-                      pagoDividido ? "text-brand-blue" : "text-gray-500 hover:text-brand-blue"
-                    }`}
+                    type="button"
+                    onClick={() => setMostrarFechaManual(false)}
+                    className="text-xs text-brand-blue font-semibold flex items-center gap-1 hover:underline cursor-pointer"
                   >
-                    <Columns3 className="w-3.5 h-3.5" /> Pago dividido{pagoDividido ? " (activo)" : ""}
+                    <CalendarClock className="w-3.5 h-3.5 text-brand-blue" /> Ocultar fecha manual
                   </button>
-                </div>
-              ) : (
+                )}
+
+                <button
+                  type="button"
+                  onClick={togglePagoDividido}
+                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer border-2 ${
+                    pagoDividido
+                      ? "border-brand-blue bg-brand-blue text-white shadow-md ring-2 ring-brand-blue/20"
+                      : "border-brand-blue/40 bg-blue-50/80 text-brand-blue hover:bg-brand-blue hover:text-white hover:border-brand-blue"
+                  }`}
+                >
+                  <Columns3 className="w-4 h-4 shrink-0" />
+                  <span>Pago dividido</span>
+                  {pagoDividido && (
+                    <span className="rounded bg-white/25 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
+                      Activo
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {mostrarFechaManual && (
                 <div className="mt-2 rounded-md border border-gray-200 bg-gray-50/50 p-2.5 space-y-2">
                   <div className="flex items-center justify-between text-xs text-gray-600">
                     <span className="font-semibold flex items-center gap-1">
@@ -3870,11 +4042,12 @@ export function CajaAutopagoVista({
                     </p>
                   )}
                   <button
+                    type="button"
                     onClick={() => {
                       setFechaEmisionManual(formatoFechaActual().fecha);
                       setMostrarFechaManual(false);
                     }}
-                    className="text-[11px] font-semibold text-brand-blue hover:underline"
+                    className="text-[11px] font-semibold text-brand-blue hover:underline cursor-pointer"
                   >
                     Usar fecha de hoy
                   </button>
@@ -4121,183 +4294,42 @@ export function CajaAutopagoVista({
               </>
             )}
 
-            {/* Confirmar */}
-            <button
-              onClick={emitirVenta}
-              disabled={!puedeEmitir}
-              className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 text-white text-base font-bold shadow-sm hover:bg-[#0a2050] active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {emitiendo ? (
-                <>
-                  <Loader2 className="w-4.5 h-4.5 animate-spin" /> Emitiendo...
-                </>
-              ) : esCredito ? (
-                "Registrar venta al crédito"
-              ) : boletaMayor700SinDoc ? (
-                "Ingresa DNI (Boleta ≥ S/ 700)"
-              ) : facturaSinRuc ? (
-                "Ingresa RUC (11 dígitos)"
-              ) : facturaSinRazonSocial ? (
-                "Ingresa Razón Social"
-              ) : (
-                `Confirmar S/ ${totales.total.toFixed(2)}`
-              )}
-            </button>
+            {/* Botón en columna derecha: Confirmar sin imprimir */}
+            <div className="pt-2 mt-auto">
+              <button
+                type="button"
+                onClick={() => emitirVenta(false)}
+                disabled={!puedeEmitir || emitiendo}
+                className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-3.5 px-4 text-white text-base font-bold shadow-sm hover:bg-[#0a2050] active:scale-[0.99] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-center"
+              >
+                {esCredito ? (
+                  "Registrar venta al crédito"
+                ) : boletaMayor700SinDoc ? (
+                  "Ingresa DNI (Boleta ≥ S/ 700)"
+                ) : boletaDniIncompleto ? (
+                  `Ingresa DNI de 8 dígitos (${documentoTrim.length}/8)`
+                ) : notaVentaDocIncompleto ? (
+                  "Ingresa DNI (8) o RUC (11)"
+                ) : facturaSinRuc ? (
+                  "Ingresa RUC (11 dígitos)"
+                ) : facturaSinRazonSocial ? (
+                  "Ingresa Razón Social"
+                ) : (
+                  `Confirmar S/ ${totales.total.toFixed(2)}`
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
 
-      {/* ── Bloqueo total mientras se emite (nada es clickeable hasta el éxito) ── */}
-      {emitiendo && (
-        <div className="fixed inset-0 z-999 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-md shadow-2xl px-10 py-9 flex flex-col items-center gap-4">
-            <Loader2 className="w-12 h-12 text-brand-blue animate-spin" />
-            <div className="text-center">
-              <p className="text-base font-bold text-gray-800">Emitiendo comprobante...</p>
-              <p className="text-xs text-gray-400 mt-1">No cierres ni recargues la página</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Bloqueo eliminado: la emisión corre en segundo plano y el cajero puede seguir cobrando al siguiente cliente */}
 
       {/* ── Modal de éxito tras emitir ─────────────────────────────── */}
-      {emitido && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="w-full max-w-md my-auto rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200 shrink-0">
-            {/* Cabecera verde */}
-            <div className="bg-linear-to-br from-emerald-500 to-emerald-600 px-6 py-7 text-center text-white">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white/20 mb-3">
-                <CheckCircle2 className="w-9 h-9" />
-              </div>
-              <p className="text-3xl font-extrabold tabular-nums">S/ {totalEmitido.toFixed(2)}</p>
-              {(medioPagoEmitido === "Efectivo" || medioPagoEmitido === "Pago dividido") && vueltoEmitido > 0 && (
-                <p className="text-emerald-50 text-sm font-semibold mt-1">
-                  Vuelto: S/ {vueltoEmitido.toFixed(2)}
-                </p>
-              )}
-              {serieCorrelativoEmitido && (
-                <p className="text-emerald-50 text-xs font-bold mt-2 tracking-wide">{serieCorrelativoEmitido}</p>
-              )}
-              <p className="text-emerald-100 text-xs mt-0.5">
-                {tipoComprobante} · {medioPagoEmitido}
-              </p>
-              {imprimiendo && (
-                <p className="text-white text-xs font-semibold flex items-center justify-center gap-1.5 mt-2">
-                  <Printer className="w-3.5 h-3.5 animate-pulse" /> Enviando a imprimir...
-                </p>
-              )}
-            </div>
+      {/* Pantalla de éxito eliminada: el flujo pasa directo a nueva venta tras confirmar */}
 
-            {/* Acciones */}
-            <div className="p-5 space-y-3">
-              {offlineEncolada && (
-                <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-3 text-amber-800 space-y-2">
-                  <div className="flex items-start gap-2">
-                    <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p className="text-xs leading-relaxed">
-                      Venta guardada sin conexión
-                      {config?.isImprime
-                        ? " — ya se imprimió un ticket provisional."
-                        : "."}{" "}
-                      El comprobante oficial (con su serie y correlativo SUNAT)
-                      se generará automáticamente cuando vuelva el internet.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() =>
-                      ultimoTicketOffline &&
-                      imprimirTicketProvisional(ultimoTicketOffline)
-                    }
-                    className="w-full flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-white py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-                  >
-                    <Printer className="w-3.5 h-3.5" /> Imprimir ticket
-                    provisional
-                  </button>
-                </div>
-              )}
-              {!offlineEncolada && (
-              <>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => imprimirManual("80")}
-                  disabled={imprimiendo}
-                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  {tamanoImprimiendo === "80" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                  <span className="text-[10px] font-semibold">80mm</span>
-                </button>
-                <button
-                  onClick={() => imprimirManual("58")}
-                  disabled={imprimiendo}
-                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  {tamanoImprimiendo === "58" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                  <span className="text-[10px] font-semibold">58mm</span>
-                </button>
-                <button
-                  onClick={() => imprimirManual("A4")}
-                  disabled={imprimiendo}
-                  className="flex flex-col items-center gap-1 rounded-md border border-gray-200 py-2.5 text-gray-600 hover:border-brand-blue hover:text-brand-blue disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  {tamanoImprimiendo === "A4" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                  <span className="text-[10px] font-semibold">A4</span>
-                </button>
-              </div>
 
-              <button
-                onClick={descargarPDF}
-                className="w-full flex items-center justify-center gap-2 rounded-md border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-colors cursor-pointer"
-              >
-                <Download className="w-4 h-4" /> Descargar PDF
-              </button>
 
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Send size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    value={telWhatsapp}
-                    onChange={(e) => setTelWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 9))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && telWhatsapp.trim() && !enviandoWhatsapp) {
-                        e.preventDefault();
-                        enviarComprobantePorWhatsapp();
-                      }
-                    }}
-                    placeholder="WhatsApp del cliente"
-                    className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
-                  />
-                  {telWhatsapp && (
-                    <button
-                      type="button"
-                      onClick={() => setTelWhatsapp("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
-                <button
-                  onClick={enviarComprobantePorWhatsapp}
-                  disabled={!telWhatsapp.trim() || enviandoWhatsapp}
-                  className="h-8.5 px-3.5 rounded-md bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 flex items-center justify-center cursor-pointer"
-                >
-                  {enviandoWhatsapp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Enviar"}
-                </button>
-              </div>
-              </>
-              )}
-
-              <button
-                onClick={nuevaVenta}
-                className="w-full flex items-center justify-center gap-2 rounded-md bg-brand-blue py-4 text-white text-lg font-bold shadow-sm hover:bg-[#0a2050] active:scale-[0.99] transition-all mt-2 cursor-pointer"
-              >
-                Nueva venta
-                <ArrowRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal de Ajuste Rápido de Stock cuando un producto no tiene unidades disponibles */}
       <ModalAjustarStockRapido
