@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Wallet, Lock, AlertTriangle, Banknote, CalendarClock } from "lucide-react";
+import { Wallet, Lock, AlertTriangle, Banknote, CalendarClock, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
 import { useToast } from "@/app/components/ui/Toast";
@@ -12,6 +12,11 @@ import { ModalAbrirCaja } from "./ModalAbrirCaja";
 import { ModalCuadrarCaja, soles } from "./ModalCuadrarCaja";
 import { ModalRetiroCaja } from "./ModalRetiroCaja";
 import { ModalCerrarSesion } from "./ModalCerrarSesion";
+import {
+  suscribirEmisionesSegundoPlano,
+  obtenerEmisionesSegundoPlano,
+  InfoEmisionSegundoPlano,
+} from "@/lib/eventosCaja";
 
 
 export function ControlCaja({ children }: { children: React.ReactNode }) {
@@ -33,6 +38,10 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
   const turno = estado?.turnoActual ?? estado?.turnoDeOtroUsuario ?? null;
   const claveAviso = estado?.caja ? `caja-dia-anterior-${estado.caja.cajaAperturaId}` : null;
   const [descartadoAhora, setDescartadoAhora] = useState(false);
+  const [emisiones, setEmisiones] = useState<InfoEmisionSegundoPlano[]>(() => obtenerEmisionesSegundoPlano());
+  useEffect(() => {
+    return suscribirEmisionesSegundoPlano(setEmisiones);
+  }, []);
 
 
   const avisoDescartado =
@@ -255,6 +264,23 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
               {estado ? soles(estado.saldoEfectivo) : "…"}
             </span>
           </span>
+
+          {emisiones.length > 0 && (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-brand-blue shrink-0">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-blue shrink-0" />
+              <span>
+                {emisiones[0].conImpresion
+                  ? `Emitiendo e imprimiendo ${emisiones[0].tipo}...`
+                  : `Emitiendo ${emisiones[0].tipo}...`}
+              </span>
+              <span className="font-bold tabular-nums">S/ {emisiones[0].total.toFixed(2)}</span>
+              {emisiones.length > 1 && (
+                <span className="text-[10px] font-bold text-brand-blue">
+                  (+{emisiones.length - 1})
+                </span>
+              )}
+            </span>
+          )}
         </div>
 
         <Button variant="outline" onClick={() => setRetiroAbierto(true)} className="px-3! py-1.5! text-xs!">

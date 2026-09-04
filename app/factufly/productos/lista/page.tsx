@@ -53,6 +53,7 @@ import ModalReporteProductos from "@/app/components/modalProductos/Modalreportep
 import { ModalVentasProductoExcel } from "../gestioProductos/ModalVentasProductoExcel";
 import ModalImprimirEtiquetas from "../gestioProductos/ModalImprimirEtiquetas";
 import { generarCodigoProducto } from "../gestioProductos/generarCodigoProducto";
+import { esCodigoBarrasGenerado } from "../gestioProductos/barcodeFormato";
 import { useVales } from "../gestioProductos/useVales";
 import { useEscanerGlobal } from "../../operaciones/useEscanerGlobal";
 import { cacheProductos } from "@/lib/offline/offlineDb";
@@ -151,6 +152,7 @@ export default function ProductosPage() {
   const [filtroVencimientoAntes, setFiltroVencimientoAntes] = useState<string>("");
   const [filtroAfectacion, setFiltroAfectacion] = useState<string[]>([]);
   const [filtroTipoProducto, setFiltroTipoProducto] = useState<string[]>([]);
+  const [filtroCodigoGenerado, setFiltroCodigoGenerado] = useState(false);
 
   const [search, setSearch] = useState("");
   const [escaneando, setEscaneando] = useState(false);
@@ -292,7 +294,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
     (config?.isStock && filtroPaquete) ||
     (config?.isStock && !!filtroVencimientoAntes) ||
     filtroAfectacion.length > 0 ||
-    filtroTipoProducto.length > 0;
+    filtroTipoProducto.length > 0 ||
+    filtroCodigoGenerado;
 
   // Stock real de un producto: si es paquete, el del producto base (no el propio, que ya no se usa).
   const getStockEfectivo = (p: ProductoSucursal): number | null => {
@@ -360,6 +363,10 @@ const [importFile, setImportFile] = useState<File | null>(null);
     const matchSucursal =
       !filtroSucursal || p.sucursalProducto.nomSucursal === filtroSucursal;
 
+    const matchCodigoGenerado =
+      !filtroCodigoGenerado ||
+      (!!p.codigoBarras && esCodigoBarrasGenerado(p.codigoBarras));
+
     return (
       matchSearch &&
       matchCategoria &&
@@ -370,7 +377,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
       matchVencimiento &&
       matchAfectacion &&
       matchTipo &&
-      matchSucursal
+      matchSucursal &&
+      matchCodigoGenerado
     );
   });
 
@@ -387,8 +395,14 @@ const [importFile, setImportFile] = useState<File | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: filasVirtual.length,
     getScrollElement: () => gridScrollRef.current,
-    estimateSize: () => 215,
-    overscan: 4,
+    estimateSize: () => 275,
+    overscan: 3,
+    getItemKey: (index) => {
+      const fila = filasVirtual[index];
+      return fila && fila.length > 0
+        ? fila.map((p) => p.sucursalProducto.sucursalProductoId).join("-")
+        : index;
+    },
   });
 
   const handleProductoEditado = (
@@ -1037,6 +1051,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                       config?.isStock && !!filtroVencimientoAntes,
                       ...filtroAfectacion,
                       ...filtroTipoProducto,
+                      filtroCodigoGenerado,
                     ].filter(Boolean).length
                   }
                 </span>
@@ -1308,6 +1323,27 @@ const [importFile, setImportFile] = useState<File | null>(null);
               </div>
             </div>
 
+            <div className="w-px h-4 bg-gray-200 shrink-0" />
+
+            {/* Código de barras generado (autogenerado, no ingresado/escaneado) */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
+                Código de barras
+              </span>
+              <button
+                type="button"
+                onClick={() => setFiltroCodigoGenerado((prev) => !prev)}
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1 text-xs font-semibold border rounded-lg transition-all whitespace-nowrap",
+                  filtroCodigoGenerado
+                    ? "bg-blue-50 border-blue-300 text-blue-700"
+                    : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
+                )}
+              >
+                <ScanBarcode size={12} /> Solo generados
+              </button>
+            </div>
+
             {/* Limpiar — empujado a la derecha */}
             {filtrosAvanzadosActivos && (
               <>
@@ -1322,6 +1358,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                     setFiltroAfectacion([]);
                     setFiltroTipoProducto([]);
                     setFiltroSucursal("");
+                    setFiltroCodigoGenerado(false);
                   }}
                   className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-rose-500 font-bold transition-colors whitespace-nowrap shrink-0 px-2 py-1.5 hover:bg-rose-50 rounded-md"
                 >
@@ -1416,11 +1453,12 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
       <div
         ref={gridScrollRef}
-        className="overflow-y-auto rounded-xl"
+        className="overflow-y-auto rounded-xl relative"
         style={{
           maxHeight: `calc(100vh - ${170 + (showFiltrosAvanzados ? 55 : 0) + (modoSeleccionPromo ? 55 : 0)}px)`,
           scrollbarWidth: "thin",
           scrollbarColor: "#CBD5E1 transparent",
+          scrollbarGutter: "stable",
         }}
       >
         {/* Sonda oculta: solo sirve para medir cuántas columnas tiene la

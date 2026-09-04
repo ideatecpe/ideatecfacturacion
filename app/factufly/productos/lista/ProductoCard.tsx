@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
-import dynamic from "next/dynamic";
-const Barcode = dynamic(() => import("react-barcode"), { ssr: false });
+import Barcode from "react-barcode";
 import { Edit2, Trash2, Tag, Printer, MapPin, AlertTriangle, CalendarClock } from "lucide-react";
 
 import { Card } from "@/app/components/ui/Card";
@@ -63,7 +62,7 @@ interface ProductoCardProps {
   diasAlertaVencimiento?: number | null;
 }
 
-export default function ProductoCard({
+function ProductoCard({
   prod,
   isSuperAdmin,
   soloLectura,
@@ -362,3 +361,5 @@ export default function ProductoCard({
     </Card>
   );
 }
+
+export default React.memo(ProductoCard);
