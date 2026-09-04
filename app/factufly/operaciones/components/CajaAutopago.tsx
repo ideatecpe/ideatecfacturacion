@@ -173,6 +173,41 @@ export interface ItemCarrito {
 
 export const SIN_RESERVAS: ItemCarrito[] = [];
 
+// ── Carrito persistente entre navegaciones ───────────────────────────────
+// El carrito vive en el estado de <CajaAutopagoVista />, así que salir de
+// "Nueva Venta" hacia otro módulo (Clientes, Productos…) desmontaba la caja y
+// el cajero perdía todo lo que ya había escaneado. Se guarda en sessionStorage
+// —por pestaña, para que dos cajas abiertas en el mismo navegador no compartan
+// carrito ni se pisen las reservas de stock— y se restaura al volver.
+const CARRITO_TTL_MS = 12 * 60 * 60 * 1000; // una jornada de caja
+
+function claveCarrito(sucursalId: number, cajaId: string): string {
+  return `factufly_carrito_${sucursalId}_${cajaId}`;
+}
+
+function leerCarritoGuardado(sucursalId: number, cajaId: string): ItemCarrito[] {
+  try {
+    const raw = sessionStorage.getItem(claveCarrito(sucursalId, cajaId));
+    if (!raw) return [];
+    const guardado = JSON.parse(raw) as { guardadoEn?: number; items?: ItemCarrito[] };
+    if (!Array.isArray(guardado.items) || guardado.items.length === 0) return [];
+    if (!guardado.guardadoEn || Date.now() - guardado.guardadoEn > CARRITO_TTL_MS) return [];
+    return guardado.items;
+  } catch {
+    return [];
+  }
+}
+
+function guardarCarrito(sucursalId: number, cajaId: string, items: ItemCarrito[]) {
+  try {
+    const clave = claveCarrito(sucursalId, cajaId);
+    if (items.length === 0) sessionStorage.removeItem(clave);
+    else sessionStorage.setItem(clave, JSON.stringify({ guardadoEn: Date.now(), items }));
+  } catch {
+    /* modo privado o cuota llena: la caja sigue funcionando solo en memoria */
+  }
+}
+
 export const VENTAS_RAPIDAS_CONFIG = [
   { key: "F1", label: "Venta rápida 1", color: "bg-brand-blue", hoverColor: "hover:bg-[#0a2050]", shadowColor: "rgba(15,46,100,0.7)" },
   { key: "F2", label: "Venta rápida 2", color: "bg-brand-blue", hoverColor: "hover:bg-[#0a2050]", shadowColor: "rgba(15,46,100,0.7)" },
@@ -542,6 +577,8 @@ export interface CajaAutopagoVistaProps {
   activo: boolean;
   /** true cuando esta vista es la ventana emergente de venta rápida. */
   esRapida?: boolean;
+  /** Identifica esta caja al guardar/restaurar su carrito ("principal", "F1"…). */
+  cajaId?: string;
   /** Carrito de TODAS las otras cajas: sus unidades ya están comprometidas. */
   reservasOtraCaja: ItemCarrito[];
   /** Publica el carrito propio para que las otras cajas lo descuenten. */
@@ -556,6 +593,7 @@ export function CajaAutopagoVista({
   recursos,
   activo,
   esRapida = false,
+  cajaId = "principal",
   reservasOtraCaja,
   onCarritoCambio,
   ventasRapidas,
@@ -1663,6 +1701,25 @@ export function CajaAutopagoVista({
       unidades,
     };
   }, [items, igvPct]);
+
+  // ── Carrito que sobrevive a salir de "Nueva Venta" ────────────────────
+  // Se restaura una sola vez por montaje y recién cuando ya se sabe la sucursal
+  // (el usuario llega de next-auth y en los primeros renders todavía es null;
+  // guardar antes escribiría el carrito bajo una clave equivocada).
+  const [carritoRestaurado, setCarritoRestaurado] = useState(false);
+  useEffect(() => {
+    if (carritoRestaurado || sucursalId == null) return;
+    const guardado = leerCarritoGuardado(sucursalId, cajaId);
+    if (guardado.length > 0) setItems(guardado);
+    setCarritoRestaurado(true);
+  }, [carritoRestaurado, sucursalId, cajaId]);
+
+  // Persiste cada cambio del carrito. Después de emitir no se guarda nada: esas
+  // unidades ya se vendieron y restaurarlas al volver haría que se cobren dos veces.
+  useEffect(() => {
+    if (!carritoRestaurado || sucursalId == null) return;
+    guardarCarrito(sucursalId, cajaId, emitido ? SIN_RESERVAS : items);
+  }, [items, emitido, carritoRestaurado, sucursalId, cajaId]);
 
   // Publica el carrito propio para que la otra caja lo descuente de su stock.
   // Una vez emitida la venta el carrito deja de reservar: esas unidades ya se
@@ -4121,9 +4178,9 @@ export function CajaAutopagoVista({
                               className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             />
 
-                            {/* Velo sutil cuando está activo */}
+                            {/* Velo verde cuando está activo, para que se note incluso sobre imágenes de color */}
                             {activo && (
-                              <div className="absolute inset-0 bg-[#008000]/10 pointer-events-none" />
+                              <div className="absolute inset-0 bg-[#008000]/8 pointer-events-none" />
                             )}
 
                             {/* Badge de selección en esquina */}
@@ -4385,12 +4442,6 @@ export function CajaAutopagoVista({
         </div>
       </Modal>
 
-      {/* Bloqueo eliminado: la emisión corre en segundo plano y el cajero puede seguir cobrando al siguiente cliente */}
-
-      {/* ── Modal de éxito tras emitir ─────────────────────────────── */}
-      {/* Pantalla de éxito eliminada: el flujo pasa directo a nueva venta tras confirmar */}
-
-
 
 
       {/* Modal de Ajuste Rápido de Stock cuando un producto no tiene unidades disponibles */}
@@ -4416,25 +4467,7 @@ export function CajaAutopagoVista({
   );
 }
 
-/**
- * Caja Autopago con cuatro ventas simultáneas.
- *
- * La caja principal se queda tal cual está (carrito, cliente, pago) y F2, F3 y
- * F4 abren tres cajas idénticas en ventanas flotantes para cobrarle en el acto
- * a quienes solo llevan un producto. Las cuatro comparten catálogo, stock,
- * empresa y sucursal, así que ninguna vende unidades que otra ya tiene apartadas.
- *
- * Las ventanas flotantes nunca se destruyen: se minimizan. Así el cajero salta
- * entre las cuatro ventas sin perder ninguna, y mientras las rápidas están
- * minimizadas la principal sigue siendo usable (no hay fondo que la bloquee).
- *
- * Solo una ventana flotante puede estar abierta a la vez: al abrir una se
- * minimizan automáticamente las demás.
- *
- * Serie y correlativo no se duplican: los asigna el backend al emitir, y como
- * las cuatro cajas comparten `useSucursal`, al terminar una venta las demás ya
- * ven el siguiente número.
- */
+
 export default function CajaAutopago() {
   const { user } = useAuth();
   const sucursalId = user?.sucursalID ? parseInt(user.sucursalID) : null;

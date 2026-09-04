@@ -491,6 +491,7 @@ export const VentasRapidas = memo(function VentasRapidas({
                 recursos={recursos}
                 activo={slot.abierta && isEnfocado}
                 esRapida
+                cajaId={cfg.key}
                 reservasOtraCaja={reservasParaRapida[idx] ?? []}
                 onCarritoCambio={settersCarrito[idx]}
                 onVentaTerminada={minimizadores[idx]}
