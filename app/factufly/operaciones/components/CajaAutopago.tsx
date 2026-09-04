@@ -2791,6 +2791,19 @@ export function CajaAutopagoVista({
     !facturaSinRuc &&
     !facturaSinRazonSocial;
 
+  // `emitirVenta` se redefine en cada render y captura el tipo de comprobante,
+  // el medio de pago y el monto de ESE render. El listener de Enter de abajo se
+  // registra una sola vez y no lo lleva en sus dependencias, así que se quedaba
+  // con una versión vieja: si el cajero marcaba Boleta con el mouse (y el foco
+  // salía del input de monto, de modo que solo corría este listener), Enter
+  // emitía con el comprobante que estaba elegido ANTES del clic —una Nota de
+  // Venta— mientras que pulsar "Confirmar" sí emitía Boleta. Con el ref el
+  // atajo siempre ejecuta la última versión.
+  const emitirVentaRef = useRef(emitirVenta);
+  useEffect(() => {
+    emitirVentaRef.current = emitirVenta;
+  });
+
   // Confirmación con la tecla Enter en el modal de pago
   useEffect(() => {
     if (!mostrarPago || !activo) return;
@@ -2803,7 +2816,8 @@ export function CajaAutopagoVista({
         }
         if (puedeEmitir) {
           e.preventDefault();
-          emitirVenta(false);
+          // Enter = "Confirmar" (sin impresión); "Confirmar e Imprimir" es solo el botón.
+          emitirVentaRef.current(false);
         } else if (boletaMayor700SinDoc) {
           e.preventDefault();
           showToast("SUNAT exige registrar el DNI del cliente para Boletas a partir de S/ 700.00", "error");
@@ -3785,19 +3799,14 @@ export function CajaAutopagoVista({
                       }
                     }}
                     onKeyDown={(e) => {
+                      // Igual que el buscador: el Enter lo procesa ÚNICAMENTE el
+                      // listener global del modal. Emitir también desde aquí hacía
+                      // que un Enter con el foco en este input disparara la emisión
+                      // dos veces (este handler y el global, que se ejecuta después
+                      // al burbujear hasta window), y con validaciones más flojas
+                      // que las de `puedeEmitir`.
                       if (e.key === "Enter") {
-                        if (Date.now() - modalAbiertoAtRef.current < 400) {
-                          e.preventDefault();
-                          return;
-                        }
                         e.preventDefault();
-                        if (
-                          !emitiendo &&
-                          !(pagoDividido && faltanteDividido > 0) &&
-                          !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
-                        ) {
-                          emitirVenta();
-                        }
                       }
                     }}
                     inputMode="decimal"
@@ -4200,12 +4209,12 @@ export function CajaAutopagoVista({
                             {/* Badge de selección en esquina */}
                             {activo && (
                               <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#008000] text-white flex items-center justify-center shadow-md animate-in zoom-in-50 duration-150 z-10">
-                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                <Check className="w-3.5 h-3.5 stroke-3" />
                               </div>
                             )}
 
                             {/* Franja de degradado inferior con el nombre legible */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent pt-4 pb-1.5 px-1.5 flex items-center justify-center z-10">
+                            <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/50 to-transparent pt-4 pb-1.5 px-1.5 flex items-center justify-center z-10">
                               <span className="text-[11px] sm:text-xs font-bold text-white tracking-wide drop-shadow-sm truncate">
                                 {m.nombre}
                               </span>

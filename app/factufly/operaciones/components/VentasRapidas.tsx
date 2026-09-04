@@ -479,7 +479,7 @@ export const VentasRapidas = memo(function VentasRapidas({
                   className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/20 hover:bg-white/30 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
                   title={`Minimizar (${cfg.key} o Esc)`}
                 >
-                  <Minus className="w-3.5 h-3.5 stroke-[3]" />
+                  <Minus className="w-3.5 h-3.5 stroke-3" />
                   <span>Minimizar</span>
                 </button>
               </div>
