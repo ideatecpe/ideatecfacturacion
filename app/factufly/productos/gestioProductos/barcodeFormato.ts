@@ -35,3 +35,13 @@ export function formatoBarcodeSeguro(codigo: string): "EAN13" | "UPC" | "CODE128
     return "UPC";
   return "CODE128";
 }
+
+// Detecta si un código de barras fue autogenerado por el sistema (botón "Generar")
+// en vez de ingresado/escaneado: `generarEAN13Interno` siempre produce un EAN-13 con
+// prefijo "200" (rango GS1 reservado para uso interno de tiendas) y checksum válido.
+// Un código real de fábrica prácticamente nunca cae en ese prefijo, así que sirve
+// como heurística para distinguir "generado" de "ingresado" sin guardar un flag aparte.
+export function esCodigoBarrasGenerado(codigo: string): boolean {
+  if (!/^200\d{10}$/.test(codigo)) return false;
+  return digitoVerificadorEAN13(codigo.slice(0, 12)) === Number(codigo[12]);
+}
