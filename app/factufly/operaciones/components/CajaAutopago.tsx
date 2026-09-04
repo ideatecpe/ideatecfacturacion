@@ -118,12 +118,12 @@ const MEDIOS_PAGO: MedioPagoOpcion[] = [
     icon: Landmark,
     activo: "border-emerald-500 ring-2 ring-emerald-500/30",
   },
-  {
-    nombre: "Otro",
-    imagen: "/mediosPago/otro.svg",
-    icon: MoreHorizontal,
-    activo: "border-gray-500 ring-2 ring-gray-400/30",
-  },
+  // {
+  //   nombre: "Otro",
+  //   imagen: "/mediosPago/otro.svg",
+  //   icon: MoreHorizontal,
+  //   activo: "border-gray-500 ring-2 ring-gray-400/30",
+  // },
 ];
 
 const MONTOS_RAPIDOS = [5, 10, 20, 50, 100, 200];
@@ -4179,7 +4179,7 @@ export function CajaAutopagoVista({
                   {/* Medios de pago */}
                   <div>
                     <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Medio de pago</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="flex flex-wrap justify-between gap-y-3 sm:gap-y-3.5 w-full">
                       {MEDIOS_PAGO.map((m) => {
                         const activo = medioPago === m.nombre;
                         return (
@@ -4187,10 +4187,10 @@ export function CajaAutopagoVista({
                             key={m.nombre}
                             type="button"
                             onClick={() => setMedioPago(m.nombre)}
-                            className={`group relative h-20 sm:h-22 rounded-xl border-2 overflow-hidden cursor-pointer transition-all active:scale-[0.98] ${
+                            className={`group relative w-[89px] h-[65px] aspect-square rounded-xl overflow-hidden cursor-pointer transition-all duration-200 active:scale-[0.98] ${
                               activo
-                                ? "border-[#008000] ring-3 ring-[#008000]/25 shadow-md scale-[1.02]"
-                                : "border-gray-200 hover:border-gray-300 hover:shadow-xs opacity-85 hover:opacity-100"
+                                ? "border-[3px] border-[#008000] ring-4 ring-[#008000]/25 shadow-lg shadow-[#008000]/20 scale-[1.03] z-10 opacity-100"
+                                : "border border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-85 grayscale-35 hover:grayscale-0 saturate-75 hover:saturate-100 scale-100"
                             }`}
                           >
                             {/* Imagen que ocupa toda la card */}
@@ -4198,24 +4198,39 @@ export function CajaAutopagoVista({
                               src={m.imagen}
                               alt={m.nombre}
                               loading="eager"
-                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              className={`absolute inset-0 w-full h-full object-cover transition-transform duration-300 ${
+                                activo ? "scale-105" : "group-hover:scale-105"
+                              }`}
                             />
 
-                            {/* Velo verde cuando está activo, para que se note incluso sobre imágenes de color */}
+                            {/* Velo verde cuando está activo */}
                             {activo && (
-                              <div className="absolute inset-0 bg-[#008000]/8 pointer-events-none" />
+                              <div className="absolute inset-0 bg-[#008000]/10 pointer-events-none" />
                             )}
 
                             {/* Badge de selección en esquina */}
                             {activo && (
-                              <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#008000] text-white flex items-center justify-center shadow-md animate-in zoom-in-50 duration-150 z-10">
-                                <Check className="w-3.5 h-3.5 stroke-3" />
+                              <div className="absolute top-1 right-1 w-4.5 h-4.5 rounded-full bg-[#008000] text-white flex items-center justify-center shadow-md ring-1.5 ring-white animate-in zoom-in-50 duration-150 z-20">
+                                <Check className="w-3 h-3 stroke-[3.5]" />
                               </div>
                             )}
 
-                            {/* Franja de degradado inferior con el nombre legible */}
-                            <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 via-black/50 to-transparent pt-4 pb-1.5 px-1.5 flex items-center justify-center z-10">
-                              <span className="text-[11px] sm:text-xs font-bold text-white tracking-wide drop-shadow-sm truncate">
+                            {/* Franja inferior: si está activo, barra verde sólida destacada; si está inactivo, degradado suave */}
+                            <div
+                              className={`absolute inset-x-0 bottom-0 flex items-center justify-center z-10 transition-colors ${
+                                activo
+                                  ? "bg-[#008000] py-0.5 px-0.5 shadow-sm"
+                                  : "bg-linear-to-t from-black/85 via-black/50 to-transparent pt-3 pb-0.5 px-0.5"
+                              }`}
+                            >
+                              <span
+                                className={`tracking-wide truncate transition-all ${
+                                  activo
+                                    ? "text-[9px] sm:text-[9.5px] font-black text-white flex items-center gap-0.5"
+                                    : "text-[9px] sm:text-[9.5px] font-medium text-white/90 drop-shadow-sm"
+                                }`}
+                              >
+                                {activo && <span className="font-black text-xs">✓</span>}
                                 {m.nombre}
                               </span>
                             </div>
