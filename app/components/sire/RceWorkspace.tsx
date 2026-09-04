@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { RefreshCw, CalendarDays, FileWarning, FileSpreadsheet, Search, X, CheckCircle2, XCircle } from "lucide-react";
+import { RefreshCw, CalendarDays, FileWarning, FileSpreadsheet, Search, X, CheckCircle2, XCircle, Lock } from "lucide-react";
 import ExcelJS from "exceljs";
 import { cn } from "@/app/utils/cn";
 import { Card } from "@/app/components/ui/Card";
@@ -229,12 +229,15 @@ async function exportarExcelRce(
   URL.revokeObjectURL(url);
 }
 
+type Tab = "resumen" | "propuesta" | "acciones";
+
 interface Props {
   ruc: string;
   nombreEmpresa?: string | null;
 }
 
 export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
+  const [tab, setTab] = useState<Tab>("resumen");
   const [ejercicios, setEjercicios] = useState<SireEjercicioDto[]>([]);
   const [anioSel, setAnioSel] = useState<string | null>(null);
   const [mesSel, setMesSel] = useState<string | null>(null);
@@ -266,6 +269,7 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
     setBusqueda("");
     setFiltroFecha("");
     setFiltroTipo("");
+    setTab("resumen");
   }, [ruc, mesSel]);
 
   const periodosDelAnio = useMemo(
@@ -300,6 +304,13 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
     (acc, c) => ({ base: acc.base + c.baseImponible, igv: acc.igv + c.igv, total: acc.total + c.importeTotal }),
     { base: 0, igv: 0, total: 0 },
   );
+  const porTipo = activos.reduce<Record<string, { cantidad: number; total: number }>>((acc, c) => {
+    const key = c.tipoComprobante ?? "—";
+    if (!acc[key]) acc[key] = { cantidad: 0, total: 0 };
+    acc[key].cantidad += 1;
+    acc[key].total += c.importeTotal;
+    return acc;
+  }, {});
 
   const hayExonerado = useMemo(() => (comprobantes ?? []).some((c) => c.mtoExonerado !== 0), [comprobantes]);
   const hayInafecto = useMemo(() => (comprobantes ?? []).some((c) => c.mtoInafecto !== 0), [comprobantes]);
@@ -433,8 +444,31 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
         )
       ) : (
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          {/* Tabs */}
+          <div className="flex items-center gap-1 px-5 pt-3 border-b border-gray-100">
+            {([
+              { id: "resumen", label: "Resumen" },
+              { id: "propuesta", label: "Propuesta" },
+              { id: "acciones", label: "Acciones" },
+            ] as { id: Tab; label: string }[]).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={cn(
+                  "px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors border-b-2 -mb-px",
+                  tab === t.id
+                    ? "border-blue-600 text-blue-700"
+                    : "border-transparent text-gray-400 hover:text-gray-600",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
           <div className="p-5">
-            {!comprobantes && !error && (
+            {/* Resumen y Propuesta comparten el mismo dataset (comprobantes) */}
+            {(tab === "resumen" || tab === "propuesta") && !comprobantes && !error && (
               <div className="flex flex-col items-center justify-center gap-3 py-16">
                 {cargandoPropuesta ? (
                   <>
@@ -450,7 +484,7 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
               </div>
             )}
 
-            {error && (
+            {(tab === "resumen" || tab === "propuesta") && error && (
               <div className="flex flex-col items-center justify-center gap-3 py-16">
                 <FileWarning className="w-8 h-8 text-amber-400" />
                 <p className="text-sm text-gray-600 font-medium text-center max-w-md">{error}</p>
@@ -464,10 +498,13 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
               </div>
             )}
 
-            {comprobantes && (
-              <div className="space-y-3">
-                {comprobantes.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
+            {/* Resumen */}
+            {tab === "resumen" && comprobantes && (
+              comprobantes.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-12">SUNAT no reportó comprobantes de compra para este periodo.</p>
+              ) : (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <StatCard label="Comprobantes" value={String(comprobantes.length)} />
                     <StatCard label="Activos" value={String(activos.length)} />
                     <StatCard
@@ -477,8 +514,39 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
                     />
                     <StatCard label="Total (activos)" value={formatMoneda(totales.total, null)} />
                   </div>
-                )}
 
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Tipo de Documento</th>
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Cantidad</th>
+                          <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {Object.entries(porTipo).map(([tipo, v]) => (
+                          <tr key={tipo}>
+                            <td className="px-4 py-2 text-xs text-gray-700">{TIPO_COMPROBANTE[tipo] ?? tipo}</td>
+                            <td className="px-4 py-2 text-xs text-gray-700 text-right">{v.cantidad}</td>
+                            <td className="px-4 py-2 text-xs font-semibold text-gray-900 text-right">{formatMoneda(v.total, null)}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-gray-50 font-semibold">
+                          <td className="px-4 py-2 text-xs text-gray-800">Total</td>
+                          <td className="px-4 py-2 text-xs text-gray-800 text-right">{activos.length}</td>
+                          <td className="px-4 py-2 text-xs text-gray-900 text-right">{formatMoneda(totales.total, null)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* Propuesta */}
+            {tab === "propuesta" && comprobantes && (
+              <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   {comprobantes.length > 0 && (
                     <>
@@ -625,6 +693,62 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
                     </table>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Acciones (aún no implementado en el backend para RCE: botones de referencia, sin funcionalidad) */}
+            {tab === "acciones" && (
+              <div className="max-w-md">
+                <div className="flex items-center gap-2.5 px-4 py-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl">
+                  <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                  <p className="text-xs text-amber-700 font-medium">
+                    Aceptar la propuesta de compras (RCE) aún no está disponible en el sistema. Estos botones son una referencia de lo que vendrá más adelante.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-1 mb-5">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 shrink-0 bg-white border-gray-300 text-gray-400">
+                      1
+                    </div>
+                    <p className="text-xs font-semibold text-center text-gray-400">Aceptar propuesta</p>
+                  </div>
+
+                  <div className="h-0.5 w-8 mt-[18px] bg-gray-200" />
+
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 shrink-0 bg-white border-gray-300 text-gray-400">
+                      2
+                    </div>
+                    <p className="text-xs font-semibold text-center text-gray-400">Cerrar mes</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-1">
+                  <button
+                    disabled
+                    title="Próximamente"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-gray-400 bg-gray-100 rounded-xl cursor-not-allowed"
+                  >
+                    <CheckCircle2 size={14} />
+                    Aceptar
+                  </button>
+
+                  <div className="w-8" />
+
+                  <button
+                    disabled
+                    title="Próximamente"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-gray-400 bg-gray-100 rounded-xl cursor-not-allowed"
+                  >
+                    <Lock size={14} />
+                    Cerrar mes
+                  </button>
+                </div>
+
+                <p className="text-xs text-gray-400 text-center mt-3">
+                  Próximamente: aceptar propuesta y cerrar mes para el Registro de Compras.
+                </p>
               </div>
             )}
           </div>
