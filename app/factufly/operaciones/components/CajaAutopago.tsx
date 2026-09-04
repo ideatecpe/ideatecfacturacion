@@ -680,6 +680,9 @@ export function CajaAutopagoVista({
   const inputRef = useRef<HTMLInputElement>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
+  // true en cuanto el cajero elige el comprobante a mano: manda su elección para
+  // esta venta, por encima del default que traiga la configuración.
+  const tipoElegidoManualRef = useRef(false);
   const abrirPagoRef = useRef<() => void>(() => {});
   const modalAbiertoAtRef = useRef<number>(0);
 
@@ -738,6 +741,8 @@ export function CajaAutopagoVista({
     setNombreManualCliente("");
     setDireccionManualCliente("");
     setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
+    // La venta siguiente vuelve a arrancar en el default de la configuración.
+    tipoElegidoManualRef.current = false;
     setMedioPago("Efectivo");
     setMontoRecibido("");
     setNotaPago("");
@@ -1164,13 +1169,21 @@ export function CajaAutopagoVista({
 
   // Default del tipo de comprobante según "Tipo por defecto":
   // si el predeterminado es Nota de Venta y está habilitada, arranca en Nota de Venta.
+  //
+  // `config` llega por red y en un arranque en frío tarda: para entonces el cajero
+  // ya pudo haber elegido el comprobante a mano. Si se aplicara el default igual,
+  // le pisaba la elección y emitía Nota de Venta habiendo marcado Boleta, así que
+  // el default solo se aplica mientras nadie haya elegido.
   useEffect(() => {
     if (!config || tipoSinDocInitRef.current) return;
     tipoSinDocInitRef.current = true;
+    // Ni al que ya eligió a mano, ni al que está mirando el modal de cobro: lo que
+    // se ve marcado al confirmar tiene que ser lo que se emite.
+    if (tipoElegidoManualRef.current || mostrarPago) return;
     if (config.useNotaVenta && config.isBoletaOrFactura === "n") {
       setTipoComprobante("Nota de Venta");
     }
-  }, [config]);
+  }, [config, mostrarPago]);
 
   const documentoTrim = documento.trim();
   const sinDocumento = documentoTrim.length === 0;
@@ -2552,6 +2565,7 @@ export function CajaAutopagoVista({
   }, [abrirPago]);
 
   const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta" | "Factura") => {
+    tipoElegidoManualRef.current = true;
     setTipoComprobante(t);
     // Un RUC no es un DNI: al pasar a Boleta (único comprobante que no admite
     // RUC) el documento se LIMPIA, nunca se recorta. Recortar 11 → 8 dígitos
