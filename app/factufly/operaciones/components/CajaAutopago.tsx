@@ -4109,7 +4109,7 @@ export function CajaAutopagoVista({
                             onClick={() => setMedioPago(m.nombre)}
                             className={`group relative h-20 sm:h-22 rounded-xl border-2 overflow-hidden cursor-pointer transition-all active:scale-[0.98] ${
                               activo
-                                ? "border-brand-blue ring-3 ring-brand-blue/25 shadow-md scale-[1.02]"
+                                ? "border-[#008000] ring-3 ring-[#008000]/25 shadow-md scale-[1.02]"
                                 : "border-gray-200 hover:border-gray-300 hover:shadow-xs opacity-85 hover:opacity-100"
                             }`}
                           >
@@ -4123,12 +4123,12 @@ export function CajaAutopagoVista({
 
                             {/* Velo sutil cuando está activo */}
                             {activo && (
-                              <div className="absolute inset-0 bg-brand-blue/10 pointer-events-none" />
+                              <div className="absolute inset-0 bg-[#008000]/10 pointer-events-none" />
                             )}
 
                             {/* Badge de selección en esquina */}
                             {activo && (
-                              <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-brand-blue text-white flex items-center justify-center shadow-md animate-in zoom-in-50 duration-150 z-10">
+                              <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#008000] text-white flex items-center justify-center shadow-md animate-in zoom-in-50 duration-150 z-10">
                                 <Check className="w-3.5 h-3.5 stroke-[3]" />
                               </div>
                             )}
