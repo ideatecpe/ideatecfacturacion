@@ -13,6 +13,9 @@ import {
   Receipt,
   TrendingUp,
   Hash,
+  RotateCcw,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
@@ -28,7 +31,10 @@ import {
   formatFecha,
   COLORS,
 } from "@/app/factufly/comprobantes/gestionComprobantes/helpers";
-import type { ComprobanteListado } from "@/app/factufly/comprobantes/gestionComprobantes/Comprobante";
+import type {
+  ComprobanteListado,
+  ComprobanteDetalleItem,
+} from "@/app/factufly/comprobantes/gestionComprobantes/Comprobante";
 
 const hoyISO = () => {
   const d = new Date();
@@ -177,6 +183,44 @@ export default function VentasDelDiaPage() {
       showToast(mensaje, "error");
     } finally {
       setAnulandoNV(false);
+    }
+  };
+
+  const [itemADevolver, setItemADevolver] =
+    useState<ComprobanteDetalleItem | null>(null);
+  const [cantidadADevolver, setCantidadADevolver] = useState(1);
+  const [devolviendoItem, setDevolviendoItem] = useState(false);
+
+  const abrirDevolverItem = (item: ComprobanteDetalleItem) => {
+    setItemADevolver(item);
+    setCantidadADevolver(1);
+  };
+
+  const devolverItem = async () => {
+    if (!itemADevolver || !seleccionado) return;
+    setDevolviendoItem(true);
+    try {
+      const uid = user?.id ? Number(user.id) : undefined;
+      await axios.patch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/NotaVenta/${seleccionado.comprobanteId}/detalle/${itemADevolver.detalleId}/devolver`,
+        {
+          cantidad: cantidadADevolver,
+          usuarioId: Number.isFinite(uid) ? uid : null,
+        },
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      showToast("Artículo devuelto correctamente", "success");
+      setItemADevolver(null);
+      await fetchDetalles(seleccionado.comprobanteId);
+      cargar();
+    } catch (err) {
+      const mensaje =
+        axios.isAxiosError(err) && err.response?.data?.mensaje
+          ? err.response.data.mensaje
+          : "Error al devolver el artículo";
+      showToast(mensaje, "error");
+    } finally {
+      setDevolviendoItem(false);
     }
   };
 
@@ -485,27 +529,41 @@ export default function VentasDelDiaPage() {
                         Artículos
                       </p>
                       <div className="rounded-lg border border-gray-100 divide-y divide-gray-50 overflow-hidden">
-                        {detalles.details.map((item, i) => (
-                          <div
-                            key={`${item.detalleId}-${i}`}
-                            className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-gray-700 truncate text-[11px]">
-                                {item.descripcion}
-                              </p>
-                              <p className="text-[10px] text-gray-400">
-                                x{item.cantidad}
-                              </p>
+                        {detalles.details
+                          .filter((item) => item.cantidad > 0)
+                          .map((item, i) => (
+                            <div
+                              key={`${item.detalleId}-${i}`}
+                              className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs"
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {esNotaVenta && !estaAnulada && (
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirDevolverItem(item)}
+                                    className="h-5 w-5 flex items-center justify-center rounded shrink-0 text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    title="Devolver artículo"
+                                  >
+                                    <RotateCcw className="w-3 h-3" />
+                                  </button>
+                                )}
+                                <div className="min-w-0">
+                                  <p className="text-gray-700 truncate text-[11px]">
+                                    {item.descripcion}
+                                  </p>
+                                  <p className="text-[10px] text-gray-400">
+                                    x{item.cantidad}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="font-medium text-gray-800 tabular-nums shrink-0 text-xs">
+                                {soles(
+                                  item.totalVentaItem,
+                                  seleccionado.tipoMoneda,
+                                )}
+                              </span>
                             </div>
-                            <span className="font-medium text-gray-800 tabular-nums shrink-0 text-xs">
-                              {soles(
-                                item.totalVentaItem,
-                                seleccionado.tipoMoneda,
-                              )}
-                            </span>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </div>
 
@@ -601,6 +659,88 @@ export default function VentasDelDiaPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!itemADevolver}
+        onClose={() => setItemADevolver(null)}
+        title="Devolver artículo"
+        className="max-w-sm"
+      >
+        {itemADevolver && (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">
+                {itemADevolver.descripcion}
+              </p>
+              <p className="text-xs text-gray-400">
+                Cantidad vendida: {itemADevolver.cantidad}
+              </p>
+            </div>
+
+            {itemADevolver.cantidad > 1 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">
+                  Cantidad a devolver
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCantidadADevolver((c) => Math.max(1, c - 1))
+                    }
+                    disabled={cantidadADevolver <= 1}
+                    className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="w-6 text-center text-sm font-semibold tabular-nums">
+                    {cantidadADevolver}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCantidadADevolver((c) =>
+                        Math.min(itemADevolver.cantidad, c + 1),
+                      )
+                    }
+                    disabled={cantidadADevolver >= itemADevolver.cantidad}
+                    className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <p className="text-sm text-gray-600">
+              ¿Confirmas devolver{" "}
+              <b>
+                {cantidadADevolver} unidad
+                {cantidadADevolver > 1 ? "es" : ""}
+              </b>{" "}
+              de <b>{itemADevolver.descripcion}</b>? Esta acción devuelve el
+              stock y actualiza el total de la nota de venta.
+            </p>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setItemADevolver(null)}
+                disabled={devolviendoItem}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="danger"
+                onClick={devolverItem}
+                disabled={devolviendoItem}
+              >
+                {devolviendoItem ? "Devolviendo…" : "Devolver"}
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
