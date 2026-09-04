@@ -304,10 +304,6 @@ export default function ReportesPage() {
     return filtros;
   };
 
-  const handleDescargarListado = async (_filtros: typeof modal.filtros, formato: FormatoReporte) => {
-    await avanzados.descargarExcelListado(getParamsModal(), resolverTitulo('Libro Contable'), formato);
-  };
-
   const handleDescargarProductos = async (_filtros: typeof modal.filtros, formato: FormatoReporte) => {
     await avanzados.descargarExcelProductos(getParamsModal(), resolverTitulo('Top Productos'), formato);
   };
@@ -716,13 +712,11 @@ export default function ReportesPage() {
         sucursales={sucursalesModal}
         isSuperAdmin={isSuperAdmin}
         puedeVerUsuarios={puedeVerUsuarios}
-        loadingExcelListado={avanzados.loadingExcelListado}
         loadingExcelProductos={avanzados.loadingExcelProductos}
         loadingExcelMedios={avanzados.loadingExcelMedios}
         loadingExcelControlCaja={avanzados.loadingExcelControlCaja}
         loadingTicketControlCaja={avanzados.loadingTicketControlCaja}
         loadingPdfTicketControlCaja={avanzados.loadingPdfTicketControlCaja}
-        onDescargarListado={handleDescargarListado}
         onDescargarProductos={handleDescargarProductos}
         onDescargarMedios={handleDescargarMedios}
         onDescargarControlCaja={handleDescargarControlCaja}
