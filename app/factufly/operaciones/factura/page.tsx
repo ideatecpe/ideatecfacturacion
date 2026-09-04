@@ -141,6 +141,7 @@ const BIENES_DETRACCION = [
   { code: "016", label: "Harina, polvo y pellets de pescado" },
   { code: "017", label: "Embarcaciones pesqueras" },
   { code: "018", label: "Leche" },
+  { code: "019", label: "Arrendamiento de bienes muebles" },
   { code: "023", label: "Oro gravado con IGV" },
   { code: "024", label: "Páprika" },
   { code: "025", label: "Espárragos" },
