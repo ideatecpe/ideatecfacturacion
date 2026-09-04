@@ -387,8 +387,14 @@ const [importFile, setImportFile] = useState<File | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: filasVirtual.length,
     getScrollElement: () => gridScrollRef.current,
-    estimateSize: () => 215,
-    overscan: 4,
+    estimateSize: () => 275,
+    overscan: 3,
+    getItemKey: (index) => {
+      const fila = filasVirtual[index];
+      return fila && fila.length > 0
+        ? fila.map((p) => p.sucursalProducto.sucursalProductoId).join("-")
+        : index;
+    },
   });
 
   const handleProductoEditado = (
@@ -1416,11 +1422,12 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
       <div
         ref={gridScrollRef}
-        className="overflow-y-auto rounded-xl"
+        className="overflow-y-auto rounded-xl relative"
         style={{
           maxHeight: `calc(100vh - ${170 + (showFiltrosAvanzados ? 55 : 0) + (modoSeleccionPromo ? 55 : 0)}px)`,
           scrollbarWidth: "thin",
           scrollbarColor: "#CBD5E1 transparent",
+          scrollbarGutter: "stable",
         }}
       >
         {/* Sonda oculta: solo sirve para medir cuántas columnas tiene la

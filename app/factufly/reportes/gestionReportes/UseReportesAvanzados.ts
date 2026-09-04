@@ -4,7 +4,6 @@ import { useToast } from '@/app/components/ui/Toast'
 import {
   MedioPagoTop,
   ProductoTop,
-  ListadoReporte,
   ReportesAvanzadosParams,
   Periodo
 } from './Reportes'
@@ -12,22 +11,17 @@ import {
 export type FormatoReporte = 'excel' | 'pdf'
 
 interface UseReportesAvanzadosReturn {
-  listado: ListadoReporte[]
   productosTop: ProductoTop[]
   mediosPago: MedioPagoTop[]
-  loadingListado: boolean
   loadingProductos: boolean
   loadingMedios: boolean
-  loadingExcelListado: boolean
   loadingExcelProductos: boolean
   loadingExcelMedios: boolean
   loadingExcelControlCaja: boolean
   loadingTicketControlCaja: boolean
   loadingPdfTicketControlCaja: boolean
-  fetchListado: (params: ReportesAvanzadosParams) => Promise<void>
   fetchProductosTop: (params: ReportesAvanzadosParams) => Promise<void>
   fetchMediosPago: (params: ReportesAvanzadosParams) => Promise<void>
-  descargarExcelListado: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
   descargarExcelProductos: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
   descargarExcelMedios: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
   descargarExcelControlCaja: (params: ReportesAvanzadosParams, titulo: string, formato?: FormatoReporte) => Promise<void>
@@ -39,14 +33,11 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
   const { accessToken } = useAuth()
   const { showToast } = useToast()
 
-  const [listado, setListado] = useState<ListadoReporte[]>([])
   const [productosTop, setProductosTop] = useState<ProductoTop[]>([])
   const [mediosPago, setMediosPago] = useState<MedioPagoTop[]>([])
 
-  const [loadingListado, setLoadingListado] = useState(false)
   const [loadingProductos, setLoadingProductos] = useState(false)
   const [loadingMedios, setLoadingMedios] = useState(false)
-  const [loadingExcelListado, setLoadingExcelListado] = useState(false)
   const [loadingExcelProductos, setLoadingExcelProductos] = useState(false)
   const [loadingExcelMedios, setLoadingExcelMedios] = useState(false)
   const [loadingExcelControlCaja, setLoadingExcelControlCaja] = useState(false)
@@ -76,29 +67,6 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
     link.click()
     URL.revokeObjectURL(link.href)
   }
-
-  // ── Listado comprobantes ───────────────────────────────────────────────────
-  const fetchListado = useCallback(async (params: ReportesAvanzadosParams) => {
-    setLoadingListado(true)
-    try {
-      const url = buildUrl(`/api/Reportes/listado/${params.ruc}`, {
-        codEstablecimiento: params.codEstablecimiento,
-        fechaDesde:         params.fechaDesde,
-        fechaHasta:         params.fechaHasta,
-        usuarioCreacion:    params.usuarioCreacion,
-        clienteNumDoc:      params.clienteNumDoc,
-        limit:              params.limit,
-      })
-      const res = await fetch(url, { headers })
-      if (!res.ok) throw new Error(`Error ${res.status}`)
-      setListado(await res.json())
-    } catch {
-      showToast('Error al obtener listado de comprobantes', 'error')
-      setListado([])
-    } finally {
-      setLoadingListado(false)
-    }
-  }, [accessToken])
 
   // ── Productos top ──────────────────────────────────────────────────────────
   const fetchProductosTop = useCallback(async (params: ReportesAvanzadosParams) => {
@@ -145,33 +113,6 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
       setMediosPago([])
     } finally {
       setLoadingMedios(false)
-    }
-  }, [accessToken])
-
-  // ── Excel/PDF listado ──────────────────────────────────────────────────────
-  const descargarExcelListado = useCallback(async (
-    params: ReportesAvanzadosParams,
-    titulo: string,
-    formato: FormatoReporte = 'excel'
-  ) => {
-    setLoadingExcelListado(true)
-    try {
-      const url = buildUrl(`/api/Reportes/listado/${params.ruc}/excel`, {
-        titulo,
-        codEstablecimiento: params.codEstablecimiento,
-        fechaDesde:         params.fechaDesde,
-        fechaHasta:         params.fechaHasta,
-        usuarioCreacion:    params.usuarioCreacion,
-        clienteNumDoc:      params.clienteNumDoc,
-        limit:              params.limit,
-        formato,
-      })
-      await descargarBlob(url, titulo, formato)
-      showToast(`${formato === 'pdf' ? 'PDF' : 'Excel'} descargado correctamente`, 'success')
-    } catch {
-      showToast('Error al generar el reporte', 'error')
-    } finally {
-      setLoadingExcelListado(false)
     }
   }, [accessToken])
 
@@ -332,12 +273,12 @@ export const useReportesAvanzados = (): UseReportesAvanzadosReturn => {
   }, [accessToken])
 
   return {
-    listado, productosTop, mediosPago,
-    loadingListado, loadingProductos, loadingMedios,
-    loadingExcelListado, loadingExcelProductos, loadingExcelMedios,
+    productosTop, mediosPago,
+    loadingProductos, loadingMedios,
+    loadingExcelProductos, loadingExcelMedios,
     loadingExcelControlCaja, loadingTicketControlCaja, loadingPdfTicketControlCaja,
-    fetchListado, fetchProductosTop, fetchMediosPago,
-    descargarExcelListado, descargarExcelProductos,
+    fetchProductosTop, fetchMediosPago,
+    descargarExcelProductos,
     descargarExcelMedios, descargarExcelControlCaja,
     descargarTicketControlCaja, descargarPdfTicketControlCaja,
   }

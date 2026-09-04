@@ -1,6 +1,8 @@
 export interface RendimientoVentas {
   fecha: string
   totalVentas: number
+  totalNotasVenta: number
+  totalComision: number
 }
 
 export interface ComprobanteReciente {

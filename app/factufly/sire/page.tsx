@@ -8,6 +8,7 @@ import { useSirePeriodos } from "./gestionSire/useSirePeriodos";
 import { useSireHistorial } from "./gestionSire/useSireHistorial";
 import { SireEjercicioDto, SirePeriodoDto } from "./gestionSire/types";
 import { PeriodoWorkspace, type PeriodoWorkspaceHandle } from "@/app/components/sire/PeriodoWorkspace";
+import { RceWorkspace } from "@/app/components/sire/RceWorkspace";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -67,7 +68,7 @@ export default function SirePage() {
   const [ejercicios, setEjercicios] = useState<SireEjercicioDto[]>([]);
   const [anioSel, setAnioSel] = useState<string | null>(null);
   const [mesSel, setMesSel] = useState<string | null>(null);
-  const [pageTab, setPageTab] = useState<"consultar" | "historial">("consultar");
+  const [pageTab, setPageTab] = useState<"rvie" | "rce" | "historial">("rvie");
   const workspaceRef = useRef<PeriodoWorkspaceHandle>(null);
 
   const { loading: loadingPeriodos, consultarPeriodos } = useSirePeriodos();
@@ -131,13 +132,14 @@ export default function SirePage() {
         </div>
       )}
 
-      {/* Tabs a nivel de página: Consultar / Historial */}
+      {/* Tabs a nivel de página: SIRE RVIE / SIRE RCE / Historial */}
       <div className="flex items-center justify-between border-b border-gray-200">
         <div className="flex items-center gap-1">
           {([
-            { id: "consultar", label: "Consultar", icon: CalendarDays },
+            { id: "rvie", label: "Registro de Ventas", icon: CalendarDays },
+            { id: "rce", label: "Registro de Compras", icon: FileStack },
             { id: "historial", label: "Historial de Cierres", icon: History },
-          ] as { id: "consultar" | "historial"; label: string; icon: typeof CalendarDays }[]).map((t) => (
+          ] as { id: "rvie" | "rce" | "historial"; label: string; icon: typeof CalendarDays }[]).map((t) => (
             <button
               key={t.id}
               onClick={() => setPageTab(t.id)}
@@ -159,7 +161,7 @@ export default function SirePage() {
           ))}
         </div>
 
-        {pageTab === "consultar" && (
+        {pageTab === "rvie" && (
           <button
             onClick={cargarPeriodos}
             disabled={loadingPeriodos}
@@ -171,7 +173,7 @@ export default function SirePage() {
         )}
       </div>
 
-      {pageTab === "consultar" && (
+      {pageTab === "rvie" && (
         <div className="space-y-3">
           {/* Selector Año / Mes */}
           <Card className="p-0 rounded-2xl overflow-hidden">
@@ -269,6 +271,8 @@ export default function SirePage() {
           )}
         </div>
       )}
+
+      {pageTab === "rce" && <RceWorkspace ruc={rucEmpresa} nombreEmpresa={user?.nombreEmpresa ?? null} />}
 
       {pageTab === "historial" && (
         <Card className="p-0 rounded-2xl overflow-hidden">

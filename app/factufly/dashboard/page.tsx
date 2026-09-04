@@ -404,12 +404,10 @@ export default function DashboardPage() {
       const encontrado = (dashboard?.rendimientoVentas ?? []).find((r) =>
         r.fecha.startsWith(fechaStr),
       );
-      // ── El último punto (día seleccionado) suma NV (si el toggle está activo)
-      // y la comisión POS, igual que el KPI "Ventas del Día" ──
-      const extraNV = i === 0 && incluirNV && hayNV
-        ? (dashboard?.totalNotasVentaDelDia ?? 0)
-        : 0;
-      const extraComision = i === 0 ? (dashboard?.totalComisionTarjetaDelDia ?? 0) : 0;
+      // ── Cada punto suma NV (si el toggle está activo) y comisión POS de
+      // ese mismo día, igual que el KPI "Ventas del Día" del día seleccionado ──
+      const extraNV = incluirNV ? (encontrado?.totalNotasVenta ?? 0) : 0;
+      const extraComision = encontrado?.totalComision ?? 0;
       dias.push({
         name: d.toLocaleDateString("es-PE", {
           weekday: "short",
