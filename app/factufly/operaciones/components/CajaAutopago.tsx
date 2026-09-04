@@ -4122,14 +4122,14 @@ export function CajaAutopagoVista({
                 <button
                   type="button"
                   onClick={togglePagoDividido}
-                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer border-2 ${
+                  className={`inline-flex items-center gap-2 px-2 py-1 rounded-lg text-[11px] font-bold transition-all shadow-xs cursor-pointer border-2 ${
                     pagoDividido
                       ? "border-brand-blue bg-brand-blue text-white shadow-md ring-2 ring-brand-blue/20"
                       : "border-brand-blue/40 bg-blue-50/80 text-brand-blue hover:bg-brand-blue hover:text-white hover:border-brand-blue"
                   }`}
                 >
                   <Columns3 className="w-4 h-4 shrink-0" />
-                  <span>Pago dividido</span>
+                  <span>Pago Dividido</span>
                   {pagoDividido && (
                     <span className="rounded bg-white/25 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
                       Activo
