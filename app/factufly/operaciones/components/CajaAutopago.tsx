@@ -78,6 +78,7 @@ import { cacheProductos } from "@/lib/offline/offlineDb";
 import ModalAjustarStockRapido from "@/app/factufly/operaciones/components/ModalAjustarStockRapido";
 import ModalCrearProductoRapido from "@/app/factufly/operaciones/components/ModalCrearProductoRapido";
 import VentasRapidas from "@/app/factufly/operaciones/components/VentasRapidas";
+import { iniciarEmisionSegundoPlano, terminarEmisionSegundoPlano } from "@/lib/eventosCaja";
 
 interface MedioPagoOpcion {
   nombre: string;
@@ -2592,12 +2593,17 @@ export function CajaAutopagoVista({
       ? prepararNotaVenta()
       : prepararComprobante(tipoComprobante === "Factura" ? "01" : "03");
 
+    const totalVenta = totales.total;
+
     // Descontar stock local y registrar venta de inmediato en la UI
     actualizarStockLocalTrasVenta();
     registrarVentaReciente(itemsVendidos);
 
     // CERRAR MODAL Y PREPARAR LA CAJA AL INSTANTE PARA EL SIGUIENTE CLIENTE
     nuevaVenta();
+
+    const procesoId = Math.random().toString(36).substring(2, 9);
+    iniciarEmisionSegundoPlano({ id: procesoId, tipo: tipoComprobanteVenta, total: totalVenta, conImpresion });
 
     // Proceso de emisión en segundo plano (sin bloquear la caja)
     void (async () => {
@@ -2650,6 +2656,8 @@ export function CajaAutopagoVista({
         if (/insuficiente|no encontrado|no existe|sin stock|stock/i.test(`${mensaje} ${detalle ?? ""}`)) {
           fetchProductosSucursal().catch(() => {});
         }
+      } finally {
+        terminarEmisionSegundoPlano(procesoId);
       }
     })();
   };
