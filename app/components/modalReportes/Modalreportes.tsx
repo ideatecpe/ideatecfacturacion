@@ -32,13 +32,11 @@ interface ModalReportesProps {
   sucursales: Sucursal[];
   isSuperAdmin: boolean;
   puedeVerUsuarios: boolean;
-  loadingExcelListado: boolean;
   loadingExcelProductos: boolean;
   loadingExcelMedios: boolean;
   loadingExcelControlCaja: boolean;
   loadingTicketControlCaja: boolean;
   loadingPdfTicketControlCaja: boolean;
-  onDescargarListado: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
   onDescargarProductos: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
   onDescargarMedios: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
   onDescargarControlCaja: (filtros: FiltrosReporteModal, formato: FormatoReporte) => Promise<void>;
@@ -136,16 +134,16 @@ function ReporteBtn({ icon: Icon, label, descripcion, loading, onClick, color, b
 export function ModalReportes({
   abierto, onCerrar, filtros, onSetFiltro, onResetFiltros,
   usuarios, sucursales, isSuperAdmin, puedeVerUsuarios,
-  loadingExcelListado, loadingExcelProductos, loadingExcelMedios, loadingExcelControlCaja,
+  loadingExcelProductos, loadingExcelMedios, loadingExcelControlCaja,
   loadingTicketControlCaja, loadingPdfTicketControlCaja,
-  onDescargarListado, onDescargarProductos, onDescargarMedios, onDescargarControlCaja,
+  onDescargarProductos, onDescargarMedios, onDescargarControlCaja,
   onDescargarTicket, onDescargarPdfTicket,
 }: ModalReportesProps) {
 
   const { config } = useConfiguracion();
   const [formato, setFormato] = useState<FormatoReporte>('excel');
 
-  const hayDescarga = loadingExcelListado || loadingExcelProductos || loadingExcelMedios || loadingExcelControlCaja || loadingTicketControlCaja;
+  const hayDescarga = loadingExcelProductos || loadingExcelMedios || loadingExcelControlCaja || loadingTicketControlCaja;
 
   const hoy       = getHoyString();
   const lunes     = getLunesString();
@@ -435,16 +433,6 @@ export function ModalReportes({
 
                   {/* 4 reportes con formato seleccionado */}
                   <div className="flex gap-2 mb-2">
-                    {/* Libro Contable 
-                    <ReporteBtn
-                      icon={formato === 'pdf' ? FileBarChart2 : FileSpreadsheet}
-                      label="Libro Contable"
-                      descripcion="Comprobantes aceptados con detalle"
-                      loading={loadingExcelListado}
-                      onClick={() => onDescargarListado(filtros, formato)}
-                      color="border-blue-100 hover:border-blue-300 hover:bg-blue-50/50 text-blue-600"
-                    />
-                    */}
                     <ReporteBtn
                       icon={formato === 'pdf' ? FileBarChart2 : FileSpreadsheet}
                       label="Control de Caja"

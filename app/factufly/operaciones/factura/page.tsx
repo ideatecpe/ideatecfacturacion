@@ -1366,7 +1366,7 @@ function FacturaContent() {
       });
     }
     if (aplicarDetraccion) {
-      legends.push({ code: "2006", value: "Operación sujeta a detracción" });
+      legends.push({ code: "2006", value: "Operación sujeta al SPOT con el Gobierno Central" });
     }
     const montoCredito =
       factura.tipoPago === "CreditoInicial"

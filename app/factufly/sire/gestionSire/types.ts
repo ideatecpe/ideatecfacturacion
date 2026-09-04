@@ -116,6 +116,35 @@ export interface SireEditarTipoCambioResponse {
   mensaje: string | null;
 }
 
+// RCE (Registro de Compras Electrónico): comprobantes que otras empresas emitieron a favor del RUC consultado.
+// Solo consulta/descarga (no forma parte del flujo de aceptar propuesta / cerrar mes, exclusivo de RVIE).
+export interface SireComprobanteCompraDto {
+  rucProveedor: string | null;
+  razonSocialProveedor: string | null;
+  periodo: string | null;
+  carSunat: string | null;
+  fechaEmision: string | null;
+  tipoComprobante: string | null;
+  serie: string | null;
+  numero: string | null;
+  baseImponible: number;
+  igv: number;
+  mtoExonerado: number;
+  mtoInafecto: number;
+  importeTotal: number;
+  codMoneda: string | null;
+  tipoCambio: number | null;
+  activo: boolean;
+  inconsistencias: string | null;
+}
+
+export interface SireDescargarPropuestaComprasResponse {
+  success: boolean;
+  mensaje: string | null;
+  numTicket: string | null;
+  comprobantes: SireComprobanteCompraDto[];
+}
+
 export interface SireRegistro {
   id: number;
   rucEmpresa: string;
