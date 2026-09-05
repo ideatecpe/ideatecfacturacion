@@ -1,11 +1,16 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { RefreshCw, CalendarDays, FileWarning, FileSpreadsheet, Search, X, CheckCircle2, XCircle, Lock } from "lucide-react";
+import { RefreshCw, CalendarDays, FileWarning, FileSpreadsheet, Search, X, CheckCircle2, XCircle, Lock, Trash2, AlertTriangle } from "lucide-react";
 import ExcelJS from "exceljs";
 import { cn } from "@/app/utils/cn";
 import { Card } from "@/app/components/ui/Card";
+import { Modal } from "@/app/components/ui/Modal";
+import { Button } from "@/app/components/ui/Button";
 import { useSirePeriodosRce } from "@/app/factufly/sire/gestionSire/useSirePeriodosRce";
 import { useSireDescargarPropuestaCompras } from "@/app/factufly/sire/gestionSire/useSireDescargarPropuestaCompras";
+import { useSireAceptarPropuestaRce } from "@/app/factufly/sire/gestionSire/useSireAceptarPropuestaRce";
+import { useSireCerrarPeriodoRce } from "@/app/factufly/sire/gestionSire/useSireCerrarPeriodoRce";
+import { useSireEliminarComprobanteRce } from "@/app/factufly/sire/gestionSire/useSireEliminarComprobanteRce";
 import { SireEjercicioDto, SirePeriodoDto, SireComprobanteCompraDto } from "@/app/factufly/sire/gestionSire/types";
 
 const MESES = [
@@ -13,11 +18,69 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
+// Catálogo N° 01 SUNAT (Tipo de Comprobante de Pago o Documento)
 const TIPO_COMPROBANTE: Record<string, string> = {
+  "00": "Otros (No detallado)",
   "01": "Factura",
-  "03": "Boleta",
+  "02": "Recibo por Honorarios",
+  "03": "Boleta de Venta",
+  "04": "Liquidación de Compra",
+  "05": "Boleto de Compañía de Aviación",
+  "06": "Carta de Porte Aéreo",
   "07": "Nota de Crédito",
   "08": "Nota de Débito",
+  "09": "Guía de Remisión - Remitente",
+  "10": "Recibo por Arrendamiento",
+  "11": "Póliza de la Bolsa de Valores/Productos",
+  "12": "Ticket de Máquina Registradora",
+  "13": "Documento de Bancos/Financieras/Seguros",
+  "14": "Recibo por Servicios Públicos (Luz, Agua, Teléfono)",
+  "15": "Boleto de Transporte Público Urbano",
+  "16": "Boleto de Transporte Interprovincial",
+  "17": "Documento Iglesia Católica (Arrendamiento)",
+  "18": "Documento AFP",
+  "19": "Boleto de Espectáculos Públicos",
+  "20": "Comprobante de Retención",
+  "21": "Conocimiento de Embarque",
+  "22": "Comprobante por Operaciones No Habituales",
+  "23": "Póliza de Adjudicación",
+  "24": "Certificado de Pago de Regalías (PERUPETRO)",
+  "25": "Documento de Atribución",
+  "26": "Recibo Tarifa Uso de Agua",
+  "27": "Seguro Complementario de Trabajo de Riesgo",
+  "28": "Tarifa Unificada de Uso de Aeropuerto",
+  "29": "Documento de Empresas Adquirentes (Tarjetas)",
+  "30": "Comprobante de Transportistas",
+  "31": "Guía de Remisión - Transportista",
+  "32": "Documento de Garantía de Red Principal",
+  "33": "Documento de Revisiones Técnicas Vehiculares",
+  "34": "Documento del Operador",
+  "35": "Documento del Partícipe",
+  "36": "Recibo de Distribución de Gas Natural",
+  "37": "Documento de Atribución (Regalía Minera)",
+  "40": "Constancia de Depósito de Detracción",
+  "41": "Comprobante de Operaciones - Ley N° 29972",
+  "42": "Documento por Venta de Paquetes Turísticos",
+  "43": "Documento de Concesionarios de Peaje",
+  "44": "Documento de Concesionarios (Otros)",
+  "45": "Boleto de Viaje",
+  "48": "Comprobante de Pago SEAE",
+  "49": "Constancia de Prestación de Servicios",
+  "50": "Declaración Única de Aduanas - Importación",
+  "52": "Despacho Simplificado - Importación",
+  "53": "Liquidación de Cobranza",
+  "54": "Boleto de Transporte Ferroviario",
+  "55": "Boleto de Viaje - Transporte Ferroviario",
+  "56": "Recibo de Servicios de Telecomunicaciones",
+  "57": "Póliza de Adjudicación de Bienes Remisos",
+  "80": "CDR - Constancia de Recepción",
+  "87": "Nota de Crédito Especial",
+  "88": "Nota de Débito Especial",
+  "91": "Comprobante de No Domiciliado",
+  "96": "Exceso de Percepción de Bienes",
+  "97": "Nota de Crédito - No Domiciliado",
+  "98": "Nota de Débito - No Domiciliado",
+  "99": "Otros",
 };
 
 function formatPeriodoLabel(perTributario: string): string {
@@ -234,9 +297,11 @@ type Tab = "resumen" | "propuesta" | "acciones";
 interface Props {
   ruc: string;
   nombreEmpresa?: string | null;
+  canManage?: boolean;
+  onAccionExitosa?: () => void;
 }
 
-export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
+export function RceWorkspace({ ruc, nombreEmpresa, canManage = false, onAccionExitosa }: Props) {
   const [tab, setTab] = useState<Tab>("resumen");
   const [ejercicios, setEjercicios] = useState<SireEjercicioDto[]>([]);
   const [anioSel, setAnioSel] = useState<string | null>(null);
@@ -246,9 +311,17 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
   const [busqueda, setBusqueda] = useState("");
   const [filtroFecha, setFiltroFecha] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
+  const [confirmando, setConfirmando] = useState<"aceptar" | "cerrar" | null>(null);
+  const [comprobanteAEliminar, setComprobanteAEliminar] = useState<SireComprobanteCompraDto | null>(null);
+  const [destinoEliminar, setDestinoEliminar] = useState<"propuesta" | "preliminar">("propuesta");
+  const [propuestaAceptadaLocal, setPropuestaAceptadaLocal] = useState(false);
+  const [periodoCerradoLocal, setPeriodoCerradoLocal] = useState(false);
 
   const { loading: loadingPeriodos, consultarPeriodosRce } = useSirePeriodosRce();
   const { loading: cargandoPropuesta, descargarPropuestaCompras } = useSireDescargarPropuestaCompras();
+  const { loading: aceptando, aceptarPropuestaRce } = useSireAceptarPropuestaRce();
+  const { loading: cerrando, cerrarPeriodoRce } = useSireCerrarPeriodoRce();
+  const { loading: eliminando, eliminarComprobanteRce } = useSireEliminarComprobanteRce();
 
   const cargarPeriodos = useCallback(async () => {
     if (!ruc) return;
@@ -270,6 +343,8 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
     setFiltroFecha("");
     setFiltroTipo("");
     setTab("resumen");
+    setPropuestaAceptadaLocal(false);
+    setPeriodoCerradoLocal(false);
   }, [ruc, mesSel]);
 
   const periodosDelAnio = useMemo(
@@ -297,6 +372,47 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
       setError(data?.mensaje ?? "No se pudo generar la propuesta de compras");
     }
   }, [ruc, periodoActivo, descargarPropuestaCompras]);
+
+  const confirmarAceptar = async () => {
+    if (!periodoActivo?.periodo) return;
+    setConfirmando(null);
+    const resultado = await aceptarPropuestaRce(ruc, periodoActivo.periodo);
+    if (resultado?.success) setPropuestaAceptadaLocal(true);
+    cargarPeriodos();
+    onAccionExitosa?.();
+  };
+
+  const confirmarCerrar = async () => {
+    if (!periodoActivo?.periodo) return;
+    setConfirmando(null);
+    const resultado = await cerrarPeriodoRce(ruc, periodoActivo.periodo);
+    if (resultado?.success) setPeriodoCerradoLocal(true);
+    cargarPeriodos();
+    onAccionExitosa?.();
+  };
+
+  const confirmarEliminar = async () => {
+    if (!comprobanteAEliminar || !periodoActivo?.periodo) return;
+    const c = comprobanteAEliminar;
+    setComprobanteAEliminar(null);
+    const resultado = await eliminarComprobanteRce(ruc, periodoActivo.periodo, destinoEliminar === "preliminar", {
+      numSerieCDP: c.serie ?? "",
+      numCDP: c.numero ?? "",
+      codCar: c.carSunat ?? "",
+      codTipoCDP: c.tipoComprobante ?? "",
+    });
+    if (resultado?.success) {
+      setComprobantes((prev) => prev?.filter((x) => x !== c) ?? null);
+    }
+    onAccionExitosa?.();
+  };
+
+  // SUNAT es la fuente de verdad más confiable: si el periodo ya figura "Presentado" allá, la propuesta
+  // de compras fue aceptada y el mes cerrado sí o sí (haya pasado o no por nuestro sistema). El estado
+  // local (propuestaAceptadaLocal/periodoCerradoLocal) solo complementa dentro de la misma sesión.
+  const presentadoEnSunat = (periodoActivo?.estado ?? "").trim().toLowerCase() === "presentado";
+  const periodoCerrado = periodoCerradoLocal || presentadoEnSunat;
+  const propuestaAceptada = periodoCerrado || propuestaAceptadaLocal;
 
   const activos = comprobantes?.filter((c) => c.activo) ?? [];
   const conInconsistencias = comprobantes?.filter((c) => !!c.inconsistencias) ?? [];
@@ -336,15 +452,17 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
   const comprobantesFiltrados = useMemo(() => {
     if (!comprobantes) return [];
     const q = busqueda.trim().toLowerCase();
-    return comprobantes.filter((c) => {
-      if (filtroTipo && c.tipoComprobante !== filtroTipo) return false;
-      if (filtroFecha && fechaAIso(c.fechaEmision) !== filtroFecha) return false;
-      if (q) {
-        const campos = [c.serie, c.numero, c.rucProveedor, c.razonSocialProveedor].map((v) => (v ?? "").toLowerCase());
-        if (!campos.some((v) => v.includes(q))) return false;
-      }
-      return true;
-    });
+    return comprobantes
+      .filter((c) => {
+        if (filtroTipo && c.tipoComprobante !== filtroTipo) return false;
+        if (filtroFecha && fechaAIso(c.fechaEmision) !== filtroFecha) return false;
+        if (q) {
+          const campos = [c.serie, c.numero, c.rucProveedor, c.razonSocialProveedor].map((v) => (v ?? "").toLowerCase());
+          if (!campos.some((v) => v.includes(q))) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => fechaAIso(b.fechaEmision).localeCompare(fechaAIso(a.fechaEmision)));
   }, [comprobantes, busqueda, filtroFecha, filtroTipo]);
 
   const totalesTabla = comprobantesFiltrados.reduce(
@@ -639,6 +757,7 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
                           {hayInafecto && <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Inafecto</th>}
                           <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-right">Total</th>
                           <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center">Estado</th>
+                          {canManage && <th className="px-4 py-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider text-center">Opciones</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">
@@ -655,7 +774,7 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
                               )}
                             </td>
                             <td className="px-4 py-2">
-                              <p className="text-xs font-medium text-gray-900 truncate max-w-52">{c.razonSocialProveedor ?? "—"}</p>
+                              <p className="text-xs font-medium text-gray-900 break-words">{c.razonSocialProveedor ?? "—"}</p>
                               <p className="text-[10px] text-gray-400">{c.rucProveedor ?? "—"}</p>
                             </td>
                             <td className="px-4 py-2 text-xs text-gray-700 text-right whitespace-nowrap">{formatMoneda(c.baseImponible, c.codMoneda)}</td>
@@ -674,6 +793,21 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
                                 </span>
                               )}
                             </td>
+                            {canManage && (
+                              <td className="px-4 py-2 text-center">
+                                <button
+                                  onClick={() => {
+                                    setComprobanteAEliminar(c);
+                                    setDestinoEliminar(propuestaAceptada ? "preliminar" : "propuesta");
+                                  }}
+                                  disabled={periodoCerrado}
+                                  title={periodoCerrado ? "El mes ya fue presentado; usa Ajustes Posteriores (pendiente de implementar)" : "Eliminar comprobante"}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -688,6 +822,7 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
                           {hayInafecto && <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTablaInafecto, null)}</td>}
                           <td className="px-4 py-2 text-xs text-gray-900 text-right whitespace-nowrap">{formatMoneda(totalesTabla.total, null)}</td>
                           <td className="px-4 py-2" />
+                          {canManage && <td className="px-4 py-2" />}
                         </tr>
                       </tfoot>
                     </table>
@@ -696,64 +831,217 @@ export function RceWorkspace({ ruc, nombreEmpresa }: Props) {
               </div>
             )}
 
-            {/* Acciones (aún no implementado en el backend para RCE: botones de referencia, sin funcionalidad) */}
+            {/* Acciones */}
             {tab === "acciones" && (
               <div className="max-w-md">
-                <div className="flex items-center gap-2.5 px-4 py-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl">
-                  <Lock className="w-4 h-4 text-amber-500 shrink-0" />
-                  <p className="text-xs text-amber-700 font-medium">
-                    Aceptar la propuesta de compras (RCE) aún no está disponible en el sistema. Estos botones son una referencia de lo que vendrá más adelante.
-                  </p>
-                </div>
+                {!canManage && (
+                  <div className="flex items-center gap-2.5 px-4 py-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                    <p className="text-xs text-amber-700 font-medium">
+                      Solo un administrador puede aceptar propuestas o cerrar periodos de compras.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-1 mb-5">
                   <div className="flex flex-col items-center gap-2">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 shrink-0 bg-white border-gray-300 text-gray-400">
-                      1
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 shrink-0",
+                        propuestaAceptada
+                          ? "bg-blue-600 border-blue-600 text-white"
+                          : "bg-white border-blue-600 text-blue-600",
+                      )}
+                    >
+                      {propuestaAceptada ? <CheckCircle2 size={16} /> : "1"}
                     </div>
-                    <p className="text-xs font-semibold text-center text-gray-400">Aceptar propuesta</p>
+                    <p className={cn("text-xs font-semibold text-center", propuestaAceptada ? "text-blue-700" : "text-gray-700")}>
+                      Aceptar propuesta
+                    </p>
                   </div>
 
-                  <div className="h-0.5 w-8 mt-[18px] bg-gray-200" />
+                  <div className={cn("h-0.5 w-8 mt-[18px]", propuestaAceptada ? "bg-blue-600" : "bg-gray-200")} />
 
                   <div className="flex flex-col items-center gap-2">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 shrink-0 bg-white border-gray-300 text-gray-400">
-                      2
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 shrink-0",
+                        periodoCerrado
+                          ? "bg-emerald-600 border-emerald-600 text-white"
+                          : propuestaAceptada
+                            ? "bg-white border-emerald-600 text-emerald-600"
+                            : "bg-white border-gray-300 text-gray-400",
+                      )}
+                    >
+                      {periodoCerrado ? <CheckCircle2 size={16} /> : "2"}
                     </div>
-                    <p className="text-xs font-semibold text-center text-gray-400">Cerrar mes</p>
+                    <p
+                      className={cn(
+                        "text-xs font-semibold text-center",
+                        periodoCerrado ? "text-emerald-700" : propuestaAceptada ? "text-emerald-700" : "text-gray-400",
+                      )}
+                    >
+                      Cerrar mes
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-1">
                   <button
-                    disabled
-                    title="Próximamente"
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-gray-400 bg-gray-100 rounded-xl cursor-not-allowed"
+                    onClick={() => setConfirmando("aceptar")}
+                    disabled={!canManage || aceptando || cerrando || propuestaAceptada}
+                    title={propuestaAceptada ? "La propuesta de este periodo ya fue aceptada" : undefined}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors"
                   >
-                    <CheckCircle2 size={14} />
-                    Aceptar
+                    {aceptando ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    {propuestaAceptada ? "Aceptada" : "Aceptar"}
                   </button>
 
                   <div className="w-8" />
 
                   <button
-                    disabled
-                    title="Próximamente"
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-gray-400 bg-gray-100 rounded-xl cursor-not-allowed"
+                    onClick={() => setConfirmando("cerrar")}
+                    disabled={!canManage || aceptando || cerrando || !propuestaAceptada || periodoCerrado}
+                    title={
+                      periodoCerrado
+                        ? "El mes ya fue cerrado"
+                        : !propuestaAceptada
+                          ? "Primero debes aceptar la propuesta"
+                          : undefined
+                    }
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors"
                   >
-                    <Lock size={14} />
-                    Cerrar mes
+                    {cerrando ? <RefreshCw size={14} className="animate-spin" /> : <Lock size={14} />}
+                    {periodoCerrado ? "Cerrado" : "Cerrar mes"}
                   </button>
                 </div>
 
-                <p className="text-xs text-gray-400 text-center mt-3">
-                  Próximamente: aceptar propuesta y cerrar mes para el Registro de Compras.
-                </p>
+                {!propuestaAceptada && (
+                  <p className="text-xs text-gray-400 text-center mt-3">
+                    Primero acepta la propuesta para poder cerrar el mes.
+                  </p>
+                )}
               </div>
             )}
           </div>
         </div>
       )}
+
+      {/* Confirmación: Aceptar propuesta de compras */}
+      <Modal
+        isOpen={confirmando === "aceptar"}
+        onClose={() => setConfirmando(null)}
+        title="Confirmar aceptación de propuesta de compras"
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertTriangle size={18} className="text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-blue-800">¿Aceptar la propuesta de compras de SUNAT?</p>
+              <p className="text-xs text-blue-700 mt-0.5">
+                Se aceptará la propuesta de compras del periodo <strong>{formatPeriodoLabel(periodoActivo?.periodo ?? "")}</strong> ({periodoActivo?.periodo}) para el RUC <strong>{ruc}</strong> directamente en producción de SUNAT.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setConfirmando(null)}>Cancelar</Button>
+            <Button onClick={confirmarAceptar}>
+              <CheckCircle2 size={14} /> Aceptar propuesta
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirmación: Cerrar mes de compras */}
+      <Modal
+        isOpen={confirmando === "cerrar"}
+        onClose={() => setConfirmando(null)}
+        title="Confirmar cierre de periodo de compras"
+      >
+        <div className="space-y-4">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertTriangle size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-emerald-800">¿Cerrar este periodo de compras?</p>
+              <p className="text-xs text-emerald-700 mt-0.5">
+                Se registrará el preliminar del periodo <strong>{formatPeriodoLabel(periodoActivo?.periodo ?? "")}</strong> ({periodoActivo?.periodo}) para el RUC <strong>{ruc}</strong> directamente en producción de SUNAT. Esta acción puede tardar hasta un minuto.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setConfirmando(null)}>Cancelar</Button>
+            <button
+              onClick={confirmarCerrar}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors"
+            >
+              <Lock size={14} /> Cerrar mes
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirmación: Eliminar comprobante de compra */}
+      <Modal
+        isOpen={!!comprobanteAEliminar}
+        onClose={() => setComprobanteAEliminar(null)}
+        title="Confirmar eliminación de comprobante"
+      >
+        <div className="space-y-4">
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-rose-800">
+                ¿Eliminar {comprobanteAEliminar?.serie}-{comprobanteAEliminar?.numero}?
+              </p>
+              <p className="text-xs text-rose-700 mt-0.5">
+                Se eliminará directamente en producción de SUNAT para el RUC <strong>{ruc}</strong>, periodo <strong>{formatPeriodoLabel(periodoActivo?.periodo ?? "")}</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-500">¿Dónde está este periodo actualmente?</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDestinoEliminar("propuesta")}
+                disabled={propuestaAceptada}
+                title={propuestaAceptada ? "La propuesta ya fue aceptada, ya no está disponible" : undefined}
+                className={cn(
+                  "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                  destinoEliminar === "propuesta" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
+                )}
+              >
+                En propuesta (aún no cerré el mes)
+              </button>
+              <button
+                onClick={() => setDestinoEliminar("preliminar")}
+                className={cn(
+                  "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors",
+                  destinoEliminar === "preliminar" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
+                )}
+              >
+                Ya cerré el mes (preliminar)
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400">
+              {propuestaAceptada
+                ? "Como la propuesta ya fue aceptada, la eliminación se hará sobre el preliminar."
+                : 'Si ya aceptaste la propuesta pero aún no le diste a "Cerrar mes", sigues en propuesta.'}
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setComprobanteAEliminar(null)}>Cancelar</Button>
+            <button
+              onClick={confirmarEliminar}
+              disabled={eliminando}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-xl transition-colors"
+            >
+              {eliminando ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />} Eliminar
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

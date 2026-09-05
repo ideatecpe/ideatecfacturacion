@@ -26,11 +26,69 @@ import { useSireImportarComprobante } from "@/app/factufly/sire/gestionSire/useS
 import { useSireEditarTipoCambio } from "@/app/factufly/sire/gestionSire/useSireEditarTipoCambio";
 import { SireComprobanteDto, SireComprobanteNuevoDto } from "@/app/factufly/sire/gestionSire/types";
 
+// Catálogo N° 01 SUNAT (Tipo de Comprobante de Pago o Documento)
 const TIPO_COMPROBANTE: Record<string, string> = {
+  "00": "Otros (No detallado)",
   "01": "Factura",
-  "03": "Boleta",
+  "02": "Recibo por Honorarios",
+  "03": "Boleta de Venta",
+  "04": "Liquidación de Compra",
+  "05": "Boleto de Compañía de Aviación",
+  "06": "Carta de Porte Aéreo",
   "07": "Nota de Crédito",
   "08": "Nota de Débito",
+  "09": "Guía de Remisión - Remitente",
+  "10": "Recibo por Arrendamiento",
+  "11": "Póliza de la Bolsa de Valores/Productos",
+  "12": "Ticket de Máquina Registradora",
+  "13": "Documento de Bancos/Financieras/Seguros",
+  "14": "Recibo por Servicios Públicos (Luz, Agua, Teléfono)",
+  "15": "Boleto de Transporte Público Urbano",
+  "16": "Boleto de Transporte Interprovincial",
+  "17": "Documento Iglesia Católica (Arrendamiento)",
+  "18": "Documento AFP",
+  "19": "Boleto de Espectáculos Públicos",
+  "20": "Comprobante de Retención",
+  "21": "Conocimiento de Embarque",
+  "22": "Comprobante por Operaciones No Habituales",
+  "23": "Póliza de Adjudicación",
+  "24": "Certificado de Pago de Regalías (PERUPETRO)",
+  "25": "Documento de Atribución",
+  "26": "Recibo Tarifa Uso de Agua",
+  "27": "Seguro Complementario de Trabajo de Riesgo",
+  "28": "Tarifa Unificada de Uso de Aeropuerto",
+  "29": "Documento de Empresas Adquirentes (Tarjetas)",
+  "30": "Comprobante de Transportistas",
+  "31": "Guía de Remisión - Transportista",
+  "32": "Documento de Garantía de Red Principal",
+  "33": "Documento de Revisiones Técnicas Vehiculares",
+  "34": "Documento del Operador",
+  "35": "Documento del Partícipe",
+  "36": "Recibo de Distribución de Gas Natural",
+  "37": "Documento de Atribución (Regalía Minera)",
+  "40": "Constancia de Depósito de Detracción",
+  "41": "Comprobante de Operaciones - Ley N° 29972",
+  "42": "Documento por Venta de Paquetes Turísticos",
+  "43": "Documento de Concesionarios de Peaje",
+  "44": "Documento de Concesionarios (Otros)",
+  "45": "Boleto de Viaje",
+  "48": "Comprobante de Pago SEAE",
+  "49": "Constancia de Prestación de Servicios",
+  "50": "Declaración Única de Aduanas - Importación",
+  "52": "Despacho Simplificado - Importación",
+  "53": "Liquidación de Cobranza",
+  "54": "Boleto de Transporte Ferroviario",
+  "55": "Boleto de Viaje - Transporte Ferroviario",
+  "56": "Recibo de Servicios de Telecomunicaciones",
+  "57": "Póliza de Adjudicación de Bienes Remisos",
+  "80": "CDR - Constancia de Recepción",
+  "87": "Nota de Crédito Especial",
+  "88": "Nota de Débito Especial",
+  "91": "Comprobante de No Domiciliado",
+  "96": "Exceso de Percepción de Bienes",
+  "97": "Nota de Crédito - No Domiciliado",
+  "98": "Nota de Débito - No Domiciliado",
+  "99": "Otros",
 };
 
 function formatMoneda(valor: number, moneda: string | null) {
@@ -43,6 +101,19 @@ function fechaAIso(fecha: string | null): string {
   const [d, m, y] = fecha.split("/");
   if (!d || !m || !y) return "";
   return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+// dd/mm/aaaa (formato SUNAT) <-> aaaa-mm-dd (formato de <input type="date">)
+function dmyAIso(fecha: string): string {
+  const [d, m, y] = fecha.split("/");
+  if (!d || !m || !y || y.length !== 4) return "";
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+function isoADmy(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  if (!d || !m || !y) return "";
+  return `${d}/${m}/${y}`;
 }
 
 function formatPeriodoLabel(perTributario: string): string {
@@ -367,7 +438,11 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
     onAccionExitosa();
   };
 
-  const periodoCerrado = estadoLocal === "CERRADO";
+  // SUNAT es la fuente de verdad más confiable: si el periodo ya figura "Presentado" allá, la propuesta
+  // fue aceptada y el mes cerrado sí o sí (haya pasado o no por nuestro sistema). El estado local
+  // (estadoLocal, de sire_registro) solo complementa cuando el historial propio aún no tiene ese dato.
+  const presentadoEnSunat = (estadoSunat ?? "").trim().toLowerCase() === "presentado";
+  const periodoCerrado = estadoLocal === "CERRADO" || presentadoEnSunat;
   const propuestaAceptada = periodoCerrado || estadoLocal === "PROPUESTA_ACEPTADA";
 
   const activos = comprobantes?.filter((c) => c.activo) ?? [];
@@ -421,15 +496,17 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
   const comprobantesFiltrados = useMemo(() => {
     if (!comprobantes) return [];
     const q = busqueda.trim().toLowerCase();
-    return comprobantes.filter((c) => {
-      if (filtroTipo && c.tipoComprobante !== filtroTipo) return false;
-      if (filtroFecha && fechaAIso(c.fechaEmision) !== filtroFecha) return false;
-      if (q) {
-        const campos = [c.serie, c.numero, c.numDocCliente, c.razonSocialCliente].map((v) => (v ?? "").toLowerCase());
-        if (!campos.some((v) => v.includes(q))) return false;
-      }
-      return true;
-    });
+    return comprobantes
+      .filter((c) => {
+        if (filtroTipo && c.tipoComprobante !== filtroTipo) return false;
+        if (filtroFecha && fechaAIso(c.fechaEmision) !== filtroFecha) return false;
+        if (q) {
+          const campos = [c.serie, c.numero, c.numDocCliente, c.razonSocialCliente].map((v) => (v ?? "").toLowerCase());
+          if (!campos.some((v) => v.includes(q))) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => fechaAIso(b.fechaEmision).localeCompare(fechaAIso(a.fechaEmision)));
   }, [comprobantes, busqueda, filtroFecha, filtroTipo]);
 
   const totalesTabla = comprobantesFiltrados.reduce(
@@ -631,7 +708,9 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                 {canManage && (
                   <button
                     onClick={() => setMostrarFormAgregar(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                    disabled={periodoCerrado}
+                    title={periodoCerrado ? "El mes ya fue presentado; usa Ajustes Posteriores (pendiente de implementar)" : undefined}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
                   >
                     <Plus size={13} />
                     Agregar comprobante
@@ -689,7 +768,7 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                           )}
                         </td>
                         <td className="px-4 py-2">
-                          <p className="text-xs font-medium text-gray-900 truncate max-w-52">{c.razonSocialCliente ?? "—"}</p>
+                          <p className="text-xs font-medium text-gray-900 break-words">{c.razonSocialCliente ?? "—"}</p>
                           <p className="text-[10px] text-gray-400">{c.numDocCliente ?? "—"}</p>
                         </td>
                         <td className="px-4 py-2 text-xs text-gray-700 text-right whitespace-nowrap">{formatMoneda(c.baseImponible, c.codMoneda)}</td>
@@ -724,9 +803,13 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                                 </button>
                               )}
                               <button
-                                onClick={() => setComprobanteAEliminar(c)}
-                                title="Eliminar comprobante"
-                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                onClick={() => {
+                                  setComprobanteAEliminar(c);
+                                  setDestinoEliminar(propuestaAceptada ? "preliminar" : "propuesta");
+                                }}
+                                disabled={periodoCerrado}
+                                title={periodoCerrado ? "El mes ya fue presentado; usa Ajustes Posteriores (pendiente de implementar)" : "Eliminar comprobante"}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
                               >
                                 <Trash2 size={13} />
                               </button>
@@ -815,23 +898,30 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
             <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-1">
               <button
                 onClick={() => setConfirmando("aceptar")}
-                disabled={!canManage || aceptando || cerrando}
+                disabled={!canManage || aceptando || cerrando || propuestaAceptada}
+                title={propuestaAceptada ? "La propuesta de este periodo ya fue aceptada" : undefined}
                 className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors"
               >
                 {aceptando ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                Aceptar
+                {propuestaAceptada ? "Aceptada" : "Aceptar"}
               </button>
 
               <div className="w-8" />
 
               <button
                 onClick={() => setConfirmando("cerrar")}
-                disabled={!canManage || aceptando || cerrando || !propuestaAceptada}
-                title={!propuestaAceptada ? "Primero debes aceptar la propuesta" : undefined}
+                disabled={!canManage || aceptando || cerrando || !propuestaAceptada || periodoCerrado}
+                title={
+                  periodoCerrado
+                    ? "El mes ya fue cerrado"
+                    : !propuestaAceptada
+                      ? "Primero debes aceptar la propuesta"
+                      : undefined
+                }
                 className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors"
               >
                 {cerrando ? <RefreshCw size={14} className="animate-spin" /> : <Lock size={14} />}
-                Cerrar mes
+                {periodoCerrado ? "Cerrado" : "Cerrar mes"}
               </button>
             </div>
 
@@ -921,8 +1011,10 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
             <div className="flex gap-2">
               <button
                 onClick={() => setDestinoEliminar("propuesta")}
+                disabled={propuestaAceptada}
+                title={propuestaAceptada ? "La propuesta ya fue aceptada, ya no está disponible" : undefined}
                 className={cn(
-                  "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors",
+                  "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
                   destinoEliminar === "propuesta" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
                 )}
               >
@@ -939,7 +1031,9 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
               </button>
             </div>
             <p className="text-[11px] text-gray-400">
-              Si ya aceptaste la propuesta pero aún no le diste a &quot;Cerrar mes&quot;, sigues en propuesta.
+              {propuestaAceptada
+                ? "Como la propuesta ya fue aceptada, la eliminación se hará sobre el preliminar."
+                : 'Si ya aceptaste la propuesta pero aún no le diste a "Cerrar mes", sigues en propuesta.'}
             </p>
           </div>
 
@@ -1001,6 +1095,8 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
         onClose={() => setMostrarFormAgregar(false)}
         onSubmit={confirmarAgregar}
         loading={agregando}
+        propuestaAceptada={propuestaAceptada}
+        rangoFechaPeriodo={rangoFechaPeriodo}
       />
     </div>
   );
@@ -1056,11 +1152,15 @@ function ModalAgregarComprobante({
   onClose,
   onSubmit,
   loading,
+  propuestaAceptada,
+  rangoFechaPeriodo,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (nuevo: SireComprobanteNuevoDto, destino: "propuesta" | "preliminar") => void;
   loading: boolean;
+  propuestaAceptada: boolean;
+  rangoFechaPeriodo: { min: string; max: string } | null;
 }) {
   const vacio: SireComprobanteNuevoDto = {
     fechaEmision: "",
@@ -1082,11 +1182,11 @@ function ModalAgregarComprobante({
   useEffect(() => {
     if (isOpen) {
       setForm(vacio);
-      setDestino("propuesta");
+      setDestino(propuestaAceptada ? "preliminar" : "propuesta");
       setIntentado(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, propuestaAceptada]);
 
   const update = <K extends keyof SireComprobanteNuevoDto>(campo: K, valor: SireComprobanteNuevoDto[K]) =>
     setForm((prev) => ({ ...prev, [campo]: valor }));
@@ -1111,20 +1211,15 @@ function ModalAgregarComprobante({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Agregar comprobante no incluido en la propuesta">
       <div className="space-y-4">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
-          <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-700">
-            Se enviará directamente a producción de SUNAT (§5.4/§5.5 del manual RVIE). Verifica bien los datos antes de confirmar.
-          </p>
-        </div>
-
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-gray-500">¿Dónde agregar este comprobante?</label>
           <div className="flex gap-2">
             <button
               onClick={() => setDestino("propuesta")}
+              disabled={propuestaAceptada}
+              title={propuestaAceptada ? "La propuesta ya fue aceptada, ya no está disponible" : undefined}
               className={cn(
-                "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors",
+                "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
                 destino === "propuesta" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
               )}
             >
@@ -1141,17 +1236,20 @@ function ModalAgregarComprobante({
             </button>
           </div>
           <p className="text-[11px] text-gray-400">
-            Si ya aceptaste la propuesta pero aún no le diste a &quot;Cerrar mes&quot;, sigues en propuesta.
+            {propuestaAceptada
+              ? "Como la propuesta ya fue aceptada, el comprobante se agregará sobre el preliminar."
+              : 'Si ya aceptaste la propuesta pero aún no le diste a "Cerrar mes", sigues en propuesta.'}
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Campo label="Fecha emisión" error={err("fechaEmision")}>
             <input
-              value={form.fechaEmision}
-              onChange={(e) => update("fechaEmision", e.target.value)}
-              placeholder="dd/mm/aaaa, ej. 15/07/2026"
-              maxLength={10}
+              type="date"
+              value={dmyAIso(form.fechaEmision)}
+              onChange={(e) => update("fechaEmision", e.target.value ? isoADmy(e.target.value) : "")}
+              min={rangoFechaPeriodo?.min}
+              max={rangoFechaPeriodo?.max}
               className={inputCls(!!err("fechaEmision"))}
             />
           </Campo>
@@ -1186,12 +1284,19 @@ function ModalAgregarComprobante({
             />
           </Campo>
           <Campo label="Tipo doc. cliente" error={err("tipoDocCliente")}>
-            <input
+            <select
               value={form.tipoDocCliente ?? ""}
               onChange={(e) => update("tipoDocCliente", e.target.value)}
-              placeholder="6 = RUC, 1 = DNI"
-              className={inputCls(!!err("tipoDocCliente"))}
-            />
+              className={inputCls(!!err("tipoDocCliente")) + " bg-white"}
+            >
+              <option value="">Seleccionar...</option>
+              <option value="6">6 — RUC</option>
+              <option value="1">1 — DNI</option>
+              <option value="4">4 — Carné de Extranjería</option>
+              <option value="7">7 — Pasaporte</option>
+              <option value="0">0 — Sin documento / No domiciliado</option>
+              <option value="A">A — Cédula Diplomática</option>
+            </select>
           </Campo>
           <Campo label="Número doc. cliente" error={err("numDocCliente")}>
             <input
@@ -1274,10 +1379,10 @@ function ModalAgregarComprobante({
             <>
               <Campo label="Fecha emisión doc. modificado" error={err("fechaEmisionDocModificado")}>
                 <input
-                  value={form.fechaEmisionDocModificado ?? ""}
-                  onChange={(e) => update("fechaEmisionDocModificado", e.target.value)}
-                  placeholder="dd/mm/aaaa"
-                  maxLength={10}
+                  type="date"
+                  value={dmyAIso(form.fechaEmisionDocModificado ?? "")}
+                  onChange={(e) => update("fechaEmisionDocModificado", e.target.value ? isoADmy(e.target.value) : "")}
+                  max={rangoFechaPeriodo?.max}
                   className={inputCls(!!err("fechaEmisionDocModificado"))}
                 />
               </Campo>
