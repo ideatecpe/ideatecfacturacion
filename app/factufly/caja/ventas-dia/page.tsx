@@ -16,10 +16,12 @@ import {
   RotateCcw,
   Minus,
   Plus,
+  Printer,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useToast } from "@/app/components/ui/Toast";
+import { imprimirHtmlConAgente } from "@/lib/impresion/agente";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { fmtMonto } from "@/app/components/ui/formatoFecha";
@@ -188,6 +190,87 @@ export default function VentasDelDiaPage() {
       showToast(mensaje, "error");
     } finally {
       setAnulandoNV(false);
+    }
+  };
+
+  // ── Imprimir (reimpresión, sin cobrar) ──────────────────────────
+  // Misma ruta que "cobrar e imprimir": HTML del backend (trae logo, QR SUNAT
+  // y redacción legal) impreso por el agente local si está disponible, o si
+  // no por el diálogo del navegador. Solo reimprime — no vuelve a emitir nada.
+  const [imprimiendo, setImprimiendo] = useState(false);
+
+  const imprimirHtmlNavegador = (html: string) => {
+    try {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const blobUrl = URL.createObjectURL(blob);
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText =
+        "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
+
+      let impreso = false;
+      const ejecutar = () => {
+        if (impreso) return;
+        impreso = true;
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch {
+          // ignore
+        }
+        setTimeout(() => {
+          try {
+            if (document.body.contains(iframe)) document.body.removeChild(iframe);
+          } catch {
+            // ignore
+          }
+          URL.revokeObjectURL(blobUrl);
+        }, 30000);
+      };
+
+      iframe.onload = ejecutar;
+      iframe.src = blobUrl;
+      document.body.appendChild(iframe);
+
+      setTimeout(() => {
+        if (!impreso) ejecutar();
+      }, 350);
+    } catch {
+      // La venta ya está guardada; un fallo imprimiendo no debe romper nada.
+    }
+  };
+
+  const imprimirComprobante = async () => {
+    if (!seleccionado || imprimiendo) return;
+    setImprimiendo(true);
+    try {
+      const raw = String(config?.tamañoImpresion || "").toLowerCase();
+      const es58 = raw.includes("58");
+      const anchoMm: 58 | 80 = es58 ? 58 : 80;
+      const tamanoParam = es58 ? "Ticket58mm" : "Ticket80mm";
+      const documento = seleccionado.numeroCompleto || `Comprobante ${seleccionado.comprobanteId}`;
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${seleccionado.comprobanteId}/html?tamano=${tamanoParam}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!res.ok) {
+        showToast("No se pudo generar el comprobante", "error");
+        return;
+      }
+      const html = await res.text();
+      if (!html || !html.trim()) {
+        showToast("No se pudo generar el comprobante", "error");
+        return;
+      }
+
+      const porAgente = await imprimirHtmlConAgente(html, anchoMm, { documento }).catch(() => false);
+      if (porAgente) return;
+
+      imprimirHtmlNavegador(html);
+    } catch {
+      showToast("Error al imprimir el comprobante", "error");
+    } finally {
+      setImprimiendo(false);
     }
   };
 
@@ -609,6 +692,15 @@ export default function VentasDelDiaPage() {
               </div>
 
               <div className="flex flex-col gap-1.5 pt-0.5">
+                <Button
+                  variant="outline"
+                  onClick={imprimirComprobante}
+                  disabled={imprimiendo}
+                  className="text-xs! py-1.5!"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  {imprimiendo ? "Imprimiendo…" : "Imprimir"}
+                </Button>
                 {esFacturaOBoleta && (
                   <Button
                     variant="outline"
