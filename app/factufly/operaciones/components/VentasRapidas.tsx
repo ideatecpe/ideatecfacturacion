@@ -9,6 +9,7 @@ import {
   VENTAS_RAPIDAS_CONFIG,
   SIN_RESERVAS,
   CajaAutopagoVista,
+  leerCarritoGuardado,
 } from "@/app/factufly/operaciones/components/CajaAutopago";
 
 interface VentanaSlot {
@@ -23,6 +24,7 @@ interface VentanaSlot {
 
 export interface VentasRapidasProps {
   recursos: RecursosCaja;
+  sucursalId: number | null;
   carritoPrincipal: ItemCarrito[];
   onReservasChange: (reservas: ItemCarrito[]) => void;
   onInfoChange: (info: VentaRapidaInfo[]) => void;
@@ -31,6 +33,7 @@ export interface VentasRapidasProps {
 
 export const VentasRapidas = memo(function VentasRapidas({
   recursos,
+  sucursalId,
   carritoPrincipal,
   onReservasChange,
   onInfoChange,
@@ -63,6 +66,25 @@ export const VentasRapidas = memo(function VentasRapidas({
   const [carritosRapidos, setCarritosRapidos] = useState<ItemCarrito[][]>(() =>
     VENTAS_RAPIDAS_CONFIG.map(() => SIN_RESERVAS)
   );
+
+  // Al volver de otro módulo, VentasRapidas se remonta desde cero y "slots"
+  // nace con montada:false para las 4 ventanas, así que los botones F2-F4 (que
+  // solo se muestran si tienen productos) desaparecían aunque sus carritos
+  // seguían intactos en sessionStorage. Se remontan en silencio (sin abrirlas)
+  // las que sí tengan algo guardado: cada <CajaAutopagoVista> restaura su
+  // propio carrito y lo publica vía onCarritoCambio, igual que la caja principal.
+  const hidratadoRef = useRef(false);
+  useEffect(() => {
+    if (hidratadoRef.current || sucursalId == null) return;
+    hidratadoRef.current = true;
+    setSlots((prev) =>
+      prev.map((s, i) => {
+        const cfg = VENTAS_RAPIDAS_CONFIG[i];
+        const tieneGuardado = leerCarritoGuardado(sucursalId, cfg.key).length > 0;
+        return tieneGuardado ? { ...s, montada: true } : s;
+      })
+    );
+  }, [sucursalId]);
 
   // Traer una ventana al frente (mayor zIndex)
   const traerAlFrente = useCallback((idx: number) => {
