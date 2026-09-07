@@ -132,7 +132,12 @@ export default function VentasDelDiaPage() {
     comprobantes.find((c) => c.comprobanteId === seleccionadoId) ?? null;
 
   const resumen = useMemo(() => {
-    const vigentes = comprobantes.filter((c) => c.estadoSunat !== "ANULADO");
+    // Una nota de crédito/débito (07/08) no es una venta nueva: es un ajuste sobre un
+    // comprobante ya emitido (a menudo ya ANULADO), y nunca tiene un pago propio. Sumarla aquí
+    // infla el TOTAL muy por encima de lo que realmente se cobró ese día (efectivo+tarjeta+yape).
+    const vigentes = comprobantes.filter(
+      (c) => c.estadoSunat !== "ANULADO" && c.tipoComprobante !== "07" && c.tipoComprobante !== "08",
+    );
     const totalesPorMoneda = new Map<string, number>();
     for (const c of vigentes) {
       const moneda = c.tipoMoneda ?? "PEN";
