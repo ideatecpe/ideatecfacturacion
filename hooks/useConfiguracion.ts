@@ -27,6 +27,10 @@ export interface Configuracion {
   comisionPagoTarjeta?: string | null;
   /** Exige aperturar caja para poder vender y habilita el módulo Caja. */
   administraCaja: boolean;
+  /** true (costeo PEPS por lotes, comportamiento por defecto) | false (costo único por producto:
+   *  cada compra/ajuste actualiza el costo de TODO el stock disponible, sin conservar lotes a
+   *  costos distintos). No afecta el costo de ventas ya registradas. */
+  usaLotePorPeps: boolean;
 }
 
 // Cache a nivel de módulo: evita que un remount (p.ej. cambiar Boleta <-> Factura)

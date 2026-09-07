@@ -93,6 +93,7 @@ interface Configuracion {
   usaSire:           boolean;
   comisionPagoTarjeta?: string | null;
   administraCaja:    boolean;
+  usaLotePorPeps:    boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1496,6 +1497,22 @@ export default function ConfiguracionPage() {
                         <p className="text-sm font-medium text-gray-800">Caja Autopago</p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           Módulo de autoservicio de pago (requiere Stock / Proveedores activo)
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 px-4 py-3 bg-white">
+                      <Toggle
+                        checked={!!config.usaLotePorPeps}
+                        onChange={updConfig("usaLotePorPeps")}
+                        disabled={!canEdit}
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">Usar lote por PEPS</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Activado: cada compra genera su propio lote y las ventas consumen primero el más
+                          antiguo, cada uno con su costo real (PEPS). Desactivado: costo único por producto —
+                          cada compra/ajuste actualiza el costo de todo el stock disponible de una sola vez, sin
+                          mezclar costos distintos entre lotes. No afecta el costo de ventas ya registradas.
                         </p>
                       </div>
                     </div>
