@@ -145,6 +145,13 @@ export interface SireDescargarPropuestaComprasResponse {
   comprobantes: SireComprobanteCompraDto[];
 }
 
+export interface SireComprobanteCompraEliminarDto {
+  numSerieCDP: string;
+  numCDP: string;
+  codCar: string;
+  codTipoCDP: string;
+}
+
 export interface SireRegistro {
   id: number;
   rucEmpresa: string;

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { RefreshCw, Lock, History, CalendarDays, FileStack } from "lucide-react";
+import { RefreshCw, Lock, History, CalendarDays, FileStack, FileWarning } from "lucide-react";
 import { cn } from "@/app/utils/cn";
 import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/app/components/ui/Card";
@@ -72,7 +72,7 @@ export default function SirePage() {
   const workspaceRef = useRef<PeriodoWorkspaceHandle>(null);
 
   const { loading: loadingPeriodos, consultarPeriodos } = useSirePeriodos();
-  const { historial, loading: loadingHistorial, fetchHistorial } = useSireHistorial();
+  const { historial, loading: loadingHistorial, error: errorHistorial, fetchHistorial } = useSireHistorial();
 
   const cargarPeriodos = useCallback(async () => {
     if (!rucEmpresa) return;
@@ -272,7 +272,13 @@ export default function SirePage() {
         </div>
       )}
 
-      {pageTab === "rce" && <RceWorkspace ruc={rucEmpresa} nombreEmpresa={user?.nombreEmpresa ?? null} />}
+      {pageTab === "rce" && (
+        <RceWorkspace
+          ruc={rucEmpresa}
+          nombreEmpresa={user?.nombreEmpresa ?? null}
+          canManage={canManage}
+        />
+      )}
 
       {pageTab === "historial" && (
         <Card className="p-0 rounded-2xl overflow-hidden">
@@ -312,6 +318,15 @@ export default function SirePage() {
                       <div className="flex flex-col items-center gap-3">
                         <RefreshCw size={20} className="animate-spin text-blue-400" />
                         <span className="text-sm text-gray-400">Cargando historial...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : errorHistorial ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <FileWarning className="w-6 h-6 text-amber-400" />
+                        <span className="text-sm text-gray-600 font-medium">{errorHistorial}</span>
                       </div>
                     </td>
                   </tr>

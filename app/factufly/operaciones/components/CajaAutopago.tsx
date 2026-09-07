@@ -78,20 +78,52 @@ import { cacheProductos } from "@/lib/offline/offlineDb";
 import ModalAjustarStockRapido from "@/app/factufly/operaciones/components/ModalAjustarStockRapido";
 import ModalCrearProductoRapido from "@/app/factufly/operaciones/components/ModalCrearProductoRapido";
 import VentasRapidas from "@/app/factufly/operaciones/components/VentasRapidas";
+import { iniciarEmisionSegundoPlano, terminarEmisionSegundoPlano } from "@/lib/eventosCaja";
 
 interface MedioPagoOpcion {
   nombre: string;
+  imagen: string;
   icon: typeof Banknote;
   activo: string;
 }
 
 const MEDIOS_PAGO: MedioPagoOpcion[] = [
-  { nombre: "Efectivo", icon: Banknote, activo: "border-emerald-500 bg-emerald-50 text-emerald-700" },
-  { nombre: "Tarjeta", icon: CreditCard, activo: "border-brand-blue bg-brand-blue/5 text-brand-blue" },
-  { nombre: "Yape", icon: Smartphone, activo: "border-violet-500 bg-violet-50 text-violet-700" },
-  { nombre: "Plin", icon: Smartphone, activo: "border-sky-500 bg-sky-50 text-sky-700" },
-  { nombre: "Transferencia", icon: Landmark, activo: "border-amber-500 bg-amber-50 text-amber-700" },
-  { nombre: "Otro", icon: MoreHorizontal, activo: "border-gray-500 bg-gray-100 text-gray-700" },
+  {
+    nombre: "Efectivo",
+    imagen: "/mediosPago/billetes.jpg",
+    icon: Banknote,
+    activo: "border-emerald-500 ring-2 ring-emerald-500/30",
+  },
+  {
+    nombre: "Tarjeta",
+    imagen: "/mediosPago/tarjeta.jpg",
+    icon: CreditCard,
+    activo: "border-brand-blue ring-2 ring-brand-blue/30",
+  },
+  {
+    nombre: "Yape",
+    imagen: "/mediosPago/yape.jpg?v=2",
+    icon: Smartphone,
+    activo: "border-violet-500 ring-2 ring-violet-500/30",
+  },
+  {
+    nombre: "Plin",
+    imagen: "/mediosPago/plin.jpg?v=2",
+    icon: Smartphone,
+    activo: "border-sky-500 ring-2 ring-sky-500/30",
+  },
+  {
+    nombre: "Transferencia",
+    imagen: "/mediosPago/transferencia.jpg",
+    icon: Landmark,
+    activo: "border-emerald-500 ring-2 ring-emerald-500/30",
+  },
+  // {
+  //   nombre: "Otro",
+  //   imagen: "/mediosPago/otro.svg",
+  //   icon: MoreHorizontal,
+  //   activo: "border-gray-500 ring-2 ring-gray-400/30",
+  // },
 ];
 
 const MONTOS_RAPIDOS = [5, 10, 20, 50, 100, 200];
@@ -140,6 +172,41 @@ export interface ItemCarrito {
 }
 
 export const SIN_RESERVAS: ItemCarrito[] = [];
+
+// ── Carrito persistente entre navegaciones ───────────────────────────────
+// El carrito vive en el estado de <CajaAutopagoVista />, así que salir de
+// "Nueva Venta" hacia otro módulo (Clientes, Productos…) desmontaba la caja y
+// el cajero perdía todo lo que ya había escaneado. Se guarda en sessionStorage
+// —por pestaña, para que dos cajas abiertas en el mismo navegador no compartan
+// carrito ni se pisen las reservas de stock— y se restaura al volver.
+const CARRITO_TTL_MS = 12 * 60 * 60 * 1000; // una jornada de caja
+
+function claveCarrito(sucursalId: number, cajaId: string): string {
+  return `factufly_carrito_${sucursalId}_${cajaId}`;
+}
+
+function leerCarritoGuardado(sucursalId: number, cajaId: string): ItemCarrito[] {
+  try {
+    const raw = sessionStorage.getItem(claveCarrito(sucursalId, cajaId));
+    if (!raw) return [];
+    const guardado = JSON.parse(raw) as { guardadoEn?: number; items?: ItemCarrito[] };
+    if (!Array.isArray(guardado.items) || guardado.items.length === 0) return [];
+    if (!guardado.guardadoEn || Date.now() - guardado.guardadoEn > CARRITO_TTL_MS) return [];
+    return guardado.items;
+  } catch {
+    return [];
+  }
+}
+
+function guardarCarrito(sucursalId: number, cajaId: string, items: ItemCarrito[]) {
+  try {
+    const clave = claveCarrito(sucursalId, cajaId);
+    if (items.length === 0) sessionStorage.removeItem(clave);
+    else sessionStorage.setItem(clave, JSON.stringify({ guardadoEn: Date.now(), items }));
+  } catch {
+    /* modo privado o cuota llena: la caja sigue funcionando solo en memoria */
+  }
+}
 
 export const VENTAS_RAPIDAS_CONFIG = [
   { key: "F1", label: "Venta rápida 1", color: "bg-brand-blue", hoverColor: "hover:bg-[#0a2050]", shadowColor: "rgba(15,46,100,0.7)" },
@@ -510,6 +577,8 @@ export interface CajaAutopagoVistaProps {
   activo: boolean;
   /** true cuando esta vista es la ventana emergente de venta rápida. */
   esRapida?: boolean;
+  /** Identifica esta caja al guardar/restaurar su carrito ("principal", "F1"…). */
+  cajaId?: string;
   /** Carrito de TODAS las otras cajas: sus unidades ya están comprometidas. */
   reservasOtraCaja: ItemCarrito[];
   /** Publica el carrito propio para que las otras cajas lo descuenten. */
@@ -524,6 +593,7 @@ export function CajaAutopagoVista({
   recursos,
   activo,
   esRapida = false,
+  cajaId = "principal",
   reservasOtraCaja,
   onCarritoCambio,
   ventasRapidas,
@@ -610,6 +680,9 @@ export function CajaAutopagoVista({
   const inputRef = useRef<HTMLInputElement>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
+  // true en cuanto el cajero elige el comprobante a mano: manda su elección para
+  // esta venta, por encima del default que traiga la configuración.
+  const tipoElegidoManualRef = useRef(false);
   const abrirPagoRef = useRef<() => void>(() => {});
   const modalAbiertoAtRef = useRef<number>(0);
 
@@ -668,6 +741,8 @@ export function CajaAutopagoVista({
     setNombreManualCliente("");
     setDireccionManualCliente("");
     setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
+    // La venta siguiente vuelve a arrancar en el default de la configuración.
+    tipoElegidoManualRef.current = false;
     setMedioPago("Efectivo");
     setMontoRecibido("");
     setNotaPago("");
@@ -1094,13 +1169,21 @@ export function CajaAutopagoVista({
 
   // Default del tipo de comprobante según "Tipo por defecto":
   // si el predeterminado es Nota de Venta y está habilitada, arranca en Nota de Venta.
+  //
+  // `config` llega por red y en un arranque en frío tarda: para entonces el cajero
+  // ya pudo haber elegido el comprobante a mano. Si se aplicara el default igual,
+  // le pisaba la elección y emitía Nota de Venta habiendo marcado Boleta, así que
+  // el default solo se aplica mientras nadie haya elegido.
   useEffect(() => {
     if (!config || tipoSinDocInitRef.current) return;
     tipoSinDocInitRef.current = true;
+    // Ni al que ya eligió a mano, ni al que está mirando el modal de cobro: lo que
+    // se ve marcado al confirmar tiene que ser lo que se emite.
+    if (tipoElegidoManualRef.current || mostrarPago) return;
     if (config.useNotaVenta && config.isBoletaOrFactura === "n") {
       setTipoComprobante("Nota de Venta");
     }
-  }, [config]);
+  }, [config, mostrarPago]);
 
   const documentoTrim = documento.trim();
   const sinDocumento = documentoTrim.length === 0;
@@ -1631,6 +1714,25 @@ export function CajaAutopagoVista({
       unidades,
     };
   }, [items, igvPct]);
+
+  // ── Carrito que sobrevive a salir de "Nueva Venta" ────────────────────
+  // Se restaura una sola vez por montaje y recién cuando ya se sabe la sucursal
+  // (el usuario llega de next-auth y en los primeros renders todavía es null;
+  // guardar antes escribiría el carrito bajo una clave equivocada).
+  const [carritoRestaurado, setCarritoRestaurado] = useState(false);
+  useEffect(() => {
+    if (carritoRestaurado || sucursalId == null) return;
+    const guardado = leerCarritoGuardado(sucursalId, cajaId);
+    if (guardado.length > 0) setItems(guardado);
+    setCarritoRestaurado(true);
+  }, [carritoRestaurado, sucursalId, cajaId]);
+
+  // Persiste cada cambio del carrito. Después de emitir no se guarda nada: esas
+  // unidades ya se vendieron y restaurarlas al volver haría que se cobren dos veces.
+  useEffect(() => {
+    if (!carritoRestaurado || sucursalId == null) return;
+    guardarCarrito(sucursalId, cajaId, emitido ? SIN_RESERVAS : items);
+  }, [items, emitido, carritoRestaurado, sucursalId, cajaId]);
 
   // Publica el carrito propio para que la otra caja lo descuente de su stock.
   // Una vez emitida la venta el carrito deja de reservar: esas unidades ya se
@@ -2463,6 +2565,7 @@ export function CajaAutopagoVista({
   }, [abrirPago]);
 
   const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta" | "Factura") => {
+    tipoElegidoManualRef.current = true;
     setTipoComprobante(t);
     // Un RUC no es un DNI: al pasar a Boleta (único comprobante que no admite
     // RUC) el documento se LIMPIA, nunca se recorta. Recortar 11 → 8 dígitos
@@ -2592,12 +2695,17 @@ export function CajaAutopagoVista({
       ? prepararNotaVenta()
       : prepararComprobante(tipoComprobante === "Factura" ? "01" : "03");
 
+    const totalVenta = totales.total;
+
     // Descontar stock local y registrar venta de inmediato en la UI
     actualizarStockLocalTrasVenta();
     registrarVentaReciente(itemsVendidos);
 
     // CERRAR MODAL Y PREPARAR LA CAJA AL INSTANTE PARA EL SIGUIENTE CLIENTE
     nuevaVenta();
+
+    const procesoId = Math.random().toString(36).substring(2, 9);
+    iniciarEmisionSegundoPlano({ id: procesoId, tipo: tipoComprobanteVenta, total: totalVenta, conImpresion });
 
     // Proceso de emisión en segundo plano (sin bloquear la caja)
     void (async () => {
@@ -2650,6 +2758,8 @@ export function CajaAutopagoVista({
         if (/insuficiente|no encontrado|no existe|sin stock|stock/i.test(`${mensaje} ${detalle ?? ""}`)) {
           fetchProductosSucursal().catch(() => {});
         }
+      } finally {
+        terminarEmisionSegundoPlano(procesoId);
       }
     })();
   };
@@ -2681,6 +2791,19 @@ export function CajaAutopagoVista({
     !facturaSinRuc &&
     !facturaSinRazonSocial;
 
+  // `emitirVenta` se redefine en cada render y captura el tipo de comprobante,
+  // el medio de pago y el monto de ESE render. El listener de Enter de abajo se
+  // registra una sola vez y no lo lleva en sus dependencias, así que se quedaba
+  // con una versión vieja: si el cajero marcaba Boleta con el mouse (y el foco
+  // salía del input de monto, de modo que solo corría este listener), Enter
+  // emitía con el comprobante que estaba elegido ANTES del clic —una Nota de
+  // Venta— mientras que pulsar "Confirmar" sí emitía Boleta. Con el ref el
+  // atajo siempre ejecuta la última versión.
+  const emitirVentaRef = useRef(emitirVenta);
+  useEffect(() => {
+    emitirVentaRef.current = emitirVenta;
+  });
+
   // Confirmación con la tecla Enter en el modal de pago
   useEffect(() => {
     if (!mostrarPago || !activo) return;
@@ -2693,7 +2816,8 @@ export function CajaAutopagoVista({
         }
         if (puedeEmitir) {
           e.preventDefault();
-          emitirVenta(false);
+          // Enter = "Confirmar" (sin impresión); "Confirmar e Imprimir" es solo el botón.
+          emitirVentaRef.current(false);
         } else if (boletaMayor700SinDoc) {
           e.preventDefault();
           showToast("SUNAT exige registrar el DNI del cliente para Boletas a partir de S/ 700.00", "error");
@@ -3638,18 +3762,18 @@ export function CajaAutopagoVista({
                 <span className="tabular-nums">S/ {totales.total.toFixed(2)}</span>
               </div>
               {totalComisionPagoTarjeta > 0 && (
-                <div className="mt-2.5 rounded-lg border-2 border-cyan-400 bg-cyan-50/90 p-3 shadow-xs space-y-1">
-                  <div className="flex justify-between text-xs font-semibold text-cyan-800">
+                <div className="mt-2.5 rounded-lg border-2 border-brand-blue/70 bg-blue-50/80 p-3 shadow-xs space-y-1">
+                  <div className="flex justify-between text-xs font-semibold text-blue-900">
                     <span>Comisión POS ({comisionPagoTarjetaPct}%)</span>
-                    <span className="tabular-nums font-bold">+S/ {totalComisionPagoTarjeta.toFixed(2)}</span>
+                    <span className="tabular-nums font-bold text-blue-900">+S/ {totalComisionPagoTarjeta.toFixed(2)}</span>
                   </div>
-                  <div className="flex items-baseline justify-between pt-1.5 border-t border-cyan-200">
-                    <span className="text-base font-extrabold text-cyan-950">Total + Comisión</span>
-                    <span className="text-2xl font-black text-cyan-900 tabular-nums">
+                  <div className="flex items-baseline justify-between pt-1.5 border-t border-blue-200">
+                    <span className="text-base font-extrabold text-blue-950">Total + Comisión</span>
+                    <span className="text-2xl font-black text-brand-blue tabular-nums">
                       S/ {(totales.total + totalComisionPagoTarjeta).toFixed(2)}
                     </span>
                   </div>
-                  <p className="text-[10px] text-cyan-700/80 font-medium">Informativo — no afecta el comprobante</p>
+                  <p className="text-[10px] text-blue-700/80 font-medium">Informativo — no afecta el comprobante</p>
                 </div>
               )}
             </div>
@@ -3675,19 +3799,14 @@ export function CajaAutopagoVista({
                       }
                     }}
                     onKeyDown={(e) => {
+                      // Igual que el buscador: el Enter lo procesa ÚNICAMENTE el
+                      // listener global del modal. Emitir también desde aquí hacía
+                      // que un Enter con el foco en este input disparara la emisión
+                      // dos veces (este handler y el global, que se ejecuta después
+                      // al burbujear hasta window), y con validaciones más flojas
+                      // que las de `puedeEmitir`.
                       if (e.key === "Enter") {
-                        if (Date.now() - modalAbiertoAtRef.current < 400) {
-                          e.preventDefault();
-                          return;
-                        }
                         e.preventDefault();
-                        if (
-                          !emitiendo &&
-                          !(pagoDividido && faltanteDividido > 0) &&
-                          !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0)))
-                        ) {
-                          emitirVenta();
-                        }
                       }
                     }}
                     inputMode="decimal"
@@ -4003,14 +4122,14 @@ export function CajaAutopagoVista({
                 <button
                   type="button"
                   onClick={togglePagoDividido}
-                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer border-2 ${
+                  className={`inline-flex items-center gap-2 px-2 py-1 rounded-lg text-[11px] font-bold transition-all shadow-xs cursor-pointer border-2 ${
                     pagoDividido
                       ? "border-brand-blue bg-brand-blue text-white shadow-md ring-2 ring-brand-blue/20"
                       : "border-brand-blue/40 bg-blue-50/80 text-brand-blue hover:bg-brand-blue hover:text-white hover:border-brand-blue"
                   }`}
                 >
                   <Columns3 className="w-4 h-4 shrink-0" />
-                  <span>Pago dividido</span>
+                  <span>Pago Dividido</span>
                   {pagoDividido && (
                     <span className="rounded bg-white/25 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
                       Activo
@@ -4060,19 +4179,61 @@ export function CajaAutopagoVista({
                   {/* Medios de pago */}
                   <div>
                     <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Medio de pago</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="flex flex-wrap justify-between gap-y-3 sm:gap-y-3.5 w-full">
                       {MEDIOS_PAGO.map((m) => {
                         const activo = medioPago === m.nombre;
                         return (
                           <button
                             key={m.nombre}
+                            type="button"
                             onClick={() => setMedioPago(m.nombre)}
-                            className={`flex flex-col items-center gap-1 rounded-md border-2 py-2.5 transition-colors ${
-                              activo ? m.activo : "border-gray-100 bg-gray-50/60 text-gray-500 hover:border-gray-200"
+                            className={`group relative w-[89px] h-[65px] aspect-square rounded-xl overflow-hidden cursor-pointer transition-all duration-200 active:scale-[0.98] ${
+                              activo
+                                ? "border-[3px] border-[#008000] ring-4 ring-[#008000]/25 shadow-lg shadow-[#008000]/20 scale-[1.03] z-10 opacity-100"
+                                : "border border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-85 grayscale-35 hover:grayscale-0 saturate-75 hover:saturate-100 scale-100"
                             }`}
                           >
-                            <m.icon className="w-4.5 h-4.5" />
-                            <span className="text-[11px] font-semibold">{m.nombre}</span>
+                            {/* Imagen que ocupa toda la card */}
+                            <img
+                              src={m.imagen}
+                              alt={m.nombre}
+                              loading="eager"
+                              className={`absolute inset-0 w-full h-full object-cover transition-transform duration-300 ${
+                                activo ? "scale-105" : "group-hover:scale-105"
+                              }`}
+                            />
+
+                            {/* Velo verde cuando está activo */}
+                            {activo && (
+                              <div className="absolute inset-0 bg-[#008000]/10 pointer-events-none" />
+                            )}
+
+                            {/* Badge de selección en esquina */}
+                            {activo && (
+                              <div className="absolute top-1 right-1 w-4.5 h-4.5 rounded-full bg-[#008000] text-white flex items-center justify-center shadow-md ring-1.5 ring-white animate-in zoom-in-50 duration-150 z-20">
+                                <Check className="w-3 h-3 stroke-[3.5]" />
+                              </div>
+                            )}
+
+                            {/* Franja inferior: si está activo, barra verde sólida destacada; si está inactivo, degradado suave */}
+                            <div
+                              className={`absolute inset-x-0 bottom-0 flex items-center justify-center z-10 transition-colors ${
+                                activo
+                                  ? "bg-[#008000] py-0.5 px-0.5 shadow-sm"
+                                  : "bg-linear-to-t from-black/85 via-black/50 to-transparent pt-3 pb-0.5 px-0.5"
+                              }`}
+                            >
+                              <span
+                                className={`tracking-wide truncate transition-all ${
+                                  activo
+                                    ? "text-[9px] sm:text-[9.5px] font-black text-white flex items-center gap-0.5"
+                                    : "text-[9px] sm:text-[9.5px] font-medium text-white/90 drop-shadow-sm"
+                                }`}
+                              >
+                                {activo && <span className="font-black text-xs">✓</span>}
+                                {m.nombre}
+                              </span>
+                            </div>
                           </button>
                         );
                       })}
@@ -4180,10 +4341,6 @@ export function CajaAutopagoVista({
                           </div>
                         )}
                       </div>
-                    </div>
-                  ) : medioPago === "Tarjeta" ? (
-                    <div className="rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-500">
-                      El cobro se realiza en el POS físico. Se registrará como pago con Tarjeta.
                     </div>
                   ) : null}
 
@@ -4323,12 +4480,6 @@ export function CajaAutopagoVista({
         </div>
       </Modal>
 
-      {/* Bloqueo eliminado: la emisión corre en segundo plano y el cajero puede seguir cobrando al siguiente cliente */}
-
-      {/* ── Modal de éxito tras emitir ─────────────────────────────── */}
-      {/* Pantalla de éxito eliminada: el flujo pasa directo a nueva venta tras confirmar */}
-
-
 
 
       {/* Modal de Ajuste Rápido de Stock cuando un producto no tiene unidades disponibles */}
@@ -4354,25 +4505,7 @@ export function CajaAutopagoVista({
   );
 }
 
-/**
- * Caja Autopago con cuatro ventas simultáneas.
- *
- * La caja principal se queda tal cual está (carrito, cliente, pago) y F2, F3 y
- * F4 abren tres cajas idénticas en ventanas flotantes para cobrarle en el acto
- * a quienes solo llevan un producto. Las cuatro comparten catálogo, stock,
- * empresa y sucursal, así que ninguna vende unidades que otra ya tiene apartadas.
- *
- * Las ventanas flotantes nunca se destruyen: se minimizan. Así el cajero salta
- * entre las cuatro ventas sin perder ninguna, y mientras las rápidas están
- * minimizadas la principal sigue siendo usable (no hay fondo que la bloquee).
- *
- * Solo una ventana flotante puede estar abierta a la vez: al abrir una se
- * minimizan automáticamente las demás.
- *
- * Serie y correlativo no se duplican: los asigna el backend al emitir, y como
- * las cuatro cajas comparten `useSucursal`, al terminar una venta las demás ya
- * ven el siguiente número.
- */
+
 export default function CajaAutopago() {
   const { user } = useAuth();
   const sucursalId = user?.sucursalID ? parseInt(user.sucursalID) : null;

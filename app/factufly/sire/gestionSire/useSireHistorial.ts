@@ -6,10 +6,12 @@ export const useSireHistorial = () => {
   const { accessToken } = useAuth();
   const [historial, setHistorial] = useState<SireRegistro[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchHistorial = useCallback(
     async (ruc: string): Promise<SireRegistro[]> => {
       setLoading(true);
+      setError(null);
       try {
         const url = new URL(`${process.env.NEXT_PUBLIC_API_URL}/api/sire/historial`);
         url.searchParams.append("ruc", ruc);
@@ -33,7 +35,9 @@ export const useSireHistorial = () => {
         setHistorial(data);
         return data;
       } catch (err) {
+        const msg = err instanceof Error ? err.message : "Error al consultar el historial SIRE";
         console.error("[SIRE] Error consultando historial:", err);
+        setError(msg);
         setHistorial([]);
         return [];
       } finally {
@@ -43,5 +47,5 @@ export const useSireHistorial = () => {
     [accessToken],
   );
 
-  return { historial, loading, fetchHistorial };
+  return { historial, loading, error, fetchHistorial };
 };
