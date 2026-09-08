@@ -185,7 +185,7 @@ function claveCarrito(sucursalId: number, cajaId: string): string {
   return `factufly_carrito_${sucursalId}_${cajaId}`;
 }
 
-function leerCarritoGuardado(sucursalId: number, cajaId: string): ItemCarrito[] {
+export function leerCarritoGuardado(sucursalId: number, cajaId: string): ItemCarrito[] {
   try {
     const raw = sessionStorage.getItem(claveCarrito(sucursalId, cajaId));
     if (!raw) return [];
@@ -4561,6 +4561,7 @@ export default function CajaAutopago() {
 
       <VentasRapidas
         recursos={recursos}
+        sucursalId={sucursalId}
         carritoPrincipal={carritoPrincipal}
         onReservasChange={setReservasParaPrincipal}
         onInfoChange={setVentasRapidasInfo}
