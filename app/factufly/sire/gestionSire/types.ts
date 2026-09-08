@@ -145,6 +145,30 @@ export interface SireDescargarPropuestaComprasResponse {
   comprobantes: SireComprobanteCompraDto[];
 }
 
+export interface SireComprobanteCompraNuevoDto {
+  carSunat?: string | null;
+  fechaEmision: string; // dd/mm/aaaa
+  fechaVctoPago?: string | null;
+  tipoComprobante: string;
+  serie: string;
+  numero: string;
+  tipoDocProveedor?: string | null;
+  numDocProveedor?: string | null;
+  razonSocialProveedor?: string | null;
+  baseImponible: number;
+  igv: number;
+  valorAdqNoGravada?: number;
+  isc?: number;
+  icbper?: number;
+  importeTotal: number;
+  codMoneda: string;
+  tipoCambio?: number | null;
+  fechaEmisionDocModificado?: string | null;
+  tipoCPModificado?: string | null;
+  serieCPModificado?: string | null;
+  nroCPModificado?: string | null;
+}
+
 export interface SireComprobanteCompraEliminarDto {
   numSerieCDP: string;
   numCDP: string;
@@ -156,6 +180,7 @@ export interface SireRegistro {
   id: number;
   rucEmpresa: string;
   perTributario: string;
+  tipo: "RVIE" | "RCE";
   numTicket: string | null;
   estado: string;
   respuestaSunat: string | null;

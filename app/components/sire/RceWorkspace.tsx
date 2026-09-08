@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { RefreshCw, CalendarDays, FileWarning, FileSpreadsheet, Search, X, CheckCircle2, XCircle, Lock, Trash2, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
+import { RefreshCw, CalendarDays, FileWarning, FileSpreadsheet, Search, X, CheckCircle2, XCircle, Lock, Trash2, AlertTriangle, Plus, Pencil } from "lucide-react";
 import ExcelJS from "exceljs";
 import { cn } from "@/app/utils/cn";
 import { Card } from "@/app/components/ui/Card";
@@ -11,7 +11,8 @@ import { useSireDescargarPropuestaCompras } from "@/app/factufly/sire/gestionSir
 import { useSireAceptarPropuestaRce } from "@/app/factufly/sire/gestionSire/useSireAceptarPropuestaRce";
 import { useSireCerrarPeriodoRce } from "@/app/factufly/sire/gestionSire/useSireCerrarPeriodoRce";
 import { useSireEliminarComprobanteRce } from "@/app/factufly/sire/gestionSire/useSireEliminarComprobanteRce";
-import { SireEjercicioDto, SirePeriodoDto, SireComprobanteCompraDto } from "@/app/factufly/sire/gestionSire/types";
+import { useSireImportarComprobanteRce } from "@/app/factufly/sire/gestionSire/useSireImportarComprobanteRce";
+import { SireEjercicioDto, SirePeriodoDto, SireComprobanteCompraDto, SireComprobanteCompraNuevoDto } from "@/app/factufly/sire/gestionSire/types";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -108,6 +109,19 @@ function fechaAIso(fecha: string | null): string {
   if (!d || !m || !y) return "";
   return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
+
+function dmyAIso(fecha: string): string {
+  return fechaAIso(fecha || null);
+}
+
+function isoADmy(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  if (!d || !m || !y) return "";
+  return `${d}/${m}/${y}`;
+}
+
+const FECHA_REGEX = /^\d{2}\/\d{2}\/\d{4}$/;
+const TASA_IGV = 0.18;
 
 // Misma paleta que el Excel de RVIE (PeriodoWorkspace.tsx) para mantener el mismo diseño
 const COLOR_NAVY = "FF1A2B4A";
@@ -316,12 +330,15 @@ export function RceWorkspace({ ruc, nombreEmpresa, canManage = false, onAccionEx
   const [destinoEliminar, setDestinoEliminar] = useState<"propuesta" | "preliminar">("propuesta");
   const [propuestaAceptadaLocal, setPropuestaAceptadaLocal] = useState(false);
   const [periodoCerradoLocal, setPeriodoCerradoLocal] = useState(false);
+  const [mostrarFormAgregar, setMostrarFormAgregar] = useState(false);
+  const [comprobanteAEditar, setComprobanteAEditar] = useState<SireComprobanteCompraDto | null>(null);
 
   const { loading: loadingPeriodos, consultarPeriodosRce } = useSirePeriodosRce();
   const { loading: cargandoPropuesta, descargarPropuestaCompras } = useSireDescargarPropuestaCompras();
   const { loading: aceptando, aceptarPropuestaRce } = useSireAceptarPropuestaRce();
   const { loading: cerrando, cerrarPeriodoRce } = useSireCerrarPeriodoRce();
   const { loading: eliminando, eliminarComprobanteRce } = useSireEliminarComprobanteRce();
+  const { loading: agregando, importarComprobanteRce } = useSireImportarComprobanteRce();
 
   const cargarPeriodos = useCallback(async () => {
     if (!ruc) return;
@@ -345,6 +362,8 @@ export function RceWorkspace({ ruc, nombreEmpresa, canManage = false, onAccionEx
     setTab("resumen");
     setPropuestaAceptadaLocal(false);
     setPeriodoCerradoLocal(false);
+    setMostrarFormAgregar(false);
+    setComprobanteAEditar(null);
   }, [ruc, mesSel]);
 
   const periodosDelAnio = useMemo(
@@ -403,6 +422,17 @@ export function RceWorkspace({ ruc, nombreEmpresa, canManage = false, onAccionEx
     });
     if (resultado?.success) {
       setComprobantes((prev) => prev?.filter((x) => x !== c) ?? null);
+    }
+    onAccionExitosa?.();
+  };
+
+  const confirmarAgregar = async (nuevo: SireComprobanteCompraNuevoDto, destino: "propuesta" | "preliminar") => {
+    if (!periodoActivo?.periodo) return;
+    const resultado = await importarComprobanteRce(ruc, periodoActivo.periodo, destino === "preliminar", nuevo);
+    if (resultado?.success) {
+      setMostrarFormAgregar(false);
+      setComprobanteAEditar(null);
+      setComprobantes(null); // fuerza recargar la propuesta para ver el comprobante agregado/editado
     }
     onAccionExitosa?.();
   };
@@ -727,6 +757,17 @@ export function RceWorkspace({ ruc, nombreEmpresa, canManage = false, onAccionEx
                       <RefreshCw size={13} className={cn(cargandoPropuesta && "animate-spin")} />
                       Recargar propuesta
                     </button>
+                    {canManage && (
+                      <button
+                        onClick={() => setMostrarFormAgregar(true)}
+                        disabled={periodoCerrado}
+                        title={periodoCerrado ? "El mes ya fue presentado; usa Ajustes Posteriores (pendiente de implementar)" : undefined}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
+                      >
+                        <Plus size={13} />
+                        Agregar comprobante
+                      </button>
+                    )}
                     {comprobantes.length > 0 && (
                       <button
                         onClick={() => exportarExcelRce(comprobantes, periodoActivo.periodo ?? "", ruc, nombreEmpresa)}
@@ -795,17 +836,26 @@ export function RceWorkspace({ ruc, nombreEmpresa, canManage = false, onAccionEx
                             </td>
                             {canManage && (
                               <td className="px-4 py-2 text-center">
-                                <button
-                                  onClick={() => {
-                                    setComprobanteAEliminar(c);
-                                    setDestinoEliminar(propuestaAceptada ? "preliminar" : "propuesta");
-                                  }}
-                                  disabled={periodoCerrado}
-                                  title={periodoCerrado ? "El mes ya fue presentado; usa Ajustes Posteriores (pendiente de implementar)" : "Eliminar comprobante"}
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    disabled
+                                    title="Editar comprobante: pendiente de verificar contra el ambiente de pruebas de SUNAT antes de habilitarlo"
+                                    className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-blue-400 opacity-30 cursor-not-allowed transition-colors"
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setComprobanteAEliminar(c);
+                                      setDestinoEliminar(propuestaAceptada ? "preliminar" : "propuesta");
+                                    }}
+                                    disabled={periodoCerrado}
+                                    title={periodoCerrado ? "El mes ya fue presentado; usa Ajustes Posteriores (pendiente de implementar)" : "Eliminar comprobante"}
+                                    className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
                               </td>
                             )}
                           </tr>
@@ -1042,6 +1092,20 @@ export function RceWorkspace({ ruc, nombreEmpresa, canManage = false, onAccionEx
           </div>
         </div>
       </Modal>
+
+      {/* Agregar o editar comprobante de compra (Anexo N° 8, RS 000040-2022/SUNAT) */}
+      <ModalComprobanteCompra
+        isOpen={mostrarFormAgregar || !!comprobanteAEditar}
+        onClose={() => {
+          setMostrarFormAgregar(false);
+          setComprobanteAEditar(null);
+        }}
+        onSubmit={confirmarAgregar}
+        loading={agregando}
+        propuestaAceptada={propuestaAceptada}
+        rangoFechaPeriodo={rangoFechaPeriodo}
+        comprobanteExistente={comprobanteAEditar}
+      />
     </div>
   );
 }
@@ -1051,6 +1115,437 @@ function StatCard({ label, value, warn }: { label: string; value: string; warn?:
     <div className={cn("rounded-xl border px-3.5 py-2.5", warn ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50")}>
       <p className={cn("text-[10px] font-semibold uppercase tracking-wider", warn ? "text-amber-600" : "text-gray-400")}>{label}</p>
       <p className={cn("text-base font-bold mt-0.5", warn ? "text-amber-700" : "text-gray-900")}>{value}</p>
+    </div>
+  );
+}
+
+type TipoOperacion = "gravada" | "no_gravada";
+
+// Anexo N° 8, RS 000040-2022/SUNAT: el generador solo necesita saber el total que le facturó su proveedor.
+// Este formulario calcula Base Imponible e IGV a partir de ese total (Total = BI + IGV, IGV = BI * 18%),
+// para que el usuario no tenga que sacar esa cuenta a mano. Igual criterio se aplicará luego en RVIE.
+function calcularBaseEIgv(totalConIgv: number): { base: number; igv: number } {
+  const base = Math.round((totalConIgv / (1 + TASA_IGV)) * 100) / 100;
+  const igv = Math.round((totalConIgv - base) * 100) / 100;
+  return { base, igv };
+}
+
+function ModalComprobanteCompra({
+  isOpen,
+  onClose,
+  onSubmit,
+  loading,
+  propuestaAceptada,
+  rangoFechaPeriodo,
+  comprobanteExistente,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (nuevo: SireComprobanteCompraNuevoDto, destino: "propuesta" | "preliminar") => void;
+  loading: boolean;
+  propuestaAceptada: boolean;
+  rangoFechaPeriodo: { min: string; max: string } | null;
+  comprobanteExistente: SireComprobanteCompraDto | null;
+}) {
+  const vacio: SireComprobanteCompraNuevoDto = {
+    fechaEmision: "",
+    tipoComprobante: "01",
+    serie: "",
+    numero: "",
+    tipoDocProveedor: "6",
+    numDocProveedor: "",
+    razonSocialProveedor: "",
+    baseImponible: 0,
+    igv: 0,
+    valorAdqNoGravada: 0,
+    importeTotal: 0,
+    codMoneda: "PEN",
+  };
+  const [form, setForm] = useState<SireComprobanteCompraNuevoDto>(vacio);
+  const [tipoOperacion, setTipoOperacion] = useState<TipoOperacion>("gravada");
+  const [totalConIgv, setTotalConIgv] = useState<number>(0);
+  const [destino, setDestino] = useState<"propuesta" | "preliminar">("propuesta");
+  const [intentado, setIntentado] = useState(false);
+  // Snapshot de los valores originales al abrir el modal: mientras el usuario no toque el total ni el
+  // tipo de operación, se conservan Base/IGV tal cual vinieron de SUNAT en vez de recalcularlos —
+  // recalcular siempre podía desajustar montos por un céntimo cuando el proveedor no redondeó BI/IGV
+  // con el mismo criterio (Total/1.18 redondeado) que usa esta calculadora.
+  const [valoresOriginales, setValoresOriginales] = useState<{ total: number; tipoOperacion: TipoOperacion } | null>(null);
+
+  const editando = !!comprobanteExistente;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setIntentado(false);
+    setDestino(propuestaAceptada ? "preliminar" : "propuesta");
+
+    if (comprobanteExistente) {
+      const c = comprobanteExistente;
+      const esGravada = c.baseImponible > 0 || c.igv > 0;
+      const totalInicial = esGravada ? c.baseImponible + c.igv : c.mtoInafecto;
+      setTipoOperacion(esGravada ? "gravada" : "no_gravada");
+      setTotalConIgv(totalInicial);
+      setValoresOriginales({ total: totalInicial, tipoOperacion: esGravada ? "gravada" : "no_gravada" });
+      setForm({
+        carSunat: c.carSunat ?? undefined,
+        fechaEmision: c.fechaEmision ?? "",
+        tipoComprobante: c.tipoComprobante ?? "01",
+        serie: c.serie ?? "",
+        numero: c.numero ?? "",
+        tipoDocProveedor: "6",
+        numDocProveedor: c.rucProveedor ?? "",
+        razonSocialProveedor: c.razonSocialProveedor ?? "",
+        baseImponible: c.baseImponible,
+        igv: c.igv,
+        valorAdqNoGravada: c.mtoInafecto,
+        importeTotal: c.importeTotal,
+        codMoneda: c.codMoneda ?? "PEN",
+        tipoCambio: c.tipoCambio ?? undefined,
+      });
+    } else {
+      setTipoOperacion("gravada");
+      setTotalConIgv(0);
+      setValoresOriginales(null);
+      setForm(vacio);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, comprobanteExistente, propuestaAceptada]);
+
+  const update = <K extends keyof SireComprobanteCompraNuevoDto>(campo: K, valor: SireComprobanteCompraNuevoDto[K]) =>
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+
+  // El usuario solo ingresa el total que le facturó el proveedor; Base Imponible e IGV se derivan solos.
+  const { base: baseCalculada, igv: igvCalculado } = useMemo(
+    () => (tipoOperacion === "gravada" ? calcularBaseEIgv(totalConIgv) : { base: 0, igv: 0 }),
+    [tipoOperacion, totalConIgv],
+  );
+
+  useEffect(() => {
+    // Si el usuario no tocó ni el total ni el tipo de operación desde que se abrió el modal, no
+    // recalcular: conserva Base/IGV originales tal cual vinieron (ver comentario de valoresOriginales).
+    const sinCambios =
+      valoresOriginales && totalConIgv === valoresOriginales.total && tipoOperacion === valoresOriginales.tipoOperacion;
+    if (sinCambios) return;
+
+    if (tipoOperacion === "gravada") {
+      setForm((prev) => ({ ...prev, baseImponible: baseCalculada, igv: igvCalculado, valorAdqNoGravada: 0, importeTotal: totalConIgv }));
+    } else {
+      setForm((prev) => ({ ...prev, baseImponible: 0, igv: 0, valorAdqNoGravada: totalConIgv, importeTotal: totalConIgv }));
+    }
+  }, [tipoOperacion, totalConIgv, baseCalculada, igvCalculado, valoresOriginales]);
+
+  const esNota = ["07", "08", "87", "88"].includes(form.tipoComprobante);
+  const errores = validarComprobanteCompra(form, totalConIgv, esNota);
+  const valido = Object.keys(errores).length === 0;
+  const err = (campo: string) => (intentado ? errores[campo] : undefined);
+
+  const handleSubmit = () => {
+    if (!valido) {
+      setIntentado(true);
+      return;
+    }
+    onSubmit(form, destino);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={editando ? "Editar comprobante de compra" : "Agregar comprobante de compra"}>
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-gray-500">¿Dónde {editando ? "está" : "agregar"} este comprobante?</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setDestino("propuesta")}
+              disabled={propuestaAceptada}
+              title={propuestaAceptada ? "La propuesta ya fue aceptada, ya no está disponible" : undefined}
+              className={cn(
+                "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                destino === "propuesta" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
+              )}
+            >
+              En propuesta (aún no cerré el mes)
+            </button>
+            <button
+              onClick={() => setDestino("preliminar")}
+              className={cn(
+                "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors",
+                destino === "preliminar" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
+              )}
+            >
+              Ya cerré el mes (preliminar)
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <CampoRce label="Fecha emisión" error={err("fechaEmision")}>
+            <input
+              type="date"
+              value={dmyAIso(form.fechaEmision)}
+              onChange={(e) => update("fechaEmision", e.target.value ? isoADmy(e.target.value) : "")}
+              min={rangoFechaPeriodo?.min}
+              max={rangoFechaPeriodo?.max}
+              className={inputClsRce(!!err("fechaEmision"))}
+            />
+          </CampoRce>
+          <CampoRce label="Tipo de comprobante">
+            <select
+              value={form.tipoComprobante}
+              onChange={(e) => update("tipoComprobante", e.target.value)}
+              className={inputClsRce(false) + " bg-white"}
+            >
+              <option value="01">Factura</option>
+              <option value="02">Recibo por Honorarios</option>
+              <option value="03">Boleta de Venta</option>
+              <option value="07">Nota de Crédito</option>
+              <option value="08">Nota de Débito</option>
+              <option value="12">Ticket de Máquina Registradora</option>
+              <option value="14">Recibo por Servicios Públicos</option>
+            </select>
+          </CampoRce>
+          {form.tipoComprobante === "14" && (
+            <CampoRce label="Fecha de vencimiento/pago" error={err("fechaVctoPago")}>
+              <input
+                type="date"
+                value={dmyAIso(form.fechaVctoPago ?? "")}
+                onChange={(e) => update("fechaVctoPago", e.target.value ? isoADmy(e.target.value) : "")}
+                className={inputClsRce(!!err("fechaVctoPago"))}
+              />
+            </CampoRce>
+          )}
+          <CampoRce label="Serie" error={err("serie")}>
+            <input
+              value={form.serie}
+              onChange={(e) => update("serie", e.target.value)}
+              placeholder="Ej. F001"
+              maxLength={20}
+              className={inputClsRce(!!err("serie"))}
+            />
+          </CampoRce>
+          <CampoRce label="Número" error={err("numero")}>
+            <input
+              value={form.numero}
+              onChange={(e) => update("numero", e.target.value)}
+              placeholder="Ej. 15077"
+              maxLength={20}
+              className={inputClsRce(!!err("numero"))}
+            />
+          </CampoRce>
+          <CampoRce label="Tipo doc. proveedor" error={err("tipoDocProveedor")}>
+            <select
+              value={form.tipoDocProveedor ?? ""}
+              onChange={(e) => update("tipoDocProveedor", e.target.value)}
+              className={inputClsRce(!!err("tipoDocProveedor")) + " bg-white"}
+            >
+              <option value="">Seleccionar...</option>
+              <option value="6">6 — RUC</option>
+              <option value="1">1 — DNI</option>
+              <option value="4">4 — Carné de Extranjería</option>
+              <option value="7">7 — Pasaporte</option>
+              <option value="0">0 — Sin documento / No domiciliado</option>
+              <option value="A">A — Cédula Diplomática</option>
+            </select>
+          </CampoRce>
+          <CampoRce label="Número doc. proveedor" error={err("numDocProveedor")}>
+            <input
+              value={form.numDocProveedor ?? ""}
+              onChange={(e) => update("numDocProveedor", e.target.value)}
+              placeholder="Ej. 20548114897"
+              className={inputClsRce(!!err("numDocProveedor"))}
+            />
+          </CampoRce>
+          <CampoRce label="Proveedor (razón social)" full error={err("razonSocialProveedor")}>
+            <input
+              value={form.razonSocialProveedor ?? ""}
+              onChange={(e) => update("razonSocialProveedor", e.target.value)}
+              placeholder="Nombre o razón social del proveedor"
+              className={inputClsRce(!!err("razonSocialProveedor"))}
+            />
+          </CampoRce>
+
+          <CampoRce label="Tipo de operación" full>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTipoOperacion("gravada")}
+                className={cn(
+                  "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors",
+                  tipoOperacion === "gravada" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
+                )}
+              >
+                Gravada (con crédito fiscal)
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipoOperacion("no_gravada")}
+                className={cn(
+                  "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors",
+                  tipoOperacion === "no_gravada" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
+                )}
+              >
+                No gravada (exonerada/inafecta)
+              </button>
+            </div>
+          </CampoRce>
+
+          <CampoRce
+            label={tipoOperacion === "gravada" ? "Total de la factura (incluye IGV)" : "Total de la factura"}
+            full
+            error={err("importeTotal")}
+          >
+            <input
+              type="number"
+              step="0.01"
+              min={0}
+              value={totalConIgv || ""}
+              onChange={(e) => setTotalConIgv(Number(e.target.value))}
+              placeholder="0.00"
+              className={inputClsRce(!!err("importeTotal")) + " text-base font-semibold"}
+            />
+            {tipoOperacion === "gravada" && totalConIgv > 0 && (
+              <p className="text-[11px] text-gray-500 flex items-center gap-1.5 mt-1">
+                Calculado: Base imponible <strong className="text-gray-700">S/ {baseCalculada.toFixed(2)}</strong> + IGV (18%){" "}
+                <strong className="text-gray-700">S/ {igvCalculado.toFixed(2)}</strong>
+              </p>
+            )}
+          </CampoRce>
+
+          <CampoRce label="Moneda">
+            <select
+              value={form.codMoneda}
+              onChange={(e) => update("codMoneda", e.target.value)}
+              className={inputClsRce(false) + " bg-white"}
+            >
+              <option value="PEN">PEN — Soles</option>
+              <option value="USD">USD — Dólares</option>
+            </select>
+          </CampoRce>
+          {form.codMoneda !== "PEN" && (
+            <CampoRce label="Tipo de cambio" error={err("tipoCambio")}>
+              <input
+                type="number"
+                step="0.001"
+                min={0}
+                value={form.tipoCambio ?? ""}
+                onChange={(e) => update("tipoCambio", e.target.value === "" ? null : Number(e.target.value))}
+                placeholder="Ej. 3.750"
+                className={inputClsRce(!!err("tipoCambio"))}
+              />
+            </CampoRce>
+          )}
+
+          {esNota && (
+            <>
+              <CampoRce label="Fecha emisión doc. modificado" error={err("fechaEmisionDocModificado")}>
+                <input
+                  type="date"
+                  value={dmyAIso(form.fechaEmisionDocModificado ?? "")}
+                  onChange={(e) => update("fechaEmisionDocModificado", e.target.value ? isoADmy(e.target.value) : "")}
+                  max={rangoFechaPeriodo?.max}
+                  className={inputClsRce(!!err("fechaEmisionDocModificado"))}
+                />
+              </CampoRce>
+              <CampoRce label="Tipo doc. modificado" error={err("tipoCPModificado")}>
+                <input
+                  value={form.tipoCPModificado ?? ""}
+                  onChange={(e) => update("tipoCPModificado", e.target.value)}
+                  placeholder="Ej. 01 = Factura"
+                  className={inputClsRce(!!err("tipoCPModificado"))}
+                />
+              </CampoRce>
+              <CampoRce label="Serie doc. modificado" error={err("serieCPModificado")}>
+                <input
+                  value={form.serieCPModificado ?? ""}
+                  onChange={(e) => update("serieCPModificado", e.target.value)}
+                  placeholder="Ej. F001"
+                  className={inputClsRce(!!err("serieCPModificado"))}
+                />
+              </CampoRce>
+              <CampoRce label="Número doc. modificado" error={err("nroCPModificado")}>
+                <input
+                  value={form.nroCPModificado ?? ""}
+                  onChange={(e) => update("nroCPModificado", e.target.value)}
+                  placeholder="Ej. 15070"
+                  className={inputClsRce(!!err("nroCPModificado"))}
+                />
+              </CampoRce>
+            </>
+          )}
+        </div>
+
+        {intentado && !valido && (
+          <p className="text-xs text-rose-600 flex items-center gap-1.5">
+            <AlertTriangle size={13} /> Revisa los campos marcados en rojo antes de continuar.
+          </p>
+        )}
+
+        <div className="flex justify-end gap-3 pt-2">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSubmit} disabled={loading}>
+            {loading ? <RefreshCw size={14} className="animate-spin" /> : editando ? <Pencil size={14} /> : <Plus size={14} />}
+            {editando ? "Guardar cambios" : "Agregar comprobante"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function validarComprobanteCompra(
+  form: SireComprobanteCompraNuevoDto,
+  totalConIgv: number,
+  esNota: boolean,
+): Record<string, string> {
+  const errores: Record<string, string> = {};
+
+  if (!form.fechaEmision.trim()) errores.fechaEmision = "Ingresa la fecha de emisión";
+  else if (!FECHA_REGEX.test(form.fechaEmision)) errores.fechaEmision = "Formato dd/mm/aaaa";
+
+  // Anexo N° 8, RS 000040-2022/SUNAT: obligatorio cuando Tipo CP = '14' (recibo de servicios públicos)
+  if (form.tipoComprobante === "14") {
+    if (!form.fechaVctoPago?.trim()) errores.fechaVctoPago = "Requerido para recibo de servicios públicos";
+    else if (!FECHA_REGEX.test(form.fechaVctoPago)) errores.fechaVctoPago = "Formato dd/mm/aaaa";
+  }
+
+  if (!form.serie.trim()) errores.serie = "Ingresa la serie";
+  else if (form.serie.length > 20) errores.serie = "Máximo 20 caracteres";
+
+  if (!form.numero.trim()) errores.numero = "Ingresa el número";
+  else if (form.numero.length > 20) errores.numero = "Máximo 20 caracteres";
+
+  if (!form.tipoDocProveedor?.trim()) errores.tipoDocProveedor = "Requerido";
+  if (!form.numDocProveedor?.trim()) errores.numDocProveedor = "Requerido";
+  if (!form.razonSocialProveedor?.trim()) errores.razonSocialProveedor = "Requerido";
+
+  if (!totalConIgv || totalConIgv <= 0) errores.importeTotal = "Ingresa el total de la factura";
+
+  if (form.codMoneda !== "PEN" && (!form.tipoCambio || form.tipoCambio <= 0)) {
+    errores.tipoCambio = "Obligatorio para moneda distinta a soles";
+  }
+
+  if (esNota) {
+    if (!form.fechaEmisionDocModificado?.trim()) errores.fechaEmisionDocModificado = "Requerido en notas de crédito/débito";
+    else if (!FECHA_REGEX.test(form.fechaEmisionDocModificado)) errores.fechaEmisionDocModificado = "Formato dd/mm/aaaa";
+    if (!form.tipoCPModificado?.trim()) errores.tipoCPModificado = "Requerido en notas de crédito/débito";
+    if (!form.serieCPModificado?.trim()) errores.serieCPModificado = "Requerido en notas de crédito/débito";
+    if (!form.nroCPModificado?.trim()) errores.nroCPModificado = "Requerido en notas de crédito/débito";
+  }
+
+  return errores;
+}
+
+function inputClsRce(hasError: boolean) {
+  return cn(
+    "h-9 px-3 rounded-lg border text-sm w-full",
+    hasError ? "border-rose-400 focus:outline-rose-400" : "border-gray-200",
+  );
+}
+
+function CampoRce({ label, full, error, children }: { label: string; full?: boolean; error?: string; children: ReactNode }) {
+  return (
+    <div className={cn("flex flex-col gap-1", full && "col-span-2")}>
+      <label className="text-xs font-medium text-gray-500">{label}</label>
+      {children}
+      {error && <p className="text-[11px] text-rose-600">{error}</p>}
     </div>
   );
 }
