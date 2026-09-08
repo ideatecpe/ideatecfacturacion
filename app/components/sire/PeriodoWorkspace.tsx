@@ -376,6 +376,10 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
   }, [ruc, perTributario]);
 
   const cargarPropuesta = async () => {
+    // El botón "Cargar propuesta" (en page.tsx) no conoce cargandoPropuesta y no se deshabilita solo;
+    // esta guarda evita que un doble click dispare dos solicitudes en paralelo a SUNAT (y el doble toast
+    // de error resultante) mientras la primera sigue en curso.
+    if (cargandoPropuesta) return;
     setError(null);
     const data = await descargarPropuesta(ruc, perTributario);
     if (data?.success) {
