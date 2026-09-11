@@ -20,6 +20,7 @@ import {
   UserRound,
   UserCog,
   Upload,
+  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/app/components/ui/Toast";
 import { cn } from "@/app/utils/cn";
@@ -1537,6 +1538,19 @@ export default function VerComprobantesPage() {
 }
 
 // ─── BadgeSunat ───────────────────────────────────────────────────────────────
+const BADGE_SUNAT: Record<string, { icon: React.ReactElement; label: string }> = {
+  ACEPTADO: { icon: <CheckCircle2 size={11} />, label: "Aceptado" },
+  ACEPTADO_CON_OBSERVACIONES: {
+    icon: <CheckCircle2 size={11} />,
+    label: "Aceptado c/obs",
+  },
+  RECHAZADO: { icon: <X size={11} />, label: "Rechazado" },
+  ANULADO: { icon: <Ban size={11} />, label: "Anulado" },
+  PENDIENTE: { icon: <RefreshCw size={11} />, label: "Pendiente" },
+  POR_VERIFICAR: { icon: <Search size={11} />, label: "Por verificar" },
+  ERROR_ENVIO: { icon: <AlertTriangle size={11} />, label: "Error de envío" },
+};
+
 const BadgeSunat = ({
   estado,
   loading,
@@ -1560,24 +1574,10 @@ const BadgeSunat = ({
   }
   const cfg =
     COLORS.sunat[estado as keyof typeof COLORS.sunat] ?? COLORS.sunat.PENDIENTE;
-  const icon =
-    estado === "ACEPTADO" ? (
-      <CheckCircle2 size={11} />
-    ) : estado === "RECHAZADO" ? (
-      <X size={11} />
-    ) : estado === "ANULADO" ? (
-      <Ban size={11} />
-    ) : (
-      <RefreshCw size={11} />
-    );
-  const label =
-    estado === "ACEPTADO"
-      ? "Aceptado"
-      : estado === "RECHAZADO"
-        ? "Rechazado"
-        : estado === "ANULADO"
-          ? "Anulado"
-          : "Pendiente";
+  const { icon, label } = BADGE_SUNAT[estado] ?? {
+    icon: <RefreshCw size={11} />,
+    label: "Pendiente",
+  };
   return (
     <span
       className={cn(
