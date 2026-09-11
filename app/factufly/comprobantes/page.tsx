@@ -20,7 +20,6 @@ import {
   UserRound,
   UserCog,
   Upload,
-  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/app/components/ui/Toast";
 import { cn } from "@/app/utils/cn";
@@ -50,6 +49,8 @@ import {
   formatFecha,
   formatFechaHora,
   COLORS,
+  esPendienteSunat,
+  esAceptadoSunat,
 } from "./gestionComprobantes/helpers";
 import { fmtMonto } from "@/app/components/ui/formatoFecha";
 import { useRouter } from "next/navigation";
@@ -236,7 +237,7 @@ export default function VerComprobantesPage() {
   ]);
 
   const pendientes = useMemo(
-    () => comprobantes.filter((c) => c.estadoSunat === "PENDIENTE"),
+    () => comprobantes.filter((c) => esPendienteSunat(c.estadoSunat)),
     [comprobantes],
   );
 
@@ -484,7 +485,7 @@ export default function VerComprobantesPage() {
             (c.numeroCompleto ?? "").toLowerCase().includes(search.toLowerCase()));
         const matchTipo = filtroTipo === "Todos" || tipo === filtroTipo;
         const estadoLabel =
-          c.estadoSunat === "ACEPTADO"
+          esAceptadoSunat(c.estadoSunat)
             ? "Aceptado"
             : c.estadoSunat === "RECHAZADO"
               ? "Rechazado"
@@ -548,10 +549,14 @@ export default function VerComprobantesPage() {
       );
       if (res.data.exitoso) {
         showToast(res.data.mensaje ?? `${tipoDoc} enviada correctamente a SUNAT`, "success");
-      } else if (res.data.estadoSunat === "PENDIENTE") {
-        // No es un rechazo real: SUNAT no respondió o hubo una falla de comunicación
+      } else if (esPendienteSunat(res.data.estadoSunat)) {
+        // No es un rechazo: SUNAT no respondió, falló la comunicación, o ya tiene el
+        // comprobante y falta confirmar su CDR. Decir "rechazado" acá es lo que lleva
+        // al usuario a reemitir y terminar con el comprobante duplicado en SUNAT.
         showToast(
-          `SUNAT no disponible. ${tipoDoc} ${c.numeroCompleto} sigue PENDIENTE, puedes reintentar más tarde.`,
+          res.data.mensajeRespuesta
+            ? `${tipoDoc} ${c.numeroCompleto} sigue PENDIENTE: ${res.data.mensajeRespuesta}`
+            : `SUNAT no disponible. ${tipoDoc} ${c.numeroCompleto} sigue PENDIENTE, puedes reintentar más tarde.`,
           "error",
         );
       } else {
@@ -1540,15 +1545,12 @@ export default function VerComprobantesPage() {
 // ─── BadgeSunat ───────────────────────────────────────────────────────────────
 const BADGE_SUNAT: Record<string, { icon: React.ReactElement; label: string }> = {
   ACEPTADO: { icon: <CheckCircle2 size={11} />, label: "Aceptado" },
-  ACEPTADO_CON_OBSERVACIONES: {
-    icon: <CheckCircle2 size={11} />,
-    label: "Aceptado c/obs",
-  },
+  ACEPTADO_CON_OBSERVACIONES: { icon: <CheckCircle2 size={11} />, label: "Aceptado" },
   RECHAZADO: { icon: <X size={11} />, label: "Rechazado" },
   ANULADO: { icon: <Ban size={11} />, label: "Anulado" },
   PENDIENTE: { icon: <RefreshCw size={11} />, label: "Pendiente" },
-  POR_VERIFICAR: { icon: <Search size={11} />, label: "Por verificar" },
-  ERROR_ENVIO: { icon: <AlertTriangle size={11} />, label: "Error de envío" },
+  POR_VERIFICAR: { icon: <RefreshCw size={11} />, label: "Pendiente" },
+  ERROR_ENVIO: { icon: <RefreshCw size={11} />, label: "Pendiente" },
 };
 
 const BadgeSunat = ({
@@ -1739,8 +1741,8 @@ const DropdownOpciones = ({
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const esAceptado = comprobante.estadoSunat === "ACEPTADO";
-  const esPendiente = comprobante.estadoSunat === "PENDIENTE";
+  const esAceptado = esAceptadoSunat(comprobante.estadoSunat);
+  const esPendiente = esPendienteSunat(comprobante.estadoSunat);
   const esRechazado = comprobante.estadoSunat === "RECHAZADO";
   const esFacturaOBoleta =
     comprobante.tipoComprobante === "01" ||

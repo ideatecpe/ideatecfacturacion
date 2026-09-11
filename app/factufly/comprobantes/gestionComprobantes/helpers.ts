@@ -1,12 +1,20 @@
+// POR_VERIFICAR y ERROR_ENVIO son estados internos del backend: existen para que un
+// reenvío no se haga a ciegas y termine duplicando el comprobante en SUNAT. De cara al
+// usuario no son una categoría aparte — un comprobante que no está aceptado ni
+// rechazado es, sencillamente, un pendiente.
+export const esPendienteSunat = (estado?: string | null) =>
+    estado === 'PENDIENTE' || estado === 'POR_VERIFICAR' || estado === 'ERROR_ENVIO';
+
+export const esAceptadoSunat = (estado?: string | null) =>
+    estado === 'ACEPTADO' || estado === 'ACEPTADO_CON_OBSERVACIONES';
+
 export const COLORS = {
     sunat: {
         ACEPTADO: { badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
         ACEPTADO_CON_OBSERVACIONES: { badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
         PENDIENTE: { badge: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-400' },
-        // SUNAT ya tiene el comprobante y falta recuperar su CDR. No es un rechazo:
-        // se pinta distinto para que nadie lo lea como tal y lo reemita.
-        POR_VERIFICAR: { badge: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
-        ERROR_ENVIO: { badge: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
+        POR_VERIFICAR: { badge: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-400' },
+        ERROR_ENVIO: { badge: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-400' },
         RECHAZADO: { badge: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
         ANULADO: { badge: 'bg-gray-50 text-gray-500 border-gray-200', dot: 'bg-gray-400' },
 
