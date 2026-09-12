@@ -2893,10 +2893,18 @@ function NotaVentaContent() {
                     <div className="md:col-span-2">
                       <input
                         type="text"
-                        disabled
                         value={boleta.cliente?.direccionLineal ?? ""}
+                        onChange={(e) => {
+                          setBoleta((prev) => ({
+                            ...prev,
+                            cliente: {
+                              ...prev.cliente,
+                              direccionLineal: e.target.value,
+                            },
+                          }));
+                        }}
                         placeholder="Dirección del cliente"
-                        className="w-full py-1.5 px-3 bg-gray-100 border border-gray-200 rounded-xl text-xs text-gray-500"
+                        className="w-full py-1.5 px-3 bg-white border border-blue-300 rounded-xl text-xs text-gray-700 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                       />
                     </div>
                   )}
