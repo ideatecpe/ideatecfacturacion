@@ -101,7 +101,7 @@ export default function SirePage() {
   );
 
   const estadoLocalPeriodoActivo = useMemo(
-    () => historial.find((h) => h.perTributario === periodoActivo?.periodo)?.estado ?? null,
+    () => historial.find((h) => h.perTributario === periodoActivo?.periodo && h.tipo === "RVIE")?.estado ?? null,
     [historial, periodoActivo],
   );
 
@@ -304,6 +304,7 @@ export default function SirePage() {
               <thead>
                 <tr className="bg-gray-100">
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Periodo</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipo</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ticket</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Última consulta</th>
@@ -314,7 +315,7 @@ export default function SirePage() {
               <tbody className="divide-y divide-gray-100">
                 {loadingHistorial ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={7} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <RefreshCw size={20} className="animate-spin text-blue-400" />
                         <span className="text-sm text-gray-400">Cargando historial...</span>
@@ -323,7 +324,7 @@ export default function SirePage() {
                   </tr>
                 ) : errorHistorial ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={7} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <FileWarning className="w-6 h-6 text-amber-400" />
                         <span className="text-sm text-gray-600 font-medium">{errorHistorial}</span>
@@ -332,7 +333,7 @@ export default function SirePage() {
                   </tr>
                 ) : historial.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-400">
+                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-400">
                       Aún no hay registros de cierres SIRE.
                     </td>
                   </tr>
@@ -341,6 +342,18 @@ export default function SirePage() {
                     <tr key={h.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-5 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
                         {formatPeriodoLabel(h.perTributario)}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span
+                          className={cn(
+                            "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
+                            h.tipo === "RCE"
+                              ? "bg-purple-50 text-purple-600 border-purple-100"
+                              : "bg-blue-50 text-blue-600 border-blue-100",
+                          )}
+                        >
+                          {h.tipo === "RCE" ? "Compras" : "Ventas"}
+                        </span>
                       </td>
                       <td className="px-5 py-3">
                         <EstadoBadge estado={h.estado} />

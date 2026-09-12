@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RefreshCw, FileText, X, CheckCircle2, Eye, Download, ChevronDown, Building2, Calendar, Hash, AlertCircle, Ban, Ticket } from 'lucide-react';
 import { cn } from '@/app/utils/cn';
 import { Comprobante } from '@/app/factufly/comprobantes/gestionComprobantes/Comprobante';
-import { padCorrelativo, COLORS, TIPO_PAGO_MAP, tipoLabel, formatFecha, TIPO_GUIA_MAP, limpiarMensajeSunat, PDF_SIZES } from '@/app/factufly/comprobantes/gestionComprobantes/helpers';
+import { padCorrelativo, COLORS, TIPO_PAGO_MAP, tipoLabel, formatFecha, TIPO_GUIA_MAP, limpiarMensajeSunat, PDF_SIZES, esAceptadoSunat } from '@/app/factufly/comprobantes/gestionComprobantes/helpers';
 import { useTrabajadoresSucursal } from '@/app/factufly/trabajadores/gestionTrabajadores/useTrabajadoresSucursal';
 
 // ─── DataCard ─────────────────────────────────────────────────────────────────
@@ -112,8 +112,8 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
     }, [comprobante, ruc, accessToken]);
 
     const colorEstado = COLORS.sunat[comprobante.estadoSunat as keyof typeof COLORS.sunat]?.badge ?? COLORS.sunat.PENDIENTE.badge;
-    const iconoEstado = 
-        comprobante.estadoSunat === 'ACEPTADO' ? <CheckCircle2 size={15} /> :
+    const iconoEstado =
+        esAceptadoSunat(comprobante.estadoSunat) ? <CheckCircle2 size={15} /> :
         comprobante.estadoSunat === 'RECHAZADO' ? <X size={15} /> :
         comprobante.estadoSunat === 'ANULADO' ? <Ban size={15} /> :
         <RefreshCw size={15} />;
@@ -170,7 +170,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                                 {comprobante.tipoComprobante !== 'NV' && (
                                 <div className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold", colorEstado)}>
                                     {iconoEstado} Estado SUNAT: {
-                                        comprobante.estadoSunat === 'ACEPTADO' ? 'Aceptado' :
+                                        esAceptadoSunat(comprobante.estadoSunat) ? 'Aceptado' :
                                         comprobante.estadoSunat === 'RECHAZADO' ? 'Rechazado' :
                                         comprobante.estadoSunat === 'ANULADO' ? 'Anulado' :
                                         'Pendiente'
@@ -185,7 +185,10 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                             </div>
 
                             {comprobante.mensajeRespuestaSunat && (
-                                <p className={cn("text-xs rounded-xl px-3 py-1.5", comprobante.estadoSunat === 'ACEPTADO' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600')}>
+                                <p className={cn("text-xs rounded-xl px-3 py-1.5",
+                                    esAceptadoSunat(comprobante.estadoSunat) ? 'bg-emerald-50 text-emerald-700'
+                                    : comprobante.estadoSunat === 'RECHAZADO' ? 'bg-red-50 text-red-600'
+                                    : 'bg-amber-50 text-amber-700')}>
                                     {limpiarMensajeSunat(comprobante.mensajeRespuestaSunat)}
                                 </p>
                             )}

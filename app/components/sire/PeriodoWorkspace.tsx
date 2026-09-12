@@ -116,6 +116,17 @@ function isoADmy(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
+type TipoOperacionVenta = "gravada" | "exonerada" | "inafecta";
+const TASA_IGV_VENTA = 0.18;
+
+// El usuario solo ingresa el total que le cobró a su cliente; Base Imponible e IGV se derivan solos
+// (Total = BI + IGV, IGV = BI * 18%), para que no tenga que sacar esa cuenta a mano.
+function calcularBaseEIgvVenta(totalConIgv: number): { base: number; igv: number } {
+  const base = Math.round((totalConIgv / (1 + TASA_IGV_VENTA)) * 100) / 100;
+  const igv = Math.round((totalConIgv - base) * 100) / 100;
+  return { base, igv };
+}
+
 function formatPeriodoLabel(perTributario: string): string {
   if (!perTributario || perTributario.length !== 6) return perTributario;
   const anio = perTributario.slice(0, 4);
@@ -365,6 +376,10 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
   }, [ruc, perTributario]);
 
   const cargarPropuesta = async () => {
+    // El botón "Cargar propuesta" (en page.tsx) no conoce cargandoPropuesta y no se deshabilita solo;
+    // esta guarda evita que un doble click dispare dos solicitudes en paralelo a SUNAT (y el doble toast
+    // de error resultante) mientras la primera sigue en curso.
+    if (cargandoPropuesta) return;
     setError(null);
     const data = await descargarPropuesta(ruc, perTributario);
     if (data?.success) {
@@ -796,8 +811,9 @@ export const PeriodoWorkspace = forwardRef<PeriodoWorkspaceHandle, Props>(functi
                                     setComprobanteEditarCambio(c);
                                     setNuevoTipoCambio(c.tipoCambio ? String(c.tipoCambio) : "");
                                   }}
-                                  title="Editar tipo de cambio"
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                  disabled={propuestaAceptada}
+                                  title={propuestaAceptada ? "Solo se puede editar el tipo de cambio antes de aceptar la propuesta" : "Editar tipo de cambio"}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
                                 >
                                   <DollarSign size={13} />
                                 </button>
@@ -1107,7 +1123,7 @@ PeriodoWorkspace.displayName = "PeriodoWorkspace";
 const FECHA_REGEX = /^\d{2}\/\d{2}\/\d{4}$/;
 
 // Validación básica según RS 112-2021/SUNAT, Anexo N°2 (campos obligatorios y reglas condicionales)
-function validarComprobanteNuevo(form: SireComprobanteNuevoDto, esNota: boolean): Partial<Record<keyof SireComprobanteNuevoDto, string>> {
+function validarComprobanteNuevo(form: SireComprobanteNuevoDto, esNota: boolean, totalConIgv: number): Partial<Record<keyof SireComprobanteNuevoDto, string>> {
   const errores: Partial<Record<keyof SireComprobanteNuevoDto, string>> = {};
 
   if (!form.fechaEmision.trim()) errores.fechaEmision = "Ingresa la fecha de emisión";
@@ -1127,9 +1143,7 @@ function validarComprobanteNuevo(form: SireComprobanteNuevoDto, esNota: boolean)
     if (!form.razonSocialCliente?.trim()) errores.razonSocialCliente = "Requerido para este tipo de comprobante";
   }
 
-  if (form.baseImponible < 0) errores.baseImponible = "No puede ser negativo";
-  if (form.igv < 0) errores.igv = "No puede ser negativo";
-  if (!form.importeTotal) errores.importeTotal = "Ingresa el importe total";
+  if (!totalConIgv || totalConIgv <= 0) errores.importeTotal = "Ingresa el total de la factura";
 
   if (form.codMoneda !== "PEN" && (!form.tipoCambio || form.tipoCambio <= 0)) {
     errores.tipoCambio = "Obligatorio para moneda distinta a soles";
@@ -1176,12 +1190,16 @@ function ModalAgregarComprobante({
     codMoneda: "PEN",
   };
   const [form, setForm] = useState<SireComprobanteNuevoDto>(vacio);
+  const [tipoOperacion, setTipoOperacion] = useState<TipoOperacionVenta>("gravada");
+  const [totalConIgv, setTotalConIgv] = useState<number>(0);
   const [destino, setDestino] = useState<"propuesta" | "preliminar">("propuesta");
   const [intentado, setIntentado] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setForm(vacio);
+      setTipoOperacion("gravada");
+      setTotalConIgv(0);
       setDestino(propuestaAceptada ? "preliminar" : "propuesta");
       setIntentado(false);
     }
@@ -1191,14 +1209,27 @@ function ModalAgregarComprobante({
   const update = <K extends keyof SireComprobanteNuevoDto>(campo: K, valor: SireComprobanteNuevoDto[K]) =>
     setForm((prev) => ({ ...prev, [campo]: valor }));
 
+  // El usuario solo ingresa el total de la factura; Base Imponible e IGV (o Exonerado/Inafecto) se derivan solos.
+  const { base: baseCalculada, igv: igvCalculado } = useMemo(
+    () => (tipoOperacion === "gravada" ? calcularBaseEIgvVenta(totalConIgv) : { base: 0, igv: 0 }),
+    [tipoOperacion, totalConIgv],
+  );
+
+  useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      baseImponible: tipoOperacion === "gravada" ? baseCalculada : 0,
+      igv: tipoOperacion === "gravada" ? igvCalculado : 0,
+      mtoExonerado: tipoOperacion === "exonerada" ? totalConIgv : 0,
+      mtoInafecto: tipoOperacion === "inafecta" ? totalConIgv : 0,
+      importeTotal: totalConIgv,
+    }));
+  }, [tipoOperacion, totalConIgv, baseCalculada, igvCalculado]);
+
   const esNota = ["07", "08", "87", "88"].includes(form.tipoComprobante);
-  const errores = validarComprobanteNuevo(form, esNota);
+  const errores = validarComprobanteNuevo(form, esNota, totalConIgv);
   const valido = Object.keys(errores).length === 0;
   const err = (campo: keyof SireComprobanteNuevoDto) => (intentado ? errores[campo] : undefined);
-
-  const sumaBaseIgv = form.baseImponible + form.igv;
-  const totalNoCoincide =
-    form.importeTotal !== 0 && form.codMoneda === "PEN" && Math.abs(sumaBaseIgv - form.importeTotal) > 0.05;
 
   const handleSubmit = () => {
     if (!valido) {
@@ -1314,40 +1345,58 @@ function ModalAgregarComprobante({
               className={inputCls(!!err("razonSocialCliente"))}
             />
           </Campo>
-          <Campo label="Base imponible" error={err("baseImponible")}>
+          <Campo label="Tipo de operación" full>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTipoOperacion("gravada")}
+                className={cn(
+                  "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors",
+                  tipoOperacion === "gravada" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
+                )}
+              >
+                Gravada
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipoOperacion("exonerada")}
+                className={cn(
+                  "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors",
+                  tipoOperacion === "exonerada" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
+                )}
+              >
+                Exonerada
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipoOperacion("inafecta")}
+                className={cn(
+                  "flex-1 px-3 py-2 text-xs font-semibold rounded-lg border transition-colors",
+                  tipoOperacion === "inafecta" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500",
+                )}
+              >
+                Inafecta
+              </button>
+            </div>
+          </Campo>
+          <Campo
+            label={tipoOperacion === "gravada" ? "Total de la factura (incluye IGV)" : "Total de la factura"}
+            full
+            error={err("importeTotal")}
+          >
             <input
               type="number"
               step="0.01"
               min={0}
-              value={form.baseImponible}
-              onChange={(e) => update("baseImponible", Number(e.target.value))}
+              value={totalConIgv || ""}
+              onChange={(e) => setTotalConIgv(Number(e.target.value))}
               placeholder="0.00"
-              className={inputCls(!!err("baseImponible"))}
+              className={inputCls(!!err("importeTotal")) + " text-base font-semibold"}
             />
-          </Campo>
-          <Campo label="IGV" error={err("igv")}>
-            <input
-              type="number"
-              step="0.01"
-              min={0}
-              value={form.igv}
-              onChange={(e) => update("igv", Number(e.target.value))}
-              placeholder="0.00"
-              className={inputCls(!!err("igv"))}
-            />
-          </Campo>
-          <Campo label="Total" error={err("importeTotal")}>
-            <input
-              type="number"
-              step="0.01"
-              value={form.importeTotal}
-              onChange={(e) => update("importeTotal", Number(e.target.value))}
-              placeholder="0.00"
-              className={inputCls(!!err("importeTotal"))}
-            />
-            {!err("importeTotal") && totalNoCoincide && (
-              <p className="text-[11px] text-amber-600">
-                Base + IGV = {sumaBaseIgv.toFixed(2)}, pero el Total es {form.importeTotal.toFixed(2)}. Revisa los montos.
+            {tipoOperacion === "gravada" && totalConIgv > 0 && (
+              <p className="text-[11px] text-gray-500 mt-1">
+                Calculado: Base imponible <strong className="text-gray-700">S/ {baseCalculada.toFixed(2)}</strong> + IGV (18%){" "}
+                <strong className="text-gray-700">S/ {igvCalculado.toFixed(2)}</strong>
               </p>
             )}
           </Campo>
