@@ -2897,10 +2897,12 @@ function NotaVentaContent() {
                         onChange={(e) => {
                           setBoleta((prev) => ({
                             ...prev,
-                            cliente: {
-                              ...prev.cliente,
-                              direccionLineal: e.target.value,
-                            },
+                            cliente: prev.cliente
+                              ? {
+                                  ...prev.cliente,
+                                  direccionLineal: e.target.value,
+                                }
+                              : prev.cliente,
                           }));
                         }}
                         placeholder="Dirección del cliente"
