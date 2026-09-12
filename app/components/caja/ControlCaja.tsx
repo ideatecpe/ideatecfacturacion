@@ -18,7 +18,6 @@ import {
   InfoEmisionSegundoPlano,
 } from "@/lib/eventosCaja";
 
-
 export function ControlCaja({ children }: { children: React.ReactNode }) {
   const { isOnline, cantidadPendientes, cantidadError } = useOfflineSales();
   const ventasSinSincronizar = cantidadPendientes + cantidadError;
