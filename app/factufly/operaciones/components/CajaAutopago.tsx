@@ -381,6 +381,15 @@ function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
   return false;
 }
 
+// Valida el dígito verificador de un código EAN-8 / UPC-A / EAN-13 / GTIN-14.
+// Sirve para decidir, entre dos lecturas del mismo escaneo, cuál es el código íntegro.
+function esGtinValido(codigo: string): boolean {
+  if (!/^(\d{8}|\d{12,14})$/.test(codigo)) return false;
+  const digitos = codigo.split("").map(Number);
+  const verificador = digitos.pop()!;
+  const suma = digitos.reverse().reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 3 : 1), 0);
+  return (10 - (suma % 10)) % 10 === verificador;
+}
 
 function coincideCodigoExacto(p: ProductoSucursal, q: string): boolean {
   const query = q.trim().toLowerCase();
@@ -1469,7 +1478,7 @@ export function CajaAutopagoVista({
   // Agrega directo el producto encontrado por código de barras o código exacto,
   // o abre el modal de cobro si no hay búsqueda pendiente.
   const onEnterBusqueda = useCallback(
-    async (queryOverride?: string, esCodigoEscaneado = false) => {
+    async (queryOverride?: string, esCodigoEscaneado = false, codigoAlterno?: string) => {
       const q = (queryOverride !== undefined ? queryOverride : busqueda).trim().toLowerCase();
       if (!q) {
         if (itemsRef.current.length > 0) {
@@ -1484,12 +1493,31 @@ export function CajaAutopagoVista({
         return;
       }
 
+      // Códigos a probar para una lectura de escáner: la ráfaga capturada y, de
+      // respaldo, el código completo que quedó escrito en el buscador. Si solo
+      // uno de los dos pasa el dígito verificador, ese va primero.
+      const rawQuery = (queryOverride !== undefined ? queryOverride : busqueda).trim();
+      const alterno = esCodigoEscaneado ? (codigoAlterno ?? "").trim() : "";
+      const candidatos =
+        !alterno || alterno.toLowerCase() === q
+          ? [rawQuery]
+          : esGtinValido(alterno) && !esGtinValido(rawQuery)
+            ? [alterno, rawQuery]
+            : [rawQuery, alterno];
+
+      const buscarCoincidencia = (lista: ProductoSucursal[]) => {
+        if (!esCodigoEscaneado) return lista.find((p) => coincideCodigoOBarras(p, q));
+        for (const c of candidatos) {
+          const encontrado = lista.find((p) => coincideCodigoExacto(p, c));
+          if (encontrado) return encontrado;
+        }
+        return undefined;
+      };
+
       // 1. Buscar coincidencia por código de barras o código interno.
       // Un código escaneado (pistola o cámara) exige coincidencia ESTRICTA:
       // jamás se "adivina" por substring o por nombre de producto.
-      let exacto = productosSucursal.find((p) =>
-        esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
-      );
+      let exacto = buscarCoincidencia(productosSucursal);
 
       // 2. Si es búsqueda manual:
       // - Si el grid tiene exactamente 1 producto que coincide
@@ -1507,24 +1535,26 @@ export function CajaAutopagoVista({
 
       // 3. Si en el grid hay algún producto cuyo código coincide
       if (!exacto && productosGrid.length > 0) {
-        const matchGrid = productosGrid.find((p) =>
-          esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
-        );
+        const matchGrid = buscarCoincidencia(productosGrid);
         if (matchGrid) exacto = matchGrid;
       }
 
       // 4. Si no está en memoria local, consultar al servidor
-      if (!exacto) {
+      if (!exacto && esCodigoEscaneado) {
+        for (const c of candidatos) {
+          const remotos = await buscarEnServidor(c.toLowerCase());
+          exacto = remotos.find((p) => coincideCodigoExacto(p, c));
+          if (exacto) break;
+        }
+      } else if (!exacto) {
         const remotos = await buscarEnServidor(q);
         if (remotos.length > 0) {
-          const exactoRemoto = remotos.find((p) =>
-            esCodigoEscaneado ? coincideCodigoExacto(p, q) : coincideCodigoOBarras(p, q),
-          );
+          const exactoRemoto = remotos.find((p) => coincideCodigoOBarras(p, q));
           if (exactoRemoto) {
             exacto = exactoRemoto;
-          } else if (!esCodigoEscaneado && remotos.length === 1) {
+          } else if (remotos.length === 1) {
             exacto = remotos[0];
-          } else if (!esCodigoEscaneado) {
+          } else {
             const matchNombre = remotos.find(
               (p) => p.nomProducto.trim().toLowerCase() === q,
             );
@@ -1561,8 +1591,8 @@ export function CajaAutopagoVista({
         setItems([]);
         onVentaTerminada?.();
       }
-      showToast(`No se encontró ningún producto con el código "${queryOverride ?? q}"`, "error");
-      const raw = (queryOverride !== undefined ? queryOverride : busqueda).trim();
+      const raw = esCodigoEscaneado ? candidatos[0] : rawQuery;
+      showToast(`No se encontró ningún producto con el código "${raw}"`, "error");
       setCodigoBarrasNuevoProducto(raw);
       setNombreNuevoProducto(/^\d{4,}$/.test(raw) ? "" : raw);
       setModalCrearRapidoAbierto(true);
@@ -1613,7 +1643,12 @@ export function CajaAutopagoVista({
 
       if (isEditingOther) return;
 
-      const now = Date.now();
+      // Se mide con e.timeStamp (cuándo llegó la tecla) y no con Date.now()
+      // (cuándo se procesa): el primer carácter dispara un render que puede
+      // bloquear el hilo principal, y el segundo se procesaba tarde aunque la
+      // pistola lo enviara de inmediato. Eso partía la ráfaga y se perdía el
+      // primer dígito (7702007089189 llegaba como 702007089189).
+      const now = e.timeStamp || performance.now();
       const timeDiff = now - scannerBufferRef.current.lastTime;
 
       // Si las teclas se envían en menos de 65ms (típico de pistola de código de barras USB/Bluetooth)
@@ -1638,7 +1673,17 @@ export function CajaAutopagoVista({
         // 1. Si vino del lector de códigos de barras físico
         if (barcodeFromScanner) {
           e.preventDefault();
-          onEnterBusqueda(barcodeFromScanner, true);
+          // Respaldo: el buscador tiene lo que realmente se tecleó. Si termina en
+          // la ráfaga pero trae caracteres de más delante, pueden ser los que la
+          // ráfaga no alcanzó a capturar; onEnterBusqueda decide cuál usar.
+          const valorInput = isFocusOnSearch ? (inputRef.current?.value ?? "").trim() : "";
+          const colaInput =
+            valorInput.match(/^\d+$/.test(barcodeFromScanner) ? /\d+$/ : /\S+$/)?.[0] ?? "";
+          const alterno =
+            colaInput.length > barcodeFromScanner.length && colaInput.endsWith(barcodeFromScanner)
+              ? colaInput
+              : undefined;
+          onEnterBusqueda(barcodeFromScanner, true, alterno);
           return;
         }
 

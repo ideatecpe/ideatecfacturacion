@@ -1512,7 +1512,12 @@ function NotaVentaContent() {
       agregarFila();
     }
   };
-  useEscanerGlobal(onScanCodigo);
+  // En modo Caja Autopago esta pantalla renderiza <CajaAutopago />, que tiene
+  // su propio escáner: este listener le quitaba el foco al buscador a mitad de
+  // la lectura y se quedaba con el Enter.
+  useEscanerGlobal(onScanCodigo, {
+    enabled: !(config?.isStock && config?.isCajaAutopago),
+  });
 
   // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
   const getStockEfectivo = (p: ProductoSucursal): number | null => {
