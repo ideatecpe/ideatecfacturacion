@@ -435,6 +435,31 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
   const nombreEmpresa = tienda.nombreTienda.trim();
   const direccionCompleta = tienda.direccion?.toUpperCase() || "";
 
+  // Mismo campo en la tarjeta del buscador y en la franja fija del celular. En
+  // celular la letra va a 16 px: con menos, el iPhone hace zoom al tocarlo y
+  // desplaza la página.
+  const campoBusqueda = (
+    <div className="relative flex-1">
+      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <input
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="¿Qué se te antoja hoy?"
+        className="w-full h-9 pl-9 pr-8 rounded-xl bg-slate-50 border border-slate-200 text-base sm:text-xs outline-none placeholder:text-slate-400 focus:bg-white focus:border-[#0b1b36] focus:ring-2 focus:ring-[#0b1b36]/10 transition-all"
+      />
+      {busqueda && (
+        <button
+          type="button"
+          onClick={() => setBusqueda("")}
+          aria-label="Limpiar búsqueda"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+
   // ── Catálogo ───────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-32">
@@ -580,51 +605,44 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
         </div>
       </header>
 
-      {/* ══════════════ BARRA DE BÚSQUEDA PERENNE (STICKY) ══════════════ */}
-      <div ref={setMarcaBuscador} aria-hidden className="h-0" />
-      <div
-        id="catalogo-completo"
-        className={`sticky top-0 sm:top-[52px] z-30 -mt-6 mx-auto max-w-6xl px-4 transition-all ${
-          buscadorFijo ? "max-sm:px-0" : ""
-        }`}
-      >
-        <div
-          className={`relative bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl border border-slate-200/80 space-y-2 ${
-            buscadorFijo
-              ? "max-sm:flex max-sm:flex-row-reverse max-sm:items-center max-sm:gap-2 max-sm:space-y-0 max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0 max-sm:px-3 max-sm:py-2 max-sm:shadow-md"
-              : ""
-          }`}
-        >
-          <div className={`relative ${buscadorFijo ? "max-sm:flex-1" : ""}`}>
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder='¿Qué se te antoja hoy? Prueba con "aceite"'
-              className="w-full h-9 pl-9 pr-8 rounded-xl bg-slate-50 border border-slate-200 text-xs outline-none placeholder:text-slate-400 focus:bg-white focus:border-[#0b1b36] focus:ring-2 focus:ring-[#0b1b36]/10 transition-all"
-            />
-            {busqueda && (
-              <button
-                type="button"
-                onClick={() => setBusqueda("")}
-                aria-label="Limpiar búsqueda"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+      {/* ══════════════ BARRA DE BÚSQUEDA ══════════════ */}
+      {/* En escritorio queda fija bajo el encabezado. En celular se desplaza con la
+          página y, al salir de la pantalla, aparece la franja azul de abajo. */}
+      <div id="catalogo-completo" className="relative sm:sticky sm:top-[52px] z-30 -mt-6 mx-auto max-w-6xl px-4">
+        <div className="relative bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl border border-slate-200/80 space-y-2">
+          {campoBusqueda}
           {secciones.length > 0 && (
             <BarraCategorias
               secciones={resumenSecciones}
               activa={seccionActiva}
               iconos={ICONOS_SECCION}
-              compacto={buscadorFijo}
               onElegir={irASeccion}
             />
           )}
         </div>
       </div>
+      <div ref={setMarcaBuscador} aria-hidden className="h-0" />
+
+      {/* Celular: franja azul fija con el buscador. Va fuera del flujo de la página,
+          así que aparecer o desaparecer no mueve el contenido: antes la tarjeta
+          cambiaba de alto al fijarse y, al abrirse el teclado, la página subía y
+          bajaba sola. */}
+      {buscadorFijo && (
+        <div className="sm:hidden fixed inset-x-0 top-0 z-40 bg-[#0B1F49] px-3 py-2 shadow-lg">
+          <div className="relative flex items-center gap-2">
+            {secciones.length > 0 && (
+              <BarraCategorias
+                secciones={resumenSecciones}
+                activa={seccionActiva}
+                iconos={ICONOS_SECCION}
+                compacto
+                onElegir={irASeccion}
+              />
+            )}
+            {campoBusqueda}
+          </div>
+        </div>
+      )}
 
 
 
