@@ -18,13 +18,10 @@ import {
   ImageIcon,
   CheckCircle2,
   Printer,
-  Download,
-  Send,
   Banknote,
   CreditCard,
   Smartphone,
   Landmark,
-  MoreHorizontal,
   CalendarClock,
   Columns3,
   HandCoins,
@@ -38,10 +35,8 @@ import {
   PackagePlus,
   RefreshCw,
   Zap,
-  Minimize2,
   Maximize2,
   AlertCircle,
-  GripHorizontal,
   MessageCircle,
   Volume2,
   VolumeX,
@@ -135,15 +130,8 @@ const MEDIOS_PAGO: MedioPagoOpcion[] = [
     icon: Landmark,
     activo: "border-emerald-500 ring-2 ring-emerald-500/30",
   },
-  // {
-  //   nombre: "Otro",
-  //   imagen: "/mediosPago/otro.svg",
-  //   icon: MoreHorizontal,
-  //   activo: "border-gray-500 ring-2 ring-gray-400/30",
-  // },
 ];
 
-const MONTOS_RAPIDOS = [5, 10, 20, 50, 100, 200];
 function obtenerMontosRapidos(total: number): number[] {
   if (total <= 0) return [5, 10, 20, 50, 100, 200];
   const billetes = [5, 10, 20, 30, 40, 50, 100, 200];
@@ -169,7 +157,6 @@ function obtenerMontosRapidos(total: number): number[] {
 
   return opciones.slice(0, 5);
 }
-const TAMANO_MAP: Record<"80" | "58" | "A4", string> = { "80": "Ticket80mm", "58": "Ticket58mm", A4: "A4" };
 
 export interface ItemCarrito {
   key: string;
@@ -179,7 +166,7 @@ export interface ItemCarrito {
   descripcion: string;
   cantidad: number;
   cantidadStr?: string;
-  precio: number; // precio de venta (con IGV incluido)
+  precio: number;
   precioStr?: string;
   tipoAfectacionIGV: string;
   urlImagen: string | null;
@@ -190,13 +177,7 @@ export interface ItemCarrito {
 
 export const SIN_RESERVAS: ItemCarrito[] = [];
 
-// ── Carrito persistente entre navegaciones ───────────────────────────────
-// El carrito vive en el estado de <CajaAutopagoVista />, así que salir de
-// "Nueva Venta" hacia otro módulo (Clientes, Productos…) desmontaba la caja y
-// el cajero perdía todo lo que ya había escaneado. Se guarda en sessionStorage
-// —por pestaña, para que dos cajas abiertas en el mismo navegador no compartan
-// carrito ni se pisen las reservas de stock— y se restaura al volver.
-const CARRITO_TTL_MS = 12 * 60 * 60 * 1000; // una jornada de caja
+const CARRITO_TTL_MS = 12 * 60 * 60 * 1000;
 
 function claveCarrito(sucursalId: number, cajaId: string): string {
   return `factufly_carrito_${sucursalId}_${cajaId}`;
@@ -221,7 +202,6 @@ function guardarCarrito(sucursalId: number, cajaId: string, items: ItemCarrito[]
     if (items.length === 0) sessionStorage.removeItem(clave);
     else sessionStorage.setItem(clave, JSON.stringify({ guardadoEn: Date.now(), items }));
   } catch {
-    /* modo privado o cuota llena: la caja sigue funcionando solo en memoria */
   }
 }
 
@@ -232,7 +212,6 @@ export const VENTAS_RAPIDAS_CONFIG = [
   { key: "F4", label: "Venta rápida 4", color: "bg-brand-blue", hoverColor: "hover:bg-[#0a2050]", shadowColor: "rgba(15,46,100,0.7)" },
 ] as const;
 
-/** Info de una venta rápida que la caja principal necesita para sus botones/barras. */
 export interface VentaRapidaInfo {
   configIndex: number;
   items: number;
@@ -287,7 +266,6 @@ function calcularDisponible(
   return disponibleBase;
 }
 
-// Retroalimentación háptica (vibración) y acústica ('bip') al escanear con la cámara del celular
 function emitirBeepEscaneo() {
   try {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -310,7 +288,6 @@ function emitirBeepEscaneo() {
       osc.stop(ctx.currentTime + 0.1);
     }
   } catch {
-    /* ignore */
   }
 }
 
@@ -336,14 +313,9 @@ function emitirBeepError() {
       osc.stop(ctx.currentTime + 0.15);
     }
   } catch {
-    /* ignore */
   }
 }
 
-// Coincidencia inteligente de código de barras o código interno:
-// 1. Exacto (case-insensitive, trimmed)
-// 2. Numérico puro ignorando TODOS los ceros a la izquierda (ej. '007500435247634' vs '07500435247634' vs '7500435247634')
-// 3. Substring numérico o por palabras (igual que en lista de productos)
 function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
   const query = q.trim().toLowerCase();
   if (!query) return false;
@@ -351,10 +323,8 @@ function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
   const cb = p.codigoBarras?.trim().toLowerCase() ?? "";
   const cod = p.codigo?.trim().toLowerCase() ?? "";
 
-  // 1. Coincidencia exacta directa
   if (cb === query || cod === query) return true;
 
-  // 2. Coincidencia numérica pura ignorando ceros a la izquierda ('00...' vs '0...' vs '...')
   const qDigits = query.replace(/\D/g, "");
   const qSinCeros = qDigits.replace(/^0+/, "");
 
@@ -364,25 +334,21 @@ function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
   const codDigits = cod.replace(/\D/g, "");
   const codSinCeros = codDigits.replace(/^0+/, "");
 
-  // Si ambos números sin ceros iniciales coinciden (mínimo 3 dígitos)
   if (qSinCeros.length >= 3) {
     if (cbSinCeros && cbSinCeros === qSinCeros) return true;
     if (codSinCeros && codSinCeros === qSinCeros) return true;
   }
 
-  // Si con ceros coinciden (ej. '001' vs '001')
   if (qDigits.length >= 3) {
     if (cbDigits && cbDigits === qDigits) return true;
     if (codDigits && codDigits === qDigits) return true;
   }
 
-  // 3. Si el código de barras o código contiene el término escaneado como substring
   if (qSinCeros.length >= 4) {
     if (cbSinCeros && (cbSinCeros.includes(qSinCeros) || qSinCeros.includes(cbSinCeros))) return true;
     if (codSinCeros && (codSinCeros.includes(qSinCeros) || qSinCeros.includes(codSinCeros))) return true;
   }
 
-  // 4. Normalizado sin acentos ni espacios
   if (
     normalizarTexto(cb) === normalizarTexto(query) ||
     normalizarTexto(cod) === normalizarTexto(query)
@@ -390,7 +356,6 @@ function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
     return true;
   }
 
-  // 5. Coincidencia flexible de búsqueda (como en la lista de productos)
   if (coincideBusqueda(query, p.codigoBarras, p.codigo, p.nomProducto)) {
     return true;
   }
@@ -398,8 +363,6 @@ function coincideCodigoOBarras(p: ProductoSucursal, q: string): boolean {
   return false;
 }
 
-// Valida el dígito verificador de un código EAN-8 / UPC-A / EAN-13 / GTIN-14.
-// Sirve para decidir, entre dos lecturas del mismo escaneo, cuál es el código íntegro.
 function esGtinValido(codigo: string): boolean {
   if (!/^(\d{8}|\d{12,14})$/.test(codigo)) return false;
   const digitos = codigo.split("").map(Number);
@@ -415,10 +378,8 @@ function coincideCodigoExacto(p: ProductoSucursal, q: string): boolean {
   const cb = p.codigoBarras?.trim().toLowerCase() ?? "";
   const cod = p.codigo?.trim().toLowerCase() ?? "";
 
-  // 1. Coincidencia exacta directa (solo si el código no está vacío)
   if ((cb && cb === query) || (cod && cod === query)) return true;
 
-  // 2. Coincidencia numérica pura sin ceros iniciales
   const qDigits = query.replace(/\D/g, "");
   const qSinCeros = qDigits.replace(/^0+/, "");
   const cbDigits = cb.replace(/\D/g, "");
@@ -435,7 +396,6 @@ function coincideCodigoExacto(p: ProductoSucursal, q: string): boolean {
     if (codDigits && codDigits === qDigits) return true;
   }
 
-  // 3. Normalizado sin acentos
   if (
     (cb && normalizarTexto(cb) === normalizarTexto(query)) ||
     (cod && normalizarTexto(cod) === normalizarTexto(query))
@@ -461,22 +421,15 @@ const ProductoGridCard = memo(function ProductoGridCard({
   cantidadEnCarrito?: number;
   stockDisp?: number | null;
   onClick: () => void;
-  /** Posición en el grid: las primeras 8 se cargan de inmediato. */
   index?: number;
 }) {
   const cardRef = useRef<HTMLButtonElement>(null);
-  // Las primeras 8 tarjetas (primera fila visible) arrancan como visibles;
-  // el resto empieza oculto hasta que IntersectionObserver lo detecte.
   const [isInView, setIsInView] = useState(index < 8);
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
 
-  // IntersectionObserver por tarjeta: la <img> NO se monta en el DOM hasta que
-  // la tarjeta entre al viewport. Así el navegador no descarga ninguna imagen
-  // que no sea visible — las tarjetas (nombre + precio) aparecen al instante y
-  // las fotos van cargando una por una al hacer scroll (como Falabella).
   useEffect(() => {
-    if (isInView) return; // ya visible, no necesita observer
+    if (isInView) return;
     const el = cardRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
@@ -498,7 +451,6 @@ const ProductoGridCard = memo(function ProductoGridCard({
   const hoy = new Date().toISOString().split("T")[0];
   const vencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
 
-  // Solo montar el <img> cuando la tarjeta está en el viewport
   const mostrarImg = tieneImagen && isInView;
 
   return (
@@ -524,7 +476,6 @@ const ProductoGridCard = memo(function ProductoGridCard({
             onError={() => setImgError(true)}
           />
         ) : tieneImagen ? (
-          /* Placeholder liviano mientras la tarjeta no está en el viewport (0 peticiones de red) */
           <div className="w-full h-full bg-white rounded flex items-center justify-center">
             <ImageIcon className="w-5 h-5 text-gray-300/70 animate-pulse" />
           </div>
@@ -532,7 +483,6 @@ const ProductoGridCard = memo(function ProductoGridCard({
           <ImageOff className="w-5 h-5 text-gray-300" />
         )}
 
-        {/* Badge de Stock en forma de etiqueta/cinta en la parte superior derecha */}
         {stockDisp !== null && stockDisp !== undefined && (
           <span
             className={`absolute top-0 right-2 flex items-center justify-center gap-0.5 px-1.5 pt-0.5 pb-0.5 rounded-b-md text-[9px] font-bold text-white z-10 shadow-xs tabular-nums ${
@@ -584,11 +534,6 @@ const ProductoGridCard = memo(function ProductoGridCard({
   );
 });
 
-// Recursos que las dos cajas simultáneas COMPARTEN: catálogo/stock, sucursal
-// (serie y correlativo), empresa emisora y categorías. Se cargan una sola vez en
-// <CajaAutopago /> y se pasan a cada vista. Si cada caja tuviera su propia copia,
-// la venta rápida y la principal mostrarían stock distinto del mismo producto y
-// podrían vender dos veces la última unidad.
 export interface RecursosCaja {
   productos: ReturnType<typeof useProductosSucursal>;
   recursoSucursal: ReturnType<typeof useSucursal>;
@@ -599,19 +544,12 @@ export interface RecursosCaja {
 
 export interface CajaAutopagoVistaProps {
   recursos: RecursosCaja;
-  /** Solo la caja enfocada escucha el teclado global y usa la cámara. */
   activo: boolean;
-  /** true cuando esta vista es la ventana emergente de venta rápida. */
   esRapida?: boolean;
-  /** Identifica esta caja al guardar/restaurar su carrito ("principal", "F1"…). */
   cajaId?: string;
-  /** Carrito de TODAS las otras cajas: sus unidades ya están comprometidas. */
   reservasOtraCaja: ItemCarrito[];
-  /** Publica el carrito propio para que las otras cajas lo descuenten. */
   onCarritoCambio: (items: ItemCarrito[]) => void;
-  /** Info de las ventas rápidas (solo en la caja principal). */
   ventasRapidas?: VentaRapidaInfo[];
-  /** Avisa al contenedor que el cajero cerró esta venta con "Nueva venta". */
   onVentaTerminada?: () => void;
 }
 
@@ -641,7 +579,6 @@ export function CajaAutopagoVista({
   } = recursos.productos;
   const ultimaRevalidacionRef = recursos.ultimaRevalidacionRef;
 
-  // Mapa de productos por ID para lookups O(1) de paquetes/stock
   const productosPorId = useMemo(() => {
     return new Map(productosSucursal.map((p) => [p.productoId, p]));
   }, [productosSucursal]);
@@ -652,10 +589,6 @@ export function CajaAutopagoVista({
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
   const { categorias } = recursos.recursoCategorias;
   const { enqueueVenta, isOnline } = useOfflineSales();
-  const [offlineEncolada, setOfflineEncolada] = useState(false);
-  const [ultimoTicketOffline, setUltimoTicketOffline] = useState<
-    Parameters<typeof imprimirTicketProvisional>[0] | null
-  >(null);
 
  
 
@@ -663,12 +596,7 @@ export function CajaAutopagoVista({
   const itemsRef = useRef<ItemCarrito[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
 
-  // Pedido de la tienda online que se está cobrando con este carrito (ver PedidosOnline).
-  // Al emitir la venta se marca como cobrado con el comprobante generado.
   const pedidoEnCobroRef = useRef<PedidoOnline | null>(null);
-  // Ventas que se siguen guardando en segundo plano. Mientras haya alguna, el
-  // servidor todavía tiene el stock de antes: recargar productos pisaría el
-  // descuento local y la caja volvería a mostrar unidades ya vendidas.
   const emisionesEnCursoRef = useRef(0);
   const [pedidoEnCobro, setPedidoEnCobro] = useState<PedidoOnline | null>(null);
   const [pedidoPorAbrir, setPedidoPorAbrir] = useState<PedidoOnline | null>(null);
@@ -681,7 +609,6 @@ export function CajaAutopagoVista({
     () => (reservasOtraCaja.length ? [...items, ...reservasOtraCaja] : items),
     [items, reservasOtraCaja],
   );
-  // Versión para callbacks/efectos, que leen el carrito por ref y no por render.
   const carritoConReservas = useCallback(
     () => (reservasRef.current.length ? [...itemsRef.current, ...reservasRef.current] : itemsRef.current),
     [],
@@ -715,7 +642,6 @@ export function CajaAutopagoVista({
   const [nombreNuevoProducto, setNombreNuevoProducto] = useState("");
   const [historialVentasVersion, setHistorialVentasVersion] = useState(0);
   const [refrescandoStock, setRefrescandoStock] = useState(false);
-  // Silencio de los avisos de pedidos online: lo elige cada usuario y se recuerda en el navegador.
   const sonidoPedidosSilenciado = useSyncExternalStore(
     suscribirSilencioPedidos,
     avisosPedidosSilenciados,
@@ -724,37 +650,21 @@ export function CajaAutopagoVista({
   const inputRef = useRef<HTMLInputElement>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
-  // true en cuanto el cajero elige el comprobante a mano: manda su elección para
-  // esta venta, por encima del default que traiga la configuración.
   const tipoElegidoManualRef = useRef(false);
   const abrirPagoRef = useRef<() => void>(() => {});
   const modalAbiertoAtRef = useRef<number>(0);
 
-  // Estados de pago y emisión
   const [medioPago, setMedioPago] = useState("Efectivo");
   const [montoRecibido, setMontoRecibido] = useState("");
   const [notaPago, setNotaPago] = useState("");
-  const [emitiendo, setEmitiendo] = useState(false);
+  const [emitiendo] = useState(false);
   const [emitido, setEmitido] = useState(false);
   const emitidoRef = useRef(emitido);
   useEffect(() => {
     emitidoRef.current = emitido;
   }, [emitido]);
-  const [totalEmitido, setTotalEmitido] = useState(0);
-  const [comprobanteIdEmitido, setComprobanteIdEmitido] = useState<number | null>(null);
-  const [serieCorrelativoEmitido, setSerieCorrelativoEmitido] = useState<string | null>(null);
-  const [medioPagoEmitido, setMedioPagoEmitido] = useState("Efectivo");
-  const [vueltoEmitido, setVueltoEmitido] = useState(0);
-  const [imprimiendo, setImprimiendo] = useState(false);
-  // Cuál de los tres botones se pulsó, para que el spinner salga solo en ese
-  // y no en los tres a la vez.
-  const [tamanoImprimiendo, setTamanoImprimiendo] = useState<"80" | "58" | "A4" | null>(null);
-  // Comprobantes ya descargados de la API, por id y tamaño. La BD es remota y
-  // cada descarga cuesta cientos de ms: sin esto, reimprimir o cambiar de
-  // tamaño vuelve a pagar la espera completa.
   const comprobantesDescargados = useRef(new Map<string, Blob>());
   const [telWhatsapp, setTelWhatsapp] = useState("");
-  // Enviar el comprobante al WhatsApp del cliente al terminar de emitir.
   const [enviarWhatsapp, setEnviarWhatsapp] = useState(false);
   const [mostrarFechaManual, setMostrarFechaManual] = useState(false);
   const [fechaEmisionManual, setFechaEmisionManual] = useState("");
@@ -769,7 +679,6 @@ export function CajaAutopagoVista({
     { numeroCuota: string; monto: string; fechaVencimiento: string }[]
   >([]);
 
-  // Focus en el buscador cuando se muestra la pantalla de éxito (para escanear el sgte producto directo)
   useEffect(() => {
     if (emitido && activo) {
       const isMobile =
@@ -786,7 +695,6 @@ export function CajaAutopagoVista({
     setNombreManualCliente("");
     setDireccionManualCliente("");
     setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
-    // La venta siguiente vuelve a arrancar en el default de la configuración.
     tipoElegidoManualRef.current = false;
     setMedioPago("Efectivo");
     setMontoRecibido("");
@@ -801,12 +709,6 @@ export function CajaAutopagoVista({
     setCuotasCredito([]);
     setTelWhatsapp("");
     setEnviarWhatsapp(false);
-    setComprobanteIdEmitido(null);
-    setSerieCorrelativoEmitido(null);
-    setOfflineEncolada(false);
-    setUltimoTicketOffline(null);
-    setTamanoImprimiendo(null);
-    // Los comprobantes de la venta anterior ya no se van a reimprimir.
     comprobantesDescargados.current.clear();
     if (pedidoEnCobroRef.current) liberarPedidoDeCaja(pedidoEnCobroRef.current.pedidoOnlineId);
     pedidoEnCobroRef.current = null;
@@ -817,7 +719,6 @@ export function CajaAutopagoVista({
     setBusqueda("");
     setEmitido(false);
     emitidoRef.current = false;
-    // Con una venta aún guardándose se recarga al terminar (ver emitirVenta).
     if (emisionesEnCursoRef.current === 0) fetchProductosSucursal();
   }, [config?.useNotaVenta, config?.isBoletaOrFactura, fetchProductosSucursal]);
 
@@ -854,13 +755,11 @@ export function CajaAutopagoVista({
         localStorage.setItem(key, JSON.stringify(data));
         setHistorialVentasVersion((v) => v + 1);
       } catch {
-        // ignore
       }
     },
     [sucursalId],
   );
 
-  // ── Cámara Escáner de Código de Barras (Móvil / Web) ───────────────
   const [isScanning, setIsScanning] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [ultimoEscaneadoCamara, setUltimoEscaneadoCamara] = useState<{
@@ -874,7 +773,6 @@ export function CajaAutopagoVista({
   const lastScannedCodeRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
   const timerBannerCamaraRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ── Agregar / quitar / cantidad ──────────────────────────────
   const agregarProducto = useCallback((p: ProductoSucursal) => {
     const hoy = new Date().toISOString().split("T")[0];
     const tieneVencido = !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy;
@@ -898,7 +796,6 @@ export function CajaAutopagoVista({
         productosPorId,
       );
       if (disp !== null && disp <= 0) {
-        // Un combo no tiene stock propio que ajustar: falta stock de algún componente.
         if (p.esCombo) {
           showToast(`No alcanza el stock de los productos del combo "${p.nomProducto}"`, "error");
           return baseItems;
@@ -909,19 +806,16 @@ export function CajaAutopagoVista({
 
       const idx = baseItems.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
-        // Re-adding a product already in cart: check stock before incrementing
         if (disp !== null && disp < 1) {
           showToast(`Stock insuficiente: solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${p.nomProducto}"`, "info");
           return baseItems;
         }
         const itemActualizado = { ...baseItems[idx], cantidad: baseItems[idx].cantidad + 1 };
         setUltimoItemAgregadoKey(itemActualizado.key);
-        // Ponemos el producto actualizado al inicio de la lista para que el cajero lo vea al instante
         const otros = baseItems.filter((_, i) => i !== idx);
         return [itemActualizado, ...otros];
       }
 
-      // New product: cap initial quantity at available stock if less than 1
       const cantidadInicial = disp !== null && disp < 1 ? parseFloat(disp.toFixed(3)) : 1;
       const nuevoItem = {
         key: crypto.randomUUID(),
@@ -995,14 +889,10 @@ export function CajaAutopagoVista({
     setIsScanning(false);
   }, []);
 
-  // Al perder el foco (se abrió la otra caja) esta vista suelta la cámara: el
-  // navegador entrega un solo stream de video y el escáner de la caja activa
-  // se quedaría sin imagen.
   useEffect(() => {
     if (!activo && isScanning) stopScanning();
   }, [activo, isScanning, stopScanning]);
 
-  // Limpieza al desmontar el componente: apagar la cámara y detener el loop de escaneo
   useEffect(() => {
     return () => {
       if (animFrameRef.current) {
@@ -1035,9 +925,6 @@ export function CajaAutopagoVista({
         }
         return [];
       } catch (err) {
-        // Un 404 es esperado: el producto no existe en el servidor. No es un
-        // error real, así que no se registra (evita el overlay de Next.js y el
-        // "Issue"); la ausencia de resultados ya se avisa con la alerta propia.
         const status = axios.isAxiosError(err) ? err.response?.status : undefined;
         if (status !== 404) {
           console.warn("Búsqueda remota de productos falló:", err);
@@ -1054,14 +941,11 @@ export function CajaAutopagoVista({
       if (!code) return;
 
       const now = Date.now();
-      // Cooldown de 2.5s para el MISMO código (evita duplicar unidades al sostener la cámara sobre el mismo producto en el celular).
-      // Si cambia de producto (código diferente), escanea de inmediato.
       if (lastScannedCodeRef.current.code === code && now - lastScannedCodeRef.current.time < 2500) {
         return;
       }
       lastScannedCodeRef.current = { code, time: now };
 
-      // Coincidencia estricta por código (exacto o ignorando ceros iniciales)
       let p = productosSucursal.find((prod) => coincideCodigoExacto(prod, code));
 
       if (!p) {
@@ -1094,8 +978,6 @@ export function CajaAutopagoVista({
           setUltimoEscaneadoCamara(null);
         }, 2500);
       } else {
-        // En celular con cámara NO se abre el modal invasivo de registrar producto
-        // para que los reflejos o lecturas ruidosas de la cámara no interrumpan al cajero.
         emitirBeepError();
         setUltimoEscaneadoCamara({
           nombre: `Código "${decodedText}" no encontrado`,
@@ -1144,7 +1026,6 @@ export function CajaAutopagoVista({
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-        // 1. Camino primario NATIVO por GPU (Chrome / Android / Edge)
         if ("BarcodeDetector" in window) {
           try {
             const BarcodeDetectorClass = (
@@ -1169,7 +1050,6 @@ export function CajaAutopagoVista({
                   }
                 }
               } catch {
-                // Silencioso por fotograma
               }
               animFrameRef.current = requestAnimationFrame(scanLoopNative);
             };
@@ -1180,7 +1060,6 @@ export function CajaAutopagoVista({
           }
         }
 
-        // 2. Camino C-WASM ultra-rápido con ZBar (iOS Safari / Firefox)
         const scanLoopZBar = async () => {
           if (!videoRef.current || videoRef.current.paused || videoRef.current.ended || !ctx) return;
           try {
@@ -1202,7 +1081,6 @@ export function CajaAutopagoVista({
               }
             }
           } catch {
-            // Silencioso por fotograma
           }
           animFrameRef.current = requestAnimationFrame(scanLoopZBar);
         };
@@ -1222,18 +1100,9 @@ export function CajaAutopagoVista({
 
   const igvPct = config?.igv ? parseFloat(config.igv) : 18;
 
-  // Default del tipo de comprobante según "Tipo por defecto":
-  // si el predeterminado es Nota de Venta y está habilitada, arranca en Nota de Venta.
-  //
-  // `config` llega por red y en un arranque en frío tarda: para entonces el cajero
-  // ya pudo haber elegido el comprobante a mano. Si se aplicara el default igual,
-  // le pisaba la elección y emitía Nota de Venta habiendo marcado Boleta, así que
-  // el default solo se aplica mientras nadie haya elegido.
   useEffect(() => {
     if (!config || tipoSinDocInitRef.current) return;
     tipoSinDocInitRef.current = true;
-    // Ni al que ya eligió a mano, ni al que está mirando el modal de cobro: lo que
-    // se ve marcado al confirmar tiene que ser lo que se emite.
     if (tipoElegidoManualRef.current || mostrarPago) return;
     if (config.useNotaVenta && config.isBoletaOrFactura === "n") {
       setTipoComprobante("Nota de Venta");
@@ -1242,15 +1111,7 @@ export function CajaAutopagoVista({
 
   const documentoTrim = documento.trim();
   const sinDocumento = documentoTrim.length === 0;
-  const esRuc = documentoTrim.length === 11;
 
-  // Dígitos permitidos en el input de documento DENTRO del modal de cobro, donde
-  // el comprobante ya está elegido:
-  //   Boleta         → solo DNI (8)
-  //   Nota de Venta  → DNI o RUC (hasta 11)
-  //   Factura        → solo RUC (11)
-  // Fuera del modal el documento es libre (8/9/11): es justamente lo que decide
-  // el comprobante al abrir el cobro.
   const maxDocLen = tipoComprobante === "Boleta" ? 8 : 11;
   const docPlaceholder =
     tipoComprobante === "Factura"
@@ -1259,16 +1120,11 @@ export function CajaAutopagoVista({
         ? "DNI o RUC del cliente (opcional)"
         : "DNI del cliente (8 dígitos, opcional)";
 
-  // Consulta el nombre / razón social en cuanto se escribe un documento válido
-  // (8=DNI, 9=CE, 11=RUC), con debounce. Guarda el último documento consultado
-  // para no repetir la llamada al abrir el modal de cobro: una sola consulta a la
-  // API por documento. buscarCliente no está memoizado, se accede por ref.
   const buscarClienteRef = useRef(buscarCliente);
   useEffect(() => { buscarClienteRef.current = buscarCliente; });
   const ultimoDocConsultadoRef = useRef("");
   useEffect(() => {
     const len = documentoTrim.length;
-    // Si el comprobante es Factura, SOLO se consulta a SUNAT al llegar a los 11 dígitos de RUC
     if (tipoComprobante === "Factura") {
       if (len !== 11) {
         ultimoDocConsultadoRef.current = "";
@@ -1289,7 +1145,6 @@ export function CajaAutopagoVista({
     return () => clearTimeout(timer);
   }, [documentoTrim, tipoComprobante]);
 
-  // Limpiar nombres y direcciones manuales inmediatamente cuando cambie el número de documento
   const docAsociadoClienteRef = useRef("");
   useEffect(() => {
     if (docAsociadoClienteRef.current !== documentoTrim) {
@@ -1299,7 +1154,6 @@ export function CajaAutopagoVista({
     }
   }, [documentoTrim]);
 
-  // Sincronizar automáticamente datos consultados hacia los estados editables solo cuando coincida exactamente
   useEffect(() => {
     if (cliente?.numeroDocumento === documentoTrim && cliente?.razonSocial) {
       setNombreManualCliente(cliente.razonSocial);
@@ -1307,9 +1161,6 @@ export function CajaAutopagoVista({
     }
   }, [cliente, documentoTrim]);
 
-  // Línea de estado del cliente bajo el input de documento (nombre confirmable
-  // sin abrir el modal). Se compara numeroDocumento para nunca mostrar un nombre
-  // que corresponde a un documento anterior (evita datos obsoletos al reescribir).
   const estadoClienteInline = (() => {
     if (!documentoTrim) return null;
     if (![8, 9, 11].includes(documentoTrim.length))
@@ -1339,7 +1190,6 @@ export function CajaAutopagoVista({
     return null;
   })();
 
-  // Estadísticas de ventas en memoria para evitar parsear localStorage en cada render
   const statsVentas = useMemo(() => {
     try {
       const key = `factufly_recientes_venta_${sucursalId || "default"}`;
@@ -1350,7 +1200,6 @@ export function CajaAutopagoVista({
     }
   }, [sucursalId, historialVentasVersion]);
 
-  // ── Grid de productos (ordenados por más recientes / más vendidos por defecto) ──
   const productosGrid = useMemo(() => {
     const q = busqueda.trim();
     if (q) {
@@ -1359,7 +1208,6 @@ export function CajaAutopagoVista({
       );
     }
 
-    // Sin búsqueda: solo mostrar productos disponibles con stock mayor a 0 (o servicios)
     const baseProductos = (config?.isStock ?? true)
       ? productosSucursal.filter((p) => {
           if (p.tipoProducto !== "BIEN") return true;
@@ -1370,19 +1218,16 @@ export function CajaAutopagoVista({
 
     const copia = [...baseProductos];
     copia.sort((a, b) => {
-      // 1. Por actividad de venta finalizada (timestamp más reciente primero)
       const statA = statsVentas[a.productoId];
       const statB = statsVentas[b.productoId];
       const timeA = statA?.timestamp ?? 0;
       const timeB = statB?.timestamp ?? 0;
       if (timeA !== timeB) return timeB - timeA;
 
-      // 2. Por frecuencia de venta (más vendidos primero)
       const countA = statA?.count ?? 0;
       const countB = statB?.count ?? 0;
       if (countA !== countB) return countB - countA;
 
-      // 3. Por defecto los creados más recientemente (id descendente)
       return b.productoId - a.productoId;
     });
 
@@ -1400,7 +1245,6 @@ export function CajaAutopagoVista({
             showToast(`Stock insuficiente: no hay más unidades disponibles de "${item.descripcion}"`, "info");
             return;
           }
-          // If incrementing by delta would exceed stock, cap delta at available
           if (disp !== null && delta > disp) {
             showToast(`Solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${item.descripcion}"`, "info");
             return;
@@ -1449,13 +1293,8 @@ export function CajaAutopagoVista({
     );
   };
 
-  // Captura de lecturas de código de barras por escáner físico (USB / Bluetooth)
   const scannerBufferRef = useRef<{ text: string; lastTime: number }>({ text: "", lastTime: 0 });
 
-  // Antiduplicado: una sola lectura de escáner dispara varias rutas casi a la vez
-  // (efecto de auto-adición + Enter del input + listener global). Colapsamos las
-  // que lleguen con el mismo código dentro de una ventana corta a una sola adición.
-  // No afecta a los clics manuales del grid, que no pasan por aquí.
   const ultimaLecturaRef = useRef<{ q: string; time: number }>({ q: "", time: 0 });
   const esLecturaDuplicada = useCallback((q: string) => {
     const ahora = Date.now();
@@ -1471,8 +1310,6 @@ export function CajaAutopagoVista({
     return false;
   }, []);
 
-  // ── Paginación y límite de renderizado inicial (20 productos más recientes/vendidos) ──
-  // En 3G, menos tarjetas iniciales = menos imágenes compitiendo por ancho de banda.
   const GRID_PAGE_SIZE = 20;
   const [limiteVistaGrid, setLimiteVistaGrid] = useState(GRID_PAGE_SIZE);
   useEffect(() => { setLimiteVistaGrid(GRID_PAGE_SIZE); }, [busqueda]);
@@ -1481,9 +1318,6 @@ export function CajaAutopagoVista({
     return productosGrid.slice(0, limiteVistaGrid);
   }, [productosGrid, limiteVistaGrid]);
 
-  // Auto-cargar más productos al hacer scroll (IntersectionObserver):
-  // reemplaza el botón manual "Cargar más" — invisible al usuario, carga bajo
-  // demanda como Falabella/MercadoLibre. Solo incrementa cuando hay más productos.
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = sentinelRef.current;
@@ -1503,7 +1337,6 @@ export function CajaAutopagoVista({
     return () => observer.disconnect();
   }, [productosGrid.length]);
 
-  // Búsqueda remota automática cuando no hay coincidencias locales
   useEffect(() => {
     const q = busqueda.trim();
     if (q.length < 2) return;
@@ -1520,9 +1353,6 @@ export function CajaAutopagoVista({
     }
   }, [busqueda, productosSucursal, buscarEnServidor]);
 
-  // Enter en el buscador o escáner de código de barras físico:
-  // Agrega directo el producto encontrado por código de barras o código exacto,
-  // o abre el modal de cobro si no hay búsqueda pendiente.
   const onEnterBusqueda = useCallback(
     async (queryOverride?: string, esCodigoEscaneado = false, codigoAlterno?: string) => {
       const q = (queryOverride !== undefined ? queryOverride : busqueda).trim().toLowerCase();
@@ -1533,15 +1363,11 @@ export function CajaAutopagoVista({
         return;
       }
 
-      // Evitar lecturas duplicadas inmediatas (doble pitido del escáner en < 400ms)
       if (esLecturaDuplicada(q)) {
         setBusqueda("");
         return;
       }
 
-      // Códigos a probar para una lectura de escáner: la ráfaga capturada y, de
-      // respaldo, el código completo que quedó escrito en el buscador. Si solo
-      // uno de los dos pasa el dígito verificador, ese va primero.
       const rawQuery = (queryOverride !== undefined ? queryOverride : busqueda).trim();
       const alterno = esCodigoEscaneado ? (codigoAlterno ?? "").trim() : "";
       const candidatos =
@@ -1560,14 +1386,8 @@ export function CajaAutopagoVista({
         return undefined;
       };
 
-      // 1. Buscar coincidencia por código de barras o código interno.
-      // Un código escaneado (pistola o cámara) exige coincidencia ESTRICTA:
-      // jamás se "adivina" por substring o por nombre de producto.
       let exacto = buscarCoincidencia(productosSucursal);
 
-      // 2. Si es búsqueda manual:
-      // - Si el grid tiene exactamente 1 producto que coincide
-      // - O si hay un producto cuyo nombre coincide exactamente
       if (!exacto && !esCodigoEscaneado) {
         if (productosGrid.length === 1) {
           exacto = productosGrid[0];
@@ -1579,13 +1399,11 @@ export function CajaAutopagoVista({
         }
       }
 
-      // 3. Si en el grid hay algún producto cuyo código coincide
       if (!exacto && productosGrid.length > 0) {
         const matchGrid = buscarCoincidencia(productosGrid);
         if (matchGrid) exacto = matchGrid;
       }
 
-      // 4. Si no está en memoria local, consultar al servidor
       if (!exacto && esCodigoEscaneado) {
         for (const c of candidatos) {
           const remotos = await buscarEnServidor(c.toLowerCase());
@@ -1625,13 +1443,10 @@ export function CajaAutopagoVista({
         return;
       }
 
-      // Si es búsqueda manual y hay múltiples productos en el grid, NO agregar arbitrariamente el primero.
-      // Se mantiene el filtro visible para que el cajero seleccione el producto deseado.
       if (!esCodigoEscaneado && productosGrid.length > 1) {
         return;
       }
 
-      // 5. Código escaneado o tecleado sin ninguna coincidencia: se abre modal para registrar
       if (emitidoRef.current) {
         resetearEstadoVenta();
         setItems([]);
@@ -1647,12 +1462,6 @@ export function CajaAutopagoVista({
     [busqueda, productosGrid, productosSucursal, config?.isStock, showToast, agregarProducto, buscarEnServidor, esLecturaDuplicada, resetearEstadoVenta, onVentaTerminada],
   );
 
-  // Foco inicial único al cargar la página (solo en computadoras/laptops).
-  // También al recuperar el foco: al pasar de una caja a la otra, el cursor
-  // tiene que saltar solo a su buscador para poder escanear sin tocar el mouse.
-  // Con el modal de pago abierto no se toca el foco: ahí manda el monto
-  // recibido, y robárselo al volver de la venta rápida obligaría a hacer clic
-  // de nuevo justo en la mitad del cobro.
   useEffect(() => {
     if (!activo || mostrarPago) return;
     const isMobile = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0 || window.innerWidth < 1024);
@@ -1661,14 +1470,9 @@ export function CajaAutopagoVista({
     }
   }, [activo, mostrarPago]);
 
-  // Captura global de lecturas de códigos de barras (escáner físico USB/Bluetooth)
-  // e interacción con la tecla Enter para cobrar o iniciar nueva venta.
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Con las dos cajas montadas, solo la que tiene el foco puede consumir la
-      // lectura: si escucharan las dos, el mismo código entraría en ambos carritos.
       if (!activo) return;
-      // No capturar si hay cualquier modal abierto
       if (mostrarPago || modalCrearRapidoAbierto || !!productoSinStock || confirmarLimpiarTodo) return;
 
       const target = e.target as HTMLElement | null;
@@ -1689,15 +1493,9 @@ export function CajaAutopagoVista({
 
       if (isEditingOther) return;
 
-      // Se mide con e.timeStamp (cuándo llegó la tecla) y no con Date.now()
-      // (cuándo se procesa): el primer carácter dispara un render que puede
-      // bloquear el hilo principal, y el segundo se procesaba tarde aunque la
-      // pistola lo enviara de inmediato. Eso partía la ráfaga y se perdía el
-      // primer dígito (7702007089189 llegaba como 702007089189).
       const now = e.timeStamp || performance.now();
       const timeDiff = now - scannerBufferRef.current.lastTime;
 
-      // Si las teclas se envían en menos de 65ms (típico de pistola de código de barras USB/Bluetooth)
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         if (timeDiff < 65) {
           scannerBufferRef.current.text += e.key;
@@ -1708,7 +1506,6 @@ export function CajaAutopagoVista({
       }
 
       if (e.key === "Enter") {
-        // Solo es un código escaneado si los caracteres llegaron en ráfaga rápida (<100ms) y es reciente
         const isScannerBurst = scannerBufferRef.current.text.length >= 3 && timeDiff < 100;
         const barcodeFromScanner = isScannerBurst ? scannerBufferRef.current.text.trim() : "";
         const isFocusOnSearch = document.activeElement === inputRef.current;
@@ -1716,12 +1513,8 @@ export function CajaAutopagoVista({
 
         scannerBufferRef.current = { text: "", lastTime: 0 };
 
-        // 1. Si vino del lector de códigos de barras físico
         if (barcodeFromScanner) {
           e.preventDefault();
-          // Respaldo: el buscador tiene lo que realmente se tecleó. Si termina en
-          // la ráfaga pero trae caracteres de más delante, pueden ser los que la
-          // ráfaga no alcanzó a capturar; onEnterBusqueda decide cuál usar.
           const valorInput = isFocusOnSearch ? (inputRef.current?.value ?? "").trim() : "";
           const colaInput =
             valorInput.match(/^\d+$/.test(barcodeFromScanner) ? /\d+$/ : /\S+$/)?.[0] ?? "";
@@ -1733,21 +1526,18 @@ export function CajaAutopagoVista({
           return;
         }
 
-        // 2. Si el foco está en el input de búsqueda y hay texto escrito por el usuario
         if (isFocusOnSearch && currentQuery) {
           e.preventDefault();
           onEnterBusqueda(currentQuery, false);
           return;
         }
 
-        // 3. Si la venta ya fue emitida (pantalla de éxito visible) -> Iniciar Nueva Venta
         if (emitidoRef.current) {
           e.preventDefault();
           nuevaVenta();
           return;
         }
 
-        // 4. Si hay productos en el carrito y no hay búsqueda pendiente -> Abrir modal de Cobro
         if (itemsRef.current.length > 0) {
           e.preventDefault();
           abrirPagoRef.current?.();
@@ -1769,7 +1559,6 @@ export function CajaAutopagoVista({
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, [activo, onEnterBusqueda, mostrarPago, modalCrearRapidoAbierto, productoSinStock, confirmarLimpiarTodo, busqueda, nuevaVenta]);
 
-  // ── Totales (con desglose por afectación de IGV, para el payload real) ──
   const totales = useMemo(() => {
     let gravadas = 0,
       exoneradas = 0,
@@ -1806,10 +1595,6 @@ export function CajaAutopagoVista({
     };
   }, [items, igvPct]);
 
-  // ── Carrito que sobrevive a salir de "Nueva Venta" ────────────────────
-  // Se restaura una sola vez por montaje y recién cuando ya se sabe la sucursal
-  // (el usuario llega de next-auth y en los primeros renders todavía es null;
-  // guardar antes escribiría el carrito bajo una clave equivocada).
   const [carritoRestaurado, setCarritoRestaurado] = useState(false);
   useEffect(() => {
     if (carritoRestaurado || sucursalId == null) return;
@@ -1818,24 +1603,15 @@ export function CajaAutopagoVista({
     setCarritoRestaurado(true);
   }, [carritoRestaurado, sucursalId, cajaId]);
 
-  // Persiste cada cambio del carrito. Después de emitir no se guarda nada: esas
-  // unidades ya se vendieron y restaurarlas al volver haría que se cobren dos veces.
   useEffect(() => {
     if (!carritoRestaurado || sucursalId == null) return;
     guardarCarrito(sucursalId, cajaId, emitido ? SIN_RESERVAS : items);
   }, [items, emitido, carritoRestaurado, sucursalId, cajaId]);
 
-  // Publica el carrito propio para que la otra caja lo descuente de su stock.
-  // Una vez emitida la venta el carrito deja de reservar: esas unidades ya se
-  // descontaron del catálogo compartido (descontarStockLocal) y seguir
-  // publicándolas las restaría dos veces en la otra caja, que vería menos
-  // stock del que hay hasta que aquí se pulse "Nueva venta".
   useEffect(() => {
     onCarritoCambio(emitido ? SIN_RESERVAS : items);
   }, [items, emitido, onCarritoCambio]);
 
-  // Emitir con otra fecha (fecha de emisión manual, en vez de la fecha/hora actual)
-  // SUNAT permite emitir hasta 3 días atrás de la fecha actual.
   const fechaMinimaEmision = (() => {
     const d = new Date();
     d.setDate(d.getDate() - 3);
@@ -1843,7 +1619,6 @@ export function CajaAutopagoVista({
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   })();
 
-  // Focus y auto-selección del monto al abrir el modal de pago en efectivo
   useEffect(() => {
     if (mostrarPago && medioPago === "Efectivo" && !pagoDividido) {
       const timer = setTimeout(() => {
@@ -1926,9 +1701,6 @@ export function CajaAutopagoVista({
     return fechas;
   };
 
-  // Recalcula las cuotas (fechas + monto equitativo) cuando cambia el número
-  // de cuotas o el saldo pendiente; la edición manual de un monto individual
-  // no dispara este efecto.
   useEffect(() => {
     if (!esCredito) return;
     const hoy = new Date();
@@ -1957,7 +1729,6 @@ export function CajaAutopagoVista({
     }
   };
 
-  // Ajusta la última cuota para que la suma cuadre exacto con el saldo pendiente.
   const cuadrarCuotasConSaldo = () => {
     setCuotasCredito((prev) => {
       if (prev.length === 0) return prev;
@@ -1973,7 +1744,6 @@ export function CajaAutopagoVista({
     );
   };
 
-  // Fecha de emisión efectiva: la manual (si está activa) o la actual.
   const obtenerFechaEmision = () => {
     const { fechaHora, fecha } = formatoFechaActual();
     if (mostrarFechaManual && fechaEmisionManual) {
@@ -1983,11 +1753,6 @@ export function CajaAutopagoVista({
     return { fecha, fechaHora };
   };
 
-  // Réplica de calcularDetalle() de boleta/factura/nota-venta, sin descuentos
-  // (Caja Autopago no los maneja): precio ya trae el IGV incluido.
-  // SUNAT valida "valorVenta = precioUnitario × cantidad", así que precioUnitario
-  // debe ser el precio SIN IGV (precioBase), no el precio de venta con IGV —
-  // de ahí el error 3271/4288 "El valor de venta por ítem difiere...".
   const calcularDetalleItem = (precio: number, cantidad: number, tipoAfectacion: string) => {
     const precioVenta = parseFloat(precio.toFixed(2));
     if (tipoAfectacion === "10") {
@@ -2002,8 +1767,6 @@ export function CajaAutopagoVista({
     return { precioUnitario: precioBase, precioVenta, baseIgv, montoIGV: 0, totalVentaItem: baseIgv, valorVenta: baseIgv };
   };
 
-  // Cliente para el payload: "Clientes Varios" (sin documento) o el documento + datos
-  // ya traídos por useClienteBoleta o ingresados manualmente por el usuario.
   const construirCliente = () => {
     if (sinDocumento) {
       return {
@@ -2020,7 +1783,6 @@ export function CajaAutopagoVista({
     }
     const len = documentoTrim.length;
     const tipoDocumento = len === 11 ? "06" : len === 9 ? "04" : "01";
-    // Solo se asocian los datos del cliente si el número consultado coincide exactamente con el documento actual
     const coincide = cliente?.numeroDocumento === documentoTrim;
     const razonSocialFinal = (nombreManualCliente.trim() || (coincide ? (cliente?.razonSocial || "") : "")).trim();
     const direccionFinal = (direccionManualCliente.trim() || (coincide ? (cliente?.direccionLineal || "") : "")).trim();
@@ -2037,9 +1799,6 @@ export function CajaAutopagoVista({
     };
   };
 
-  // Arma el arreglo "pagos" del payload: la adelanto de un crédito, un único
-  // medio de pago, o varios si "Pago dividido" está activo (se descartan
-  // filas/adelantos sin monto).
   const construirPagos = (fechaHora: string) => {
     if (esCredito) {
       const adelanto = parseFloat(adelantoCredito) || 0;
@@ -2079,7 +1838,6 @@ export function CajaAutopagoVista({
     ];
   };
 
-  // Arma el arreglo "cuotas" del payload (solo cuando "Al crédito" está activo).
   const construirCuotas = () =>
     esCredito
       ? cuotasCredito.map((c) => ({
@@ -2089,10 +1847,6 @@ export function CajaAutopagoVista({
         }))
       : [];
 
-  // ── Comisión por pago con tarjeta (POS) — control interno, informativo ──
-  // Se calcula solo sobre lo efectivamente pagado con "Tarjeta": el total (pago
-  // simple), el adelanto (al crédito), o la porción correspondiente (pago dividido).
-  // No afecta importeTotal ni ningún cálculo tributario del comprobante.
   const comisionPagoTarjetaPct = config?.comisionPagoTarjeta
     ? parseFloat(config.comisionPagoTarjeta)
     : 0;
@@ -2108,7 +1862,6 @@ export function CajaAutopagoVista({
       ? parseFloat(((montoPagadoConTarjeta * comisionPagoTarjetaPct) / 100).toFixed(2))
       : 0;
 
-  // Payload para POST /api/Comprobantes/GenerarXml (Boleta "03" / Factura "01").
   const prepararComprobante = (tipoComprobanteCod: "03" | "01") => {
     const { fechaHora, fecha } = obtenerFechaEmision();
     const clienteBase = construirCliente();
@@ -2184,13 +1937,10 @@ export function CajaAutopagoVista({
       detracciones: [],
       usuarioCreacion: user?.id ?? 0,
       enviadoEnResumen: false,
-      // El backend descuenta este stock DENTRO de la transacción que crea el
-      // comprobante: si no alcanza, la venta completa se rechaza (atómico).
       stockItems: config?.isStock ? calcularStockItems().items : [],
     };
   };
 
-  // Payload para POST /api/NotaVenta — sin IGV discriminado (documento de control interno).
   const prepararNotaVenta = () => {
     const { fechaHora, fecha } = obtenerFechaEmision();
     const clienteBase = construirCliente();
@@ -2238,20 +1988,12 @@ export function CajaAutopagoVista({
       })),
       pagos: construirPagos(fechaHora),
       cuotas: construirCuotas(),
-      // El backend descuenta este stock DENTRO de la transacción que crea la
-      // nota de venta: si no alcanza, la venta completa se rechaza (atómico).
       stockItems: config?.isStock ? calcularStockItems().items : [],
     };
   };
 
-  // ── Descontar stock (solo si config.isStock) ───────────────────
   const calcularStockItems = () => {
     const acumulado = new Map<number, number>();
-    // Un item por línea (no agregado por sucursalProductoId): el backend necesita poder
-    // atar cada descuento de stock a su línea de comprobante exacta (vía `item`, el mismo
-    // idx+1 con el que se numeran las líneas en `detalles`/`prepararNotaVenta`), para
-    // distinguir p.ej. la venta de un paquete/sixpack de la de su producto base aunque
-    // compartan el mismo sucursalProductoId.
     const stockItems = items
       .map((it, idx) => ({ it, item: idx + 1 }))
       .filter(({ it }) => it.tipoProducto === "BIEN" && it.sucursalProductoId)
@@ -2262,10 +2004,6 @@ export function CajaAutopagoVista({
     return { acumulado, items: stockItems };
   };
 
-  // El backend descuenta el stock ATÓMICAMENTE al crear la venta (ver StockItems
-  // en el payload). Aquí ya no se llama a la API: solo reflejamos el cambio en
-  // memoria para feedback inmediato (sin recargar) y disparamos la alerta de
-  // stock bajo. Si no hubiera habido stock, la venta ni se habría creado.
   const actualizarStockLocalTrasVenta = () => {
     if (!config?.isStock) return;
     const { acumulado, items: payloadItems } = calcularStockItems();
@@ -2291,7 +2029,6 @@ export function CajaAutopagoVista({
     }
   };
 
-  // ── Obtener el comprobante ya emitido (HTML ticket o PDF) ───────
   const obtenerBlobComprobante = async (
     comprobanteId: number,
     tamano: string,
@@ -2354,7 +2091,6 @@ export function CajaAutopagoVista({
       iframe.src = blobUrl;
       document.body.appendChild(iframe);
 
-      // Fallback para navegadores que no disparen onload en blob de forma asíncrona
       setTimeout(() => {
         if (!impreso) ejecutar();
       }, 350);
@@ -2367,7 +2103,6 @@ export function CajaAutopagoVista({
     comprobanteId: number,
     serieCorrelativo: string | null,
   ) => {
-    // Detectar tamaño configurado en Empresa (58mm u 80mm). Por defecto 80mm en caja si no se especificó.
     const raw = String(config?.tamañoImpresion || "").toLowerCase();
     const es58 = raw.includes("58");
     const anchoMm: 58 | 80 = es58 ? 58 : 80;
@@ -2388,193 +2123,26 @@ export function CajaAutopagoVista({
       const html = await res.text();
       if (!html || !html.trim()) return;
 
-      // 1. Intentar impresión directa por agente local
       const porAgente = await imprimirHtmlConAgente(html, anchoMm, { documento }).catch(() => false);
       if (porAgente) return;
 
-      // 2. Si no hay agente, imprimir directo con el navegador
       imprimirHtmlNavegador(html);
     } catch (err) {
       console.warn("Error en ejecución de impresión:", err);
     }
   };
 
-  const imprimirBlob = (blob: Blob) => {
-    const blobUrl = URL.createObjectURL(blob);
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
 
-    const cleanup = () => {
-      try {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-      } catch {
-        // ignore
-      }
-      URL.revokeObjectURL(blobUrl);
-    };
-
-    let impreso = false;
-    const ejecutar = () => {
-      if (impreso) return;
-      impreso = true;
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch (err) {
-        console.warn("Error al abrir diálogo de impresión:", err);
-      }
-      setTimeout(cleanup, 30000);
-    };
-
-    iframe.onload = ejecutar;
-    iframe.src = blobUrl;
-    document.body.appendChild(iframe);
-
-    setTimeout(() => {
-      if (!impreso) ejecutar();
-    }, 350);
-  };
-
-  // ── Impresión directa por el agente local ───────────────────────
-  // El agente es un programa que el cliente instala en su PC y que imprime sin
-  // el diálogo de Chrome, imposible de suprimir desde una página web. Si no
-  // está instalado, todo cae al flujo de iframe + window.print() de siempre y
-  // el cajero no nota ninguna diferencia.
-
-  /** Nombre del cliente tal como debe salir impreso. */
   const nombreClienteTicket = () => {
     const coincide = cliente?.numeroDocumento === documentoTrim;
     const nombreValido = (nombreManualCliente.trim() || (coincide ? (cliente?.razonSocial || "") : "")).trim();
     return nombreValido || (sinDocumento ? "Clientes Varios" : documentoTrim ? `DNI: ${documentoTrim}` : "Cliente");
   };
 
-  /**
-   * Ancho del rollo térmico configurado, o null si el negocio imprime en A4.
-   * En A4 no se usa el agente: el comprobante va en PDF a una láser, que sí
-   * puede pasar por el diálogo normal del navegador.
-   */
-  const anchoTermico = (): "58" | "80" | null =>
-    config?.tamañoImpresion === "80" ? "80" : config?.tamañoImpresion === "58" ? "58" : null;
-
-  /**
-   * Intenta imprimir por el agente el MISMO HTML que devuelve la API.
-   *
-   * Importante: no se reconstruye el ticket aquí. El HTML del backend ya trae
-   * el logo, el QR de SUNAT y la redacción legal — un ticket armado en el front
-   * saldría parecido pero sin QR, y una boleta sin QR no es válida.
-   *
-   * @returns true si el agente lo imprimió; false si hay que usar el navegador.
-   */
-  const imprimirHtmlSiHayAgente = async (
-    blob: Blob,
-    ancho: "58" | "80",
-    documento: string,
-  ) => {
-    try {
-      const html = await blob.text();
-      if (!html.trim()) return false;
-      return await imprimirHtmlConAgente(html, ancho === "80" ? 80 : 58, { documento });
-    } catch {
-      // La venta ya quedó registrada: un fallo imprimiendo nunca debe tumbarla.
-      return false;
-    }
-  };
-
-  // ── Impresión automática (según config.isImprime), justo al emitir ──
-  // El serie-correlativo llega por parámetro y no del estado: `setSerieCorrelativoEmitido`
-  // se acaba de llamar en `emitirVenta` y todavía no se reflejó en este render.
-  const imprimirSiAplica = async (comprobanteId: number, serieCorrelativo: string | null) => {
-    if (!config?.isImprime) return;
-    setImprimiendo(true);
-    try {
-      const ancho = anchoTermico();
-      const tamano = ancho ? TAMANO_MAP[ancho] : "A4";
-
-      // Una sola descarga alimenta las dos rutas: el agente recibe este mismo
-      // HTML y, si no está, el blob se imprime por el iframe de siempre.
-      const blob = await obtenerBlobComprobante(comprobanteId, tamano);
-      if (!blob) return;
-
-      const documento = serieCorrelativo ?? `Comprobante ${comprobanteId}`;
-      if (ancho && (await imprimirHtmlSiHayAgente(blob, ancho, documento))) return;
-
-      imprimirBlob(blob);
-    } finally {
-      setImprimiendo(false);
-    }
-  };
-
-  // ¿Hay agente en este equipo? Se averigua al abrir la caja, no al imprimir.
-  //
-  // En un equipo SIN agente el intento de conexión tarda ~2 s en fallar (el
-  // firewall de Windows descarta el paquete en vez de rechazarlo), así que si
-  // esto ocurriera al pulsar el botón, cada cliente sin agente esperaría eso en
-  // cada venta. Adelantándolo al montaje, para cuando llega la primera venta la
-  // respuesta ya está en memoria.
   useEffect(() => {
     detectarAgente().catch(() => {});
   }, []);
 
-  // Apenas se emite, se baja el comprobante en segundo plano mientras el cajero
-  // lee el vuelto. Así, cuando pulsa 58mm/80mm, ya está en memoria y la
-  // impresión sale al instante en vez de esperar a la API.
-  useEffect(() => {
-    if (!emitido || !comprobanteIdEmitido) return;
-    const ancho = anchoTermico();
-    if (!ancho) return;
-    // Se revalida el agente junto con el comprobante: si el cajero lo cerró a
-    // media jornada, el fallback al navegador ya está decidido antes del clic.
-    detectarAgente().catch(() => {});
-    obtenerBlobComprobante(comprobanteIdEmitido, TAMANO_MAP[ancho]).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emitido, comprobanteIdEmitido]);
-
-  // ── Reimpresión manual desde la pantalla de éxito ───────────────
-  const imprimirManual = async (tamanoKey: "80" | "58" | "A4") => {
-    if (!comprobanteIdEmitido || imprimiendo) return;
-    setImprimiendo(true);
-    setTamanoImprimiendo(tamanoKey);
-    try {
-      const blob = await obtenerBlobComprobante(comprobanteIdEmitido, TAMANO_MAP[tamanoKey]);
-      if (!blob) {
-        showToast("No se pudo generar el comprobante", "error");
-        return;
-      }
-
-      // A4 nunca pasa por el agente: es un PDF para láser, no un ticket.
-      const documento = serieCorrelativoEmitido ?? `Comprobante ${comprobanteIdEmitido}`;
-      if (tamanoKey !== "A4" && (await imprimirHtmlSiHayAgente(blob, tamanoKey, documento))) return;
-
-      imprimirBlob(blob);
-    } finally {
-      setImprimiendo(false);
-      setTamanoImprimiendo(null);
-    }
-  };
-
-  const descargarPDF = async () => {
-    if (!comprobanteIdEmitido) return;
-    const blob = await obtenerBlobComprobante(comprobanteIdEmitido, "A4");
-    if (!blob) {
-      showToast("No se pudo generar el PDF", "error");
-      return;
-    }
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = blobUrl;
-    a.download = `${empresa?.numeroDocumento ?? "comprobante"}-${tipoComprobante}-${serieCorrelativoEmitido ?? comprobanteIdEmitido}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(blobUrl);
-  };
-
-  /**
-   * Envía el PDF A4 del comprobante al WhatsApp del cliente. Corre en segundo
-   * plano después de emitir, cuando la caja ya se limpió: todo llega por parámetro.
-   */
   const enviarComprobantePorWhatsapp = async (
     comprobanteId: number,
     telefono: string,
@@ -2614,7 +2182,6 @@ export function CajaAutopagoVista({
       });
       if (!res.ok) throw new Error();
 
-      // Queda marcado en Comprobantes como enviado a ese número (la caja no maneja correo).
       fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/actualizar/${comprobanteId}/correo-whatsapp`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
@@ -2627,7 +2194,6 @@ export function CajaAutopagoVista({
     }
   };
 
-  // ── Abrir el modal de cobro (valida el documento y precarga cliente) ──
   const abrirPago = () => {
     if (items.length === 0) return;
     const len = documentoTrim.length;
@@ -2638,17 +2204,11 @@ export function CajaAutopagoVista({
     if (tipoComprobante === "Boleta" && totales.total >= 700 && sinDocumento) {
       showToast("Aviso: SUNAT exige registrar DNI o CE del cliente para Boletas a partir de S/ 700.00", "info");
     }
-    // El documento decide el comprobante con el que se abre el cobro, para que
-    // el modal nunca arranque en un tipo incompatible con lo escrito. La Nota de
-    // Venta admite DNI y RUC, así que si ya está elegida se respeta tal cual.
     if (len === 11 && tipoComprobante === "Boleta") {
       setTipoComprobante("Factura");
     } else if (len > 0 && len < 11 && tipoComprobante === "Factura") {
       setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
     }
-    // El cliente ya se consultó al escribir el documento (efecto con debounce),
-    // así que aquí no se vuelve a llamar a la API. Si el debounce aún no disparó
-    // (clic muy rápido), el efecto pendiente lo resuelve una sola vez.
     modalAbiertoAtRef.current = Date.now();
     setMedioPago("Efectivo");
     setMontoRecibido(totales.total.toFixed(2));
@@ -2667,11 +2227,6 @@ export function CajaAutopagoVista({
     abrirPagoRef.current = abrirPago;
   }, [abrirPago]);
 
-  // ── Cobrar un pedido de la tienda online ──────────────────────────────
-  // El panel de pedidos pide cargarlo: se arma el carrito con sus productos (como
-  // si se hubieran escaneado), se precargan comprobante, documento y medio de pago,
-  // y se abre el cobro. El stock se descuenta recién al emitir, como en toda venta.
-  // Cada caja (principal y ventas rápidas F1–F4) recibe solo los pedidos dirigidos a ella.
   const ventasRapidasRef = useRef(ventasRapidas);
   useEffect(() => {
     ventasRapidasRef.current = ventasRapidas;
@@ -2679,7 +2234,6 @@ export function CajaAutopagoVista({
 
   useEffect(() => {
     return suscribirCobroPedido(cajaId, (pedido) => {
-      // Con varias ventas a la vez, el mismo pedido no se carga en dos cajas.
       const cargadoEn = cajaDelPedido(pedido.pedidoOnlineId);
       if (cargadoEn) {
         const idxRapida = VENTAS_RAPIDAS_CONFIG.findIndex((c) => c.key === cargadoEn);
@@ -2694,7 +2248,6 @@ export function CajaAutopagoVista({
       }
 
       if (itemsRef.current.length > 0 && !emitidoRef.current) {
-        // La principal está ocupada: el pedido se abre en la primera venta rápida libre.
         const libre = esRapida ? -1 : (ventasRapidasRef.current ?? []).findIndex((v) => v.items === 0);
         if (libre === -1) {
           showToast("Todas las cajas tienen una venta en curso. Termina una para cobrar el pedido online.", "error");
@@ -2723,7 +2276,6 @@ export function CajaAutopagoVista({
           codigo: p.codigo,
           descripcion: p.nomProducto,
           cantidad: Number(d.cantidad),
-          // Se cobra el precio que el cliente vio al pedir.
           precio: Number(d.precioUnitario),
           tipoAfectacionIGV: p.tipoAfectacionIGV,
           urlImagen: p.urlImagenProducto ?? null,
@@ -2733,7 +2285,6 @@ export function CajaAutopagoVista({
         });
       }
 
-      // Cargar solo una parte haría cobrar menos de lo pedido: se cancela la carga.
       if (faltantes.length > 0) {
         showToast(`No están en el catálogo de la caja: ${faltantes.join(", ")}. Actualiza el stock e intenta de nuevo.`, "error");
         fetchProductosSucursal().catch(() => {});
@@ -2749,13 +2300,10 @@ export function CajaAutopagoVista({
         tipoElegidoManualRef.current = true;
         setTipoComprobante(pedido.tipoComprobante === "FACTURA" ? "Factura" : "Boleta");
       } else {
-        // El cliente no pidió comprobante: queda el que la caja usa por defecto y el cajero decide.
         tipoElegidoManualRef.current = false;
         setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
       }
       setDocumento(pedido.clienteDocumento ?? "");
-      // Con su celular se ofrece mandarle el comprobante: activado si pidió boleta o factura,
-      // listo para activar si dejó que el cajero eligiera.
       const celular = (pedido.clienteTelefono ?? "").replace(/\D/g, "").replace(/^51(?=\d{9}$)/, "");
       const celularValido = /^9\d{8}$/.test(celular);
       setTelWhatsapp(celularValido ? celular : "");
@@ -2764,9 +2312,6 @@ export function CajaAutopagoVista({
     });
   }, [cajaId, esRapida, showToast, resetearEstadoVenta, fetchProductosSucursal, config?.useNotaVenta, config?.isBoletaOrFactura]);
 
-  // Vaciar el carrito sin emitir ("Limpiar todo", quitar los productos o la X del
-  // pedido) lo deja para después: se sueltan sus datos para que la siguiente venta
-  // no herede el DNI ni lo marque como cobrado. El pedido sigue en "Pedidos".
   useEffect(() => {
     const pedido = pedidoEnCobroRef.current;
     if (items.length > 0 || !pedido || emitidoRef.current) return;
@@ -2785,7 +2330,6 @@ export function CajaAutopagoVista({
     showToast(`Pedido #${pedido.numero} queda para después: cóbralo desde Pedidos`, "info");
   }, [items.length, showToast, config?.useNotaVenta, config?.isBoletaOrFactura]);
 
-  // Abre el cobro cuando el carrito del pedido ya se pintó (abrirPago lee `items`).
   useEffect(() => {
     if (!pedidoPorAbrir || items.length === 0) return;
     abrirPagoRef.current();
@@ -2798,17 +2342,12 @@ export function CajaAutopagoVista({
   const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta" | "Factura") => {
     tipoElegidoManualRef.current = true;
     setTipoComprobante(t);
-    // Un RUC no es un DNI: al pasar a Boleta (único comprobante que no admite
-    // RUC) el documento se LIMPIA, nunca se recorta. Recortar 11 → 8 dígitos
-    // produce un DNI inventado pero con formato válido, que RENIEC resuelve al
-    // nombre de OTRA persona y terminaría emitido en el comprobante.
     if (t === "Boleta" && documentoTrim.length > 8) {
       setDocumento("");
       showToast("Se quitó el RUC: la Boleta solo admite DNI (8 dígitos)", "info");
     }
   };
 
-  // ── Venta sin conexión: se encola localmente ────────────────────
   const manejarVentaSinConexion = async (
     payload: Record<string, unknown>,
     tipo: "comprobante" | "notaventa",
@@ -2840,8 +2379,6 @@ export function CajaAutopagoVista({
       tamanoImpresion: config?.tamañoImpresion,
       ...resumenTicket,
     };
-    setUltimoTicketOffline(datosTicket);
-    // Impresión del ticket provisional si el cajero eligió "Confirmar e Imprimir"
     if (conImpresion) {
       const rawConfig = String(config?.tamañoImpresion || "").toLowerCase();
       const anchoMm: 58 | 80 = rawConfig.includes("58") ? 58 : 80;
@@ -2906,7 +2443,6 @@ export function CajaAutopagoVista({
       return;
     }
 
-    // Snapshot inmediato de los datos de la venta actual antes de limpiar la caja
     const pedidoCobrado = pedidoEnCobroRef.current;
     const whatsappDestino = enviarWhatsapp ? celularWhatsapp : null;
     const nombreWhatsapp = pedidoCobrado?.clienteNombre ?? (nombreManualCliente.trim() || cliente?.razonSocial || null);
@@ -2937,19 +2473,15 @@ export function CajaAutopagoVista({
 
     const totalVenta = totales.total;
 
-    // Descontar stock local y registrar venta de inmediato en la UI
     actualizarStockLocalTrasVenta();
     registrarVentaReciente(itemsVendidos);
 
-    // CERRAR MODAL Y PREPARAR LA CAJA AL INSTANTE PARA EL SIGUIENTE CLIENTE
-    // (se cuenta la emisión antes, para que la limpieza no recargue el stock viejo)
     emisionesEnCursoRef.current += 1;
     nuevaVenta();
 
     const procesoId = Math.random().toString(36).substring(2, 9);
     iniciarEmisionSegundoPlano({ id: procesoId, tipo: tipoComprobanteVenta, total: totalVenta, conImpresion });
 
-    // Proceso de emisión en segundo plano (sin bloquear la caja)
     void (async () => {
       try {
         let comprobanteId: number;
@@ -2972,7 +2504,6 @@ export function CajaAutopagoVista({
           throw errGuardar;
         }
 
-        // La venta ya quedó registrada (y el stock descontado): se cierra el pedido online.
         if (pedidoCobrado) {
           pedidosOnlineApi.marcarCobrado(pedidoCobrado.pedidoOnlineId, comprobanteId, accessToken).catch(() => {
             showToast(`Venta emitida, pero no se pudo marcar el pedido #${pedidoCobrado.numero} como cobrado`, "error");
@@ -2996,12 +2527,10 @@ export function CajaAutopagoVista({
 
         fetchSucursal();
 
-        // Impresión en segundo plano si el cajero eligió "Confirmar e Imprimir"
         if (conImpresion) {
           await ejecutarImpresionComprobante(comprobanteId, serieCorrelativoTicket);
         }
 
-        // Toast de confirmación
         const serieInfo = serieCorrelativoTicket ? ` · ${serieCorrelativoTicket}` : "";
         const vueltoInfo = vueltoFinal > 0 ? ` · Vuelto: S/ ${vueltoFinal.toFixed(2)}` : "";
         showToast(`${tipoComprobanteVenta} emitida${serieInfo}${vueltoInfo}`, "success");
@@ -3017,13 +2546,11 @@ export function CajaAutopagoVista({
       } finally {
         terminarEmisionSegundoPlano(procesoId);
         emisionesEnCursoRef.current = Math.max(0, emisionesEnCursoRef.current - 1);
-        // El servidor ya descontó el stock: ahora sí se trae el real.
         if (emisionesEnCursoRef.current === 0) fetchProductosSucursal().catch(() => {});
       }
     })();
   };
 
-  // Validación de si se puede emitir el comprobante actual
   const boletaMayor700SinDoc =
     tipoComprobante === "Boleta" &&
     totales.total >= 700 &&
@@ -3053,32 +2580,21 @@ export function CajaAutopagoVista({
     !facturaSinRuc &&
     !facturaSinRazonSocial;
 
-  // `emitirVenta` se redefine en cada render y captura el tipo de comprobante,
-  // el medio de pago y el monto de ESE render. El listener de Enter de abajo se
-  // registra una sola vez y no lo lleva en sus dependencias, así que se quedaba
-  // con una versión vieja: si el cajero marcaba Boleta con el mouse (y el foco
-  // salía del input de monto, de modo que solo corría este listener), Enter
-  // emitía con el comprobante que estaba elegido ANTES del clic —una Nota de
-  // Venta— mientras que pulsar "Confirmar" sí emitía Boleta. Con el ref el
-  // atajo siempre ejecuta la última versión.
   const emitirVentaRef = useRef(emitirVenta);
   useEffect(() => {
     emitirVentaRef.current = emitirVenta;
   });
 
-  // Confirmación con la tecla Enter en el modal de pago
   useEffect(() => {
     if (!mostrarPago || !activo) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
-        // Ignorar si el modal se acaba de abrir (evita doble disparo por el Enter de la vista principal)
         if (Date.now() - modalAbiertoAtRef.current < 400) {
           e.preventDefault();
           return;
         }
         if (puedeEmitir) {
           e.preventDefault();
-          // Enter = "Confirmar" (sin impresión); "Confirmar e Imprimir" es solo el botón.
           emitirVentaRef.current(false);
         } else if (boletaMayor700SinDoc) {
           e.preventDefault();
@@ -3115,22 +2631,13 @@ export function CajaAutopagoVista({
     whatsappIncompleto,
   ]);
 
-  // ── Pantalla principal: grid de productos + carrito ───────────
   return (
     <>
-      {/* A pantalla completa no lleva marco: el borde y las esquinas redondeadas
-          pegados al filo de la ventana se ven como un recorte. Dentro de Venta
-          rápida sí es una tarjeta sobre el fondo, y ahí se conservan. */}
       <div
         className={`relative w-full bg-[#F5F8FD] flex flex-col lg:flex-row lg:overflow-hidden lg:h-full ${
           esRapida ? "rounded-md border border-gray-200 shadow-sm min-h-full" : "min-h-full"
         }`}
       >
-        {/* Barras de las ventas rápidas minimizadas: recuerdan que quedaron
-            ventas a medias y las traen de vuelta con un clic. Van ancladas
-            DENTRO de la caja (no a la ventana) porque el sidebar ocupa ancho
-            real en el layout. En móvil sí es fija. Se apilan hacia arriba.
-            Solo se muestran en la caja principal, nunca dentro de una ventana rápida. */}
         {!esRapida && ventasRapidas?.some(vr => vr.minimizada) && (
           <div className="fixed bottom-20 left-3 lg:absolute lg:bottom-3 lg:left-3 z-30 flex flex-col-reverse gap-2">
             {ventasRapidas.filter(vr => vr.minimizada).map((vr) => {
@@ -3157,9 +2664,6 @@ export function CajaAutopagoVista({
             })}
           </div>
         )}
-        {/* ── Columna izquierda: buscador + grid de productos ── */}
-        {/* lg:pb-4 = mismo margen que deja el pie de "Cobrar" a la derecha: los
-            productos terminan a la altura del botón en vez de pegados al borde. */}
         <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden lg:pb-4">
           <div className="shrink-0 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
             <div className="relative flex-1">
@@ -3169,14 +2673,6 @@ export function CajaAutopagoVista({
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 onKeyDown={(e) => {
-                  // El Enter lo procesa únicamente handleGlobalKeyDown (ver más
-                  // abajo): usa scannerBufferRef, que se actualiza de forma
-                  // síncrona por cada tecla y no depende del ciclo de render de
-                  // React, así que es la fuente más confiable del código
-                  // completo. Duplicar el manejo aquí (con el estado `busqueda`,
-                  // que puede ir un paso atrás del buffer en escaneos rápidos)
-                  // causaba que Enter se procesara dos veces con datos
-                  // distintos, agregando a veces el producto equivocado.
                   if (e.key === "Enter") {
                     e.preventDefault();
                   }
@@ -3195,8 +2691,6 @@ export function CajaAutopagoVista({
               )}
             </div>
 
-            {/* Oculto por ahora: el stock ya se refresca solo tras cada venta. Se deja
-                el botón por si hace falta volver a mostrarlo (quitar "hidden"). */}
             <button
               type="button"
               onClick={async () => {
@@ -3224,7 +2718,6 @@ export function CajaAutopagoVista({
                 onClick={() => {
                   const silenciar = !sonidoPedidosSilenciado;
                   silenciarAvisosPedidos(silenciar);
-                  // Al reactivarlo suena una vez: confirma que el audio funciona.
                   if (!silenciar) reproducirAlertaPedido();
                 }}
                 aria-pressed={sonidoPedidosSilenciado}
@@ -3277,7 +2770,6 @@ export function CajaAutopagoVista({
               <span className="hidden sm:inline">+ Producto</span>
             </button>
 
-            {/* F1: botón principal "Venta rápida" siempre visible */}
             {!esRapida && ventasRapidas?.[0] && (
               <button
                 type="button"
@@ -3294,7 +2786,6 @@ export function CajaAutopagoVista({
                 )}
               </button>
             )}
-            {/* F2/F3: solo aparecen si tienen productos en espera */}
             {!esRapida && ventasRapidas?.slice(1).map((vr) => {
               if (vr.items === 0) return null;
               const cfg = VENTAS_RAPIDAS_CONFIG[vr.configIndex];
@@ -3336,9 +2827,6 @@ export function CajaAutopagoVista({
             )}
           </div>
 
-          {/* El stock que se está viendo no vino del servidor: hay que decirlo.
-              Sin este aviso, dos cajas podían mostrar números distintos sin que
-              nadie supiera cuál era el real. */}
           {productosDesactualizados && (
             <div className="shrink-0 flex items-center gap-1.5 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] font-medium text-amber-700">
               <WifiOff size={12} className="shrink-0" />
@@ -3350,7 +2838,6 @@ export function CajaAutopagoVista({
             </div>
           )}
 
-          {/* Visor de cámara en vivo para ventas (cuadrado estilo imagetotext.info) */}
           {isScanning && (
             <div className="shrink-0 p-3 bg-gray-100/80 border-b border-gray-200 space-y-2.5 animate-in fade-in duration-300">
               <div className="flex items-center justify-between text-xs px-1">
@@ -3386,7 +2873,6 @@ export function CajaAutopagoVista({
                       <div className="w-full h-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.95)] animate-pulse" />
                     </div>
 
-                    {/* Banner de confirmación visual instantánea sobre la cámara */}
                     {ultimoEscaneadoCamara && (
                       <div
                         className={`absolute bottom-2 inset-x-2 z-20 rounded-xl p-2 text-center text-xs font-bold text-white shadow-lg transition-all animate-in slide-in-from-bottom-2 duration-200 ${
@@ -3473,7 +2959,6 @@ export function CajaAutopagoVista({
                   })}
                 </div>
 
-                {/* Sentinel invisible: IntersectionObserver lo detecta y carga más productos automáticamente */}
                 {productosGrid.length > limiteVistaGrid && (
                   <div ref={sentinelRef} className="h-1" />
                 )}
@@ -3482,7 +2967,6 @@ export function CajaAutopagoVista({
           </div>
         </div>
 
-        {/* ── Columna derecha: marca + documento + carrito (docked en desktop) ── */}
         <div className="hidden lg:flex w-96 shrink-0 flex-col bg-gray-50/40 lg:overflow-hidden">
           <div
             className="shrink-0 px-5 py-4 text-white flex items-center gap-3 relative overflow-hidden bg-cover bg-center"
@@ -3502,7 +2986,6 @@ export function CajaAutopagoVista({
             </div>
           </div>
 
-          {/* Documento del cliente — siempre visible, opcional */}
           <div className="shrink-0 px-3 pt-3">
             <div className="relative">
               <UserRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -3575,7 +3058,6 @@ export function CajaAutopagoVista({
                         : "border-gray-100 bg-white hover:border-gray-200"
                     }`}
                   >
-                    {/* Fila superior: Imagen + Nombre + Precio Unitario Editable + Stock + Eliminar */}
                     <div className="flex items-center gap-2">
                       <ImagenProductoCuadrada url={i.urlImagen} alt={i.descripcion} size="sm" />
 
@@ -3590,7 +3072,6 @@ export function CajaAutopagoVista({
                         </p>
 
                         <div className="flex items-center justify-between gap-1 flex-wrap mt-0.5">
-                          {/* Precio Unitario Editable */}
                           <div className="flex items-center gap-1 text-[11px] text-gray-500">
                             <span className="font-medium">S/</span>
                             <input
@@ -3634,7 +3115,6 @@ export function CajaAutopagoVista({
                             </span>
                           </div>
 
-                          {/* Badge de Stock Disponible Restante */}
                           {stockDisp !== null && (
                             <span
                               className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-bold tabular-nums shrink-0 ${
@@ -3654,7 +3134,6 @@ export function CajaAutopagoVista({
                         </div>
                       </div>
 
-                      {/* Eliminar */}
                       <button
                         type="button"
                         onClick={() => setItems((prev) => prev.filter((it) => it.key !== i.key))}
@@ -3665,7 +3144,6 @@ export function CajaAutopagoVista({
                       </button>
                     </div>
 
-                    {/* Fila inferior: Control de Cantidad (Izquierda) + Total de Línea (Derecha en 1 sola línea) */}
                     <div className="flex items-center justify-between pt-1 border-t border-gray-100">
                       <div className="flex items-center gap-1">
                         <button
@@ -3744,7 +3222,6 @@ export function CajaAutopagoVista({
             )}
           </div>
 
-          {/* Footer con totales y cobrar — fijo en la parte inferior en desktop */}
           <div className="shrink-0 sticky bottom-0 lg:static border-t border-gray-200 bg-white px-4 py-4 space-y-3 z-10">
             <button
               onClick={abrirPago}
@@ -3758,7 +3235,6 @@ export function CajaAutopagoVista({
         </div>
       </div>
 
-      {/* ── Barra Flotante de Carrito en Móvil (lg:hidden) ── */}
       {items.length > 0 && !mostrarPago && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.12)] flex items-center justify-between gap-3 animate-in slide-in-from-bottom duration-300">
           <button
@@ -3793,7 +3269,6 @@ export function CajaAutopagoVista({
         </div>
       )}
 
-      {/* ── Drawer / Modal Deslizante del Carrito en Móvil (lg:hidden) ── */}
       {mostrarCarritoMobile && (
         <div className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200">
           <div
@@ -3801,7 +3276,6 @@ export function CajaAutopagoVista({
             onClick={() => setMostrarCarritoMobile(false)}
           />
           <div className="relative z-10 w-full bg-white rounded-t-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
-            {/* Header del Drawer */}
             <div className="shrink-0 px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-brand-blue" />
@@ -3831,7 +3305,6 @@ export function CajaAutopagoVista({
               </div>
             </div>
 
-            {/* Documento Cliente opcional en el drawer */}
             <div className="shrink-0 px-4 pt-3">
               <div className="relative">
                 <UserRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -3855,7 +3328,6 @@ export function CajaAutopagoVista({
               {documentoTrim && <div className="text-xs mt-1.5 px-1">{estadoClienteInline}</div>}
             </div>
 
-            {/* Lista de productos en el Drawer */}
             <div ref={mobileCartContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
               {items.map((i) => {
                 const prodInfo = productosPorId.get(i.productoId);
@@ -3995,7 +3467,6 @@ export function CajaAutopagoVista({
             })}
             </div>
 
-            {/* Footer del Drawer */}
             <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-3 space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-semibold text-gray-700">Total ({totales.unidades % 1 === 0 ? totales.unidades : parseFloat(totales.unidades.toFixed(3))} und.)</span>
@@ -4028,7 +3499,6 @@ export function CajaAutopagoVista({
         }}
       />
 
-      {/* ── Modal: Confirmar Pago ── */}
       <Modal
         isOpen={mostrarPago}
         onClose={() => setMostrarPago(false)}
@@ -4036,7 +3506,6 @@ export function CajaAutopagoVista({
         className="max-w-4xl"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-          {/* ── Izquierda: resumen de productos ── */}
           <div className="space-y-3 flex flex-col justify-between">
             <div className="rounded-md border border-gray-100 overflow-hidden">
               <div className="max-h-56 overflow-y-auto divide-y divide-gray-100">
@@ -4095,7 +3564,6 @@ export function CajaAutopagoVista({
               )}
             </div>
 
-            {/* Monto recibido + vuelto (cuando es Efectivo y no es pago dividido ni crédito) */}
             {!pagoDividido && !esCredito && medioPago === "Efectivo" && (
               <div className="rounded-md border border-gray-200 bg-white p-3 space-y-2.5">
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Monto recibido</p>
@@ -4116,12 +3584,6 @@ export function CajaAutopagoVista({
                       }
                     }}
                     onKeyDown={(e) => {
-                      // Igual que el buscador: el Enter lo procesa ÚNICAMENTE el
-                      // listener global del modal. Emitir también desde aquí hacía
-                      // que un Enter con el foco en este input disparara la emisión
-                      // dos veces (este handler y el global, que se ejecuta después
-                      // al burbujear hasta window), y con validaciones más flojas
-                      // que las de `puedeEmitir`.
                       if (e.key === "Enter") {
                         e.preventDefault();
                       }
@@ -4200,7 +3662,6 @@ export function CajaAutopagoVista({
               </div>
             )}
 
-            {/* Botón en columna izquierda: Confirmar e Imprimir */}
             <div className="pt-2 mt-auto">
               <button
                 type="button"
@@ -4236,9 +3697,7 @@ export function CajaAutopagoVista({
             </div>
           </div>
 
-          {/* ── Derecha: comprobante + pago ── */}
           <div className="space-y-4 flex flex-col justify-between">
-            {/* Comprobante */}
             <div>
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Comprobante</p>
               <div className={`grid gap-2 ${config?.useNotaVenta ? "grid-cols-3" : "grid-cols-2"}`}>
@@ -4279,7 +3738,6 @@ export function CajaAutopagoVista({
                 </button>
               </div>
 
-              {/* Alerta SUNAT Boleta >= S/ 700 sin DNI */}
               {tipoComprobante === "Boleta" && totales.total >= 700 && (!documentoTrim || documentoTrim.length < 8) && (
                 <div className="mt-2 rounded-md border border-rose-300 bg-rose-50 p-2.5 text-xs text-rose-800 flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -4292,7 +3750,6 @@ export function CajaAutopagoVista({
                 </div>
               )}
 
-              {/* Alerta SUNAT Factura sin RUC */}
               {tipoComprobante === "Factura" && documentoTrim.length !== 11 && (
                 <div className="mt-2 rounded-md border border-brand-blue/30 bg-blue-50/80 p-2.5 text-xs text-brand-blue flex items-start gap-2 animate-in fade-in duration-200">
                   <AlertCircle className="w-4 h-4 text-brand-blue shrink-0 mt-0.5" />
@@ -4305,7 +3762,6 @@ export function CajaAutopagoVista({
                 </div>
               )}
 
-              {/* Cliente en el modal de cobro */}
               <div className="mt-2 text-xs">
                 <div className="rounded-md border border-gray-200 bg-gray-50/70 p-2.5 space-y-2">
                   <div className="flex items-center justify-between text-gray-700">
@@ -4322,7 +3778,6 @@ export function CajaAutopagoVista({
                     )}
                   </div>
 
-                  {/* Input de Documento en el Modal */}
                   <div className="relative">
                     <input
                       type="text"
@@ -4362,7 +3817,6 @@ export function CajaAutopagoVista({
                     </p>
                   )}
 
-                  {/* Estado o Nombre del cliente */}
                   {documentoTrim ? (
                     <>
                       {loadingCliente && !nombreManualCliente ? (
@@ -4416,7 +3870,6 @@ export function CajaAutopagoVista({
                 </div>
               </div>
 
-              {/* Envío por WhatsApp: se precarga con el celular del pedido online */}
               <div className="mt-2 rounded-md border border-gray-200 bg-gray-50/70 px-2.5 py-2 text-xs">
                 <div className="flex items-center gap-2">
                   <button
@@ -4468,7 +3921,6 @@ export function CajaAutopagoVista({
                 )}
               </div>
 
-              {/* Opciones adicionales: Emitir con otra fecha y Pago dividido */}
               <div className="mt-2.5 flex items-center justify-between gap-2">
                 {!mostrarFechaManual ? (
                   <button
@@ -4545,7 +3997,6 @@ export function CajaAutopagoVista({
 
               {!pagoDividido ? (
                 <>
-                  {/* Medios de pago */}
                   <div>
                     <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Medio de pago</p>
                     <div className="flex flex-wrap justify-between gap-y-3 sm:gap-y-3.5 w-full">
@@ -4562,7 +4013,6 @@ export function CajaAutopagoVista({
                                 : "border border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-85 grayscale-35 hover:grayscale-0 saturate-75 hover:saturate-100 scale-100"
                             }`}
                           >
-                            {/* Imagen que ocupa toda la card */}
                             <img
                               src={m.imagen}
                               alt={m.nombre}
@@ -4572,19 +4022,16 @@ export function CajaAutopagoVista({
                               }`}
                             />
 
-                            {/* Velo verde cuando está activo */}
                             {activo && (
                               <div className="absolute inset-0 bg-[#008000]/10 pointer-events-none" />
                             )}
 
-                            {/* Badge de selección en esquina */}
                             {activo && (
                               <div className="absolute top-1 right-1 w-4.5 h-4.5 rounded-full bg-[#008000] text-white flex items-center justify-center shadow-md ring-1.5 ring-white animate-in zoom-in-50 duration-150 z-20">
                                 <Check className="w-3 h-3 stroke-[3.5]" />
                               </div>
                             )}
 
-                            {/* Franja inferior: si está activo, barra verde sólida destacada; si está inactivo, degradado suave */}
                             <div
                               className={`absolute inset-x-0 bottom-0 flex items-center justify-center z-10 transition-colors ${
                                 activo
@@ -4609,7 +4056,6 @@ export function CajaAutopagoVista({
                     </div>
                   </div>
 
-                  {/* Al crédito: solo si hay documento y la config lo permite */}
                   {!sinDocumento && config?.isCredito && (
                     <button
                       onClick={toggleCredito}
@@ -4622,7 +4068,6 @@ export function CajaAutopagoVista({
                   )}
 
                   {esCredito ? (
-                    /* Crédito: adelanto opcional + cuotas del saldo pendiente */
                     <div className="space-y-2.5">
                       <div>
                         <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
@@ -4713,7 +4158,6 @@ export function CajaAutopagoVista({
                     </div>
                   ) : null}
 
-                {/* Observaciones */}
                 <div>
                   <input
                     value={notaPago}
@@ -4731,7 +4175,6 @@ export function CajaAutopagoVista({
               </>
             ) : (
               <>
-                {/* Pago dividido: varias filas medio de pago + monto */}
                 <div className="space-y-2.5">
                   {pagosDivididos.map((p, idx) => (
                     <div key={p.id} className="rounded-md border border-gray-200 px-3 py-2.5">
@@ -4808,7 +4251,6 @@ export function CajaAutopagoVista({
                   </div>
                 </div>
 
-                {/* Observaciones */}
                 <div>
                   <input
                     value={notaPago}
@@ -4820,7 +4262,6 @@ export function CajaAutopagoVista({
               </>
             )}
 
-            {/* Botón en columna derecha: Confirmar sin imprimir */}
             <div className="pt-2 mt-auto">
               <button
                 type="button"
@@ -4851,7 +4292,6 @@ export function CajaAutopagoVista({
 
 
 
-      {/* Modal de Ajuste Rápido de Stock cuando un producto no tiene unidades disponibles */}
       <ModalAjustarStockRapido
         isOpen={!!productoSinStock}
         onClose={() => setProductoSinStock(null)}
@@ -4859,7 +4299,6 @@ export function CajaAutopagoVista({
         onStockGuardado={handleStockGuardado}
       />
 
-      {/* Modal de Registro Rápido de Producto cuando un producto no existe en el catálogo */}
       <ModalCrearProductoRapido
         isOpen={modalCrearRapidoAbierto}
         onClose={() => setModalCrearRapidoAbierto(false)}
@@ -4893,7 +4332,6 @@ export default function CajaAutopago() {
     }
   }, [user?.ruc, fetchCategorias]);
 
-  // ── Revalidación del stock mientras la caja está abierta ─────────────
   const fetchProductosRef = useRef(productos.fetchProductosSucursal);
   useEffect(() => {
     fetchProductosRef.current = productos.fetchProductosSucursal;
