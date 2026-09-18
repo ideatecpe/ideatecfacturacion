@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check,
   ChevronRight,
@@ -28,13 +28,23 @@ import { PedidoCreado, ProductoPublico, TiendaPublica, tiendaApi } from "@/lib/p
 import BarraCategorias, { IconoDeSeccion } from "./BarraCategorias";
 import CheckoutPedido, { LineaCarrito } from "./CheckoutPedido";
 import SeguimientoPedido from "./SeguimientoPedido";
-import { desplazarConRespaldo, formatoSoles, guardarLocal, leerLocal, normalizar } from "./formato";
+import { formatoSoles, guardarLocal, leerLocal, normalizar } from "./formato";
 
 type Carrito = Record<number, number>;
 
 const claveCarrito = (sucursalId: number) => `tienda_carrito_${sucursalId}`;
 const clavePedido = (sucursalId: number) => `tienda_pedido_${sucursalId}`;
 const claveUltimoPedido = (sucursalId: number) => `tienda_ultimo_pedido_${sucursalId}`;
+const claveCatalogo = (clave: string, entorno: string | null) =>
+  `tienda_catalogo_${entorno === "beta" ? "beta" : "prod"}_${clave.toLowerCase()}`;
+// Una copia más vieja que esto no se muestra: los precios o productos pueden haber cambiado mucho.
+const VIGENCIA_COPIA_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface CatalogoGuardado {
+  tienda: TiendaPublica;
+  productos: ProductoPublico[];
+  guardadoEn: number;
+}
 
 const SECCION_COMBOS = "Combos";
 const SECCION_OTROS = "Otros";
@@ -85,32 +95,64 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
 
   const sucursalId = tienda?.sucursalId ?? null;
 
-  // ── Carga inicial: primero la tienda (resuelve el enlace), luego su catálogo ──
+  // ── Carga inicial ──
+  // Se pinta al instante lo guardado de la última visita (tienda y catálogo) y en
+  // segundo plano se trae lo actual, que siempre pisa a la copia. El stock de la
+  // copia dura lo que tarda esa respuesta, y el pedido igual se valida contra el
+  // stock real al enviarse.
   useEffect(() => {
     let cancelado = false;
+
+    const restaurarCliente = (sucursal: number) => {
+      setCarrito(leerLocal<Carrito>(claveCarrito(sucursal), {}));
+      setUltimoPedido(leerLocal<Carrito>(claveUltimoPedido(sucursal), {}));
+      const token = leerLocal<string | null>(clavePedido(sucursal), null);
+      setTokenPedido(token);
+      setVerSeguimiento(!!token);
+      setCarritoRestaurado(true);
+    };
+
     (async () => {
+      await Promise.resolve();
+      if (cancelado) return;
+
+      const guardado = leerLocal<CatalogoGuardado | null>(claveCatalogo(clave, entorno), null);
+      const copia = guardado && Date.now() - guardado.guardadoEn < VIGENCIA_COPIA_MS ? guardado : null;
+      if (copia) {
+        restaurarCliente(copia.tienda.sucursalId);
+        setTienda(copia.tienda);
+        setProductos(copia.productos);
+        document.title = copia.tienda.nombreTienda;
+        setCargando(false);
+      }
+
       try {
-        const datosTienda = await tiendaApi.obtenerTienda(clave, entorno);
+        // Con la sucursal ya conocida, tienda y catálogo se piden a la vez.
+        const [datosTienda, catalogoAdelantado] = await Promise.all([
+          tiendaApi.obtenerTienda(clave, entorno),
+          copia
+            ? tiendaApi.obtenerProductos(copia.tienda.sucursalId, copia.tienda.entorno).catch(() => null)
+            : Promise.resolve(null),
+        ]);
         if (cancelado) return;
 
-        setCarrito(leerLocal<Carrito>(claveCarrito(datosTienda.sucursalId), {}));
-        setUltimoPedido(leerLocal<Carrito>(claveUltimoPedido(datosTienda.sucursalId), {}));
-        const token = leerLocal<string | null>(clavePedido(datosTienda.sucursalId), null);
-        setTokenPedido(token);
-        setVerSeguimiento(!!token);
-        setCarritoRestaurado(true);
-
+        const mismaSucursal = copia?.tienda.sucursalId === datosTienda.sucursalId;
+        if (!mismaSucursal) restaurarCliente(datosTienda.sucursalId);
         setTienda(datosTienda);
         document.title = datosTienda.nombreTienda;
 
         // Fuera de horario no se pide el catálogo: nadie va a comprar y es una
         // consulta completa contra la BD remota que no hace falta pagar.
         if (datosTienda.abierta) {
-          const catalogo = await tiendaApi.obtenerProductos(datosTienda.sucursalId, datosTienda.entorno);
+          const catalogo =
+            mismaSucursal && catalogoAdelantado
+              ? catalogoAdelantado
+              : await tiendaApi.obtenerProductos(datosTienda.sucursalId, datosTienda.entorno);
           if (!cancelado) setProductos(catalogo);
         }
       } catch (e) {
-        if (!cancelado) setError(e instanceof Error ? e.message : "No se pudo cargar la tienda.");
+        // Sin conexión: si había copia se sigue mostrando esa en vez de un error.
+        if (!cancelado && !copia) setError(e instanceof Error ? e.message : "No se pudo cargar la tienda.");
       } finally {
         if (!cancelado) setCargando(false);
       }
@@ -120,6 +162,16 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
       cancelado = true;
     };
   }, [clave, entorno]);
+
+  // Copia para la próxima visita: se actualiza con cada respuesta del servidor.
+  useEffect(() => {
+    if (!tienda) return;
+    guardarLocal(claveCatalogo(clave, entorno), {
+      tienda,
+      productos,
+      guardadoEn: Date.now(),
+    } satisfies CatalogoGuardado);
+  }, [tienda, productos, clave, entorno]);
 
   useEffect(() => {
     if (!sucursalId || !carritoRestaurado) return;
@@ -239,32 +291,23 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
 
   const cantidadCombos = useMemo(() => productos.filter((p) => p.esCombo).length, [productos]);
 
-  // Resalta en la barra la categoría que se está viendo al hacer scroll.
-  const observadorRef = useRef<IntersectionObserver | null>(null);
-  useEffect(() => {
-    observadorRef.current?.disconnect();
-    const todas = [...destacadas, ...secciones];
-    if (todas.length < 2) return;
-    const observador = new IntersectionObserver(
-      (entradas) => {
-        const visible = entradas.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (visible) setSeccionActiva(visible.target.getAttribute("data-seccion"));
-      },
-      { rootMargin: "-140px 0px -60% 0px" },
-    );
-    todas.forEach((s) => {
-      const el = document.getElementById(idSeccion(s.nombre));
-      if (el) observador.observe(el);
-    });
-    observadorRef.current = observador;
-    return () => observador.disconnect();
-  }, [destacadas, secciones]);
-
   const irASeccion = (nombre: string) => {
     setSeccionActiva(nombre);
     const seccion = document.getElementById(idSeccion(nombre));
     if (!seccion) return;
-    desplazarConRespaldo((behavior) => seccion.scrollIntoView({ behavior, block: "start" }), () => window.scrollY);
+    // Las categorías fuera de pantalla todavía no tienen su alto real (se dibujan al
+    // llegar a ellas), así que el destino se mueve mientras se renderizan: se salta
+    // y se corrige hasta que la posición queda quieta.
+    let intentos = 0;
+    const ajustar = () => {
+      seccion.scrollIntoView({ behavior: "instant", block: "start" });
+      const posicion = seccion.getBoundingClientRect().top;
+      if (++intentos >= 10) return;
+      setTimeout(() => {
+        if (Math.abs(seccion.getBoundingClientRect().top - posicion) > 2) ajustar();
+      }, 80);
+    };
+    ajustar();
   };
 
   const lineas: LineaCarrito[] = useMemo(
@@ -604,7 +647,14 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
           </div>
         ) : (
           secciones.map((s) => (
-            <section key={s.nombre} id={idSeccion(s.nombre)} data-seccion={s.nombre} className="scroll-mt-40">
+            // content-visibility: con ~1000 productos, el navegador solo dibuja las
+            // categorías que están en pantalla; el resto, al llegar a ellas.
+            <section
+              key={s.nombre}
+              id={idSeccion(s.nombre)}
+              data-seccion={s.nombre}
+              className="scroll-mt-40 [content-visibility:auto] [contain-intrinsic-size:auto_900px]"
+            >
               <div className="mb-3 flex items-end justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-1.5">
