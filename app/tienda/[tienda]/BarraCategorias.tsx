@@ -14,6 +14,8 @@ interface Props {
   activa: string | null;
   /** Ícono de las secciones destacadas (combos, lo más vendido…); las categorías no llevan. */
   iconos?: Record<string, IconoDeSeccion>;
+  /** En celular con el buscador fijo: solo el botón "Categorías", sin la fila de pastillas. */
+  compacto?: boolean;
   onElegir: (nombre: string) => void;
 }
 
@@ -34,7 +36,7 @@ function IconoSeccion({ icono, tamano }: { icono?: IconoDeSeccion; tamano: strin
  * completa, las flechas laterales (escritorio) y el desplazamiento horizontal
  * (dedo, trackpad o rueda del mouse).
  */
-export default function BarraCategorias({ secciones, activa, iconos = {}, onElegir }: Props) {
+export default function BarraCategorias({ secciones, activa, iconos = {}, compacto = false, onElegir }: Props) {
   const [nav, setNav] = useState<HTMLElement | null>(null);
   const [puedeIzquierda, setPuedeIzquierda] = useState(false);
   const [puedeDerecha, setPuedeDerecha] = useState(false);
@@ -119,7 +121,9 @@ export default function BarraCategorias({ secciones, activa, iconos = {}, onEleg
   };
 
   return (
-    <div ref={contenedorRef} className="relative flex items-center gap-2">
+    // En modo compacto el panel se ubica respecto a la tarjeta del buscador (no al
+    // botón), para abrirse a todo el ancho de la pantalla.
+    <div ref={contenedorRef} className={`relative flex items-center gap-2 ${compacto ? "max-sm:static max-sm:shrink-0" : ""}`}>
       <button
         type="button"
         onClick={() => setPanelAbierto((v) => !v)}
@@ -136,7 +140,7 @@ export default function BarraCategorias({ secciones, activa, iconos = {}, onEleg
         <ChevronDown className={`w-3 h-3 transition-transform ${panelAbierto ? "rotate-180" : ""}`} />
       </button>
 
-      <div className="relative flex-1 min-w-0">
+      <div className={`relative flex-1 min-w-0 ${compacto ? "max-sm:hidden" : ""}`}>
         <nav
           ref={setNav}
           className="relative flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

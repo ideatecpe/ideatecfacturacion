@@ -89,6 +89,23 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
   const [ultimoPedido, setUltimoPedido] = useState<Carrito>({});
   const [mostrarCheckout, setMostrarCheckout] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  // En celular, al bajar, el buscador queda como una sola franja plana arriba
+  // (como las apps de tiendas) para dejarle el máximo espacio a los productos.
+  const [buscadorFijo, setBuscadorFijo] = useState(false);
+  const [marcaBuscador, setMarcaBuscador] = useState<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!marcaBuscador) return;
+    const revisar = () => setBuscadorFijo(marcaBuscador.getBoundingClientRect().top < 0);
+    const inicial = requestAnimationFrame(revisar);
+    window.addEventListener("scroll", revisar, { passive: true });
+    window.addEventListener("resize", revisar);
+    return () => {
+      cancelAnimationFrame(inicial);
+      window.removeEventListener("scroll", revisar);
+      window.removeEventListener("resize", revisar);
+    };
+  }, [marcaBuscador]);
 
   const [tokenPedido, setTokenPedido] = useState<string | null>(null);
   const [verSeguimiento, setVerSeguimiento] = useState(false);
@@ -422,7 +439,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-32">
       {/* ══════════════ TOP NAVBAR ══════════════ */}
-      <nav className="border-b border-white/10 bg-[#0B1F49] sticky top-0 z-40">
+      <nav className="border-b border-white/10 bg-[#0B1F49] sm:sticky sm:top-0 z-40">
         <div className="mx-auto max-w-6xl px-4 py-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {logoEmpresaUrl ? (
@@ -564,9 +581,21 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
       </header>
 
       {/* ══════════════ BARRA DE BÚSQUEDA PERENNE (STICKY) ══════════════ */}
-      <div id="catalogo-completo" className="sticky top-[52px] z-30 -mt-6 mx-auto max-w-6xl px-4 transition-all">
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl border border-slate-200/80 space-y-2">
-          <div className="relative">
+      <div ref={setMarcaBuscador} aria-hidden className="h-0" />
+      <div
+        id="catalogo-completo"
+        className={`sticky top-0 sm:top-[52px] z-30 -mt-6 mx-auto max-w-6xl px-4 transition-all ${
+          buscadorFijo ? "max-sm:px-0" : ""
+        }`}
+      >
+        <div
+          className={`relative bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl border border-slate-200/80 space-y-2 ${
+            buscadorFijo
+              ? "max-sm:flex max-sm:flex-row-reverse max-sm:items-center max-sm:gap-2 max-sm:space-y-0 max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0 max-sm:px-3 max-sm:py-2 max-sm:shadow-md"
+              : ""
+          }`}
+        >
+          <div className={`relative ${buscadorFijo ? "max-sm:flex-1" : ""}`}>
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={busqueda}
@@ -590,6 +619,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
               secciones={resumenSecciones}
               activa={seccionActiva}
               iconos={ICONOS_SECCION}
+              compacto={buscadorFijo}
               onElegir={irASeccion}
             />
           )}
@@ -604,7 +634,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
           const esRepetir = d.nombre === SECCION_PEDIR_DE_NUEVO;
           const { Icono, clase } = ICONOS_SECCION[d.nombre];
           return (
-            <section key={d.nombre} id={idSeccion(d.nombre)} data-seccion={d.nombre} className="scroll-mt-40">
+            <section key={d.nombre} id={idSeccion(d.nombre)} data-seccion={d.nombre} className="scroll-mt-20 sm:scroll-mt-40">
               <div className="mb-3 flex items-end justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -653,7 +683,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
               key={s.nombre}
               id={idSeccion(s.nombre)}
               data-seccion={s.nombre}
-              className="scroll-mt-40 [content-visibility:auto] [contain-intrinsic-size:auto_900px]"
+              className="scroll-mt-20 sm:scroll-mt-40 [content-visibility:auto] [contain-intrinsic-size:auto_900px]"
             >
               <div className="mb-3 flex items-end justify-between gap-3">
                 <div>
