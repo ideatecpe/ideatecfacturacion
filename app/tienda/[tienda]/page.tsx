@@ -1,9 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import TiendaCliente from "./TiendaCliente";
 
 export const metadata: Metadata = {
   title: "Tienda online",
   robots: { index: false, follow: false },
+};
+
+// Barra de estado del celular del mismo azul que el encabezado de la tienda.
+export const viewport: Viewport = {
+  themeColor: "#0B1F49",
 };
 
 export default async function TiendaPage({

@@ -94,6 +94,21 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
   const [buscadorFijo, setBuscadorFijo] = useState(false);
   const [marcaBuscador, setMarcaBuscador] = useState<HTMLDivElement | null>(null);
 
+  // Safari de iPhone ya no usa theme-color: pinta la zona de la hora con el fondo
+  // de la página. Con el fondo base en el azul del encabezado se ve azul desde el
+  // inicio (el contenido de la tienda mantiene su propio fondo claro).
+  useEffect(() => {
+    const html = document.documentElement;
+    const anteriorHtml = html.style.backgroundColor;
+    const anteriorBody = document.body.style.backgroundColor;
+    html.style.backgroundColor = "#0B1F49";
+    document.body.style.backgroundColor = "#0B1F49";
+    return () => {
+      html.style.backgroundColor = anteriorHtml;
+      document.body.style.backgroundColor = anteriorBody;
+    };
+  }, []);
+
   useEffect(() => {
     if (!marcaBuscador) return;
     const revisar = () => setBuscadorFijo(marcaBuscador.getBoundingClientRect().top < 0);
