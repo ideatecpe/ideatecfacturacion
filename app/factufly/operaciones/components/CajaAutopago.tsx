@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, memo } from "react";
 import {
   ArrowRight,
   Store,
@@ -42,6 +42,9 @@ import {
   Maximize2,
   AlertCircle,
   GripHorizontal,
+  MessageCircle,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 import { scanImageData } from "@undecaf/zbar-wasm";
@@ -79,6 +82,20 @@ import ModalAjustarStockRapido from "@/app/factufly/operaciones/components/Modal
 import ModalCrearProductoRapido from "@/app/factufly/operaciones/components/ModalCrearProductoRapido";
 import VentasRapidas from "@/app/factufly/operaciones/components/VentasRapidas";
 import { iniciarEmisionSegundoPlano, terminarEmisionSegundoPlano } from "@/lib/eventosCaja";
+import PedidosOnline from "@/app/factufly/operaciones/components/PedidosOnline";
+import {
+  PedidoOnline,
+  avisosPedidosSilenciados,
+  cajaDelPedido,
+  liberarPedidoDeCaja,
+  marcarPedidoEnCaja,
+  pedidosOnlineApi,
+  reproducirAlertaPedido,
+  silenciarAvisosPedidos,
+  solicitarCobroPedido,
+  suscribirCobroPedido,
+  suscribirSilencioPedidos,
+} from "@/lib/pedidosOnline";
 
 interface MedioPagoOpcion {
   nombre: string;
@@ -628,6 +645,8 @@ export function CajaAutopagoVista({
   const productosPorId = useMemo(() => {
     return new Map(productosSucursal.map((p) => [p.productoId, p]));
   }, [productosSucursal]);
+  const productosPorIdRef = useRef(productosPorId);
+  useEffect(() => { productosPorIdRef.current = productosPorId; }, [productosPorId]);
   const { empresa } = recursos.recursoEmpresa;
   const { sucursal, fetchSucursal } = recursos.recursoSucursal;
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
@@ -643,6 +662,16 @@ export function CajaAutopagoVista({
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
+
+  // Pedido de la tienda online que se está cobrando con este carrito (ver PedidosOnline).
+  // Al emitir la venta se marca como cobrado con el comprobante generado.
+  const pedidoEnCobroRef = useRef<PedidoOnline | null>(null);
+  // Ventas que se siguen guardando en segundo plano. Mientras haya alguna, el
+  // servidor todavía tiene el stock de antes: recargar productos pisaría el
+  // descuento local y la caja volvería a mostrar unidades ya vendidas.
+  const emisionesEnCursoRef = useRef(0);
+  const [pedidoEnCobro, setPedidoEnCobro] = useState<PedidoOnline | null>(null);
+  const [pedidoPorAbrir, setPedidoPorAbrir] = useState<PedidoOnline | null>(null);
 
 
   const reservasRef = useRef<ItemCarrito[]>(reservasOtraCaja);
@@ -686,6 +715,12 @@ export function CajaAutopagoVista({
   const [nombreNuevoProducto, setNombreNuevoProducto] = useState("");
   const [historialVentasVersion, setHistorialVentasVersion] = useState(0);
   const [refrescandoStock, setRefrescandoStock] = useState(false);
+  // Silencio de los avisos de pedidos online: lo elige cada usuario y se recuerda en el navegador.
+  const sonidoPedidosSilenciado = useSyncExternalStore(
+    suscribirSilencioPedidos,
+    avisosPedidosSilenciados,
+    () => false,
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const montoInputRef = useRef<HTMLInputElement>(null);
   const tipoSinDocInitRef = useRef(false);
@@ -719,7 +754,8 @@ export function CajaAutopagoVista({
   // tamaño vuelve a pagar la espera completa.
   const comprobantesDescargados = useRef(new Map<string, Blob>());
   const [telWhatsapp, setTelWhatsapp] = useState("");
-  const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false);
+  // Enviar el comprobante al WhatsApp del cliente al terminar de emitir.
+  const [enviarWhatsapp, setEnviarWhatsapp] = useState(false);
   const [mostrarFechaManual, setMostrarFechaManual] = useState(false);
   const [fechaEmisionManual, setFechaEmisionManual] = useState("");
   const [pagoDividido, setPagoDividido] = useState(false);
@@ -764,6 +800,7 @@ export function CajaAutopagoVista({
     setNumeroCuotasCredito(1);
     setCuotasCredito([]);
     setTelWhatsapp("");
+    setEnviarWhatsapp(false);
     setComprobanteIdEmitido(null);
     setSerieCorrelativoEmitido(null);
     setOfflineEncolada(false);
@@ -771,13 +808,17 @@ export function CajaAutopagoVista({
     setTamanoImprimiendo(null);
     // Los comprobantes de la venta anterior ya no se van a reimprimir.
     comprobantesDescargados.current.clear();
+    if (pedidoEnCobroRef.current) liberarPedidoDeCaja(pedidoEnCobroRef.current.pedidoOnlineId);
+    pedidoEnCobroRef.current = null;
+    setPedidoEnCobro(null);
     setMostrarPago(false);
     setMostrarCarritoMobile(false);
     setConfirmarLimpiarTodo(false);
     setBusqueda("");
     setEmitido(false);
     emitidoRef.current = false;
-    fetchProductosSucursal();
+    // Con una venta aún guardándose se recarga al terminar (ver emitirVenta).
+    if (emisionesEnCursoRef.current === 0) fetchProductosSucursal();
   }, [config?.useNotaVenta, config?.isBoletaOrFactura, fetchProductosSucursal]);
 
   const nuevaVenta = useCallback(() => {
@@ -857,6 +898,11 @@ export function CajaAutopagoVista({
         productosPorId,
       );
       if (disp !== null && disp <= 0) {
+        // Un combo no tiene stock propio que ajustar: falta stock de algún componente.
+        if (p.esCombo) {
+          showToast(`No alcanza el stock de los productos del combo "${p.nomProducto}"`, "error");
+          return baseItems;
+        }
         setProductoSinStock(p);
         return baseItems;
       }
@@ -2525,13 +2571,21 @@ export function CajaAutopagoVista({
     URL.revokeObjectURL(blobUrl);
   };
 
-  const enviarComprobantePorWhatsapp = async () => {
-    if (!comprobanteIdEmitido || !telWhatsapp.trim()) return;
-    setEnviandoWhatsapp(true);
+  /**
+   * Envía el PDF A4 del comprobante al WhatsApp del cliente. Corre en segundo
+   * plano después de emitir, cuando la caja ya se limpió: todo llega por parámetro.
+   */
+  const enviarComprobantePorWhatsapp = async (
+    comprobanteId: number,
+    telefono: string,
+    tipo: string,
+    serieCorrelativo: string | null,
+    nombreCliente: string | null,
+  ) => {
     try {
-      const blob = await obtenerBlobComprobante(comprobanteIdEmitido, "A4");
+      const blob = await obtenerBlobComprobante(comprobanteId, "A4");
       if (!blob) throw new Error();
-      const nombreArchivo = `${empresa?.numeroDocumento ?? "comprobante"}-${tipoComprobante}-${serieCorrelativoEmitido ?? comprobanteIdEmitido}.pdf`;
+      const nombreArchivo = `${empresa?.numeroDocumento ?? "comprobante"}-${tipo}-${serieCorrelativo ?? comprobanteId}.pdf`;
       const pdfFile = new File([blob], nombreArchivo, { type: "application/pdf" });
 
       const whatsappApiKey = process.env.NEXT_PUBLIC_WHATSAPP_API_KEY!;
@@ -2546,26 +2600,30 @@ export function CajaAutopagoVista({
       if (!resUpload.ok) throw new Error();
       const fileUrl = (await resUpload.json()).datos.url;
 
-      const numRaw = telWhatsapp.replace(/\D/g, "");
-      const numeroFormateado = numRaw.startsWith("51") ? numRaw : `51${numRaw}`;
       const res = await fetch(`${whatsappBase}/api/send/single`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": whatsappApiKey },
         body: JSON.stringify({
-          phone: numeroFormateado,
+          phone: `51${telefono}`,
           type: "documento",
           file_url: fileUrl,
           filename: nombreArchivo,
           mime_type: "application/pdf",
-          text: `Adjuntamos su ${tipoComprobante.toLowerCase()} electrónica.`,
+          text: `${nombreCliente ? `Hola ${nombreCliente}, adjuntamos` : "Adjuntamos"} su ${tipo.toLowerCase()} electrónica${serieCorrelativo ? ` ${serieCorrelativo}` : ""}. ¡Gracias por su compra!`,
         }),
       });
       if (!res.ok) throw new Error();
-      showToast("Comprobante enviado por WhatsApp", "success");
+
+      // Queda marcado en Comprobantes como enviado a ese número (la caja no maneja correo).
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/actualizar/${comprobanteId}/correo-whatsapp`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ correo: null, enviadoPorCorreo: false, whatsApp: telefono, enviadoPorWhatsApp: true }),
+      }).catch(() => {});
+
+      showToast(`${tipo} enviada por WhatsApp al ${telefono}`, "success");
     } catch {
-      showToast("Error al enviar por WhatsApp", "error");
-    } finally {
-      setEnviandoWhatsapp(false);
+      showToast(`No se pudo enviar la ${tipo.toLowerCase()} por WhatsApp. Reenvíala desde Comprobantes.`, "error");
     }
   };
 
@@ -2608,6 +2666,134 @@ export function CajaAutopagoVista({
   useEffect(() => {
     abrirPagoRef.current = abrirPago;
   }, [abrirPago]);
+
+  // ── Cobrar un pedido de la tienda online ──────────────────────────────
+  // El panel de pedidos pide cargarlo: se arma el carrito con sus productos (como
+  // si se hubieran escaneado), se precargan comprobante, documento y medio de pago,
+  // y se abre el cobro. El stock se descuenta recién al emitir, como en toda venta.
+  // Cada caja (principal y ventas rápidas F1–F4) recibe solo los pedidos dirigidos a ella.
+  const ventasRapidasRef = useRef(ventasRapidas);
+  useEffect(() => {
+    ventasRapidasRef.current = ventasRapidas;
+  });
+
+  useEffect(() => {
+    return suscribirCobroPedido(cajaId, (pedido) => {
+      // Con varias ventas a la vez, el mismo pedido no se carga en dos cajas.
+      const cargadoEn = cajaDelPedido(pedido.pedidoOnlineId);
+      if (cargadoEn) {
+        const idxRapida = VENTAS_RAPIDAS_CONFIG.findIndex((c) => c.key === cargadoEn);
+        if (cargadoEn !== cajaId && !esRapida && idxRapida !== -1) ventasRapidasRef.current?.[idxRapida]?.onAbrir();
+        showToast(
+          `El pedido #${pedido.numero} ya está cargado en ${
+            cargadoEn === cajaId ? "esta caja" : idxRapida !== -1 ? VENTAS_RAPIDAS_CONFIG[idxRapida].label : "la caja principal"
+          }`,
+          "info",
+        );
+        return;
+      }
+
+      if (itemsRef.current.length > 0 && !emitidoRef.current) {
+        // La principal está ocupada: el pedido se abre en la primera venta rápida libre.
+        const libre = esRapida ? -1 : (ventasRapidasRef.current ?? []).findIndex((v) => v.items === 0);
+        if (libre === -1) {
+          showToast("Todas las cajas tienen una venta en curso. Termina una para cobrar el pedido online.", "error");
+          return;
+        }
+        const destino = VENTAS_RAPIDAS_CONFIG[libre];
+        ventasRapidasRef.current?.[libre]?.onAbrir();
+        solicitarCobroPedido(pedido, destino.key);
+        showToast(`Caja principal ocupada: el pedido #${pedido.numero} se abrió en ${destino.label}`, "info");
+        return;
+      }
+
+      const hoy = new Date().toISOString().split("T")[0];
+      const faltantes: string[] = [];
+      const cargados: ItemCarrito[] = [];
+      for (const d of pedido.detalles) {
+        const p = productosPorIdRef.current.get(d.productoId);
+        if (!p) {
+          faltantes.push(d.descripcion);
+          continue;
+        }
+        cargados.push({
+          key: crypto.randomUUID(),
+          productoId: p.productoId,
+          sucursalProductoId: p.sucursalProducto.sucursalProductoId,
+          codigo: p.codigo,
+          descripcion: p.nomProducto,
+          cantidad: Number(d.cantidad),
+          // Se cobra el precio que el cliente vio al pedir.
+          precio: Number(d.precioUnitario),
+          tipoAfectacionIGV: p.tipoAfectacionIGV,
+          urlImagen: p.urlImagenProducto ?? null,
+          unidadMedida: p.unidadMedida ?? "NIU",
+          tipoProducto: p.tipoProducto,
+          tieneVencido: !!p.sucursalProducto.proximoVencimiento && p.sucursalProducto.proximoVencimiento < hoy,
+        });
+      }
+
+      // Cargar solo una parte haría cobrar menos de lo pedido: se cancela la carga.
+      if (faltantes.length > 0) {
+        showToast(`No están en el catálogo de la caja: ${faltantes.join(", ")}. Actualiza el stock e intenta de nuevo.`, "error");
+        fetchProductosSucursal().catch(() => {});
+        return;
+      }
+
+      if (emitidoRef.current) resetearEstadoVenta();
+      marcarPedidoEnCaja(pedido.pedidoOnlineId, cajaId);
+      pedidoEnCobroRef.current = pedido;
+      setPedidoEnCobro(pedido);
+      setItems(cargados);
+      if (pedido.tipoComprobante === "FACTURA" || pedido.tipoComprobante === "BOLETA") {
+        tipoElegidoManualRef.current = true;
+        setTipoComprobante(pedido.tipoComprobante === "FACTURA" ? "Factura" : "Boleta");
+      } else {
+        // El cliente no pidió comprobante: queda el que la caja usa por defecto y el cajero decide.
+        tipoElegidoManualRef.current = false;
+        setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
+      }
+      setDocumento(pedido.clienteDocumento ?? "");
+      // Con su celular se ofrece mandarle el comprobante: activado si pidió boleta o factura,
+      // listo para activar si dejó que el cajero eligiera.
+      const celular = (pedido.clienteTelefono ?? "").replace(/\D/g, "").replace(/^51(?=\d{9}$)/, "");
+      const celularValido = /^9\d{8}$/.test(celular);
+      setTelWhatsapp(celularValido ? celular : "");
+      setEnviarWhatsapp(celularValido && pedido.tipoComprobante !== "NINGUNO");
+      setPedidoPorAbrir(pedido);
+    });
+  }, [cajaId, esRapida, showToast, resetearEstadoVenta, fetchProductosSucursal, config?.useNotaVenta, config?.isBoletaOrFactura]);
+
+  // Vaciar el carrito sin emitir ("Limpiar todo", quitar los productos o la X del
+  // pedido) lo deja para después: se sueltan sus datos para que la siguiente venta
+  // no herede el DNI ni lo marque como cobrado. El pedido sigue en "Pedidos".
+  useEffect(() => {
+    const pedido = pedidoEnCobroRef.current;
+    if (items.length > 0 || !pedido || emitidoRef.current) return;
+    liberarPedidoDeCaja(pedido.pedidoOnlineId);
+    pedidoEnCobroRef.current = null;
+    setPedidoEnCobro(null);
+    setPedidoPorAbrir(null);
+    setDocumento("");
+    setNombreManualCliente("");
+    setDireccionManualCliente("");
+    setTelWhatsapp("");
+    setEnviarWhatsapp(false);
+    setNotaPago("");
+    tipoElegidoManualRef.current = false;
+    setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
+    showToast(`Pedido #${pedido.numero} queda para después: cóbralo desde Pedidos`, "info");
+  }, [items.length, showToast, config?.useNotaVenta, config?.isBoletaOrFactura]);
+
+  // Abre el cobro cuando el carrito del pedido ya se pintó (abrirPago lee `items`).
+  useEffect(() => {
+    if (!pedidoPorAbrir || items.length === 0) return;
+    abrirPagoRef.current();
+    setMedioPago(pedidoPorAbrir.medioPago);
+    setMontoRecibido((pedidoPorAbrir.pagaCon ?? totales.total).toFixed(2));
+    setNotaPago(`Pedido web #${pedidoPorAbrir.numero}`);
+    setPedidoPorAbrir(null);
+  }, [pedidoPorAbrir, items, totales.total]);
 
   const elegirTipoComprobante = (t: "Boleta" | "Nota de Venta" | "Factura") => {
     tipoElegidoManualRef.current = true;
@@ -2714,7 +2900,16 @@ export function CajaAutopagoVista({
       }
     }
 
+    const celularWhatsapp = telWhatsapp.replace(/\D/g, "");
+    if (enviarWhatsapp && celularWhatsapp.length !== 9) {
+      showToast("Ingresa el celular de 9 dígitos para enviar por WhatsApp, o desactiva el envío", "error");
+      return;
+    }
+
     // Snapshot inmediato de los datos de la venta actual antes de limpiar la caja
+    const pedidoCobrado = pedidoEnCobroRef.current;
+    const whatsappDestino = enviarWhatsapp ? celularWhatsapp : null;
+    const nombreWhatsapp = pedidoCobrado?.clienteNombre ?? (nombreManualCliente.trim() || cliente?.razonSocial || null);
     const itemsVendidos = [...items];
     const tipoComprobanteVenta = tipoComprobante;
     const vueltoFinal = esCredito ? 0 : pagoDividido ? sobranteDividido : vuelto;
@@ -2747,6 +2942,8 @@ export function CajaAutopagoVista({
     registrarVentaReciente(itemsVendidos);
 
     // CERRAR MODAL Y PREPARAR LA CAJA AL INSTANTE PARA EL SIGUIENTE CLIENTE
+    // (se cuenta la emisión antes, para que la limpieza no recargue el stock viejo)
+    emisionesEnCursoRef.current += 1;
     nuevaVenta();
 
     const procesoId = Math.random().toString(36).substring(2, 9);
@@ -2767,9 +2964,19 @@ export function CajaAutopagoVista({
         } catch (errGuardar: any) {
           if (esErrorTransitorio(errGuardar)) {
             await manejarVentaSinConexion(payload, esNotaVenta ? "notaventa" : "comprobante", conImpresion, itemsVendidos);
+            if (whatsappDestino) {
+              showToast("Sin conexión: la venta se guardó, pero el comprobante no se envió por WhatsApp. Envíalo desde Comprobantes al reconectar.", "info");
+            }
             return;
           }
           throw errGuardar;
+        }
+
+        // La venta ya quedó registrada (y el stock descontado): se cierra el pedido online.
+        if (pedidoCobrado) {
+          pedidosOnlineApi.marcarCobrado(pedidoCobrado.pedidoOnlineId, comprobanteId, accessToken).catch(() => {
+            showToast(`Venta emitida, pero no se pudo marcar el pedido #${pedidoCobrado.numero} como cobrado`, "error");
+          });
         }
 
         if (!esNotaVenta) {
@@ -2781,6 +2988,10 @@ export function CajaAutopagoVista({
           } catch {
             showToast("No se pudo conectar con SUNAT. Verifica el estado en Comprobantes.", "error");
           }
+        }
+
+        if (whatsappDestino) {
+          void enviarComprobantePorWhatsapp(comprobanteId, whatsappDestino, tipoComprobanteVenta, serieCorrelativoTicket, nombreWhatsapp);
         }
 
         fetchSucursal();
@@ -2805,6 +3016,9 @@ export function CajaAutopagoVista({
         }
       } finally {
         terminarEmisionSegundoPlano(procesoId);
+        emisionesEnCursoRef.current = Math.max(0, emisionesEnCursoRef.current - 1);
+        // El servidor ya descontó el stock: ahora sí se trae el real.
+        if (emisionesEnCursoRef.current === 0) fetchProductosSucursal().catch(() => {});
       }
     })();
   };
@@ -2826,8 +3040,11 @@ export function CajaAutopagoVista({
   const onlineReal = isOnline && (typeof navigator !== "undefined" ? navigator.onLine : true);
   const facturaSinRazonSocial = tipoComprobante === "Factura" && onlineReal && (!nombreManualCliente.trim() && !cliente?.razonSocial);
 
+  const whatsappIncompleto = enviarWhatsapp && telWhatsapp.replace(/\D/g, "").length !== 9;
+
   const puedeEmitir =
     !emitiendo &&
+    !whatsappIncompleto &&
     !(pagoDividido && faltanteDividido > 0) &&
     !(esCredito && (!cuotasCuadran || cuotasCredito.some((c) => (parseFloat(c.monto) || 0) <= 0))) &&
     !boletaMayor700SinDoc &&
@@ -2878,6 +3095,9 @@ export function CajaAutopagoVista({
         } else if (facturaSinRazonSocial) {
           e.preventDefault();
           showToast("Ingresa la Razón Social de la empresa para la Factura", "error");
+        } else if (whatsappIncompleto) {
+          e.preventDefault();
+          showToast("Ingresa el celular de 9 dígitos para WhatsApp, o desactiva el envío", "error");
         }
       }
     };
@@ -2892,14 +3112,18 @@ export function CajaAutopagoVista({
     notaVentaDocIncompleto,
     facturaSinRuc,
     facturaSinRazonSocial,
+    whatsappIncompleto,
   ]);
 
   // ── Pantalla principal: grid de productos + carrito ───────────
   return (
     <>
+      {/* A pantalla completa no lleva marco: el borde y las esquinas redondeadas
+          pegados al filo de la ventana se ven como un recorte. Dentro de Venta
+          rápida sí es una tarjeta sobre el fondo, y ahí se conservan. */}
       <div
-        className={`relative w-full rounded-md border border-gray-200 bg-white shadow-sm flex flex-col lg:flex-row lg:overflow-hidden ${
-          esRapida ? "min-h-full lg:h-full" : "lg:h-[calc(100vh-125px)]"
+        className={`relative w-full bg-[#F5F8FD] flex flex-col lg:flex-row lg:overflow-hidden lg:h-full ${
+          esRapida ? "rounded-md border border-gray-200 shadow-sm min-h-full" : "min-h-full"
         }`}
       >
         {/* Barras de las ventas rápidas minimizadas: recuerdan que quedaron
@@ -2934,7 +3158,9 @@ export function CajaAutopagoVista({
           </div>
         )}
         {/* ── Columna izquierda: buscador + grid de productos ── */}
-        <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden">
+        {/* lg:pb-4 = mismo margen que deja el pie de "Cobrar" a la derecha: los
+            productos terminan a la altura del botón en vez de pegados al borde. */}
+        <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-100 lg:overflow-hidden lg:pb-4">
           <div className="shrink-0 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
             <div className="relative flex-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -2969,6 +3195,8 @@ export function CajaAutopagoVista({
               )}
             </div>
 
+            {/* Oculto por ahora: el stock ya se refresca solo tras cada venta. Se deja
+                el botón por si hace falta volver a mostrarlo (quitar "hidden"). */}
             <button
               type="button"
               onClick={async () => {
@@ -2984,11 +3212,55 @@ export function CajaAutopagoVista({
                   setRefrescandoStock(false);
                 }
               }}
-              className="h-9.5 w-9.5 flex items-center justify-center bg-white border border-gray-200 text-gray-500 rounded-md hover:bg-gray-50 hover:text-brand-blue active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
+              className="hidden h-9.5 w-9.5 items-center justify-center bg-white border border-gray-200 text-gray-500 rounded-md hover:bg-gray-50 hover:text-brand-blue active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer"
               title="Actualizar stock desde el servidor"
             >
               <RefreshCw size={14} className={refrescandoStock ? "animate-spin" : ""} />
             </button>
+
+            {!esRapida && (
+              <button
+                type="button"
+                onClick={() => {
+                  const silenciar = !sonidoPedidosSilenciado;
+                  silenciarAvisosPedidos(silenciar);
+                  // Al reactivarlo suena una vez: confirma que el audio funciona.
+                  if (!silenciar) reproducirAlertaPedido();
+                }}
+                aria-pressed={sonidoPedidosSilenciado}
+                className={`h-9.5 w-9.5 flex items-center justify-center border rounded-md active:scale-[0.98] transition-all shadow-sm shrink-0 cursor-pointer ${
+                  sonidoPedidosSilenciado
+                    ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
+                    : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-brand-blue"
+                }`}
+                title={
+                  sonidoPedidosSilenciado
+                    ? "Sonido de pedidos silenciado · clic para activarlo"
+                    : "Silenciar el sonido de los pedidos online"
+                }
+              >
+                {sonidoPedidosSilenciado ? <VolumeX size={15} /> : <Volume2 size={15} />}
+              </button>
+            )}
+
+            {pedidoEnCobro && (
+              <span
+                className="h-9.5 hidden md:flex items-center gap-1.5 pl-3 pr-1 rounded-md bg-[#EEF3FB] border border-[#D0E0F7] text-brand-blue text-xs font-bold shadow-xs shrink-0"
+                title={`Cobrando el pedido online de ${pedidoEnCobro.clienteNombre}`}
+              >
+                <ShoppingBag size={13} /> Pedido #{pedidoEnCobro.numero}
+                <button
+                  type="button"
+                  onClick={() => setItems([])}
+                  className="h-6 w-6 flex items-center justify-center rounded text-brand-blue/50 hover:bg-[#D9E7FB] hover:text-brand-blue cursor-pointer"
+                  title="Dejar para después: vacía el carrito y el pedido sigue en Pedidos"
+                  aria-label={`Dejar el pedido #${pedidoEnCobro.numero} para después`}
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            )}
+            {!esRapida && <PedidosOnline sucursalId={sucursalId} accessToken={accessToken} />}
 
             <button
               type="button"
@@ -4142,6 +4414,58 @@ export function CajaAutopagoVista({
                     </div>
                   ) : null}
                 </div>
+              </div>
+
+              {/* Envío por WhatsApp: se precarga con el celular del pedido online */}
+              <div className="mt-2 rounded-md border border-gray-200 bg-gray-50/70 px-2.5 py-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={enviarWhatsapp}
+                    onClick={() => setEnviarWhatsapp((v) => !v)}
+                    className="flex flex-1 min-w-0 items-center gap-2 text-left cursor-pointer"
+                  >
+                    <span
+                      className={`relative h-4.5 w-8 shrink-0 rounded-full transition-colors ${
+                        enviarWhatsapp ? "bg-[#008000]" : "bg-gray-300"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                          enviarWhatsapp ? "translate-x-4" : "translate-x-0.5"
+                        }`}
+                      />
+                    </span>
+                    <MessageCircle className={`w-3.5 h-3.5 shrink-0 ${enviarWhatsapp ? "text-[#008000]" : "text-gray-400"}`} />
+                    <span className="font-bold text-[11px] text-gray-600 uppercase tracking-wide truncate">
+                      Enviar por WhatsApp
+                    </span>
+                  </button>
+                  {enviarWhatsapp && (
+                    <div className="relative w-36 shrink-0">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-gray-400">+51</span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        value={telWhatsapp}
+                        onChange={(e) => setTelWhatsapp(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                        placeholder="Celular"
+                        autoFocus={!telWhatsapp}
+                        className={`w-full h-7.5 pl-8 pr-2 bg-white rounded border text-xs font-semibold tabular-nums outline-none transition-all ${
+                          whatsappIncompleto
+                            ? "border-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-200"
+                            : "border-gray-200 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue/30"
+                        }`}
+                      />
+                    </div>
+                  )}
+                </div>
+                {whatsappIncompleto && (
+                  <p className="mt-1 text-[10px] text-amber-600 font-medium">
+                    Celular incompleto: {telWhatsapp.length} de 9 dígitos
+                  </p>
+                )}
               </div>
 
               {/* Opciones adicionales: Emitir con otra fecha y Pago dividido */}

@@ -129,6 +129,14 @@ function ProductoCard({
             <p className="text-[9px] font-medium text-gray-400 bg-gray-100 w-fit px-1.5 py-0.5 rounded uppercase">
               {prod.categoria?.categoriaNombre}
             </p>
+            {prod.esCombo && (
+              <p
+                className="text-[9px] font-bold text-amber-800 bg-amber-100 w-fit px-1.5 py-0.5 rounded uppercase"
+                title={prod.comboItems?.map((i) => `${Number(i.cantidad)} × ${i.nomProducto}`).join("\n")}
+              >
+                Combo · {prod.comboItems?.length ?? 0} productos
+              </p>
+            )}
             {isSuperAdmin && (
               <p className="text-[9px] text-gray-400 bg-blue-50 w-fit px-1.5 py-0.5 rounded">
                 {prod.sucursalProducto.nomSucursal}

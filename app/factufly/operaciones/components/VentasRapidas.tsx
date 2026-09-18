@@ -486,11 +486,6 @@ export const VentasRapidas = memo(function VentasRapidas({
                 <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-mono font-bold">
                   {cfg.key}
                 </span>
-                {isEnfocado && (
-                  <span className="hidden sm:inline-flex items-center text-[10px] bg-emerald-500/30 border border-emerald-400/40 text-emerald-100 px-1.5 py-0.5 rounded font-semibold">
-                    En foco
-                  </span>
-                )}
               </div>
 
               {/* Botón único de Minimizar */}

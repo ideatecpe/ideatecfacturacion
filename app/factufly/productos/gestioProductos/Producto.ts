@@ -46,6 +46,15 @@ export interface ProductoBase {
   esPaquete?: boolean | null;
   productoBaseId?: number | null;
   factorConversion?: number | null;
+  /** Combo: agrupa otros productos a un precio propio. Su stock lo calcula el backend con el de sus componentes. */
+  esCombo?: boolean | null;
+  comboItems?: ComboItem[] | null;
+}
+
+export interface ComboItem {
+  productoId: number;
+  nomProducto: string | null;
+  cantidad: number;
 }
 
 // ─── Producto con datos de sucursal ──────────────────────────

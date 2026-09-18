@@ -529,11 +529,35 @@ export default function VerComprobantesPage() {
     }
     setLoadingSunatMap((prev) => ({ ...prev, [c.comprobanteId]: true }));
     try {
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/enviar-sunat`,
-        null,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
+      type RespuestaEnvioSunat = {
+        exitoso?: boolean;
+        mensaje?: string;
+        estadoSunat?: string;
+        codigoRespuesta?: string;
+        mensajeRespuesta?: string;
+      };
+
+      let data: RespuestaEnvioSunat | undefined;
+      try {
+        const res = await axios.post<RespuestaEnvioSunat>(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${c.comprobanteId}/enviar-sunat`,
+          null,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        data = res.data;
+      } catch (err) {
+        // El endpoint responde 400 cuando el comprobante no quedó aceptado, pero el cuerpo
+        // trae el estado real y el motivo. Sin leerlo, todo resultado no aceptado aparecía
+        // como un error genérico y nunca se veía que seguía pendiente ni por qué.
+        data = axios.isAxiosError<RespuestaEnvioSunat>(err) ? err.response?.data : undefined;
+      }
+
+      if (!data?.estadoSunat) {
+        showToast(data?.mensaje ?? "Error al enviar a SUNAT", "error");
+        return;
+      }
+
+      const respuesta = data;
       const tipoDoc = tipoLabel(c.tipoComprobante);
       // Actualizar estado inmediatamente (optimista)
       setComprobantes((prev) =>
@@ -541,36 +565,29 @@ export default function VerComprobantesPage() {
           if (comp.comprobanteId !== c.comprobanteId) return comp;
           return {
             ...comp,
-            estadoSunat:           res.data.estadoSunat      ?? comp.estadoSunat,
-            codigoRespuestaSunat:  res.data.codigoRespuesta  ?? comp.codigoRespuestaSunat,
-            mensajeRespuestaSunat: res.data.mensajeRespuesta ?? comp.mensajeRespuestaSunat,
+            estadoSunat:           respuesta.estadoSunat      ?? comp.estadoSunat,
+            codigoRespuestaSunat:  respuesta.codigoRespuesta  ?? comp.codigoRespuestaSunat,
+            mensajeRespuestaSunat: respuesta.mensajeRespuesta ?? comp.mensajeRespuestaSunat,
           };
         }),
       );
-      if (res.data.exitoso) {
-        showToast(res.data.mensaje ?? `${tipoDoc} enviada correctamente a SUNAT`, "success");
-      } else if (esPendienteSunat(res.data.estadoSunat)) {
+      if (respuesta.exitoso) {
+        showToast(respuesta.mensaje ?? `${tipoDoc} enviada correctamente a SUNAT`, "success");
+      } else if (esPendienteSunat(respuesta.estadoSunat)) {
         // No es un rechazo: SUNAT no respondió, falló la comunicación, o ya tiene el
         // comprobante y falta confirmar su CDR. Decir "rechazado" acá es lo que lleva
         // al usuario a reemitir y terminar con el comprobante duplicado en SUNAT.
-        showToast(
-          res.data.mensajeRespuesta
-            ? `${tipoDoc} ${c.numeroCompleto} sigue PENDIENTE: ${res.data.mensajeRespuesta}`
-            : `SUNAT no disponible. ${tipoDoc} ${c.numeroCompleto} sigue PENDIENTE, puedes reintentar más tarde.`,
-          "error",
-        );
+        showToast(`${tipoDoc} ${c.numeroCompleto} sigue pendiente en SUNAT`, "error");
       } else {
         showToast(
-          res.data.mensajeRespuesta
-            ? `${tipoDoc} ${c.numeroCompleto} rechazada por SUNAT: ${res.data.mensajeRespuesta}`
+          respuesta.mensajeRespuesta
+            ? `${tipoDoc} ${c.numeroCompleto} rechazada por SUNAT: ${respuesta.mensajeRespuesta}`
             : `${tipoDoc} ${c.numeroCompleto} rechazada por SUNAT`,
           "error",
         );
       }
       // Recargar lista para traer xmlGenerado y xmlRespuestaSunat del servidor
       if (refetch) cargarComprobantes(offset);
-    } catch {
-      showToast("Error al enviar a SUNAT", "error");
     } finally {
       setLoadingSunatMap((prev) => ({ ...prev, [c.comprobanteId]: false }));
     }

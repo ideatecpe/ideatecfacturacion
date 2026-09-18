@@ -19,13 +19,16 @@ import {
   FileSpreadsheet,
   Boxes,
   BookOpenCheck,
+  Wrench,
 } from "lucide-react";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
 import { ToastProvider, useToast } from "../components/ui/Toast";
 import { OfflineSalesProvider, useOfflineSales } from "../components/offline/OfflineSalesProvider";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { AvisoPedidosOnline } from "../components/pedidos/AvisoPedidosOnline";
 import { MenuItem, View } from "../types";
+import { cn } from "../utils/cn";
 import { useAuth } from "@/context/AuthContext";
 import { signOut } from "next-auth/react";
 import axios from "axios";
@@ -135,6 +138,9 @@ export default function DashboardLayout({
 
   const activeView = (pathname.split("/")[2] as View) || "dashboard";
   const activeSubView = pathname.split("/")[3] || "";
+  // Misma ruta sirve la emisión normal y la Caja Autopago; solo esta última va a pantalla completa.
+  const esCajaAutopago =
+    pathname.startsWith(`/factufly/${RUTA_SEGURA_OFFLINE}`) && !!config?.isStock && !!config?.isCajaAutopago;
 
   // ── Auto-open/close sidebar según ancho de ventana (umbral: 1280px) ──────
   // Animación de entrada
@@ -328,6 +334,18 @@ export default function DashboardLayout({
       { id: "empresa", label: "Empresa", icon: Settings },
       { id: "sucursales", label: "Sucursales", icon: Building2 },
       { id: "usuarios", label: "Usuarios", icon: UserCircle },
+      {
+        id: "herramientas",
+        label: "Herramientas",
+        icon: Wrench,
+        children: [
+          { id: "agente-impresion", label: "Agente de impresión" },
+          // La tienda online entrega sus pedidos en la Caja Autopago.
+          ...(config?.isStock && config?.isCajaAutopago
+            ? [{ id: "tienda-online", label: "Tienda online" }]
+            : []),
+        ],
+      },
     ];
 
     const esFacturador = user?.rol === "facturador";
@@ -418,13 +436,22 @@ export default function DashboardLayout({
                 activeView={activeView}
                 activeSubViewLabel={activeSubViewLabel}
               />
-              <main className="flex-1 p-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
-                <div className="mx-auto">
+              {/* La Caja Autopago ocupa la pantalla completa: sus columnas ya traen
+                  su propio margen interior y el del layout solo le robaba espacio. */}
+              <main
+                className={cn(
+                  "flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar",
+                  !esCajaAutopago && "p-4",
+                )}
+              >
+                <div className={cn("mx-auto", esCajaAutopago && "h-full")}>
                   <ErrorBoundary key={pathname}>{children}</ErrorBoundary>
                 </div>
               </main>
             </div>
           </div>
+          {/* Los pedidos online avisan desde cualquier módulo, no solo en la caja. */}
+          <AvisoPedidosOnline />
         </OfflineGuard>
       </OfflineSalesProvider>
     </ToastProvider>

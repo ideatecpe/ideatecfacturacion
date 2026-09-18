@@ -23,6 +23,7 @@ import {
   Printer,
   CalendarClock,
   ScanBarcode,
+  Layers,
 } from "lucide-react";
 import axios from "axios";
 
@@ -37,6 +38,7 @@ import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 import { ProductoSucursal } from "../gestioProductos/Producto";
 import AgregarProducto from "../gestioProductos/AgregarProducto";
 import EditarProducto from "../gestioProductos/EditarProducto";
+import ModalCombo from "../gestioProductos/ModalCombo";
 import ProductoCard from "./ProductoCard";
 
 import { useProductosSucursal } from "../gestioProductos/useProductosSucursal";
@@ -149,6 +151,7 @@ export default function ProductosPage() {
   const [filtroStockBajo, setFiltroStockBajo] = useState(false);
   const [filtroPromocion, setFiltroPromocion] = useState(false);
   const [filtroPaquete, setFiltroPaquete] = useState(false);
+  const [filtroCombo, setFiltroCombo] = useState(false);
   const [filtroVencimientoAntes, setFiltroVencimientoAntes] = useState<string>("");
   const [filtroAfectacion, setFiltroAfectacion] = useState<string[]>([]);
   const [filtroTipoProducto, setFiltroTipoProducto] = useState<string[]>([]);
@@ -163,6 +166,8 @@ export default function ProductosPage() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isCategoriasOpen, setIsCategoriasOpen] = useState(false);
+  const [isComboOpen, setIsComboOpen] = useState(false);
+  const [comboTarget, setComboTarget] = useState<ProductoSucursal | null>(null);
 
   const [editTarget, setEditTarget] = useState<ProductoSucursal | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProductoSucursal | null>(
@@ -213,6 +218,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
     isReporteOpen ||
     isVentasProductoOpen ||
     isCategoriasOpen ||
+    isComboOpen ||
     escaneando;
 
   useEscanerGlobal(
@@ -293,6 +299,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
     (config?.isStock && filtroPromocion) ||
     (config?.isStock && filtroPaquete) ||
     (config?.isStock && !!filtroVencimientoAntes) ||
+    filtroCombo ||
     filtroAfectacion.length > 0 ||
     filtroTipoProducto.length > 0 ||
     filtroCodigoGenerado;
@@ -346,6 +353,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
     const matchPaquete =
       !config?.isStock || !filtroPaquete || !!p.esPaquete;
 
+    const matchCombo = !filtroCombo || !!p.esCombo;
+
     const matchVencimiento =
       !config?.isStock ||
       !filtroVencimientoAntes ||
@@ -374,6 +383,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
       matchStockBajo &&
       matchPromocion &&
       matchPaquete &&
+      matchCombo &&
       matchVencimiento &&
       matchAfectacion &&
       matchTipo &&
@@ -441,8 +451,26 @@ const [importFile, setImportFile] = useState<File | null>(null);
   };
 
   const handleOpenEdit = (prod: ProductoSucursal) => {
+    // Los combos se editan en su propio modal: no tienen stock ni costo propios.
+    if (prod.esCombo) {
+      setComboTarget(prod);
+      setIsComboOpen(true);
+      return;
+    }
     setEditTarget(prod);
     setIsEditOpen(true);
+  };
+
+  const handleComboGuardado = (combo: ProductoSucursal) => {
+    setProductos((prev) => {
+      const existe = prev.some((p) => p.sucursalProducto.sucursalProductoId === combo.sucursalProducto.sucursalProductoId);
+      const next = existe
+        ? prev.map((p) => (p.sucursalProducto.sucursalProductoId === combo.sucursalProducto.sucursalProductoId ? combo : p))
+        : [combo, ...prev];
+      if (sucursalId) cacheProductos(sucursalId, next).catch(() => {});
+      return next;
+    });
+    showToast(comboTarget ? "Combo actualizado" : "Combo creado", "success");
   };
 
   const handleOpenDelete = (prod: ProductoSucursal) => {
@@ -457,6 +485,15 @@ const [importFile, setImportFile] = useState<File | null>(null);
         `No puedes eliminar "${prod.nomProducto}": es el producto base de ${nombres}.`,
         "error",
       );
+      return;
+    }
+    // Igual con los combos: sin este producto quedarían siempre sin stock.
+    const combosQueLoUsan = productos.filter(
+      (p) => p.esCombo && p.comboItems?.some((i) => i.productoId === prod.productoId),
+    );
+    if (combosQueLoUsan.length > 0) {
+      const nombres = combosQueLoUsan.map((p) => p.nomProducto).join(", ");
+      showToast(`No puedes eliminar "${prod.nomProducto}": forma parte de ${nombres}.`, "error");
       return;
     }
     setDeleteTarget(prod);
@@ -1049,6 +1086,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                       config?.isStock && filtroPromocion,
                       config?.isStock && filtroPaquete,
                       config?.isStock && !!filtroVencimientoAntes,
+                      filtroCombo,
                       ...filtroAfectacion,
                       ...filtroTipoProducto,
                       filtroCodigoGenerado,
@@ -1101,6 +1139,19 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 {modoSeleccionPromo ? "Cancelar selección" : "Seleccionar"}
               </Button>
             )}
+            {!soloLectura && !isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setComboTarget(null);
+                  setIsComboOpen(true);
+                }}
+                className="flex items-center gap-1.5 py-2.5 px-3 text-xs font-semibold text-white bg-[#008000] hover:bg-[#006400] shadow-sm rounded-md transition-colors whitespace-nowrap"
+                title="Arma un combo con varios productos a un precio propio"
+              >
+                <Plus className="w-3.5 h-3.5" /> Combo
+              </button>
+            )}
             {!soloLectura && (
               <Button
                 onClick={() => setIsNewOpen(true)}
@@ -1114,9 +1165,12 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
         {/* Panel filtros avanzados — barra full width compacta */}
         {showFiltrosAvanzados && (
-          <div className="flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 animate-in fade-in duration-200">
+          // flex-wrap: con muchos filtros activos (Stock, Bien/Servicio) no todos entran en
+          // una sola fila. Sin wrap, los últimos (antes "Código de barras") quedaban cortados
+          // fuera de la pantalla en vez de pasar a una segunda línea.
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 animate-in fade-in duration-200">
             {/* Label */}
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
+            <span className="text-xs font-bold text-gray-400 uppercase whitespace-nowrap shrink-0">
               Filtrar por
             </span>
 
@@ -1209,11 +1263,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
                 <div className="w-px h-4 bg-gray-200 shrink-0" />
 
-                {/* Promoción */}
+                {/* Promoción — sin label de grupo: el propio botón ya dice qué filtra */}
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
-                    Promoción
-                  </span>
                   <button
                     type="button"
                     onClick={() => setFiltroPromocion((prev) => !prev)}
@@ -1230,11 +1281,8 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
                 <div className="w-px h-4 bg-gray-200 shrink-0" />
 
-                {/* Paquetes */}
+                {/* Paquetes — sin label de grupo: el propio botón ya dice qué filtra */}
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
-                    Paquetes
-                  </span>
                   <button
                     type="button"
                     onClick={() => setFiltroPaquete((prev) => !prev)}
@@ -1283,6 +1331,24 @@ const [importFile, setImportFile] = useState<File | null>(null);
 
             <div className="w-px h-4 bg-gray-200 shrink-0" />
 
+            {/* Combos — sin label de grupo: el propio botón ya dice qué filtra */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setFiltroCombo((prev) => !prev)}
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1 text-xs font-semibold border rounded-lg transition-all whitespace-nowrap",
+                  filtroCombo
+                    ? "bg-amber-100 text-amber-700 border-amber-300"
+                    : "bg-white border-gray-200 text-gray-500 hover:border-gray-300",
+                )}
+              >
+                <Layers size={12} /> Solo combos
+              </button>
+            </div>
+
+            <div className="w-px h-4 bg-gray-200 shrink-0" />
+
             {/* Tipo Producto */}
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
@@ -1328,7 +1394,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
             {/* Código de barras generado (autogenerado, no ingresado/escaneado) */}
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap shrink-0">
-                Código de barras
+                Código
               </span>
               <button
                 type="button"
@@ -1354,6 +1420,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                     setFiltroStockBajo(false);
                     setFiltroPromocion(false);
                     setFiltroPaquete(false);
+                    setFiltroCombo(false);
                     setFiltroVencimientoAntes("");
                     setFiltroAfectacion([]);
                     setFiltroTipoProducto([]);
@@ -1605,6 +1672,15 @@ const [importFile, setImportFile] = useState<File | null>(null);
         categorias={categorias}
         onAgregarCategoria={registrarCategoria}
         loadingCategoria={loadingRegistrar}
+      />
+      <ModalCombo
+        isOpen={isComboOpen}
+        onClose={() => setIsComboOpen(false)}
+        combo={comboTarget}
+        productos={productos}
+        categorias={categorias}
+        sucursalId={sucursalId}
+        onGuardado={handleComboGuardado}
       />
       <EditarProducto
         isOpen={isEditOpen}

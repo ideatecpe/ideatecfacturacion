@@ -1110,11 +1110,11 @@ const LoginClient: React.FC = () => {
           </div>
         </section>
 
-        {/* Right Column: Hero / Brand Panel (Mismo gradiente del Sidebar) */}
+        {/* Right Column: Hero / Brand Panel */}
         <section
           className="hidden md:flex md:w-[55%] lg:w-[60%] relative overflow-hidden items-center justify-center p-8 lg:p-16"
           style={{
-            background: "linear-gradient(180deg, #0f2e64 0%, #091a3d 100%)",
+            backgroundColor: "#0B1F49",
             transform: doorOpen ? "translateX(100%)" : "translateX(0)",
             transition: doorOpen ? "transform 0.5s cubic-bezier(0.87, 0, 0.13, 1)" : "none",
           }}

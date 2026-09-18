@@ -108,7 +108,7 @@ export const Sidebar = ({
         isOpen ? "w-54" : "w-18",
         isOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
       )}
-       style={{ background: "linear-gradient(180deg, #0f2e64 0%, #091a3d 100%)" }}
+       style={{ backgroundColor: "#0B1F49" }}
     >
       {/* Logo */}
       <div className={cn("flex items-center gap-0 px-4 h-16 shrink-0", !isOpen && "justify-center px-0")}>
@@ -164,7 +164,7 @@ export const Sidebar = ({
                 {!isOpen && (
                   <span
                     className="pointer-events-none absolute left-17 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md text-[12px] font-medium text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 flex items-center gap-1.5"
-                    style={{ background: "#0a1f45", border: "1px solid rgba(255,255,255,0.1)" }}
+                    style={{ background: "#0B1F49", border: "1px solid rgba(255,255,255,0.1)" }}
                   >
                     {item.label} {!allowed && <Lock className="w-3 h-3 text-red-400 inline" />}
                   </span>
@@ -240,7 +240,7 @@ export const Sidebar = ({
               {!isOpen && (
                 <div
                   className="pointer-events-none group-hover:pointer-events-auto absolute left-17 top-0 rounded-md text-[12px] font-medium text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 overflow-hidden min-w-40"
-                  style={{ background: "#0a1f45", border: "1px solid rgba(255,255,255,0.1)" }}
+                  style={{ background: "#0B1F49", border: "1px solid rgba(255,255,255,0.1)" }}
                 >
                   <div className="px-3 py-2 text-white/40 text-[10px] uppercase tracking-wider border-b border-white/10">
                     {item.label}
