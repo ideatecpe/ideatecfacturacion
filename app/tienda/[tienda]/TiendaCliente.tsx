@@ -111,7 +111,8 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
 
   useEffect(() => {
     if (!marcaBuscador) return;
-    const revisar = () => setBuscadorFijo(marcaBuscador.getBoundingClientRect().top < 0);
+    // En cuanto la tarjeta del buscador toca el borde de arriba, aparece la franja.
+    const revisar = () => setBuscadorFijo(marcaBuscador.getBoundingClientRect().top < 1);
     const inicial = requestAnimationFrame(revisar);
     window.addEventListener("scroll", revisar, { passive: true });
     window.addEventListener("resize", revisar);
@@ -450,17 +451,34 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
   const nombreEmpresa = tienda.nombreTienda.trim();
   const direccionCompleta = tienda.direccion?.toUpperCase() || "";
 
+  // Safari de iPhone desplaza la página al enfocar un campo que está en una barra
+  // fija, aunque ya esté a la vista. En la franja se enfoca sin desplazar y, por
+  // si Safari igual mueve la página al abrir el teclado, se la devuelve a su lugar.
+  const enfocarSinDesplazar = (e: React.TouchEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    if (document.activeElement === input) return;
+    e.preventDefault();
+    const y = window.scrollY;
+    const volver = () => {
+      if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+    };
+    window.addEventListener("scroll", volver, { passive: true });
+    setTimeout(() => window.removeEventListener("scroll", volver), 900);
+    input.focus({ preventScroll: true });
+  };
+
   // Mismo campo en la tarjeta del buscador y en la franja fija del celular. En
   // celular la letra va a 16 px: con menos, el iPhone hace zoom al tocarlo y
   // desplaza la página.
-  const campoBusqueda = (
+  const campoBusqueda = (enFranja: boolean) => (
     <div className="relative flex-1">
       <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
       <input
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
+        onTouchEnd={enFranja ? enfocarSinDesplazar : undefined}
         placeholder="¿Qué se te antoja hoy?"
-        className="w-full h-9 pl-9 pr-8 rounded-xl bg-slate-50 border border-slate-200 text-base sm:text-xs outline-none placeholder:text-slate-400 focus:bg-white focus:border-[#0b1b36] focus:ring-2 focus:ring-[#0b1b36]/10 transition-all"
+        className={`w-full h-9 pl-9 pr-8 ${enFranja ? "rounded-md" : "rounded-xl"} bg-slate-50 border border-slate-200 text-base sm:text-xs outline-none placeholder:text-slate-400 focus:bg-white focus:border-[#0b1b36] focus:ring-2 focus:ring-[#0b1b36]/10 transition-all`}
       />
       {busqueda && (
         <button
@@ -623,9 +641,13 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
       {/* ══════════════ BARRA DE BÚSQUEDA ══════════════ */}
       {/* En escritorio queda fija bajo el encabezado. En celular se desplaza con la
           página y, al salir de la pantalla, aparece la franja azul de abajo. */}
-      <div id="catalogo-completo" className="relative sm:sticky sm:top-[52px] z-30 -mt-6 mx-auto max-w-6xl px-4">
+      <div
+        id="catalogo-completo"
+        ref={setMarcaBuscador}
+        className="relative sm:sticky sm:top-[52px] z-30 -mt-6 mx-auto max-w-6xl px-4"
+      >
         <div className="relative bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl border border-slate-200/80 space-y-2">
-          {campoBusqueda}
+          {campoBusqueda(false)}
           {secciones.length > 0 && (
             <BarraCategorias
               secciones={resumenSecciones}
@@ -636,7 +658,6 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
           )}
         </div>
       </div>
-      <div ref={setMarcaBuscador} aria-hidden className="h-0" />
 
       {/* Celular: franja azul fija con el buscador. Va fuera del flujo de la página,
           así que aparecer o desaparecer no mueve el contenido: antes la tarjeta
@@ -654,7 +675,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                 onElegir={irASeccion}
               />
             )}
-            {campoBusqueda}
+            {campoBusqueda(true)}
           </div>
         </div>
       )}

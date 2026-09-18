@@ -129,7 +129,7 @@ export default function BarraCategorias({ secciones, activa, iconos = {}, compac
         onClick={() => setPanelAbierto((v) => !v)}
         aria-expanded={panelAbierto}
         aria-label="Ver todas las categorías"
-        className={`shrink-0 h-7.5 pl-2.5 pr-2 rounded-full border text-[11px] font-semibold flex items-center gap-1 transition-colors ${
+        className={`shrink-0 h-7.5 pl-2.5 pr-2 ${compacto ? "max-sm:h-9 max-sm:rounded-md" : ""} rounded-full border text-[11px] font-semibold flex items-center gap-1 transition-colors ${
           panelAbierto
             ? "bg-slate-900 border-slate-900 text-white"
             : "bg-white border-slate-300 text-slate-700 hover:border-slate-400"
