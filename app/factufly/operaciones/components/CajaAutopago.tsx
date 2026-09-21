@@ -1873,7 +1873,7 @@ export function CajaAutopagoVista({
       const calc = calcularDetalleItem(it.precio, it.cantidad, it.tipoAfectacionIGV);
       return {
         item: idx + 1,
-        productoId: it.productoId,
+        productoId: it.productoId || null,
         codigo: it.codigo,
         descripcion: it.descripcion,
         cantidad: it.cantidad,
@@ -1973,7 +1973,7 @@ export function CajaAutopagoVista({
       detalles: items.map((it, idx) => ({
         trabajadorId: null,
         item: idx + 1,
-        productoId: it.productoId,
+        productoId: it.productoId || null,
         codigo: it.codigo,
         descripcion: it.descripcion,
         cantidad: it.cantidad,
@@ -2285,6 +2285,23 @@ export function CajaAutopagoVista({
         });
       }
 
+      if (Number(pedido.costoEnvio) > 0) {
+        cargados.push({
+          key: crypto.randomUUID(),
+          productoId: 0,
+          sucursalProductoId: 0,
+          codigo: "DELIVERY",
+          descripcion: "Servicio de delivery",
+          cantidad: 1,
+          precio: Number(pedido.costoEnvio),
+          tipoAfectacionIGV: cargados[0]?.tipoAfectacionIGV ?? "10",
+          urlImagen: null,
+          unidadMedida: "ZZ",
+          tipoProducto: "SERVICIO",
+          tieneVencido: false,
+        });
+      }
+
       if (faltantes.length > 0) {
         showToast(`No están en el catálogo de la caja: ${faltantes.join(", ")}. Actualiza el stock e intenta de nuevo.`, "error");
         fetchProductosSucursal().catch(() => {});
@@ -2335,7 +2352,7 @@ export function CajaAutopagoVista({
     abrirPagoRef.current();
     setMedioPago(pedidoPorAbrir.medioPago);
     setMontoRecibido((pedidoPorAbrir.pagaCon ?? totales.total).toFixed(2));
-    setNotaPago(`Pedido web #${pedidoPorAbrir.numero}`);
+    setNotaPago(`Pedido web #${pedidoPorAbrir.numero}${pedidoPorAbrir.tipoEntrega === "DELIVERY" ? " · Delivery" : ""}`);
     setPedidoPorAbrir(null);
   }, [pedidoPorAbrir, items, totales.total]);
 

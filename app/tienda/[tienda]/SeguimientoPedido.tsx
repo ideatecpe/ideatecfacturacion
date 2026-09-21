@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BellRing,
+  Bike,
   Clock,
   Loader2,
   ShoppingBag,
@@ -103,7 +104,7 @@ export default function SeguimientoPedido({ token, tienda, onSeguirComprando, on
     return (
       <Contenedor tienda={tienda}>
         <div className="py-20 flex justify-center">
-          <Loader2 className="w-7 h-7 animate-spin text-brand-blue" />
+          <Loader2 className="w-7 h-7 animate-spin text-[var(--t-pri,#0B1F49)]" />
         </div>
       </Contenedor>
     );
@@ -129,7 +130,9 @@ export default function SeguimientoPedido({ token, tienda, onSeguirComprando, on
       detalle:
         pedido.tipoEntrega === "MESA"
           ? `En un momento te lo llevamos${pedido.mesa ? ` a la mesa ${pedido.mesa}` : " a tu mesa"}. ¡Gracias por tu compra!`
-          : "Acércate a caja y di tu número de pedido. ¡Gracias por tu compra!",
+          : pedido.tipoEntrega === "DELIVERY"
+            ? "Tu pedido va en camino a tu dirección. ¡Gracias por tu compra!"
+            : "Acércate a caja y di tu número de pedido. ¡Gracias por tu compra!",
     },
   ];
 
@@ -137,8 +140,15 @@ export default function SeguimientoPedido({ token, tienda, onSeguirComprando, on
     <Contenedor tienda={tienda}>
       <div className="rounded-2xl bg-white border border-slate-200 p-5 text-center">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tu número de pedido</p>
-        <p className="mt-1 text-6xl font-black text-brand-blue tabular-nums leading-none">{pedido.numero}</p>
-        <p className="mt-2 text-sm text-slate-600">A nombre de {pedido.clienteNombre}</p>
+        <p className="mt-1 text-6xl font-black text-[var(--t-pri,#0B1F49)] tabular-nums leading-none">{pedido.numero}</p>
+        {pedido.tipoEntrega === "MESA" && pedido.mesa ? (
+          <p className="mt-2 text-sm text-slate-600">
+            Tu pedido a la <span className="font-bold text-slate-900">mesa {pedido.mesa}</span>, a nombre de{" "}
+            <span className="font-semibold text-slate-800">{pedido.clienteNombre}</span>
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-slate-600">A nombre de {pedido.clienteNombre}</p>
+        )}
         {!finalizado && (
           <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-slate-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -175,7 +185,7 @@ export default function SeguimientoPedido({ token, tienda, onSeguirComprando, on
                     hecho
                       ? "bg-emerald-500 text-white"
                       : actual
-                        ? "bg-brand-blue text-white ring-4 ring-brand-blue/15"
+                        ? "bg-[var(--t-pri,#0B1F49)] text-white ring-4 ring-[var(--t-pri,#0B1F49)]/15"
                         : "bg-slate-100 text-slate-400"
                   }`}
                 >
@@ -195,8 +205,20 @@ export default function SeguimientoPedido({ token, tienda, onSeguirComprando, on
 
       <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
-          {pedido.tipoEntrega === "MESA" ? <UtensilsCrossed className="w-4 h-4" /> : <Store className="w-4 h-4" />}
-          {pedido.tipoEntrega === "MESA" ? (pedido.mesa ? `Mesa ${pedido.mesa}` : "Llevar a mi mesa") : "Recojo en caja"}
+          {pedido.tipoEntrega === "MESA" ? (
+            <UtensilsCrossed className="w-4 h-4" />
+          ) : pedido.tipoEntrega === "DELIVERY" ? (
+            <Bike className="w-4 h-4" />
+          ) : (
+            <Store className="w-4 h-4" />
+          )}
+          {pedido.tipoEntrega === "MESA"
+            ? pedido.mesa
+              ? `Mesa ${pedido.mesa}`
+              : "Llevar a mi mesa"
+            : pedido.tipoEntrega === "DELIVERY"
+              ? `Delivery${pedido.direccionEntrega ? ` · ${pedido.direccionEntrega}` : ""}`
+              : "Recojo en caja"}
           <span className="text-slate-300">·</span>
           {pedido.medioPago}
           <span className="text-slate-300">·</span>
@@ -215,6 +237,14 @@ export default function SeguimientoPedido({ token, tienda, onSeguirComprando, on
               <span className="tabular-nums text-slate-600">{formatoSoles(d.subtotal)}</span>
             </li>
           ))}
+          {pedido.tipoEntrega === "DELIVERY" && (
+            <li className="flex justify-between gap-3 py-1.5">
+              <span className="text-slate-700">Envío</span>
+              <span className="tabular-nums text-slate-600">
+                {(pedido.costoEnvio ?? 0) > 0 ? formatoSoles(pedido.costoEnvio ?? 0) : "Gratis"}
+              </span>
+            </li>
+          )}
         </ul>
         <div className="flex justify-between border-t border-slate-100 pt-2.5">
           <span className="text-sm font-semibold text-slate-700">Total</span>
@@ -240,7 +270,7 @@ export default function SeguimientoPedido({ token, tienda, onSeguirComprando, on
 function Contenedor({ tienda, children }: { tienda: TiendaPublica; children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="bg-brand-blue text-white">
+      <header className="bg-[var(--t-pri,#0B1F49)] text-[var(--t-sobre-pri,#FFFFFF)]">
         <div className="mx-auto max-w-md px-4 py-4 flex items-center gap-2.5">
           <Store className="w-5 h-5" />
           <h1 className="font-bold truncate">{tienda.nombreTienda}</h1>
@@ -256,7 +286,7 @@ function BotonPrincipal({ onClick, children }: { onClick: () => void; children: 
     <button
       type="button"
       onClick={onClick}
-      className="w-full h-12 rounded-xl bg-brand-blue text-white text-base font-bold active:scale-[0.99] transition-transform"
+      className="w-full h-12 rounded-xl bg-[var(--t-pri,#0B1F49)] text-[var(--t-sobre-pri,#FFFFFF)] text-base font-bold active:scale-[0.99] transition-transform"
     >
       {children}
     </button>

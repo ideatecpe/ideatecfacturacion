@@ -7,7 +7,14 @@ import { HubConnection, HubConnectionBuilder, LogLevel } from "@microsoft/signal
 
 export type EstadoPedido = "PENDIENTE" | "ACEPTADO" | "LISTO" | "ENTREGADO" | "CANCELADO";
 export type MedioPagoPedido = "Efectivo" | "Tarjeta" | "Yape";
-export type TipoEntregaPedido = "RECOJO" | "MESA";
+export type TipoEntregaPedido = "RECOJO" | "MESA" | "DELIVERY";
+
+/** Turno de un día. dia = domingo=0 … sábado=6; horas "HH:mm". Un día ausente = cerrado. */
+export interface HorarioDia {
+  dia: number;
+  abre: string;
+  cierra: string;
+}
 /** NINGUNO = el cliente no pidió comprobante: el cajero elige al cobrar (boleta o nota de venta). */
 export type TipoComprobantePedido = "BOLETA" | "FACTURA" | "NINGUNO";
 
@@ -32,6 +39,12 @@ export interface PedidoOnline {
   clienteRazonSocial: string | null;
   tipoEntrega: TipoEntregaPedido;
   mesa: string | null;
+  direccionEntrega: string | null;
+  referenciaEntrega: string | null;
+  /** "lat,lng" si el cliente compartió su ubicación. */
+  ubicacionEntrega: string | null;
+  /** Ya incluido en total. */
+  costoEnvio: number;
   medioPago: MedioPagoPedido;
   pagaCon: number | null;
   urlCapturaPago: string | null;
@@ -74,6 +87,29 @@ export interface TiendaOnlineConfig {
 
   /** Cierre de emergencia, independiente del horario: manda sobre él mientras esté activo. */
   cerradaTemporalmente: boolean;
+
+  /** Horario de cada día; un día ausente = cerrado. */
+  horario: HorarioDia[];
+
+  /** Mesas numeradas, cada una con su QR (…?mesa=N). 0 = sin mesas numeradas. */
+  cantidadMesas: number;
+
+  permiteDelivery: boolean;
+  costoDelivery: number;
+  pedidoMinimoDelivery: number;
+  /** Envío gratis cuando los productos suman al menos esto; null = nunca. */
+  deliveryGratisDesde: number | null;
+  zonaDelivery: string | null;
+  tiempoDelivery: string | null;
+
+  /** Colores "#RRGGBB"; null = el original. Con qrColor2 el QR va en degradado. */
+  colorPrimario: string | null;
+  colorSecundario: string | null;
+  colorFondo: string | null;
+  colorTarjeta: string | null;
+  qrColor: string | null;
+  qrColor2: string | null;
+  qrFondo: string | null;
 }
 
 export interface TiendaPublica {
@@ -106,6 +142,23 @@ export interface TiendaPublica {
   horaCierre: string | null;
   diasAtencion?: string | null;
   cerradaTemporalmente?: boolean;
+
+  /** Horario de cada día (vacío si no usa horario). */
+  horario?: HorarioDia[];
+  cantidadMesas?: number;
+
+  permiteDelivery?: boolean;
+  costoDelivery?: number;
+  pedidoMinimoDelivery?: number;
+  deliveryGratisDesde?: number | null;
+  zonaDelivery?: string | null;
+  tiempoDelivery?: string | null;
+
+  /** Colores de marca "#RRGGBB"; null = los originales. */
+  colorPrimario?: string | null;
+  colorSecundario?: string | null;
+  colorFondo?: string | null;
+  colorTarjeta?: string | null;
 }
 
 export interface ProductoPublico {
@@ -133,6 +186,9 @@ export interface NuevoPedidoOnline {
   clienteRazonSocial?: string;
   tipoEntrega: TipoEntregaPedido;
   mesa?: string;
+  direccionEntrega?: string;
+  referenciaEntrega?: string;
+  ubicacionEntrega?: string;
   medioPago: MedioPagoPedido;
   pagaCon?: number | null;
   urlCapturaPago?: string | null;
@@ -155,6 +211,8 @@ export interface PedidoSeguimiento {
   total: number;
   tipoEntrega: TipoEntregaPedido;
   mesa: string | null;
+  direccionEntrega?: string | null;
+  costoEnvio?: number;
   medioPago: MedioPagoPedido;
   motivoCancelacion: string | null;
   fechaCreacion: string;
@@ -261,6 +319,20 @@ export const pedidosOnlineApi = {
 export function urlTiendaPublica(slug: string, entorno?: string | null): string {
   const origen = typeof window !== "undefined" ? window.location.origin : "https://factufly.pe";
   return `${origen}/tienda/${slug}${conEntorno(entorno)}`;
+}
+
+/** Enlace de una mesa: el pedido que se haga desde ahí llega a caja como "Mesa N". */
+export function urlMesa(enlaceTienda: string, mesa: number): string {
+  const url = new URL(enlaceTienda);
+  url.searchParams.set("mesa", String(mesa));
+  return url.toString();
+}
+
+/** Mismo criterio que el backend: el envío es gratis desde cierto monto de productos. */
+export function costoEnvioPara(tienda: Pick<TiendaPublica, "costoDelivery" | "deliveryGratisDesde">, subtotal: number): number {
+  const gratisDesde = tienda.deliveryGratisDesde;
+  if (gratisDesde != null && gratisDesde > 0 && subtotal >= gratisDesde) return 0;
+  return tienda.costoDelivery ?? 0;
 }
 
 // ── Tiempo real ───────────────────────────────────────────────────────────

@@ -21,10 +21,12 @@ import {
   Sparkles,
   Store,
   Tag,
+  UtensilsCrossed,
   X,
 } from "lucide-react";
 import { conVarianteImagen } from "@/app/utils/cloudflareImagen";
 import { PedidoCreado, ProductoPublico, TiendaPublica, tiendaApi } from "@/lib/pedidosOnline";
+import { variablesTemaTienda } from "@/lib/colores";
 import BarraCategorias, { IconoDeSeccion } from "./BarraCategorias";
 import CheckoutPedido, { LineaCarrito } from "./CheckoutPedido";
 import SeguimientoPedido from "./SeguimientoPedido";
@@ -58,7 +60,7 @@ const MIN_MAS_VENDIDOS = 3;
 const ICONOS_SECCION: Record<string, IconoDeSeccion> = {
   [SECCION_PEDIR_DE_NUEVO]: { Icono: RotateCcw, clase: "text-emerald-500" },
   [SECCION_MAS_VENDIDOS]: { Icono: Flame, clase: "text-orange-500" },
-  [SECCION_COMBOS]: { Icono: Sparkles, clase: "text-amber-500" },
+  [SECCION_COMBOS]: { Icono: Sparkles, clase: "text-[var(--t-sec,#FBBF24)]" },
 };
 
 const idSeccion = (nombre: string) => `seccion-${normalizar(nombre).replace(/[^a-z0-9]+/g, "-")}`;
@@ -94,20 +96,41 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
   const [buscadorFijo, setBuscadorFijo] = useState(false);
   const [marcaBuscador, setMarcaBuscador] = useState<HTMLDivElement | null>(null);
 
-  // Safari de iPhone ya no usa theme-color: pinta la zona de la hora con el fondo
-  // de la página. Con el fondo base en el azul del encabezado se ve azul desde el
-  // inicio (el contenido de la tienda mantiene su propio fondo claro).
+  // Colores de marca del negocio como variables CSS (--t-pri, --t-sec…): toda la
+  // tienda, el checkout y el seguimiento los toman de ahí.
+  const tema = useMemo(
+    () =>
+      variablesTemaTienda(
+        tienda?.colorPrimario,
+        tienda?.colorSecundario,
+        tienda?.colorFondo,
+        tienda?.colorTarjeta,
+      ),
+    [tienda?.colorPrimario, tienda?.colorSecundario, tienda?.colorFondo, tienda?.colorTarjeta],
+  );
+
+  // Van en <html> para alcanzar también los paneles fijos. Safari de iPhone ya no
+  // usa theme-color: pinta la zona de la hora con el fondo de la página, así que el
+  // fondo base lleva el color principal (el contenido tiene su propio fondo claro).
   useEffect(() => {
     const html = document.documentElement;
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     const anteriorHtml = html.style.backgroundColor;
     const anteriorBody = document.body.style.backgroundColor;
-    html.style.backgroundColor = "#0B1F49";
-    document.body.style.backgroundColor = "#0B1F49";
+    const anteriorMeta = meta?.content;
+
+    for (const [variable, valor] of Object.entries(tema)) html.style.setProperty(variable, valor);
+    html.style.backgroundColor = tema["--t-pri"];
+    document.body.style.backgroundColor = tema["--t-pri"];
+    if (meta) meta.content = tema["--t-pri"];
+
     return () => {
+      for (const variable of Object.keys(tema)) html.style.removeProperty(variable);
       html.style.backgroundColor = anteriorHtml;
       document.body.style.backgroundColor = anteriorBody;
+      if (meta && anteriorMeta) meta.content = anteriorMeta;
     };
-  }, []);
+  }, [tema]);
 
   useEffect(() => {
     if (!marcaBuscador) return;
@@ -403,7 +426,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
   if (cargando) {
     return (
       <PantallaCentrada>
-        <Loader2 className="w-8 h-8 animate-spin text-[#0b1b36]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--t-pri,#0B1F49)]" />
         <p className="text-sm font-medium text-slate-500">Cargando tienda…</p>
       </PantallaCentrada>
     );
@@ -451,6 +474,15 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
   const nombreEmpresa = tienda.nombreTienda.trim();
   const direccionCompleta = tienda.direccion?.toUpperCase() || "";
 
+  // Mesa del QR (…?mesa=3). Solo vale si la tienda lleva a la mesa y, con mesas
+  // numeradas, si esa mesa existe; si no, el cliente elige cómo recibir el pedido.
+  const numeroMesa = mesaInicial ? parseInt(mesaInicial, 10) : NaN;
+  const mesaQr =
+    mesaInicial && tienda.permiteMesa &&
+    (!(tienda.cantidadMesas ?? 0) || (numeroMesa >= 1 && numeroMesa <= (tienda.cantidadMesas ?? 0)))
+      ? mesaInicial.trim()
+      : null;
+
   // Safari de iPhone desplaza la página al enfocar un campo que está en una barra
   // fija, aunque ya esté a la vista. En la franja se enfoca sin desplazar y, por
   // si Safari igual mueve la página al abrir el teclado, se la devuelve a su lugar.
@@ -478,7 +510,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
         onChange={(e) => setBusqueda(e.target.value)}
         onTouchEnd={enFranja ? enfocarSinDesplazar : undefined}
         placeholder="¿Qué se te antoja hoy?"
-        className={`w-full h-9 pl-9 pr-8 ${enFranja ? "rounded-md" : "rounded-xl"} bg-slate-50 border border-slate-200 text-base sm:text-xs outline-none placeholder:text-slate-400 focus:bg-white focus:border-[#0b1b36] focus:ring-2 focus:ring-[#0b1b36]/10 transition-all`}
+        className={`w-full h-9 pl-9 pr-8 ${enFranja ? "rounded-md" : "rounded-xl"} bg-slate-50 border border-slate-200 text-base sm:text-xs outline-none placeholder:text-slate-400 focus:bg-white focus:border-[var(--t-pri,#0B1F49)] focus:ring-2 focus:ring-[var(--t-pri,#0B1F49)]/10 transition-all`}
       />
       {busqueda && (
         <button
@@ -495,9 +527,15 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
 
   // ── Catálogo ───────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 pb-32">
+    <div
+      className="min-h-screen pb-32 transition-colors"
+      style={{
+        backgroundColor: "var(--t-fondo, #f8fafc)",
+        color: "var(--t-sobre-fondo, #0F172A)",
+      }}
+    >
       {/* ══════════════ TOP NAVBAR ══════════════ */}
-      <nav className="border-b border-white/10 bg-[#0B1F49] sm:sticky sm:top-0 z-40">
+      <nav className="border-b border-white/10 bg-[var(--t-pri,#0B1F49)] sm:sticky sm:top-0 z-40">
         <div className="mx-auto max-w-6xl px-4 py-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {logoEmpresaUrl ? (
@@ -505,7 +543,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                 <img src={logoEmpresaUrl} alt={nombreEmpresa} className="w-full h-full object-contain rounded-md" />
               </div>
             ) : (
-              <div className="h-9 w-9 shrink-0 rounded-lg bg-[#1a3363] text-white flex items-center justify-center font-black text-base border border-white/15">
+              <div className="h-9 w-9 shrink-0 rounded-lg bg-[var(--t-pri-claro,#132c5e)] text-white flex items-center justify-center font-black text-base border border-white/15">
                 {nombreEmpresa.charAt(0) || "T"}
               </div>
             )}
@@ -514,7 +552,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                 {nombreEmpresa}
               </h1>
               {direccionCompleta && (
-                <p className="text-[10px] font-medium tracking-wide text-blue-200/70 truncate">
+                <p className="text-[10px] font-medium tracking-wide text-white/70 truncate">
                   {direccionCompleta} · MINI MARKET
                 </p>
               )}
@@ -522,14 +560,18 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            {/* Si el cliente ve el catálogo es porque la tienda está abierta: el aviso sobraba. */}
+            {mesaQr && (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--t-sec,#FBBF24)] text-[var(--t-sobre-sec,#0F172A)] text-xs font-bold">
+                <UtensilsCrossed className="w-3.5 h-3.5" /> Mesa {mesaQr}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => totalUnidades > 0 ? setMostrarCheckout(true) : undefined}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#132c5e] hover:bg-[#1a3a78] border border-white/15 text-white text-xs font-semibold transition-all active:scale-95"
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--t-pri-claro,#132c5e)] hover:bg-[var(--t-pri-hover,#122852)] border border-white/15 text-white text-xs font-semibold transition-all active:scale-95"
             >
               <span>Mi pedido</span>
-              <span className="min-w-5 h-5 px-1.5 rounded-full bg-amber-400 text-slate-950 font-bold text-[11px] flex items-center justify-center tabular-nums">
+              <span className="min-w-5 h-5 px-1.5 rounded-full bg-[var(--t-sec,#FBBF24)] text-[var(--t-sobre-sec,#0F172A)] font-bold text-[11px] flex items-center justify-center tabular-nums">
                 {totalUnidades}
               </span>
             </button>
@@ -538,29 +580,37 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
       </nav>
 
       {/* ══════════════ HERO BANNER ══════════════ */}
-      <header className="relative bg-[#0B1F49] text-white pt-6 pb-12 px-4 overflow-hidden">
+      <header className="relative bg-[var(--t-pri,#0B1F49)] text-[var(--t-sobre-pri,#FFFFFF)] pt-6 pb-12 px-4 overflow-hidden">
         <div className="pointer-events-none absolute -right-20 -top-20 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-        <div className="pointer-events-none absolute left-1/4 -bottom-20 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl" />
+        <div className="pointer-events-none absolute left-1/4 -bottom-20 w-80 h-80 bg-[var(--t-sec,#FBBF24)]/5 rounded-full blur-3xl" />
 
         <div className="mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           {/* Columna Izquierda */}
           <div className="lg:col-span-7 space-y-3.5">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-[1.15]">
               Haz tu pedido <br className="hidden sm:inline" />
-              <span className="text-amber-400">desde donde estés</span>
+              <span className="text-[var(--t-sec,#FBBF24)]">desde donde estés</span>
             </h2>
 
             <p className="text-xs sm:text-sm text-slate-300/90 max-w-lg leading-relaxed">
               {tienda.mensaje && !tienda.mensaje.toLowerCase().includes("tienda de prueba") && !tienda.mensaje.toLowerCase().includes("pide desde tu celular")
                 ? tienda.mensaje
-                : "Recógelo listo en caja o pídelo directo a tu mesa si estás en el local. Rápido, fácil y sin colas."}
+                : mesaQr
+                  ? `Pide desde tu celular y te lo llevamos a la mesa ${mesaQr}. Rápido, fácil y sin colas.`
+                  : tienda.permiteMesa && (tienda.cantidadMesas ?? 0) === 0
+                    ? tienda.permiteDelivery
+                      ? "Recógelo en caja, pídelo a tu mesa o te lo llevamos a tu casa. Rápido, fácil y sin colas."
+                      : "Recógelo listo en caja o pídelo directo a tu mesa si estás en el local. Rápido, fácil y sin colas."
+                    : tienda.permiteDelivery
+                      ? "Recógelo listo en caja o te lo llevamos a tu casa. Rápido, fácil y sin colas."
+                      : "Recógelo listo en caja. Rápido, fácil y sin colas."}
             </p>
 
             <div className="flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => irASeccion(SECCION_COMBOS)}
-                className="px-5 py-2.5 rounded-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs shadow-lg shadow-amber-400/20 active:scale-95 transition-all"
+                className="px-5 py-2.5 rounded-full bg-[var(--t-sec,#FBBF24)] hover:brightness-110 text-[var(--t-sobre-sec,#0F172A)] font-bold text-xs shadow-lg shadow-[var(--t-sec,#FBBF24)]/20 active:scale-95 transition-all"
               >
                 Ver combos
               </button>
@@ -593,7 +643,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                 onClick={() => setVerSeguimiento(true)}
                 className="mt-2 inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/15 px-4 py-2.5 text-xs font-semibold text-white transition-colors"
               >
-                <Receipt className="w-4 h-4 text-amber-400" />
+                <Receipt className="w-4 h-4 text-[var(--t-sec,#FBBF24)]" />
                 Tienes un pedido en curso. Ver seguimiento
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -621,14 +671,14 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                   <p className="text-xs font-bold text-white leading-tight">
                     {cantidadCombos > 0 ? `¡${cantidadCombos} combos disponibles!` : "Pagas al recoger en caja"}
                   </p>
-                  <p className="text-[10px] text-blue-200/70 truncate">
+                  <p className="text-[10px] text-white/70 truncate">
                     Ahorra en paquetes armados de la semana
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => irASeccion(SECCION_COMBOS)}
-                  className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black shrink-0 transition-colors shadow-sm active:scale-95"
+                  className="px-3.5 py-1.5 rounded-xl bg-[var(--t-sec,#FBBF24)] hover:brightness-110 text-[var(--t-sobre-sec,#0F172A)] text-xs font-black shrink-0 transition-colors shadow-sm active:scale-95"
                 >
                   Ver combos
                 </button>
@@ -646,7 +696,13 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
         ref={setMarcaBuscador}
         className="relative sm:sticky sm:top-[52px] z-30 -mt-6 mx-auto max-w-6xl px-4"
       >
-        <div className="relative bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl border border-slate-200/80 space-y-2">
+        <div
+          className="relative backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl border space-y-2"
+          style={{
+            backgroundColor: "var(--t-tarjeta, rgba(255, 255, 255, 0.95))",
+            borderColor: "var(--t-tarjeta-borde, rgba(226, 232, 240, 0.8))",
+          }}
+        >
           {campoBusqueda(false)}
           {secciones.length > 0 && (
             <BarraCategorias
@@ -664,7 +720,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
           cambiaba de alto al fijarse y, al abrirse el teclado, la página subía y
           bajaba sola. */}
       {buscadorFijo && (
-        <div className="sm:hidden fixed inset-x-0 top-0 z-40 bg-[#0B1F49] px-3 py-2 shadow-lg">
+        <div className="sm:hidden fixed inset-x-0 top-0 z-40 bg-[var(--t-pri,#0B1F49)] px-3 py-2 shadow-lg">
           <div className="relative flex items-center gap-2">
             {secciones.length > 0 && (
               <BarraCategorias
@@ -693,7 +749,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <Icono className={`w-4 h-4 ${clase}`} />
-                    <h2 className="text-base sm:text-lg font-black text-slate-900">{d.nombre}</h2>
+                    <h2 className="text-base sm:text-lg font-black" style={{ color: "var(--t-sobre-fondo, #0f172a)" }}>{d.nombre}</h2>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     {esRepetir ? "Lo que pediste la última vez" : "Lo que más piden nuestros clientes"}
@@ -703,7 +759,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                   <button
                     type="button"
                     onClick={() => repetirPedido(d.items)}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-[#0b1b36] hover:bg-[#122852] px-3.5 py-1.5 text-[11px] font-semibold text-white shadow-sm active:scale-95 transition-all"
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] px-3.5 py-1.5 text-[11px] font-semibold text-[var(--t-sobre-pri,#FFFFFF)] shadow-sm active:scale-95 transition-all"
                   >
                     <RotateCcw className="w-3 h-3" /> Agregar todo
                   </button>
@@ -742,8 +798,8 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
               <div className="mb-3 flex items-end justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-1.5">
-                    {s.nombre === SECCION_COMBOS && <Sparkles className="w-4 h-4 text-amber-500" />}
-                    <h2 className="text-base sm:text-lg font-black text-slate-900">{s.nombre}</h2>
+                    {s.nombre === SECCION_COMBOS && <Sparkles className="w-4 h-4 text-[var(--t-sec,#FBBF24)]" />}
+                    <h2 className="text-base sm:text-lg font-black" style={{ color: "var(--t-sobre-fondo, #0f172a)" }}>{s.nombre}</h2>
                     <span className="text-[11px] font-normal text-slate-400">{s.items.length} productos</span>
                   </div>
                   {s.nombre === SECCION_COMBOS && (
@@ -751,7 +807,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                   )}
                 </div>
                 {s.nombre !== SECCION_COMBOS && (
-                  <button type="button" onClick={() => irASeccion(s.nombre)} className="text-[11px] font-semibold text-[#0b1b36] hover:underline">
+                  <button type="button" onClick={() => irASeccion(s.nombre)} className="text-[11px] font-semibold text-[var(--t-pri,#0B1F49)] hover:underline">
                     Ver todo
                   </button>
                 )}
@@ -788,11 +844,11 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
           <button
             type="button"
             onClick={() => setMostrarCheckout(true)}
-            className="mx-auto max-w-5xl w-full flex items-center gap-2.5 rounded-xl bg-[#0b1b36] text-white px-3.5 py-3 shadow-xl shadow-[#0b1b36]/25 active:scale-[0.99] transition-transform text-sm"
+            className="mx-auto max-w-5xl w-full flex items-center gap-2.5 rounded-xl bg-[var(--t-pri,#0B1F49)] text-[var(--t-sobre-pri,#FFFFFF)] px-3.5 py-3 shadow-xl shadow-[var(--t-pri,#0B1F49)]/25 active:scale-[0.99] transition-transform text-sm"
           >
             <span className="relative">
               <ShoppingBag className="w-4 h-4" />
-              <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-amber-400 text-[9px] font-bold text-slate-900 flex items-center justify-center tabular-nums">
+              <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-[var(--t-sec,#FBBF24)] text-[9px] font-bold text-slate-900 flex items-center justify-center tabular-nums">
                 {totalUnidades}
               </span>
             </span>
@@ -807,7 +863,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
       {mostrarCheckout && (
         <CheckoutPedido
           tienda={tienda}
-          mesaInicial={mesaInicial}
+          mesaQr={mesaQr}
           lineas={lineas}
           total={total}
           onCambiarCantidad={cambiarCantidad}
@@ -864,19 +920,18 @@ function PantallaCerrada({
 }) {
   const [actualizando, setActualizando] = useState(false);
 
-  const horaAperturaTexto = formatoHora12(tienda.horaApertura || "08:00");
-  const horaCierreTexto = formatoHora12(tienda.horaCierre || "20:00");
-
-  const diasHabilitados = useMemo(() => {
-    if (!tienda.diasAtencion) return new Set([0, 1, 2, 3, 4, 5, 6]);
-    const nums = tienda.diasAtencion
+  // Horario de cada día. Tiendas configuradas antes tienen el mismo horario para
+  // todos los días marcados: se arma igual, día por día.
+  const horario = useMemo(() => {
+    if (tienda.horario?.length) return tienda.horario;
+    const dias = (tienda.diasAtencion ?? "0,1,2,3,4,5,6")
       .split(",")
       .map((s) => parseInt(s.trim(), 10))
       .filter((n) => !isNaN(n));
-    return new Set(nums.length > 0 ? nums : [0, 1, 2, 3, 4, 5, 6]);
-  }, [tienda.diasAtencion]);
+    return dias.map((dia) => ({ dia, abre: tienda.horaApertura || "08:00", cierra: tienda.horaCierre || "20:00" }));
+  }, [tienda.horario, tienda.diasAtencion, tienda.horaApertura, tienda.horaCierre]);
 
-  const sonTodosLosDias = diasHabilitados.size >= 7;
+  const hoy = new Date().getDay();
 
   const handleActualizar = async () => {
     if (actualizando || !onReintentar) return;
@@ -889,9 +944,9 @@ function PantallaCerrada({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0B1F49] via-[#071530] to-[#040b17] text-white flex flex-col justify-between selection:bg-amber-400 selection:text-slate-950">
+    <div className="min-h-screen bg-gradient-to-b from-[var(--t-pri,#0B1F49)] via-[var(--t-pri-oscuro,#040b17)] to-[var(--t-pri-oscuro,#040b17)] text-white flex flex-col justify-between selection:bg-[var(--t-sec,#FBBF24)] selection:text-[var(--t-sobre-sec,#0F172A)]">
       {/* ── Top Bar de la Tienda ── */}
-      <header className="border-b border-white/10 bg-[#0B1F49]/90 backdrop-blur-md sticky top-0 z-30">
+      <header className="border-b border-white/10 bg-[var(--t-pri,#0B1F49)]/90 backdrop-blur-md sticky top-0 z-30">
         <div className="mx-auto max-w-4xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {logoEmpresaUrl ? (
@@ -899,7 +954,7 @@ function PantallaCerrada({
                 <img src={logoEmpresaUrl} alt={tienda.nombreTienda} className="w-full h-full object-contain" />
               </div>
             ) : (
-              <div className="h-9 w-9 shrink-0 rounded-xl bg-[#1a3363] text-white flex items-center justify-center font-black text-sm border border-white/15">
+              <div className="h-9 w-9 shrink-0 rounded-xl bg-[var(--t-pri-claro,#132c5e)] text-white flex items-center justify-center font-black text-sm border border-white/15">
                 {tienda.nombreTienda.charAt(0) || "T"}
               </div>
             )}
@@ -908,7 +963,7 @@ function PantallaCerrada({
                 {tienda.nombreTienda}
               </h1>
               {tienda.direccion && (
-                <p className="text-[10px] text-blue-200/70 truncate">
+                <p className="text-[10px] text-white/70 truncate">
                   {tienda.direccion.toUpperCase()}
                 </p>
               )}
@@ -916,7 +971,7 @@ function PantallaCerrada({
           </div>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300 text-xs font-medium shrink-0">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
+            <Clock className="w-3.5 h-3.5 text-[var(--t-sec,#FBBF24)]" />
             <span>Cerrado por ahora</span>
           </div>
         </div>
@@ -926,7 +981,7 @@ function PantallaCerrada({
       <main className="flex-1 flex items-center justify-center px-4 py-8 sm:py-12">
         <div className="relative w-full max-w-md mx-auto">
           {/* Luces de ambiente sutiles */}
-          <div className="pointer-events-none absolute -top-16 -left-16 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl" />
+          <div className="pointer-events-none absolute -top-16 -left-16 w-72 h-72 bg-[var(--t-sec,#FBBF24)]/10 rounded-full blur-3xl" />
           <div className="pointer-events-none absolute -bottom-16 -right-16 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl" />
 
           <div className="relative flex flex-col gap-6">
@@ -937,13 +992,13 @@ function PantallaCerrada({
                   <img src={logoEmpresaUrl} alt={tienda.nombreTienda} className="w-full h-full object-contain" />
                 </div>
               ) : (
-                <div className="h-16 w-16 rounded-2xl bg-[#122e69] border border-cyan-400/30 text-amber-300 flex items-center justify-center shadow-lg shadow-blue-900/40">
+                <div className="h-16 w-16 rounded-2xl bg-[var(--t-pri-claro,#132c5e)] border border-white/20 text-[var(--t-sec,#FBBF24)]/40 flex items-center justify-center shadow-lg shadow-blue-900/40">
                   <Clock className="w-8 h-8" />
                 </div>
               )}
 
               <div className="space-y-1">
-                <div className="inline-flex items-center gap-1.5 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                <div className="inline-flex items-center gap-1.5 text-[var(--t-sec,#FBBF24)] text-xs font-bold uppercase tracking-wider">
                   <Clock className="w-3.5 h-3.5" />
                   <span>Fuera de horario de atención</span>
                 </div>
@@ -959,56 +1014,37 @@ function PantallaCerrada({
             </div>
 
             {/* Bloque Destacado: Horario de Atención */}
-            <div className="rounded-2xl bg-[#07132a]/90 border border-white/10 p-4 sm:p-5 flex flex-col gap-3.5 shadow-inner">
+            <div className="rounded-2xl bg-[var(--t-pri-oscuro,#040b17)]/90 border border-white/10 p-4 sm:p-5 flex flex-col gap-3.5 shadow-inner">
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-200/80 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-white/70 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-[var(--t-sec,#FBBF24)]" />
                   Horario de atención
                 </span>
-                <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  {sonTodosLosDias ? "Todos los días" : "Días seleccionados"}
-                </span>
               </div>
 
-              {/* Rango de horas */}
-              <div className="flex items-center justify-center gap-3 py-1">
-                <div className="text-center">
-                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Abre</p>
-                  <p className="text-xl sm:text-2xl font-black text-white tracking-tight">{horaAperturaTexto}</p>
-                </div>
-                <span className="text-amber-400/80 font-black text-lg px-1">—</span>
-                <div className="text-center">
-                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Cierra</p>
-                  <p className="text-xl sm:text-2xl font-black text-white tracking-tight">{horaCierreTexto}</p>
-                </div>
-              </div>
-
-              {/* Selector de días visual (L M X J V S D) */}
-              <div className="flex flex-col items-center gap-2 pt-1 border-t border-white/10">
-                <p className="text-[11px] text-slate-400 font-medium">
-                  {sonTodosLosDias
-                    ? `Atendemos todos los días de ${horaAperturaTexto} a ${horaCierreTexto}`
-                    : "Días de atención en la semana:"}
-                </p>
-                <div className="flex items-center justify-center gap-1.5 sm:gap-2">
-                  {DIAS_CONFIG.map((dia) => {
-                    const activo = diasHabilitados.has(dia.num);
-                    return (
-                      <div
-                        key={dia.num}
-                        title={`${dia.nombre}: ${activo ? "Atiende" : "Cerrado"}`}
-                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
-                          activo
-                            ? "bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20"
-                            : "bg-white/5 text-slate-500 border border-white/5"
-                        }`}
-                      >
-                        {dia.letra}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* Horario día por día: cada día puede abrir y cerrar a una hora distinta. */}
+              <ul className="space-y-1">
+                {DIAS_CONFIG.map((dia) => {
+                  const turno = horario.find((t) => t.dia === dia.num);
+                  const esHoy = dia.num === hoy;
+                  return (
+                    <li
+                      key={dia.num}
+                      className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-sm ${
+                        esHoy ? "bg-[var(--t-sec,#FBBF24)]/15 border border-[var(--t-sec,#FBBF24)]/30" : ""
+                      }`}
+                    >
+                      <span className={`font-semibold ${esHoy ? "text-[var(--t-sec,#FBBF24)]/40" : turno ? "text-white" : "text-slate-500"}`}>
+                        {dia.nombre}
+                        {esHoy && <span className="ml-1.5 text-[10px] font-bold uppercase text-[var(--t-sec,#FBBF24)]">hoy</span>}
+                      </span>
+                      <span className={`tabular-nums ${turno ? "text-slate-200" : "text-slate-500"}`}>
+                        {turno ? `${formatoHora12(turno.abre)} – ${formatoHora12(turno.cierra)}` : "Cerrado"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
 
             {/* Aviso de pedido previo si existe */}
@@ -1016,13 +1052,13 @@ function PantallaCerrada({
               <button
                 type="button"
                 onClick={onVerPedido}
-                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-400/40 text-white text-xs font-bold hover:bg-amber-500/25 transition-all shadow-lg shadow-amber-500/10"
+                className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-[var(--t-sec,#FBBF24)]/20 to-[var(--t-sec,#FBBF24)]/10 border border-[var(--t-sec,#FBBF24)]/40 text-white text-xs font-bold hover:bg-[var(--t-sec,#FBBF24)]/25 transition-all shadow-lg shadow-[var(--t-sec,#FBBF24)]/10"
               >
-                <span className="flex items-center gap-2 text-amber-300">
+                <span className="flex items-center gap-2 text-[var(--t-sec,#FBBF24)]/40">
                   <Receipt className="w-4 h-4" />
                   Tienes un pedido en curso · Ver seguimiento
                 </span>
-                <ChevronRight className="w-4 h-4 text-amber-300" />
+                <ChevronRight className="w-4 h-4 text-[var(--t-sec,#FBBF24)]/40" />
               </button>
             )}
 
@@ -1032,7 +1068,7 @@ function PantallaCerrada({
                 type="button"
                 onClick={handleActualizar}
                 disabled={actualizando}
-                className="w-full py-3.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-amber-400/20"
+                className="w-full py-3.5 px-4 rounded-xl bg-[var(--t-sec,#FBBF24)] hover:brightness-110 text-[var(--t-sobre-sec,#0F172A)] font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-[var(--t-sec,#FBBF24)]/20"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${actualizando ? "animate-spin" : ""}`} />
                 <span>{actualizando ? "Comprobando apertura…" : "Comprobar si ya abrió"}</span>
@@ -1104,14 +1140,21 @@ function TarjetaProducto({
   return (
     <div
       onClick={handleClickCard}
-      className={`bg-white rounded-2xl border overflow-hidden flex flex-col justify-between transition-all group select-none ${
+      style={{
+        backgroundColor: "var(--t-tarjeta, #ffffff)",
+        borderColor: cantidad > 0 ? "var(--t-sec, #FBBF24)" : "var(--t-tarjeta-borde, rgba(226, 232, 240, 0.9))",
+      }}
+      className={`rounded-2xl border overflow-hidden flex flex-col justify-between transition-all group select-none ${
         p.disponible ? "cursor-pointer active:scale-[0.98]" : "opacity-60 cursor-not-allowed"
       } ${
-        cantidad > 0 ? "border-[#0b1b36] ring-1 ring-[#0b1b36]/20 shadow-sm" : "border-slate-200/90 hover:border-slate-300 hover:shadow-md"
+        cantidad > 0 ? "ring-2 ring-[var(--t-sec,#FBBF24)]/50 shadow-md" : "hover:shadow-md"
       }`}
     >
-      {/* Área superior: Imagen con fondo blanco puro */}
-      <div className="relative aspect-square w-full bg-white flex items-center justify-center p-2.5 overflow-hidden">
+      {/* Área superior: Imagen con fondo blanco o tarjeta */}
+      <div
+        style={{ backgroundColor: "var(--t-tarjeta, #ffffff)" }}
+        className="relative aspect-square w-full flex items-center justify-center p-2.5 overflow-hidden"
+      >
         <ImagenProducto producto={p} className="w-full h-full" />
         {p.porcentajeDescuento && p.disponible && (
           <span className="absolute top-2 left-2 rounded-md bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold text-white z-10">
@@ -1126,20 +1169,39 @@ function TarjetaProducto({
       </div>
 
       {/* Footer inferior: Fondo suave donde sale el nombre, unidad y precio */}
-      <div className="bg-slate-50 p-2 sm:p-2.5 border-t border-slate-100 flex-1 flex flex-col justify-between">
+      <div
+        style={{
+          backgroundColor: "var(--t-tarjeta-footer, #f8fafc)",
+          borderColor: "var(--t-tarjeta-borde, #f1f5f9)",
+        }}
+        className="p-2 sm:p-2.5 border-t flex-1 flex flex-col justify-between"
+      >
         <div>
-          <p className="text-[11px] sm:text-xs font-bold text-slate-800 leading-snug line-clamp-2 min-h-7">{p.nombre}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5 font-medium truncate">
+          <p
+            style={{ color: "var(--t-sobre-tarjeta, #1e293b)" }}
+            className="text-[11px] sm:text-xs font-bold leading-snug line-clamp-2 min-h-7"
+          >
+            {p.nombre}
+          </p>
+          <p className="text-[10px] opacity-60 mt-0.5 font-medium truncate">
             {p.unidadMedida === "NIU" ? "Unidad" : (p.unidadMedida ?? "Unidad")}
           </p>
         </div>
 
-        <div className="mt-2 pt-1.5 border-t border-slate-200/60 flex items-center justify-between gap-1">
+        <div
+          style={{ borderColor: "var(--t-tarjeta-borde, rgba(226,232,240,0.6))" }}
+          className="mt-2 pt-1.5 border-t flex items-center justify-between gap-1"
+        >
           <div className="min-w-0">
             {p.porcentajeDescuento && (
-              <p className="text-[9px] text-slate-400 line-through tabular-nums leading-none">{formatoSoles(p.precioRegular)}</p>
+              <p className="text-[9px] opacity-50 line-through tabular-nums leading-none">{formatoSoles(p.precioRegular)}</p>
             )}
-            <p className="text-xs sm:text-sm font-black text-slate-900 tabular-nums">{formatoSoles(p.precio)}</p>
+            <p
+              style={{ color: "var(--t-sobre-tarjeta, #0f172a)" }}
+              className="text-xs sm:text-sm font-black tabular-nums"
+            >
+              {formatoSoles(p.precio)}
+            </p>
           </div>
 
           {p.disponible && (
@@ -1151,14 +1213,14 @@ function TarjetaProducto({
                   onCambiar(p, 1);
                 }}
                 aria-label={`Agregar ${p.nombre}`}
-                className="w-7 h-7 rounded-full bg-[#0b1b36] hover:bg-[#122852] text-white flex items-center justify-center active:scale-95 transition-all shrink-0 shadow-sm"
+                className="w-7 h-7 rounded-full bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] text-[var(--t-sobre-pri,#FFFFFF)] flex items-center justify-center active:scale-95 transition-all shrink-0 shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
             ) : (
               <div
                 onClick={(e) => e.stopPropagation()}
-                className="flex items-center rounded-full bg-[#0b1b36] text-white shrink-0"
+                className="flex items-center rounded-full bg-[var(--t-sec,#FBBF24)] text-[var(--t-sobre-sec,#0F172A)] shrink-0 shadow-sm font-bold"
               >
                 <button
                   type="button"
@@ -1167,11 +1229,11 @@ function TarjetaProducto({
                     onCambiar(p, -1);
                   }}
                   aria-label="Quitar uno"
-                  className="h-7 w-6 flex items-center justify-center hover:bg-white/10 rounded-l-full"
+                  className="h-7 w-6 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-l-full transition-all"
                 >
                   <Minus className="w-3 h-3" />
                 </button>
-                <span className="min-w-4 text-center text-[11px] font-bold tabular-nums">{cantidad}</span>
+                <span className="min-w-4 text-center text-[11px] font-black tabular-nums">{cantidad}</span>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1179,7 +1241,7 @@ function TarjetaProducto({
                     onCambiar(p, 1);
                   }}
                   aria-label="Agregar uno"
-                  className="h-7 w-6 flex items-center justify-center hover:bg-white/10 rounded-r-full"
+                  className="h-7 w-6 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-r-full transition-all"
                 >
                   <Plus className="w-3 h-3" />
                 </button>
@@ -1209,21 +1271,36 @@ function TarjetaCombo({
   return (
     <div
       onClick={handleClickCard}
-      className={`bg-white rounded-xl border p-3 sm:p-3.5 flex flex-col sm:flex-row items-center gap-3 sm:gap-4 transition-all select-none ${
+      style={{
+        backgroundColor: "var(--t-tarjeta, #ffffff)",
+        borderColor: cantidad > 0 ? "var(--t-sec, #FBBF24)" : "var(--t-tarjeta-borde, rgba(251, 191, 36, 0.4))",
+      }}
+      className={`rounded-xl border p-3 sm:p-3.5 flex flex-col sm:flex-row items-center gap-3 sm:gap-4 transition-all select-none ${
         p.disponible ? "cursor-pointer active:scale-[0.99]" : "opacity-60 cursor-not-allowed"
       } ${
-        cantidad > 0 ? "border-amber-400 ring-1 ring-amber-300/50 shadow-md" : "border-amber-200/90 hover:shadow-md"
+        cantidad > 0 ? "ring-2 ring-[var(--t-sec,#FBBF24)]/50 shadow-md" : "hover:shadow-md"
       }`}
     >
-      <div className="relative w-full sm:w-28 aspect-[16/9] sm:aspect-square shrink-0 rounded-lg bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center p-1.5 overflow-hidden">
+      <div
+        style={{
+          backgroundColor: "var(--t-tarjeta-footer, #f8fafc)",
+          borderColor: "var(--t-tarjeta-borde, #e2e8f0)",
+        }}
+        className="relative w-full sm:w-28 aspect-[16/9] sm:aspect-square shrink-0 rounded-lg border border-dashed flex items-center justify-center p-1.5 overflow-hidden"
+      >
         <ImagenProducto producto={p} className="w-full h-full" />
       </div>
 
       <div className="flex-1 min-w-0 space-y-1 text-left w-full">
-        <div className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-extrabold text-slate-950 uppercase tracking-wide">
+        <div className="inline-flex items-center gap-1 rounded-full bg-[var(--t-sec,#FBBF24)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--t-sobre-sec,#0F172A)] uppercase tracking-wide">
           <Sparkles className="w-2.5 h-2.5" /> Combo
         </div>
-        <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug line-clamp-2">{p.nombre}</h3>
+        <h3
+          style={{ color: "var(--t-sobre-tarjeta, #0f172a)" }}
+          className="text-sm sm:text-base font-bold leading-snug line-clamp-2"
+        >
+          {p.nombre}
+        </h3>
         {p.incluye.length > 0 && (
           <ul className="space-y-0.5 text-[11px] text-slate-500 font-medium">
             {p.incluye.map((item, idx) => (
@@ -1241,7 +1318,7 @@ function TarjetaCombo({
           {p.porcentajeDescuento && (
             <p className="text-[10px] text-slate-400 line-through tabular-nums">{formatoSoles(p.precioRegular)}</p>
           )}
-          <p className="text-lg sm:text-xl font-black text-[#0b1b36] tabular-nums">{formatoSoles(p.precio)}</p>
+          <p className="text-lg sm:text-xl font-black text-[var(--t-pri,#0B1F49)] tabular-nums">{formatoSoles(p.precio)}</p>
         </div>
 
         {cantidad === 0 ? (
@@ -1251,14 +1328,14 @@ function TarjetaCombo({
               e.stopPropagation();
               onCambiar(p, 1);
             }}
-            className="px-4 py-1.5 rounded-full bg-[#0b1b36] hover:bg-[#122852] text-white text-xs font-semibold transition-all active:scale-95 shadow-sm"
+            className="px-4 py-1.5 rounded-full bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] text-[var(--t-sobre-pri,#FFFFFF)] text-xs font-semibold transition-all active:scale-95 shadow-sm"
           >
             Agregar
           </button>
         ) : (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center rounded-full bg-[#0b1b36] text-white"
+            className="flex items-center rounded-full bg-[var(--t-sec,#FBBF24)] text-[var(--t-sobre-sec,#0F172A)] font-bold shadow-sm"
           >
             <button
               type="button"
@@ -1267,11 +1344,11 @@ function TarjetaCombo({
                 onCambiar(p, -1);
               }}
               aria-label="Quitar uno"
-              className="h-7 w-7 flex items-center justify-center hover:bg-white/10 rounded-l-full"
+              className="h-7 w-7 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-l-full transition-all"
             >
               <Minus className="w-3 h-3" />
             </button>
-            <span className="min-w-5 text-center text-xs font-bold tabular-nums">{cantidad}</span>
+            <span className="min-w-5 text-center text-xs font-black tabular-nums">{cantidad}</span>
             <button
               type="button"
               onClick={(e) => {
@@ -1279,7 +1356,7 @@ function TarjetaCombo({
                 onCambiar(p, 1);
               }}
               aria-label="Agregar uno"
-              className="h-7 w-7 flex items-center justify-center hover:bg-white/10 rounded-r-full"
+              className="h-7 w-7 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-r-full transition-all"
             >
               <Plus className="w-3 h-3" />
             </button>

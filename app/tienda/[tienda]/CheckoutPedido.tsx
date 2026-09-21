@@ -5,12 +5,16 @@ import {
   AlertCircle,
   ArrowLeft,
   Banknote,
+  Bike,
   Check,
+  Clock,
   Copy,
   CreditCard,
   FileText,
   ImagePlus,
   Loader2,
+  LocateFixed,
+  MapPin,
   Minus,
   Plus,
   Receipt,
@@ -27,6 +31,7 @@ import {
   TiendaPublica,
   TipoComprobantePedido,
   TipoEntregaPedido,
+  costoEnvioPara,
   tiendaApi,
 } from "@/lib/pedidosOnline";
 import { formatearCelular, formatoSoles, guardarLocal, leerLocal } from "./formato";
@@ -38,8 +43,10 @@ export interface LineaCarrito {
 
 interface Props {
   tienda: TiendaPublica;
-  mesaInicial: string | null;
+  /** Mesa del QR escaneado, ya validada contra las mesas de la tienda; null sin QR de mesa. */
+  mesaQr: string | null;
   lineas: LineaCarrito[];
+  /** Suma de los productos (sin el envío). */
   total: number;
   onCambiarCantidad: (producto: ProductoPublico, delta: number) => void;
   onCerrar: () => void;
@@ -53,6 +60,8 @@ interface ClienteGuardado {
   tipoComprobante?: TipoComprobantePedido;
   documento?: string;
   razonSocial?: string;
+  direccion?: string;
+  referencia?: string;
 }
 
 const CLAVE_CLIENTE = "tienda_cliente";
@@ -65,9 +74,9 @@ const PREFIJOS_RUC = ["10", "15", "16", "17", "20"];
 
 export default function CheckoutPedido({
   tienda,
-  mesaInicial,
+  mesaQr,
   lineas,
-  total,
+  total: subtotal,
   onCambiarCantidad,
   onCerrar,
   onCreado,
@@ -89,11 +98,57 @@ export default function CheckoutPedido({
   const [ruc, setRuc] = useState(guardado.tipoComprobante === "FACTURA" ? (guardado.documento ?? "") : "");
   const [razonSocial, setRazonSocial] = useState(guardado.razonSocial ?? "");
 
-  // A la mesa por defecto, que es lo habitual en el local; recojo solo si la tienda no lleva a mesa.
-  const [tipoEntrega, setTipoEntrega] = useState<TipoEntregaPedido>(tienda.permiteMesa ? "MESA" : "RECOJO");
-  // No se pide número de mesa: al cliente lo ubican por su nombre. Solo viaja si
-  // entró por el QR de una mesa.
-  const mesa = (mesaInicial ?? "").trim();
+  // Con mesas numeradas, "Llevar a mi mesa" solo existe escaneando el QR de una
+  // mesa: por el enlace general el cliente ve únicamente recojo y delivery. Si la
+  // tienda no numeró sus mesas, la opción sigue disponible y lo ubican por su nombre.
+  const usaMesasNumeradas = (tienda.cantidadMesas ?? 0) > 0;
+  const opcionesEntrega = [
+    tienda.permiteRecojo && "RECOJO",
+    tienda.permiteMesa && !usaMesasNumeradas && "MESA",
+    tienda.permiteDelivery && "DELIVERY",
+  ].filter(Boolean) as TipoEntregaPedido[];
+
+  // Con el QR de una mesa la entrega ya está decidida. Sin él, a la mesa por
+  // defecto si está disponible (lo habitual en el local); si no, la primera opción.
+  const [tipoEntrega, setTipoEntrega] = useState<TipoEntregaPedido>(
+    mesaQr ? "MESA" : opcionesEntrega.includes("MESA") ? "MESA" : (opcionesEntrega[0] ?? "RECOJO"),
+  );
+  const sinOpcionDeEntrega = !mesaQr && opcionesEntrega.length === 0;
+
+  const [direccion, setDireccion] = useState(guardado.direccion ?? "");
+  const [referencia, setReferencia] = useState(guardado.referencia ?? "");
+  const [ubicacion, setUbicacion] = useState<string | null>(null);
+  const [buscandoUbicacion, setBuscandoUbicacion] = useState(false);
+  const [avisoUbicacion, setAvisoUbicacion] = useState<string | null>(null);
+
+  const esDelivery = tipoEntrega === "DELIVERY";
+  const costoEnvio = esDelivery ? costoEnvioPara(tienda, subtotal) : 0;
+  const total = Math.round((subtotal + costoEnvio) * 100) / 100;
+  const pedidoMinimo = tienda.pedidoMinimoDelivery ?? 0;
+  const faltaParaMinimo = esDelivery && subtotal < pedidoMinimo ? pedidoMinimo - subtotal : 0;
+  const faltaParaGratis =
+    esDelivery && costoEnvio > 0 && tienda.deliveryGratisDesde ? tienda.deliveryGratisDesde - subtotal : 0;
+
+  /** Ubicación exacta del celular: el repartidor llega sin depender solo de la dirección escrita. */
+  const usarMiUbicacion = () => {
+    if (!("geolocation" in navigator)) {
+      setAvisoUbicacion("Tu celular no permite compartir la ubicación. Escribe una buena referencia.");
+      return;
+    }
+    setBuscandoUbicacion(true);
+    setAvisoUbicacion(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUbicacion(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`);
+        setBuscandoUbicacion(false);
+      },
+      () => {
+        setAvisoUbicacion("No pudimos obtener tu ubicación. Revisa el permiso de ubicación o escribe una buena referencia.");
+        setBuscandoUbicacion(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
 
   const mediosDisponibles: MedioPagoPedido[] = [
     ...(tienda.aceptaYape ? (["Yape"] as const) : []),
@@ -179,9 +234,16 @@ export default function CheckoutPedido({
 
   const validar = (): string | null => {
     if (lineas.length === 0) return "Tu pedido está vacío.";
+    if (sinOpcionDeEntrega) return "Escanea el QR de tu mesa para hacer tu pedido.";
     if (nombre.trim().length < 2) return "Ingresa tu nombre para llamarte cuando esté listo.";
     const celular = telefono.replace(/\D/g, "");
     if (celular && (celular.length < 6 || celular.length > 15)) return "Revisa tu número de celular.";
+
+    if (esDelivery) {
+      if (faltaParaMinimo > 0) return `El pedido mínimo para delivery es ${formatoSoles(pedidoMinimo)}.`;
+      if (direccion.trim().length < 5) return "Escribe la dirección donde te llevamos el pedido.";
+      if (!celular) return "Para el delivery necesitamos tu celular, por si el repartidor necesita ubicarte.";
+    }
 
     if (quiereComprobante) {
       if (tipoComprobante === "FACTURA") {
@@ -220,6 +282,8 @@ export default function CheckoutPedido({
         tipoComprobante: tipoFinal,
         documento,
         razonSocial: razonSocial.trim(),
+        direccion: direccion.trim() || guardado.direccion,
+        referencia: referencia.trim() || guardado.referencia,
       } satisfies ClienteGuardado);
 
       const creado = await tiendaApi.crearPedido(
@@ -231,7 +295,10 @@ export default function CheckoutPedido({
           clienteDocumento: documento || undefined,
           clienteRazonSocial: tipoFinal === "FACTURA" ? razonSocial.trim() || undefined : undefined,
           tipoEntrega,
-          mesa: tipoEntrega === "MESA" && mesa ? mesa : undefined,
+          mesa: tipoEntrega === "MESA" && mesaQr ? mesaQr : undefined,
+          direccionEntrega: esDelivery ? direccion.trim() : undefined,
+          referenciaEntrega: esDelivery ? referencia.trim() || undefined : undefined,
+          ubicacionEntrega: esDelivery ? (ubicacion ?? undefined) : undefined,
           medioPago,
           pagaCon: medioPago === "Efectivo" && pagaCon ? montoPagaCon : null,
           urlCapturaPago: medioPago === "Yape" ? captura?.url : null,
@@ -306,28 +373,145 @@ export default function CheckoutPedido({
           </Seccion>
 
           {/* ── Entrega ── */}
-          <Seccion titulo="¿Cómo lo recibes?">
-            <div className="grid grid-cols-2 gap-2">
-              {tienda.permiteRecojo && (
-                <Opcion
-                  activa={tipoEntrega === "RECOJO"}
-                  onClick={() => setTipoEntrega("RECOJO")}
-                  icono={<Store className="w-5 h-5" />}
-                  titulo="Recojo en caja"
-                  detalle="Te avisamos cuando esté listo"
-                />
-              )}
-              {tienda.permiteMesa && (
-                <Opcion
-                  activa={tipoEntrega === "MESA"}
-                  onClick={() => setTipoEntrega("MESA")}
-                  icono={<UtensilsCrossed className="w-5 h-5" />}
-                  titulo="Llevar a mi mesa"
-                  detalle="Te lo llevamos"
-                />
-              )}
+          {mesaQr ? (
+            // Pidió desde el QR de su mesa: no hay nada que elegir.
+            <div className="flex items-center gap-3 rounded-xl border border-[var(--t-pri,#0B1F49)]/30 bg-[var(--t-pri,#0B1F49)]/5 p-3.5">
+              <span className="h-11 w-11 shrink-0 rounded-xl bg-[var(--t-pri,#0B1F49)] text-[var(--t-sobre-pri,#FFFFFF)] flex items-center justify-center">
+                <UtensilsCrossed className="w-5 h-5" />
+              </span>
+              <div>
+                <p className="text-base font-bold text-slate-900">Mesa {mesaQr}</p>
+                <p className="text-xs text-slate-600">Te llevamos tu pedido a la mesa.</p>
+              </div>
             </div>
-          </Seccion>
+          ) : (
+            <Seccion titulo="¿Cómo lo recibes?">
+              {sinOpcionDeEntrega && (
+                <p className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3.5 text-sm text-amber-800">
+                  <UtensilsCrossed className="w-4 h-4 shrink-0 mt-0.5" />
+                  Esta tienda atiende los pedidos en las mesas: escanea el QR de tu mesa para hacer tu pedido.
+                </p>
+              )}
+              <div
+                className={`grid gap-2 ${
+                  opcionesEntrega.length >= 3 ? "grid-cols-3" : opcionesEntrega.length === 1 ? "grid-cols-1" : "grid-cols-2"
+                }`}
+              >
+                {opcionesEntrega.map((opcion) => (
+                  <Opcion
+                    key={opcion}
+                    activa={tipoEntrega === opcion}
+                    onClick={() => {
+                      setTipoEntrega(opcion);
+                      setError(null);
+                    }}
+                    icono={
+                      opcion === "RECOJO" ? (
+                        <Store className="w-5 h-5" />
+                      ) : opcion === "MESA" ? (
+                        <UtensilsCrossed className="w-5 h-5" />
+                      ) : (
+                        <Bike className="w-5 h-5" />
+                      )
+                    }
+                    titulo={opcion === "RECOJO" ? "Recojo en caja" : opcion === "MESA" ? "Llevar a mi mesa" : "Delivery"}
+                    detalle={
+                      opcionesEntrega.length === 3
+                        ? undefined
+                        : opcion === "RECOJO"
+                          ? "Te avisamos cuando esté listo"
+                          : opcion === "MESA"
+                            ? "Te lo llevamos"
+                            : "A tu dirección"
+                    }
+                    compacta={opcionesEntrega.length === 3}
+                  />
+                ))}
+              </div>
+
+              {esDelivery && (
+                <div className="rounded-xl bg-white border border-slate-200 p-3.5 space-y-3">
+                  {(tienda.zonaDelivery || tienda.tiempoDelivery) && (
+                    <div className="space-y-1 text-xs text-slate-600">
+                      {tienda.zonaDelivery && (
+                        <p className="flex items-start gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 shrink-0 mt-px text-slate-400" /> Reparto: {tienda.zonaDelivery}
+                        </p>
+                      )}
+                      {tienda.tiempoDelivery && (
+                        <p className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 shrink-0 text-slate-400" /> Llega en {tienda.tiempoDelivery}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <Campo etiqueta="Dirección de entrega">
+                    <input
+                      value={direccion}
+                      onChange={(e) => setDireccion(e.target.value.slice(0, 200))}
+                      autoComplete="street-address"
+                      placeholder="Ej.: Jr. Amalia Puga 123, Dpto. 2"
+                      className={claseInput}
+                    />
+                  </Campo>
+                  <Campo etiqueta="Referencia (opcional)">
+                    <input
+                      value={referencia}
+                      onChange={(e) => setReferencia(e.target.value.slice(0, 200))}
+                      placeholder="Ej.: frente al parque, portón verde"
+                      className={claseInput}
+                    />
+                  </Campo>
+
+                  {ubicacion ? (
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs">
+                      <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <span className="flex-1 font-semibold text-emerald-700">Ubicación agregada</span>
+                      <a
+                        href={`https://www.google.com/maps?q=${ubicacion}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-emerald-700 underline"
+                      >
+                        Ver
+                      </a>
+                      <button type="button" onClick={() => setUbicacion(null)} className="font-semibold text-slate-500">
+                        Quitar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={usarMiUbicacion}
+                      disabled={buscandoUbicacion}
+                      className="w-full h-10 flex items-center justify-center gap-2 rounded-lg border border-[var(--t-pri,#0B1F49)]/30 bg-[var(--t-pri,#0B1F49)]/5 text-sm font-semibold text-[var(--t-pri,#0B1F49)] disabled:opacity-60"
+                    >
+                      {buscandoUbicacion ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
+                      {buscandoUbicacion ? "Buscando tu ubicación…" : "Usar mi ubicación actual (opcional)"}
+                    </button>
+                  )}
+                  {avisoUbicacion && <p className="text-xs text-amber-700">{avisoUbicacion}</p>}
+
+                  <p className="text-xs text-slate-600">
+                    Envío:{" "}
+                    <span className="font-semibold tabular-nums">
+                      {costoEnvio > 0 ? formatoSoles(costoEnvio) : "gratis"}
+                    </span>
+                    {faltaParaGratis > 0 && (
+                      <span className="text-emerald-700"> · agrega {formatoSoles(faltaParaGratis)} más y es gratis</span>
+                    )}
+                  </p>
+                  {faltaParaMinimo > 0 && (
+                    <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      El pedido mínimo para delivery es {formatoSoles(pedidoMinimo)}. Te faltan {formatoSoles(faltaParaMinimo)}.
+                    </p>
+                  )}
+                </div>
+              )}
+            </Seccion>
+          )}
 
           {/* ── Cliente ── */}
           <Seccion titulo="Tus datos">
@@ -340,13 +524,19 @@ export default function CheckoutPedido({
                 className={claseInput}
               />
             </Campo>
-            <Campo etiqueta="Celular (opcional)">
+            <Campo etiqueta={esDelivery ? "Celular" : "Celular (opcional)"}>
               <input
                 value={telefono}
                 onChange={(e) => setTelefono(e.target.value.replace(/[^\d\s+]/g, "").slice(0, 15))}
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder={quiereComprobante ? "Te enviamos tu comprobante por WhatsApp" : "Por si necesitamos contactarte"}
+                placeholder={
+                  esDelivery
+                    ? "Para coordinar la entrega"
+                    : quiereComprobante
+                      ? "Te enviamos tu comprobante por WhatsApp"
+                      : "Por si necesitamos contactarte"
+                }
                 className={claseInput}
               />
             </Campo>
@@ -363,12 +553,12 @@ export default function CheckoutPedido({
                 setError(null);
               }}
               className={`w-full flex items-center gap-3 rounded-xl border bg-white p-3 text-left transition-colors ${
-                quiereComprobante ? "border-brand-blue/40" : "border-slate-200"
+                quiereComprobante ? "border-[var(--t-pri,#0B1F49)]/40" : "border-slate-200"
               }`}
             >
               <span
                 className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                  quiereComprobante ? "bg-brand-blue" : "bg-slate-200"
+                  quiereComprobante ? "bg-[var(--t-pri,#0B1F49)]" : "bg-slate-200"
                 }`}
               >
                 <span
@@ -497,7 +687,9 @@ export default function CheckoutPedido({
               <p className="rounded-xl bg-white border border-slate-200 p-3.5 text-sm text-slate-600">
                 {tipoEntrega === "MESA"
                   ? "Te llevamos el POS a tu mesa para que pagues con tarjeta de débito o crédito."
-                  : "Pagas con tarjeta de débito o crédito en caja al recoger tu pedido."}
+                  : esDelivery
+                    ? "El repartidor lleva el POS para que pagues con tarjeta de débito o crédito."
+                    : "Pagas con tarjeta de débito o crédito en caja al recoger tu pedido."}
               </p>
             )}
 
@@ -597,6 +789,20 @@ export default function CheckoutPedido({
               {error}
             </p>
           )}
+          {esDelivery && (
+            <div className="space-y-0.5 text-xs text-slate-500">
+              <div className="flex justify-between">
+                <span>Productos</span>
+                <span className="tabular-nums">{formatoSoles(subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Envío</span>
+                <span className={`tabular-nums ${costoEnvio === 0 ? "font-semibold text-emerald-700" : ""}`}>
+                  {costoEnvio > 0 ? formatoSoles(costoEnvio) : "Gratis"}
+                </span>
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-500">Total a pagar</span>
             <span className="text-xl font-bold text-slate-900 tabular-nums">{formatoSoles(total)}</span>
@@ -604,8 +810,8 @@ export default function CheckoutPedido({
           <button
             type="button"
             onClick={enviar}
-            disabled={enviando || subiendoCaptura}
-            className="w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-brand-blue text-white text-base font-bold shadow-sm active:scale-[0.99] transition-transform disabled:opacity-50"
+            disabled={enviando || subiendoCaptura || faltaParaMinimo > 0 || sinOpcionDeEntrega}
+            className="w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-[var(--t-pri,#0B1F49)] text-[var(--t-sobre-pri,#FFFFFF)] text-base font-bold shadow-sm active:scale-[0.99] transition-transform disabled:opacity-50"
           >
             {enviando ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-4 h-4" />}
             {enviando ? "Enviando pedido…" : "Enviar pedido"}
@@ -617,7 +823,7 @@ export default function CheckoutPedido({
 }
 
 const claseInput =
-  "w-full h-11 px-3 rounded-lg border border-slate-200 bg-white text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15";
+  "w-full h-11 px-3 rounded-lg border border-slate-200 bg-white text-sm outline-none focus:border-[var(--t-pri,#0B1F49)] focus:ring-2 focus:ring-[var(--t-pri,#0B1F49)]/15";
 
 function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
@@ -657,11 +863,11 @@ function Opcion({
       type="button"
       onClick={onClick}
       className={`flex flex-col ${compacta ? "items-center py-3" : "items-start p-3"} gap-1 rounded-xl border bg-white text-left transition-all ${
-        activa ? "border-brand-blue ring-2 ring-brand-blue/20 text-brand-blue" : "border-slate-200 text-slate-600"
+        activa ? "border-[var(--t-pri,#0B1F49)] ring-2 ring-[var(--t-pri,#0B1F49)]/20 text-[var(--t-pri,#0B1F49)]" : "border-slate-200 text-slate-600"
       }`}
     >
       {icono}
-      <span className={`text-sm font-semibold ${activa ? "text-brand-blue" : "text-slate-800"}`}>{titulo}</span>
+      <span className={`text-sm font-semibold ${activa ? "text-[var(--t-pri,#0B1F49)]" : "text-slate-800"}`}>{titulo}</span>
       {detalle && <span className="text-[11px] leading-tight text-slate-500">{detalle}</span>}
     </button>
   );

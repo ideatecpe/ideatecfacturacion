@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Banknote,
+  Bike,
+  MapPin,
+  MessageCircle,
+  Navigation,
   CheckCircle2,
   Clock,
   CreditCard,
@@ -512,8 +516,20 @@ function TarjetaPedido({
 
       <div className="px-3.5 pt-2.5 flex flex-wrap gap-1.5 text-[11px] font-semibold">
         <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 text-brand-blue px-2 py-1">
-          {pedido.tipoEntrega === "MESA" ? <UtensilsCrossed size={12} /> : <Store size={12} />}
-          {pedido.tipoEntrega === "MESA" ? (pedido.mesa ? `Mesa ${pedido.mesa}` : "Llevar a mesa") : "Recoge en caja"}
+          {pedido.tipoEntrega === "MESA" ? (
+            <UtensilsCrossed size={12} />
+          ) : pedido.tipoEntrega === "DELIVERY" ? (
+            <Bike size={12} />
+          ) : (
+            <Store size={12} />
+          )}
+          {pedido.tipoEntrega === "MESA"
+            ? pedido.mesa
+              ? `Mesa ${pedido.mesa}`
+              : "Llevar a mesa"
+            : pedido.tipoEntrega === "DELIVERY"
+              ? "Delivery"
+              : "Recoge en caja"}
         </span>
         <span
           className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${
@@ -537,7 +553,7 @@ function TarjetaPedido({
               · paga con {soles(pedido.pagaCon)} · vuelto {soles(Math.max(0, pedido.pagaCon - pedido.total))}
             </span>
           )}
-          {pedido.medioPago === "Tarjeta" && pedido.tipoEntrega === "MESA" && <span className="font-normal">· llevar POS</span>}
+          {pedido.medioPago === "Tarjeta" && pedido.tipoEntrega !== "RECOJO" && <span className="font-normal">· llevar POS</span>}
         </span>
         <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 text-gray-600 px-2 py-1">
           {pedido.tipoComprobante === "FACTURA" ? <FileText size={12} /> : <Receipt size={12} />}
@@ -563,6 +579,42 @@ function TarjetaPedido({
         <p className="px-3.5 pt-1.5 text-[11px] text-gray-500 truncate">{pedido.clienteRazonSocial}</p>
       )}
 
+      {pedido.tipoEntrega === "DELIVERY" && pedido.direccionEntrega && (
+        <div className="mx-3.5 mt-2.5 rounded-md border border-sky-100 bg-sky-50/60 px-3 py-2 space-y-1.5">
+          <p className="flex items-start gap-1.5 text-xs font-semibold text-gray-800">
+            <MapPin size={13} className="shrink-0 mt-px text-sky-600" />
+            {pedido.direccionEntrega}
+          </p>
+          {pedido.referenciaEntrega && (
+            <p className="pl-5 text-[11px] text-gray-500">Ref.: {pedido.referenciaEntrega}</p>
+          )}
+          <div className="pl-5 flex flex-wrap gap-2">
+            <a
+              href={
+                pedido.ubicacionEntrega
+                  ? `https://www.google.com/maps?q=${pedido.ubicacionEntrega}`
+                  : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pedido.direccionEntrega)}`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded bg-white border border-sky-200 px-2 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-50"
+            >
+              <Navigation size={11} /> {pedido.ubicacionEntrega ? "Ubicación exacta" : "Buscar en el mapa"}
+            </a>
+            {pedido.clienteTelefono && (
+              <a
+                href={`https://wa.me/${pedido.clienteTelefono.startsWith("51") ? pedido.clienteTelefono : `51${pedido.clienteTelefono}`}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded bg-white border border-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50"
+              >
+                <MessageCircle size={11} /> WhatsApp
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       <ul className="mx-3.5 mt-2.5 divide-y divide-gray-100 border-y border-gray-100 text-xs">
         {pedido.detalles.map((d, i) => (
           <li key={i} className="flex justify-between gap-3 py-1.5">
@@ -572,6 +624,16 @@ function TarjetaPedido({
             <span className="tabular-nums text-gray-500">{soles(d.subtotal)}</span>
           </li>
         ))}
+        {pedido.tipoEntrega === "DELIVERY" && (
+          <li className="flex justify-between gap-3 py-1.5">
+            <span className="text-gray-700 flex items-center gap-1">
+              <Bike size={12} className="text-gray-400" /> Envío
+            </span>
+            <span className={`tabular-nums ${pedido.costoEnvio > 0 ? "text-gray-500" : "font-semibold text-emerald-600"}`}>
+              {pedido.costoEnvio > 0 ? soles(pedido.costoEnvio) : "Gratis"}
+            </span>
+          </li>
+        )}
       </ul>
 
       <div className="px-3.5 py-2.5 flex items-end gap-3">

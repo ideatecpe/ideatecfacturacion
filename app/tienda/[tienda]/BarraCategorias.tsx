@@ -153,7 +153,7 @@ export default function BarraCategorias({ secciones, activa, iconos = {}, compac
               onClick={() => elegir(s.nombre)}
               className={`shrink-0 h-7.5 px-3 rounded-full text-[11px] font-semibold border transition-all flex items-center gap-1.5 shadow-2xs ${
                 activa === s.nombre
-                  ? "bg-[#0b1b36] border-[#0b1b36] text-white shadow-sm"
+                  ? "bg-[var(--t-pri,#0B1F49)] border-[var(--t-pri,#0B1F49)] text-white shadow-sm"
                   : "bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/50"
               }`}
             >
@@ -172,7 +172,7 @@ export default function BarraCategorias({ secciones, activa, iconos = {}, compac
               type="button"
               onClick={() => desplazar(-1)}
               aria-label="Ver categorías anteriores"
-              className="pointer-events-auto hidden sm:flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-brand-blue"
+              className="pointer-events-auto hidden sm:flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-[var(--t-pri,#0B1F49)]"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -184,7 +184,7 @@ export default function BarraCategorias({ secciones, activa, iconos = {}, compac
               type="button"
               onClick={() => desplazar(1)}
               aria-label="Ver más categorías"
-              className="pointer-events-auto hidden sm:flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-brand-blue"
+              className="pointer-events-auto hidden sm:flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:text-[var(--t-pri,#0B1F49)]"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -204,7 +204,7 @@ export default function BarraCategorias({ secciones, activa, iconos = {}, compac
                 type="button"
                 onClick={() => elegir(s.nombre)}
                 className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                  activa === s.nombre ? "bg-brand-blue/10 text-brand-blue font-semibold" : "text-slate-700 hover:bg-slate-100"
+                  activa === s.nombre ? "bg-[var(--t-pri,#0B1F49)]/10 text-[var(--t-pri,#0B1F49)] font-semibold" : "text-slate-700 hover:bg-slate-100"
                 }`}
               >
                 <span className="flex min-w-0 items-center gap-1.5">
