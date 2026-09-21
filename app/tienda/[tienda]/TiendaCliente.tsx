@@ -767,7 +767,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
               </div>
 
               {/* Celular: una fila que se desliza con el dedo. Escritorio: cuadrícula. */}
-              <div className="-mx-4 px-4 pb-1 flex gap-2.5 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:mx-0 lg:px-0 lg:grid lg:grid-cols-6 lg:overflow-visible">
+              <div className="py-1 flex gap-2.5 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-6 lg:overflow-visible">
                 {d.items.map((p) => (
                   <div key={p.productoId} className="grid w-36 sm:w-44 lg:w-auto shrink-0 snap-start">
                     <TarjetaProducto producto={p} cantidad={carrito[p.productoId] ?? 0} onCambiar={cambiarCantidad} />
