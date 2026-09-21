@@ -119,7 +119,13 @@ export default function CheckoutPedido({
   const [referencia, setReferencia] = useState(guardado.referencia ?? "");
   const [ubicacion, setUbicacion] = useState<string | null>(null);
   const [buscandoUbicacion, setBuscandoUbicacion] = useState(false);
+  const [buscandoDireccion, setBuscandoDireccion] = useState(false);
   const [avisoUbicacion, setAvisoUbicacion] = useState<string | null>(null);
+  // Si el cliente ya escribió su dirección, la ubicación no se la pisa. La que se
+  // recordó de un pedido anterior no cuenta: si comparte su ubicación es porque
+  // ahora está en otro lugar.
+  const [direccionEscrita, setDireccionEscrita] = useState(false);
+  const [direccionDeUbicacion, setDireccionDeUbicacion] = useState(false);
 
   const esDelivery = tipoEntrega === "DELIVERY";
   const costoEnvio = esDelivery ? costoEnvioPara(tienda, subtotal) : 0;
@@ -128,6 +134,27 @@ export default function CheckoutPedido({
   const faltaParaMinimo = esDelivery && subtotal < pedidoMinimo ? pedidoMinimo - subtotal : 0;
   const faltaParaGratis =
     esDelivery && costoEnvio > 0 && tienda.deliveryGratisDesde ? tienda.deliveryGratisDesde - subtotal : 0;
+
+  /** Trae la dirección de esas coordenadas y la pone en el campo, salvo que el cliente ya haya escrito la suya. */
+  const completarDireccion = async (lat: number, lng: number) => {
+    setBuscandoDireccion(true);
+    try {
+      const res = await fetch(`/api/geocodificar?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`);
+      const datos = (await res.json()) as { ok?: boolean; direccion?: string | null };
+      if (datos.ok && datos.direccion) {
+        if (!direccionEscrita) {
+          setDireccion(datos.direccion);
+          setDireccionDeUbicacion(true);
+        }
+      } else {
+        setAvisoUbicacion("Agregamos tu ubicación, pero no pudimos obtener la dirección: escríbela tú.");
+      }
+    } catch {
+      setAvisoUbicacion("Agregamos tu ubicación, pero no pudimos obtener la dirección: escríbela tú.");
+    } finally {
+      setBuscandoDireccion(false);
+    }
+  };
 
   /** Ubicación exacta del celular: el repartidor llega sin depender solo de la dirección escrita. */
   const usarMiUbicacion = () => {
@@ -141,6 +168,7 @@ export default function CheckoutPedido({
       (pos) => {
         setUbicacion(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`);
         setBuscandoUbicacion(false);
+        void completarDireccion(pos.coords.latitude, pos.coords.longitude);
       },
       () => {
         setAvisoUbicacion("No pudimos obtener tu ubicación. Revisa el permiso de ubicación o escribe una buena referencia.");
@@ -449,11 +477,20 @@ export default function CheckoutPedido({
                   <Campo etiqueta="Dirección de entrega">
                     <input
                       value={direccion}
-                      onChange={(e) => setDireccion(e.target.value.slice(0, 200))}
+                      onChange={(e) => {
+                        setDireccion(e.target.value.slice(0, 200));
+                        setDireccionEscrita(true);
+                        setDireccionDeUbicacion(false);
+                      }}
                       autoComplete="street-address"
-                      placeholder="Ej.: Jr. Amalia Puga 123, Dpto. 2"
+                      placeholder={buscandoDireccion ? "Buscando tu dirección…" : "Ej.: Jr. Amalia Puga 123, Dpto. 2"}
                       className={claseInput}
                     />
+                    {direccionDeUbicacion && (
+                      <p className="text-[11px] text-emerald-700">
+                        Dirección tomada de tu ubicación. Revísala y agrega el número o el departamento si hace falta.
+                      </p>
+                    )}
                   </Campo>
                   <Campo etiqueta="Referencia (opcional)">
                     <input
@@ -488,7 +525,7 @@ export default function CheckoutPedido({
                       className="w-full h-10 flex items-center justify-center gap-2 rounded-lg border border-[var(--t-pri,#0B1F49)]/30 bg-[var(--t-pri,#0B1F49)]/5 text-sm font-semibold text-[var(--t-pri,#0B1F49)] disabled:opacity-60"
                     >
                       {buscandoUbicacion ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
-                      {buscandoUbicacion ? "Buscando tu ubicación…" : "Usar mi ubicación actual (opcional)"}
+                      {buscandoUbicacion ? "Buscando tu ubicación…" : "Usar mi ubicación actual y completar mi dirección"}
                     </button>
                   )}
                   {avisoUbicacion && <p className="text-xs text-amber-700">{avisoUbicacion}</p>}
