@@ -321,6 +321,17 @@ export function urlTiendaPublica(slug: string, entorno?: string | null): string 
   return `${origen}/tienda/${slug}${conEntorno(entorno)}`;
 }
 
+/**
+ * Enlace de Google Maps con la ruta hasta el punto de entrega: al abrirlo, la app
+ * indica cómo llegar desde donde esté quien lo abre (el repartidor). Usa la ubicación
+ * exacta si el cliente la compartió; si no, la dirección que escribió.
+ */
+export function urlComoLlegar(pedido: Pick<PedidoOnline, "ubicacionEntrega" | "direccionEntrega">): string | null {
+  const destino = pedido.ubicacionEntrega || pedido.direccionEntrega;
+  if (!destino) return null;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destino)}`;
+}
+
 /** Enlace de una mesa: el pedido que se haga desde ahí llega a caja como "Mesa N". */
 export function urlMesa(enlaceTienda: string, mesa: number): string {
   const url = new URL(enlaceTienda);

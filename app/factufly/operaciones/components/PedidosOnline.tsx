@@ -5,6 +5,8 @@ import {
   AlertTriangle,
   Banknote,
   Bike,
+  Check,
+  Copy,
   MapPin,
   MessageCircle,
   Navigation,
@@ -13,6 +15,7 @@ import {
   CreditCard,
   FileText,
   Loader2,
+  Phone,
   Receipt,
   ShieldCheck,
   ShoppingBag,
@@ -30,6 +33,7 @@ import {
   pedidosOnlineApi,
   alertarPedidoNuevo,
   solicitarCobroPedido,
+  urlComoLlegar,
 } from "@/lib/pedidosOnline";
 
 // Los pedidos llegan al instante por SignalR. La consulta periódica es el respaldo:
@@ -467,6 +471,110 @@ export default function PedidosOnline({ sucursalId, accessToken }: Props) {
   );
 }
 
+/** Qué debe cobrar (o llevar) el repartidor, en una línea para el mensaje. */
+function lineaDeCobro(p: PedidoOnline): string {
+  if (p.medioPago === "Efectivo") {
+    const vuelto = p.pagaCon != null ? ` (paga con ${soles(p.pagaCon)}, vuelto ${soles(Math.max(0, p.pagaCon - p.total))})` : "";
+    return `Cobrar ${soles(p.total)} en efectivo${vuelto}`;
+  }
+  if (p.medioPago === "Tarjeta") return `Cobrar ${soles(p.total)} con tarjeta (llevar el POS)`;
+  return `Pago por Yape: ${soles(p.total)}`;
+}
+
+/**
+ * Dirección de un pedido con delivery y lo necesario para pasárselo al repartidor:
+ * enlace de Google Maps con la ruta, copiarlo, o enviarlo por WhatsApp con los datos del pedido.
+ */
+function EntregaDelivery({ pedido }: { pedido: PedidoOnline }) {
+  const [copiado, setCopiado] = useState(false);
+  const enlace = urlComoLlegar(pedido);
+  if (!enlace || !pedido.direccionEntrega) return null;
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(enlace);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      /* el enlace sigue disponible en "Cómo llegar" */
+    }
+  };
+
+  const mensaje = [
+    `*Delivery · Pedido #${pedido.numero}*`,
+    `Cliente: ${pedido.clienteNombre}${pedido.clienteTelefono ? ` · ${pedido.clienteTelefono}` : ""}`,
+    `Dirección: ${pedido.direccionEntrega}`,
+    pedido.referenciaEntrega ? `Referencia: ${pedido.referenciaEntrega}` : null,
+    `Cómo llegar: ${enlace}`,
+    lineaDeCobro(pedido),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const boton = "inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-semibold";
+  const telefono = pedido.clienteTelefono
+    ? pedido.clienteTelefono.startsWith("51")
+      ? pedido.clienteTelefono
+      : `51${pedido.clienteTelefono}`
+    : null;
+
+  return (
+    <div className="mx-3.5 mt-2.5 rounded-md border border-sky-100 bg-sky-50/60 px-3 py-2 space-y-1.5">
+      <p className="flex items-start gap-1.5 text-xs font-semibold text-gray-800">
+        <MapPin size={13} className="shrink-0 mt-px text-sky-600" />
+        {pedido.direccionEntrega}
+      </p>
+      {pedido.referenciaEntrega && <p className="pl-5 text-[11px] text-gray-500">Ref.: {pedido.referenciaEntrega}</p>}
+      <p className={`pl-5 text-[10px] font-medium ${pedido.ubicacionEntrega ? "text-emerald-700" : "text-gray-400"}`}>
+        {pedido.ubicacionEntrega
+          ? "El cliente compartió su ubicación exacta"
+          : "Solo la dirección escrita: puede no ser exacta"}
+      </p>
+
+      <div className="pl-5 flex flex-wrap gap-1.5">
+        <a
+          href={enlace}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Abre Google Maps con la ruta hasta el punto de entrega"
+          className={`${boton} bg-white border-sky-200 text-sky-700 hover:bg-sky-50`}
+        >
+          <Navigation size={11} /> Cómo llegar
+        </a>
+        <button
+          type="button"
+          onClick={copiar}
+          title="Copia el enlace de Google Maps para pegarlo donde quieras"
+          className={`${boton} bg-white border-gray-200 text-gray-600 hover:bg-gray-50`}
+        >
+          {copiado ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+          {copiado ? "Copiado" : "Copiar enlace"}
+        </button>
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(mensaje)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Abre WhatsApp para elegir a tu repartidor: le llega la dirección, el enlace de Google Maps y lo que debe cobrar"
+          className={`${boton} bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700`}
+        >
+          <MessageCircle size={11} /> Enviar al repartidor
+        </a>
+        {telefono && (
+          <a
+            href={`https://wa.me/${telefono}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Escribir al cliente por WhatsApp"
+            className={`${boton} bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50`}
+          >
+            <Phone size={11} /> Escribir al cliente
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TarjetaPedido({
   pedido,
   procesando,
@@ -579,41 +687,7 @@ function TarjetaPedido({
         <p className="px-3.5 pt-1.5 text-[11px] text-gray-500 truncate">{pedido.clienteRazonSocial}</p>
       )}
 
-      {pedido.tipoEntrega === "DELIVERY" && pedido.direccionEntrega && (
-        <div className="mx-3.5 mt-2.5 rounded-md border border-sky-100 bg-sky-50/60 px-3 py-2 space-y-1.5">
-          <p className="flex items-start gap-1.5 text-xs font-semibold text-gray-800">
-            <MapPin size={13} className="shrink-0 mt-px text-sky-600" />
-            {pedido.direccionEntrega}
-          </p>
-          {pedido.referenciaEntrega && (
-            <p className="pl-5 text-[11px] text-gray-500">Ref.: {pedido.referenciaEntrega}</p>
-          )}
-          <div className="pl-5 flex flex-wrap gap-2">
-            <a
-              href={
-                pedido.ubicacionEntrega
-                  ? `https://www.google.com/maps?q=${pedido.ubicacionEntrega}`
-                  : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pedido.direccionEntrega)}`
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded bg-white border border-sky-200 px-2 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-50"
-            >
-              <Navigation size={11} /> {pedido.ubicacionEntrega ? "Ubicación exacta" : "Buscar en el mapa"}
-            </a>
-            {pedido.clienteTelefono && (
-              <a
-                href={`https://wa.me/${pedido.clienteTelefono.startsWith("51") ? pedido.clienteTelefono : `51${pedido.clienteTelefono}`}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded bg-white border border-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50"
-              >
-                <MessageCircle size={11} /> WhatsApp
-              </a>
-            )}
-          </div>
-        </div>
-      )}
+      {pedido.tipoEntrega === "DELIVERY" && pedido.direccionEntrega && <EntregaDelivery pedido={pedido} />}
 
       <ul className="mx-3.5 mt-2.5 divide-y divide-gray-100 border-y border-gray-100 text-xs">
         {pedido.detalles.map((d, i) => (
