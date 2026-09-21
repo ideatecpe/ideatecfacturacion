@@ -18,7 +18,12 @@ import {
   InfoEmisionSegundoPlano,
 } from "@/lib/eventosCaja";
 
-export function ControlCaja({ children }: { children: React.ReactNode }) {
+/**
+ * @param barraConMargen La Caja Autopago va a pantalla completa (sin el margen del
+ *   layout), así que su barra de "Retirar efectivo / Cuadrar / Cerrar Caja" debe
+ *   traer su propio margen para no quedar pegada a los bordes.
+ */
+export function ControlCaja({ children, barraConMargen = false }: { children: React.ReactNode; barraConMargen?: boolean }) {
   const { isOnline, cantidadPendientes, cantidadError } = useOfflineSales();
   const ventasSinSincronizar = cantidadPendientes + cantidadError;
   const { user, logout } = useAuth();
@@ -244,7 +249,7 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col h-full gap-2">
-      <div className="shrink-0 flex flex-wrap items-center gap-2 rounded-lg">
+      <div className={`shrink-0 flex flex-wrap items-center gap-2 rounded-lg ${barraConMargen ? "px-4 pt-3" : ""}`}>
         <div className="flex items-center gap-2 mr-auto min-w-0">
       
           {estado?.cajaDeDiaAnterior ? (
@@ -283,11 +288,9 @@ export function ControlCaja({ children }: { children: React.ReactNode }) {
         </div>
 
         <Button variant="outline" onClick={() => setRetiroAbierto(true)} className="px-3! py-1.5! text-xs!">
-          <Banknote className="w-3.5 h-3.5" />
           Retirar efectivo
         </Button>
         <Button variant="outline" onClick={() => abrirCuadre(false)} className="px-3! py-1.5! text-xs!">
-          <Banknote className="w-3.5 h-3.5" />
           Cuadrar Caja
         </Button>
         <Button variant="danger" onClick={() => abrirCuadre(true)} className="px-3! py-1.5! text-xs!">

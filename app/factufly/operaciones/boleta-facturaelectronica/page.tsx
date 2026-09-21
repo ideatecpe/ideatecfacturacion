@@ -145,5 +145,5 @@ export default function BoletaFacturaElectronicaPage() {
 
   // Con el control de caja activo, nada del módulo de venta se monta hasta que
   // haya una caja abierta y el usuario tenga su turno iniciado.
-  return config?.administraCaja ? <ControlCaja>{contenido}</ControlCaja> : contenido;
+  return config?.administraCaja ? <ControlCaja barraConMargen={cajaAutopago}>{contenido}</ControlCaja> : contenido;
 }
