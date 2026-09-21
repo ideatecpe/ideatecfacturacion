@@ -33,7 +33,7 @@ import EscanerCodigoBarras from "@/app/components/ui/EscanerCodigoBarras";
 import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { InputBase } from "@/app/components/ui/InputBase";
 import { cn } from "@/app/utils/cn";
-import { coincideBusqueda } from "@/app/utils/normalizarTexto";
+import { coincideBusqueda, puntajeBusqueda } from "@/app/utils/normalizarTexto";
 
 import { ProductoSucursal } from "../gestioProductos/Producto";
 import AgregarProducto from "../gestioProductos/AgregarProducto";
@@ -334,7 +334,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
     return stockEfectivo < umbral ? "bajo" : "normal";
   };
 
-  const filtered = productos.filter((p) => {
+  const filtrados = productos.filter((p) => {
     const matchSearch = coincideBusqueda(search, p.nomProducto, p.codigo, p.codigoBarras);
 
     const matchCategoria =
@@ -391,6 +391,14 @@ const [importFile, setImportFile] = useState<File | null>(null);
       matchCodigoGenerado
     );
   });
+
+  // Con búsqueda escrita, primero lo más parecido a lo buscado.
+  const filtered = search.trim()
+    ? filtrados
+        .map((p) => ({ p, punt: puntajeBusqueda(search, p.nomProducto, p.codigo, p.codigoBarras) }))
+        .sort((a, b) => b.punt - a.punt)
+        .map((x) => x.p)
+    : filtrados;
 
   // Agrupa la lista filtrada en filas de `columnasGrid` productos, para
   // virtualizar por fila (@tanstack/react-virtual sobre una grilla responsiva).

@@ -62,7 +62,7 @@ import { formatoFechaActual } from "@/app/components/ui/formatoFecha";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
 import { avisarStockBajoWhatsapp } from "@/app/factufly/productos/gestioProductos/stockAlerta";
 import { useToast } from "@/app/components/ui/Toast";
-import { coincideBusqueda, normalizarTexto } from "@/app/utils/normalizarTexto";
+import { coincideBusqueda, normalizarTexto, puntajeBusqueda } from "@/app/utils/normalizarTexto";
 import {
   generarXml,
   enviarASunatApi,
@@ -1203,9 +1203,11 @@ export function CajaAutopagoVista({
   const productosGrid = useMemo(() => {
     const q = busqueda.trim();
     if (q) {
-      return productosSucursal.filter((p) =>
-        coincideBusqueda(q, p.nomProducto, p.codigo, p.codigoBarras),
-      );
+      return productosSucursal
+        .map((p) => ({ p, punt: puntajeBusqueda(q, p.nomProducto, p.codigo, p.codigoBarras) }))
+        .filter((x) => x.punt > 0)
+        .sort((a, b) => b.punt - a.punt)
+        .map((x) => x.p);
     }
 
     const baseProductos = (config?.isStock ?? true)
