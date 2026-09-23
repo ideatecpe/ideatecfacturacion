@@ -7,6 +7,21 @@ export interface FilaExcel {
   igv: number;
   unidadMedida: string;
   moneda: string;
+  aplicaDetraccion: boolean;
+  codigoBienDetraccion: string;
+  codigoMedioPago: string;
+  cuentaBancoDetraccion: string;
+  porcentajeDetraccion: number;
+}
+
+// ─── Detracción agrupada a nivel de comprobante ───────────────────────────────
+export interface DetraccionAgrupada {
+  aplica: boolean;
+  codigoBienDetraccion: string;
+  codigoMedioPago: string;
+  cuentaBancoDetraccion: string;
+  porcentajeDetraccion: number;
+  montoDetraccion: number;
 }
 
 // ─── Item de detalle agrupado ─────────────────────────────────────────────────
@@ -29,6 +44,7 @@ export interface ComprobanteAgrupado {
   correo: string | null;     // viene de clientes locales, no del Excel
   whatsapp: string | null;   // viene de clientes locales, no del Excel
   items: ItemAgrupado[];
+  detraccion: DetraccionAgrupada;
 
   // Estado de consulta API
   consultandoApi: boolean;
