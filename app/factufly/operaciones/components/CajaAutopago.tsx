@@ -68,10 +68,18 @@ import {
   enviarASunatApi,
   crearNotaVenta,
   esErrorTransitorio,
+  reservarNumero,
+  liberarNumero,
 } from "@/app/factufly/operaciones/boleta/gestionBoletas/emitirBoletaApi";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
 import { construirHtmlTicket, imprimirTicketProvisional } from "@/app/factufly/operaciones/components/TicketProvisional";
 import { detectarAgente, imprimirHtmlConAgente } from "@/lib/impresion/agente";
+import {
+  anchoTicketConfig,
+  imprimirComprobanteRapido,
+  leerPersonalizacion,
+  separarNumeroCompleto,
+} from "@/lib/impresion/ticketComprobante";
 import { cacheProductos } from "@/lib/offline/offlineDb";
 import ModalAjustarStockRapido from "@/app/factufly/operaciones/components/ModalAjustarStockRapido";
 import ModalCrearProductoRapido from "@/app/factufly/operaciones/components/ModalCrearProductoRapido";
@@ -2486,7 +2494,8 @@ export function CajaAutopagoVista({
     }
 
     const esNotaVenta = tipoComprobante === "Nota de Venta";
-    const payload = esNotaVenta
+    // Record: al reservar el número se le agregan serieReservada / correlativoReservado.
+    const payload: Record<string, unknown> = esNotaVenta
       ? prepararNotaVenta()
       : prepararComprobante(tipoComprobante === "Factura" ? "01" : "03");
 
@@ -2501,26 +2510,89 @@ export function CajaAutopagoVista({
     const procesoId = Math.random().toString(36).substring(2, 9);
     iniciarEmisionSegundoPlano({ id: procesoId, tipo: tipoComprobanteVenta, total: totalVenta, conImpresion });
 
+    const tipoCodigo: "01" | "03" | "NV" = esNotaVenta ? "NV" : tipoComprobanteVenta === "Factura" ? "01" : "03";
+    const anexoVenta = sucursal?.codEstablecimiento ?? empresa?.establecimientoAnexo ?? "0000";
+    const rucVenta = empresa?.numeroDocumento ?? "";
+
     void (async () => {
+      // Impresión rápida: se aparta el número (un solo comando, ~150 ms) y el ticket sale
+      // de inmediato, sin esperar a que termine de guardarse la venta. El número es el
+      // definitivo: sale del mismo UPDATE atómico que usa la emisión.
+      const reserva =
+        conImpresion && config?.impresionRapida && rucVenta
+          ? await reservarNumero(rucVenta, anexoVenta, tipoCodigo, accessToken)
+          : null;
+
+      let impresoRapido: Promise<boolean> = Promise.resolve(false);
+
+      if (reserva) {
+        serieCorrelativoTicket = `${reserva.serie}-${String(reserva.correlativo).padStart(8, "0")}`;
+        payload.serieReservada = reserva.serie;
+        payload.correlativoReservado = reserva.correlativo;
+        if (!esNotaVenta) payload.sucursalIdReservada = reserva.sucursalId;
+
+        impresoRapido = imprimirComprobanteRapido({
+          payload,
+          tipo: tipoCodigo,
+          serie: reserva.serie,
+          correlativo: reserva.correlativo,
+          ruc: rucVenta,
+          token: accessToken,
+          sucursal,
+          cajero: user?.username ?? null,
+          anchoMm: anchoTicketConfig(config?.tamañoImpresion) ?? 80,
+          personalizacion: leerPersonalizacion(config?.ticketPersonalizado),
+        });
+      }
+
       try {
         let comprobanteId: number;
+        let numeroEmitido: { serie: string; correlativo: number } | null = null;
         try {
           if (esNotaVenta) {
             const res = await crearNotaVenta(payload, accessToken);
             comprobanteId = (res.comprobanteId ?? res.ComprobanteId) as number;
+            numeroEmitido = separarNumeroCompleto(res.numeroCompleto ?? res.NumeroCompleto);
           } else {
             const res = await generarXml(payload, accessToken);
             comprobanteId = res.comprobanteId;
+            const correlativo = parseInt(res.correlativo ?? "", 10);
+            numeroEmitido = res.serie && Number.isFinite(correlativo) ? { serie: res.serie, correlativo } : null;
           }
         } catch (errGuardar: any) {
           if (esErrorTransitorio(errGuardar)) {
-            await manejarVentaSinConexion(payload, esNotaVenta ? "notaventa" : "comprobante", conImpresion, itemsVendidos);
+            // Con reserva el ticket real ya salió (y la venta encolada lleva ese mismo
+            // número), así que no se imprime además el provisional.
+            await manejarVentaSinConexion(payload, esNotaVenta ? "notaventa" : "comprobante", conImpresion && !reserva, itemsVendidos);
             if (whatsappDestino) {
               showToast("Sin conexión: la venta se guardó, pero el comprobante no se envió por WhatsApp. Envíalo desde Comprobantes al reconectar.", "info");
             }
             return;
           }
           throw errGuardar;
+        }
+
+        // Sin reserva, el número real recién se conoce aquí: el de la pantalla era una previsión.
+        if (!reserva && numeroEmitido) {
+          serieCorrelativoTicket = `${numeroEmitido.serie}-${String(numeroEmitido.correlativo).padStart(8, "0")}`;
+        }
+
+        // Sin reserva (o si falló), el ticket sale ahora, con el número ya confirmado.
+        if (conImpresion && !reserva && numeroEmitido && rucVenta) {
+          impresoRapido = config?.impresionRapida
+            ? imprimirComprobanteRapido({
+                payload,
+                tipo: tipoCodigo,
+                serie: numeroEmitido.serie,
+                correlativo: numeroEmitido.correlativo,
+                ruc: rucVenta,
+                token: accessToken,
+                sucursal,
+                cajero: user?.username ?? null,
+                anchoMm: anchoTicketConfig(config?.tamañoImpresion) ?? 80,
+                personalizacion: leerPersonalizacion(config?.ticketPersonalizado),
+              })
+            : Promise.resolve(false);
         }
 
         if (pedidoCobrado) {
@@ -2546,7 +2618,7 @@ export function CajaAutopagoVista({
 
         fetchSucursal();
 
-        if (conImpresion) {
+        if (conImpresion && !(await impresoRapido)) {
           await ejecutarImpresionComprobante(comprobanteId, serieCorrelativoTicket);
         }
 
@@ -2554,6 +2626,17 @@ export function CajaAutopagoVista({
         const vueltoInfo = vueltoFinal > 0 ? ` · Vuelto: S/ ${vueltoFinal.toFixed(2)}` : "";
         showToast(`${tipoComprobanteVenta} emitida${serieInfo}${vueltoInfo}`, "success");
       } catch (err) {
+        // El ticket ya salió impreso con el número reservado, pero la venta no quedó
+        // registrada: se devuelve el número (para no dejar un salto en la numeración) y se
+        // avisa al cajero de que ese papel no vale.
+        if (reserva) {
+          void liberarNumero(rucVenta, anexoVenta, tipoCodigo, reserva.correlativo, accessToken);
+          showToast(
+            `El ticket ${serieCorrelativoTicket ?? ""} ya se imprimió, pero la venta NO se registró: anúlalo y vuelve a cobrar.`,
+            "error",
+          );
+        }
+
         const data = (err as { response?: { data?: { mensaje?: string; message?: string; detalle?: string } } })?.response?.data;
         const mensaje = data?.mensaje ?? data?.message ?? "Error al generar el comprobante";
         const detalle = data?.detalle;

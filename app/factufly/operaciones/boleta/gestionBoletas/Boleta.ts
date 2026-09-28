@@ -133,6 +133,7 @@ export interface Sucursal {
   codEstablecimiento: string
   nombre: string
   direccion: string
+  telefono?: string | null
   numeroStockBajo?: string | null
   serieFactura: string
   correlativoFactura: number

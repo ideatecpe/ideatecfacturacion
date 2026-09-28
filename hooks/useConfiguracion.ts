@@ -31,6 +31,11 @@ export interface Configuracion {
    *  cada compra/ajuste actualiza el costo de TODO el stock disponible, sin conservar lotes a
    *  costos distintos). No afecta el costo de ventas ya registradas. */
   usaLotePorPeps: boolean;
+  /** Al cobrar, el ticket 58/80 mm se arma en el navegador en vez de esperar a SUNAT
+   *  y al HTML del backend. Comprobantes sigue usando el ticket del backend. */
+  impresionRapida?: boolean | null;
+  /** JSON con la personalización del ticket (Herramientas → Tickets). */
+  ticketPersonalizado?: string | null;
 }
 
 // Cache a nivel de módulo: evita que un remount (p.ej. cambiar Boleta <-> Factura)

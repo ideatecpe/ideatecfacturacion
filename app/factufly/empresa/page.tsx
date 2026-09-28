@@ -94,6 +94,7 @@ interface Configuracion {
   comisionPagoTarjeta?: string | null;
   administraCaja:    boolean;
   usaLotePorPeps:    boolean;
+  impresionRapida?:  boolean | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1291,6 +1292,11 @@ export default function ConfiguracionPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-100 rounded-xl overflow-hidden border border-gray-100">
                   {[
                     { key: "isImprime" as const, label: "Impresión automática", desc: "Imprimir el comprobante al emitir" },
+                    {
+                      key: "impresionRapida" as const,
+                      label: "Impresión rápida",
+                      desc: "El ticket 58/80 mm se arma en el navegador al cobrar, sin esperar a SUNAT",
+                    },
                   ].map(({ key, label, desc }) => (
                     <div key={key} className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
                       <div>
