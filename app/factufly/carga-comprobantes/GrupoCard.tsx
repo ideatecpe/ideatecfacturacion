@@ -10,6 +10,8 @@ import {
   Car,
   Receipt,
   Tag,
+  Split,
+  Combine,
 } from "lucide-react";
 import type { GrupoData } from "./types";
 import { PERIODO_CFG } from "./constants";
@@ -22,9 +24,10 @@ type Props = {
   cfg: (typeof PERIODO_CFG)[string];
   selected?: boolean;
   onToggle?: () => void;
+  onSepararItem?: (id: string) => void;
 };
 
-export function GrupoCard({ grupo, cfg, selected, onToggle }: Props) {
+export function GrupoCard({ grupo, cfg, selected, onToggle, onSepararItem }: Props) {
   const simbolo  = grupo.moneda === "USD" ? "$" : "S/";
   const esBoleta = grupo.tipoDoc === "B";
   const fechaIni = grupo.items[0]?.fechaini ?? "";
@@ -123,14 +126,41 @@ export function GrupoCard({ grupo, cfg, selected, onToggle }: Props) {
                     {conceptoCorto}
                   </span>
                 </div>
-                <span className="font-bold text-gray-800 shrink-0 tabular-nums">
-                  {simbolo}&nbsp;{Number(item.importe).toFixed(2)}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="font-bold text-gray-800 tabular-nums">
+                    {simbolo}&nbsp;{Number(item.importe).toFixed(2)}
+                  </span>
+                  {onSepararItem && grupo.items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => onSepararItem(item.id)}
+                      title="Emitir este ítem en un comprobante aparte"
+                      className="p-0.5 rounded text-gray-400 hover:text-brand-blue hover:bg-white transition-colors"
+                    >
+                      <Split className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* ── Aviso: este comprobante fue separado manualmente ── */}
+      {onSepararItem && grupo.items.length === 1 && grupo.items[0].separarManual && (
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            onClick={() => onSepararItem(grupo.items[0].id)}
+            title="Volver a agrupar con comprobantes del mismo periodo"
+            className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md border border-dashed border-gray-300 text-[10px] font-semibold text-gray-500 hover:text-brand-blue hover:border-brand-blue transition-colors"
+          >
+            <Combine className="w-3 h-3" />
+            Separado manualmente · Unir de nuevo
+          </button>
+        </div>
+      )}
 
       {/* ── Footer: total ── */}
       <div className={`px-3 py-2 ${cfg.bgCard} border-t ${cfg.borderClass} flex items-center justify-between gap-2`}>

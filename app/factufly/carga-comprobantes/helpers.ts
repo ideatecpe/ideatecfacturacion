@@ -11,7 +11,7 @@ export const normalizar = (value: string) =>
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]/g, "");
 
-export const alias: Record<keyof Omit<FilaCarga, "id" | "tipoOverride">, string[]> = {
+export const alias: Record<keyof Omit<FilaCarga, "id" | "tipoOverride" | "separarManual">, string[]> = {
   numdoc:      ["numdoc", "documento", "dni", "ruc", "numerodocumento"],
   razonSocial: ["razonsocial", "cliente", "nombre", "nombrecliente"],
   periodo:     ["periodo", "meses", "dias", "periodonumeromeses"],

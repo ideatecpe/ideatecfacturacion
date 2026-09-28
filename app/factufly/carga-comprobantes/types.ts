@@ -15,6 +15,7 @@ export type FilaCarga = {
   fechafin: string;
   placa: string;
   tipoOverride?: "B" | "F"; // B=Boleta, F=Factura (sobreescribe la detección por numdoc)
+  separarManual?: boolean; // fuerza que esta fila se emita en su propio comprobante (no se agrupa con otras)
 };
 
 export type PeriodoKey =

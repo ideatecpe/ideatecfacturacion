@@ -94,7 +94,7 @@ export default function CargaComprobantesPage() {
     modalErroresCargaOpen, setModalErroresCargaOpen,
     resultadoEmision, progresoEmision, progresoCargar, advertenciaTemprana: advertenciaTempranaBruta,
     accessToken, sucursal, empresa,
-    cargarExcel, descargarPlantilla, actualizarFila,
+    cargarExcel, descargarPlantilla, actualizarFila, toggleSepararManual,
     agregarFila, deshabilitarFila, habilitarFila, ajustarFechasInicioMes,
     emitir, recuperarDatos, togglePeriodo,
   } = useCargaComprobantes();
@@ -931,7 +931,9 @@ export default function CargaComprobantesPage() {
                     </button>
                     {expandido && (
                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 p-3 bg-white border-t border-gray-100">
-                        {gs.map((grupo) => <GrupoCard key={grupo.key} grupo={grupo} cfg={cfg} />)}
+                        {gs.map((grupo) => (
+                          <GrupoCard key={grupo.key} grupo={grupo} cfg={cfg} onSepararItem={toggleSepararManual} />
+                        ))}
                       </div>
                     )}
                   </div>
@@ -975,6 +977,7 @@ export default function CargaComprobantesPage() {
                           cfg={cfg}
                           selected={selectedKeys.has(grupo.key)}
                           onToggle={() => toggleSelected(grupo.key)}
+                          onSepararItem={toggleSepararManual}
                         />
                       ))}
                     </div>

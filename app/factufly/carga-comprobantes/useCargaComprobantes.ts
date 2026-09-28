@@ -126,7 +126,9 @@ export function useCargaComprobantes() {
       // Para períodos anuales: si las fechas de inicio son distintas,
       // cada fecha de inicio genera un comprobante separado.
       const sufijFecha = pt === "anual" ? `||${fila.fechaini}` : "";
-      const key    = `${fila.numdoc.trim()}||${pt}||${moneda}||${tipo}${sufijFecha}`;
+      // Separación manual: el usuario forzó que esta fila vaya en su propio comprobante
+      const sufijManual = fila.separarManual ? `||manual-${fila.id}` : "";
+      const key    = `${fila.numdoc.trim()}||${pt}||${moneda}||${tipo}${sufijFecha}${sufijManual}`;
       if (!fila.numdoc.trim()) return;
       map.set(key, [...(map.get(key) ?? []), fila]);
     });
@@ -520,7 +522,7 @@ export function useCargaComprobantes() {
     const parsed = rows
       .map((row, index) => {
         const normalizedEntries = Object.entries(row).map(([key, value]) => [normalizar(key), value]);
-        const getValue = (field: keyof Omit<FilaCarga, "id" | "tipoOverride">) => {
+        const getValue = (field: keyof Omit<FilaCarga, "id" | "tipoOverride" | "separarManual">) => {
           const match = normalizedEntries.find(([key]) =>
             alias[field].map(normalizar).includes(key as string),
           );
@@ -691,6 +693,12 @@ export function useCargaComprobantes() {
   };
 
   // ── Edición inline → actualiza estado local + PATCH debounced ──
+  // Fuerza (o revierte) que una fila se emita en su propio comprobante,
+  // separándola de las demás filas con las que normalmente se agruparía.
+  const toggleSepararManual = (id: string) => {
+    setFilas((prev) => prev.map((f) => (f.id === id ? { ...f, separarManual: !f.separarManual } : f)));
+  };
+
   const actualizarFila = (id: string, campo: keyof FilaCarga, valor: string) => {
     // 1 — Actualización local inmediata
     setFilas((prev) => {
@@ -1251,6 +1259,7 @@ export function useCargaComprobantes() {
     sincronizarContactos,
     descargarPlantilla,
     actualizarFila,
+    toggleSepararManual,
     agregarFila,
     deshabilitarFila,
     habilitarFila,
