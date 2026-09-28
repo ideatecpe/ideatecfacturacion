@@ -751,10 +751,12 @@ export default function RegistrarCompra({
       const nombres = vencidas
         .map((l) => resolverProductoDeLinea(l)?.nomProducto ?? `línea ${pendientes.indexOf(l) + 1}`)
         .join(", ");
-      const continuar = window.confirm(
-        `Los siguientes productos tienen fecha de vencimiento ya pasada: ${nombres}. Se registrarán como vencidos. ¿Deseas continuar de todas formas?`,
+      // Aviso, no pregunta: la fecha la escribió el usuario a propósito y el ingreso queda
+      // igual registrado. El diálogo del navegador cortaba el flujo y se veía fuera de la app.
+      showToast(
+        `Ojo: ${nombres} ${vencidas.length === 1 ? "entra" : "entran"} con fecha de vencimiento ya pasada, así que ${vencidas.length === 1 ? "queda" : "quedan"} como stock vencido.`,
+        "info",
       );
-      if (!continuar) return;
     }
 
     setGuardando(true);
