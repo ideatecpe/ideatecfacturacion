@@ -38,7 +38,8 @@ const FilaComprobante = ({ comp, idx }: { comp: ComprobanteAgrupado; idx: number
   const { igv, importeTotal } = calcularTotales(comp);
 
   const esAdvertencia = (comp as any).tieneAdvertencia === true;
-  const tieneError = comp.apiEncontrado === false && !esAdvertencia;
+  const tieneErroresValidacion = comp.errores.length > 0;
+  const tieneError = (comp.apiEncontrado === false && !esAdvertencia) || tieneErroresValidacion;
   const consultando = comp.consultandoApi;
   const simbolo = comp.moneda === "USD" ? "$" : "S/";
 
@@ -77,6 +78,15 @@ const FilaComprobante = ({ comp, idx }: { comp: ComprobanteAgrupado; idx: number
         <td className="px-3 py-3 text-center">
           <span className="text-[10px] font-semibold text-gray-500">{comp.moneda}</span>
         </td>
+        <td className="px-3 py-3 text-center">
+          {comp.detraccion.aplica ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+              Det. {comp.detraccion.porcentajeDetraccion}%
+            </span>
+          ) : (
+            <span className="text-[10px] text-gray-300">—</span>
+          )}
+        </td>
         <td className="px-3 py-3 text-right">
           <span className="text-xs font-mono text-gray-600">{simbolo} {igv.toFixed(2)}</span>
         </td>
@@ -107,7 +117,7 @@ const FilaComprobante = ({ comp, idx }: { comp: ComprobanteAgrupado; idx: number
       {/* Alerta / Error */}
       {(tieneError || esAdvertencia) && comp.apiError && (
         <tr className={`${expanded ? "" : "border-b border-gray-100"} ${tieneError ? "bg-red-50/80" : "bg-amber-50/60"}`}>
-          <td colSpan={9} className="px-4 py-2">
+          <td colSpan={10} className="px-4 py-2">
             <div className={`flex items-start gap-2 text-xs ${tieneError ? "text-red-700" : "text-amber-700"}`}>
               {tieneError
                 ? <AlertCircle size={13} className="shrink-0 mt-0.5" />
@@ -118,10 +128,26 @@ const FilaComprobante = ({ comp, idx }: { comp: ComprobanteAgrupado; idx: number
         </tr>
       )}
 
+      {/* Errores de validación (ej. detracción) */}
+      {tieneErroresValidacion && (
+        <tr className={`${expanded ? "" : "border-b border-gray-100"} bg-red-50/80`}>
+          <td colSpan={10} className="px-4 py-2">
+            <div className="flex flex-col gap-1">
+              {comp.errores.map((err, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs text-red-700">
+                  <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                  <span>{err}</span>
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+
       {/* Detalles expandidos con borde izquierdo para indicar pertenencia */}
       {expanded && (
         <tr className="border-b-2 border-gray-400">
-          <td colSpan={9} className="p-0">
+          <td colSpan={10} className="p-0">
             <div className="ml-8 border-l-2 border-blue-300 bg-gray-50/80">
               <table className="w-full text-xs">
                 <thead>
@@ -235,7 +261,7 @@ export function ModalCargaMasivaComprobantes({
     (c) => (c.apiEncontrado === true || (c as any).tieneAdvertencia === true) && c.errores.length === 0
   );
   const comprobantesConError = comprobantes.filter(
-    (c) => c.apiEncontrado === false && !(c as any).tieneAdvertencia
+    (c) => (c.apiEncontrado === false && !(c as any).tieneAdvertencia) || c.errores.length > 0
   );
   const totalImporte = comprobantesValidos.reduce((acc, c) => acc + calcularTotales(c).importeTotal, 0);
   const hayComprobantes = comprobantes.length > 0;
@@ -447,6 +473,7 @@ export function ModalCargaMasivaComprobantes({
                         <th className="px-3 py-2.5 text-left text-gray-400 font-semibold">Razón Social / Contacto</th>
                         <th className="px-3 py-2.5 text-center text-gray-400 font-semibold w-16">Ítems</th>
                         <th className="px-3 py-2.5 text-center text-gray-400 font-semibold w-16">Moneda</th>
+                        <th className="px-3 py-2.5 text-center text-gray-400 font-semibold w-20">Detracción</th>
                         <th className="px-3 py-2.5 text-right text-gray-400 font-semibold w-20">IGV</th>
                         <th className="px-3 py-2.5 text-right text-gray-400 font-semibold w-24">Total</th>
                         <th className="px-3 py-2.5 text-center text-gray-400 font-semibold w-24">Estado</th>

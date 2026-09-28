@@ -78,9 +78,6 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
     accessTokenRef.current = accessToken;
   }, [accessToken]);
 
-  // La cola en IndexedDB es del navegador, no del usuario logueado: si en la
-  // misma PC entra otro cajero con ventas ajenas todavía sin subir, no se
-  // deben sincronizar con SU token (le imputaría la venta a su turno).
   const usuarioIdRef = useRef<number | null>(null);
   useEffect(() => {
     usuarioIdRef.current = user?.id ? Number(user.id) : null;
@@ -114,18 +111,15 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
     if (!navigator.onLine) return;
     const token = accessTokenRef.current;
     if (!token) return;
-    const usuarioActual = usuarioIdRef.current;
-    if (!usuarioActual) return;
 
+    // Se suben también las ventas de otros cajeros de esta PC: el backend las
+    // registra a nombre del usuarioCreacion del payload (el cajero que vendió),
+    // no del que tiene la sesión. Esperar a que su dueño vuelva a loguearse
+    // dejaba congeladas por días las ventas de cajeros que vienen poco.
     const pendientes = await listVentasPendientes();
-    const porSincronizar = pendientes.filter((v) => {
-      if (!(forzarTodo ? true : v.estado === "pendiente" || v.estado === "sincronizando")) {
-        return false;
-      }
-      // Ventas encoladas antes de este cambio no traen usuarioId: se sincronizan
-      // igual (comportamiento previo) en vez de quedar varadas para siempre.
-      return v.usuarioId == null || v.usuarioId === usuarioActual;
-    });
+    const porSincronizar = pendientes.filter((v) =>
+      forzarTodo ? true : v.estado === "pendiente" || v.estado === "sincronizando",
+    );
     if (!porSincronizar.length) return;
 
     syncingRef.current = true;
@@ -147,6 +141,9 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
       // los stockItems guardados en la cola (cubre ventas viejas y nuevas) para
       // que al sincronizar el descuento ocurra dentro de la misma transacción.
       payload.stockItems = venta.stockItems ?? [];
+      if (!payload.usuarioCreacion && venta.usuarioId) {
+        payload.usuarioCreacion = venta.usuarioId;
+      }
       if (payload?.cliente && payload.cliente.numeroDocumento) {
         const cli = payload.cliente;
         const numDoc = String(cli.numeroDocumento).trim();
@@ -365,10 +362,9 @@ export function OfflineSalesProvider({ children }: { children: ReactNode }) {
     [showToast],
   );
 
-  // La cola completa vive en IndexedDB para poder sincronizar ventas ajenas
-  // en cuanto su dueño vuelva a loguearse (ver procesarCola), pero lo que se
-  // le muestra al cajero (badge, lista, aviso al cuadrar) es solo lo suyo:
-  // lo de otro usuario no le compete y no debe alarmarlo.
+  // La cola sube las ventas de todos los cajeros de esta PC, pero lo que se le
+  // muestra al cajero (badge, lista, aviso al cuadrar) es solo lo suyo: lo de
+  // otro usuario no está en su cajón ni en su cuadre.
   const usuarioActual = user?.id ? Number(user.id) : null;
   const propias = ventasPendientes.filter(
     (v) => v.usuarioId == null || v.usuarioId === usuarioActual,

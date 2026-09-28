@@ -51,6 +51,11 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       { key: "E", width: 10 },
       { key: "F", width: 18 },
       { key: "G", width: 10 },
+      { key: "H", width: 14 },
+      { key: "I", width: 14 },
+      { key: "J", width: 14 },
+      { key: "K", width: 20 },
+      { key: "L", width: 12 },
     ];
 
     const AZUL   = "2563EB";
@@ -60,7 +65,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
     const AMBER  = "FEF3C7";
 
     // ── Fila 1: Título ──────────────────────────────────────────────────────
-    ws.mergeCells("A1:G1");
+    ws.mergeCells("A1:L1");
     ws.getRow(1).height = 34;
     const t = ws.getCell("A1");
     t.value = "CARGA MASIVA DE COMPROBANTES — FACTUFLY";
@@ -70,7 +75,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
 
     // ── Fila 2: Instrucción + Fecha en I2 ──────────────────────────────────
     ws.getRow(2).height = 26;
-    ws.mergeCells("A2:G2");
+    ws.mergeCells("A2:L2");
     const instr = ws.getCell("A2");
     instr.value =
       "Una fila por ítem. Para múltiples ítems del mismo comprobante, deje RUC/DNI vacío en las filas siguientes. La Razón Social se autocompleta con el RUC/DNI.";
@@ -83,7 +88,8 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
     const hdrs = [
       "RUC / DNI", "Detalle / Descripción", "Cantidad",
       "Precio Unit. (c/IGV)", "IGV %", "Tipo (Bien/Servicio)",
-      "Moneda",
+      "Moneda", "¿Detracción? (SI/NO)", "Cód. Bien Detracción",
+      "Cód. Medio de Pago", "Cuenta Banco Detracción", "% Detracción",
     ];
     hdrs.forEach((h, i) => {
       const c = ws.getCell(3, i + 1);
@@ -101,11 +107,11 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
 
     // ── Filas 4-8: Datos de ejemplo ────────────────────────────────────────
     const ejemplos = [
-      ["20100454523", "Servicio de consultoría empresarial", 2,   590.00, 18, "Servicio", "PEN"],
-      ["",            "Licencia de software mensual",        1,   236.00, 18, "Servicio", "PEN"],
-      ["12345678",    "Venta de notebook HP 15\" i5",        1,  3540.00, 18, "Bien",     "PEN"],
-      ["20601234567", "Exportación de servicios TI",         5,   100.00, 18, "Servicio", "USD"],
-      ["87654321",    "Alquiler de equipos de cómputo",      3,   177.00, 18, "Bien",     "PEN"],
+      ["20100454523", "Servicio de consultoría empresarial", 2,   590.00, 18, "Servicio", "PEN", "SI", "037", "001", "00123456789012", 12],
+      ["",            "Licencia de software mensual",        1,   236.00, 18, "Servicio", "PEN", "",   "",    "",    "",               ""],
+      ["12345678",    "Venta de notebook HP 15\" i5",        1,  3540.00, 18, "Bien",     "PEN", "NO", "",    "",    "",               ""],
+      ["20601234567", "Exportación de servicios TI",         5,   100.00, 18, "Servicio", "USD", "NO", "",    "",    "",               ""],
+      ["87654321",    "Alquiler de equipos de cómputo",      3,   177.00, 18, "Bien",     "PEN", "NO", "",    "",    "",               ""],
     ];
 
     ejemplos.forEach((row, ri) => {
@@ -154,6 +160,15 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       ["E - IGV %: Solo se aceptan los valores 18 o 10.5", false, "FF1E293B"],
       ["F - Tipo: Escriba 'Bien' (unidad NIU) o 'Servicio' (unidad ZZ).", false, "FF1E293B"],
       ["G - Moneda: PEN (soles) o USD (dólares).", false, "FF1E293B"],
+      ["", false, "FF1E293B"],
+      ["DETRACCIÓN (columnas H-L, opcional):", true, `FF${AZUL}`],
+      ["• Solo aplica a Facturas (RUC de 11 dígitos) y cuando el importe total sea igual o mayor a S/ 700.00.", false, "FF1E293B"],
+      ["H - ¿Detracción?: Escriba SI para aplicar detracción a ese comprobante, o déjelo vacío/NO.", false, "FF1E293B"],
+      ["I - Código de Bien/Servicio: código SUNAT del Anexo (ej. 037 Servicios gravados con IGV, 019 Arrendamiento, 014 Carnes).", false, "FF1E293B"],
+      ["J - Código de Medio de Pago: 001 Depósito en cuenta, 002 Giro, 003 Transferencia, 004 Orden de pago, 005 Tarjeta de débito.", false, "FF1E293B"],
+      ["K - Cuenta Banco Detracción: número de cuenta del Banco de la Nación asociada.", false, "FF1E293B"],
+      ["L - % Detracción: porcentaje según el bien/servicio (ej. 4, 10, 12).", false, "FF1E293B"],
+      ["• Estos datos solo se leen en la primera fila del comprobante (igual que la Moneda).", false, "FF1E293B"],
       ["", false, "FF1E293B"],
       ["FECHA DE EMISIÓN:", true, `FF${AZUL}`],
       ["• Escriba la fecha en la celda I2 en formato DD/MM/YYYY. Ej: 20/05/2026", false, "FF1E293B"],
@@ -448,6 +463,14 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       }],
       cuotas: [],
       guias: [],
+      detracciones: comp.detraccion.aplica ? [{
+        codigoBienDetraccion: comp.detraccion.codigoBienDetraccion,
+        codigoMedioPago: comp.detraccion.codigoMedioPago,
+        cuentaBancoDetraccion: comp.detraccion.cuentaBancoDetraccion,
+        porcentajeDetraccion: comp.detraccion.porcentajeDetraccion,
+        montoDetraccion: comp.detraccion.montoDetraccion,
+        observacion: "",
+      }] : [],
       totalOperacionesGravadas: gravadas,
       totalOperacionesExoneradas: 0,
       totalOperacionesInafectas: 0,
@@ -556,8 +579,9 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
 
   // ── Derivados ───────────────────────────────────────────────────────────────
   // Hay errores bloqueantes si algún RUC no se encontró (apiEncontrado=false y no advertencia)
+  // o si algún comprobante tiene errores de validación (ej. detracción mal configurada)
   const hayErrores = state.comprobantes.some(
-    (c) => c.apiEncontrado === false && !c.tieneAdvertencia
+    (c) => (c.apiEncontrado === false && !c.tieneAdvertencia) || c.errores.length > 0
   );
   const todosConsultados =
     state.comprobantes.length > 0 &&

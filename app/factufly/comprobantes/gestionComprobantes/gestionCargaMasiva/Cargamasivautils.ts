@@ -68,6 +68,15 @@ function celdaAString(val: any): string {
   return String(val).trim();
 }
 
+// ─── Normalizar código SUNAT de detracción (Bien/Medio de Pago) a 3 dígitos ──
+// Excel guarda "019" escrito como número y pierde el cero a la izquierda (19).
+// Sin el padding, el código no calza con el catálogo SUNAT (claves de 3 dígitos).
+function normalizarCodigoDetraccion(val: string): string {
+  const limpio = val.trim();
+  if (!limpio) return "";
+  return /^\d+$/.test(limpio) ? limpio.padStart(3, "0") : limpio;
+}
+
 // ─── Parsear fecha desde celda (string DD/MM/YYYY, número serial, o Date) ────
 function parsearFechaCelda(val: any): string {
   if (!val) return "";
@@ -149,6 +158,15 @@ export async function parsearExcel(file: File): Promise<{
       : "NIU"; // cualquier otra cosa → NIU (evita textos largos)
     const moneda = celdaAString(row[6]) || "PEN";
 
+    const aplicaDetRaw = celdaAString(row[7]).trim().toUpperCase();
+    const aplicaDetraccion = ["SI", "SÍ", "S", "TRUE", "1", "X"].includes(aplicaDetRaw);
+    const codigoBienDetraccion = normalizarCodigoDetraccion(celdaAString(row[8]));
+    const codigoMedioPago = normalizarCodigoDetraccion(celdaAString(row[9]));
+    const cuentaBancoDetraccion = celdaAString(row[10]).trim();
+    const porcentajeDetraccion = row[11] !== null && row[11] !== undefined && row[11] !== ""
+      ? Number(row[11])
+      : 0;
+
     // Determinar si es fila de detalle (rucDni vacío y ya hay un grupo)
     const esFilaDetalle = !rucDni && !!ultimoRucDni;
 
@@ -180,6 +198,11 @@ export async function parsearExcel(file: File): Promise<{
       igv,
       unidadMedida,
       moneda,
+      aplicaDetraccion,
+      codigoBienDetraccion,
+      codigoMedioPago,
+      cuentaBancoDetraccion,
+      porcentajeDetraccion,
     });
   }
 
@@ -227,6 +250,14 @@ export function agruparComprobantes(filas: FilaExcel[]): ComprobanteAgrupado[] {
       correo: null,
       whatsapp: null,
       items: [item],
+      detraccion: {
+        aplica: fila.aplicaDetraccion,
+        codigoBienDetraccion: fila.codigoBienDetraccion,
+        codigoMedioPago: fila.codigoMedioPago,
+        cuentaBancoDetraccion: fila.cuentaBancoDetraccion,
+        porcentajeDetraccion: fila.porcentajeDetraccion || 0,
+        montoDetraccion: 0,
+      },
       consultandoApi: false,
       apiEncontrado: null,
       apiError: null,
@@ -240,6 +271,31 @@ export function agruparComprobantes(filas: FilaExcel[]): ComprobanteAgrupado[] {
     };
 
     grupos.push(grupoActual);
+  }
+
+  // Validar detracción por comprobante (requiere los totales ya agrupados)
+  for (const g of grupos) {
+    if (!g.detraccion.aplica) continue;
+
+    if (g.tipoComprobante !== "01") {
+      g.errores.push("La detracción solo aplica a Facturas (RUC de 11 dígitos), no a Boletas");
+      continue;
+    }
+    if (!g.detraccion.codigoBienDetraccion) g.errores.push("Debe indicar el Código de Bien/Servicio de la detracción");
+    if (!g.detraccion.codigoMedioPago) g.errores.push("Debe indicar el Código de Medio de Pago de la detracción");
+    if (!g.detraccion.cuentaBancoDetraccion) g.errores.push("Debe indicar la Cuenta Banco de la detracción");
+    if (!g.detraccion.porcentajeDetraccion || g.detraccion.porcentajeDetraccion <= 0) {
+      g.errores.push("El % de detracción debe ser mayor a 0");
+    }
+
+    const { importeTotal } = calcularTotales(g);
+    if (importeTotal < 700) {
+      g.errores.push("La detracción solo aplica cuando el importe supera S/ 700.00");
+    }
+
+    g.detraccion.montoDetraccion = parseFloat(
+      ((importeTotal * g.detraccion.porcentajeDetraccion) / 100).toFixed(2)
+    );
   }
 
   return grupos;
