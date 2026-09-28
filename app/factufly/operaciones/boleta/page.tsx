@@ -62,6 +62,7 @@ import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import CajaAutopago from "@/app/factufly/operaciones/components/CajaAutopago";
 import React from "react";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 import {
   anchoTicketConfig,
   imprimirComprobanteRapido,
@@ -1302,16 +1303,35 @@ function BoletaContent() {
   ]);
 
   // ── Buscar cliente automático ────────────────────────────────
-  const clientesFiltrados = clientes.filter((c) => {
-    if (c.tipoDocumento.tipoDocumentoId !== tipoDoc) return false;
-    if (busqueda.length === 0) return true;
-    return (
-      c.numeroDocumento.includes(busqueda) ||
-      c.razonSocialNombre.toLowerCase().includes(busqueda.toLowerCase())
-    );
-  });
+  // Busca entre los clientes ya registrados por documento O por nombre, sin importar con
+  // qué tipo de documento estén guardados: el cajero se acuerda del nombre, no del DNI.
+  // Los del tipo que está elegido arriba salen primero.
+  const textoBusquedaCliente = busqueda.trim().toLowerCase();
+  const clientesFiltrados = clientes
+    .filter((c) => {
+      if (textoBusquedaCliente.length === 0) return c.tipoDocumento.tipoDocumentoId === tipoDoc;
+      // coincideBusqueda ignora tildes y mayúsculas y admite palabras sueltas.
+      return coincideBusqueda(textoBusquedaCliente, c.razonSocialNombre, c.numeroDocumento);
+    })
+    .sort(
+      (a, b) =>
+        Number(b.tipoDocumento.tipoDocumentoId === tipoDoc) -
+        Number(a.tipoDocumento.tipoDocumentoId === tipoDoc),
+    )
+    .slice(0, 50);
 
   const seleccionarDeLista = (c: Cliente) => {
+    const tipo = c.tipoDocumento.tipoDocumentoId;
+    // Una boleta solo admite DNI o CE; con RUC corresponde factura.
+    if (tipo !== "01" && tipo !== "04") {
+      setShowDropdown(false);
+      showToast(
+        `${c.razonSocialNombre} está registrado con RUC: emítele una Factura.`,
+        "info",
+      );
+      return;
+    }
+    if (tipo !== tipoDoc) setTipoDoc(tipo);
     setBusqueda(c.numeroDocumento);
     setShowDropdown(false);
     const direccion = c.direccion?.[0];
@@ -2934,10 +2954,14 @@ function BoletaContent() {
                           onBlur={() =>
                             setTimeout(() => setShowDropdown(false), 150)
                           }
+                          // El límite de dígitos solo aplica cuando se escribe un documento:
+                          // si el texto trae letras es un nombre y tiene que caber entero.
                           maxLength={
-                            tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : 12
+                            /^\d*$/.test(busqueda)
+                              ? tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : 12
+                              : 80
                           }
-                          placeholder="Buscar por nº doc o nombre..."
+                          placeholder="Buscar por nombre, DNI o RUC..."
                           className={`w-full pl-4 pr-10 py-1.5 bg-white border rounded-xl focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all text-sm disabled:opacity-50
                             ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue/50"}`}
                         />
@@ -2961,8 +2985,10 @@ function BoletaContent() {
                                     className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
                                   >
                                     <span className="text-sm text-gray-800">
-                                      {c.numeroDocumento} -{" "}
-                                      {c.razonSocialNombre}
+                                      <span className="text-[11px] font-semibold text-gray-400">
+                                        {c.tipoDocumento.tipoDocumentoNombre}
+                                      </span>{" "}
+                                      {c.numeroDocumento} - {c.razonSocialNombre}
                                     </span>
                                   </button>
                                 ))

@@ -57,6 +57,8 @@ import { ModalEliminar } from "@/app/components/ui/ModalEliminar";
 import { Modal } from "@/app/components/ui/Modal";
 import { useClienteBoleta } from "@/app/factufly/operaciones/boleta/gestionBoletas/useClienteBoleta";
 import { useEmpresaEmisor } from "@/app/factufly/operaciones/boleta/gestionBoletas/useEmpresaEmisor";
+import { useClientesSucursal } from "@/app/factufly/clientes/gestionClientes/useClientesSucursal";
+import type { Cliente } from "@/app/factufly/clientes/gestionClientes/typesCliente";
 import { useSucursal } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursal";
 import { formatoFechaActual } from "@/app/components/ui/formatoFecha";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
@@ -542,11 +544,16 @@ const ProductoGridCard = memo(function ProductoGridCard({
   );
 });
 
+type CampoCliente = "lateral" | "movil" | "modal";
+
 export interface RecursosCaja {
   productos: ReturnType<typeof useProductosSucursal>;
   recursoSucursal: ReturnType<typeof useSucursal>;
   recursoEmpresa: ReturnType<typeof useEmpresaEmisor>;
   recursoCategorias: ReturnType<typeof useCategoriasLista>;
+  // Clientes registrados, para poder buscarlos por nombre. Arranca apagado: la caja no los
+  // necesita para vender y son una descarga que la mayoría de ventas no usa.
+  recursoClientes: ReturnType<typeof useClientesSucursal>;
   ultimaRevalidacionRef: { current: number };
 }
 
@@ -596,6 +603,7 @@ export function CajaAutopagoVista({
   const { sucursal, fetchSucursal } = recursos.recursoSucursal;
   const { cliente, loadingCliente, errorCliente, buscarCliente } = useClienteBoleta();
   const { categorias } = recursos.recursoCategorias;
+  const { clientes: clientesRegistrados, loadingClientes: cargandoClientes, fetchClientes: cargarClientes } = recursos.recursoClientes;
   const { enqueueVenta, isOnline } = useOfflineSales();
 
  
@@ -1117,16 +1125,87 @@ export function CajaAutopagoVista({
     }
   }, [config, mostrarPago]);
 
-  const documentoTrim = documento.trim();
+  // El campo de cliente acepta el documento o el nombre. Mientras lo escrito tenga letras
+  // es una búsqueda por nombre, no un documento: no se consulta a RENIEC/SUNAT ni se manda
+  // nada de eso al comprobante (la venta queda como Clientes Varios hasta elegir de la lista).
+  const textoCliente = documento.trim();
+  const buscaClientePorNombre = textoCliente !== "" && !/^\d+$/.test(textoCliente);
+  const documentoTrim = buscaClientePorNombre ? "" : textoCliente;
   const sinDocumento = documentoTrim.length === 0;
+
+  // Qué campo de cliente está en uso. El mismo dato se edita desde tres sitios (barra
+  // lateral, carrito móvil y modal de cobro) y los tres están montados a la vez: sin esto
+  // la lista de sugerencias salía también en los de atrás, fuera del modal y sin poder
+  // clicarla.
+  const [campoClienteActivo, setCampoClienteActivo] = useState<CampoCliente | null>(null);
+  const clientesPedidosRef = useRef(false);
+
+  // Escribir en cualquiera de los campos de cliente (barra lateral, carrito móvil y modal de
+  // cobro): los dígitos se limitan al largo de un documento, un nombre se escribe libre.
+  const escribirCliente = (valor: string, campo: CampoCliente, maxDigitos = 11) => {
+    const soloDigitos = /^\d*$/.test(valor);
+    setDocumento(soloDigitos ? valor.slice(0, maxDigitos) : valor.slice(0, 60));
+    setCampoClienteActivo(campo);
+    if (!soloDigitos && !clientesPedidosRef.current) {
+      clientesPedidosRef.current = true;
+      cargarClientes().catch(() => {});
+    }
+  };
+
+  // coincideBusqueda ignora tildes y mayúsculas y admite palabras sueltas ("castrejon luis"),
+  // que es como el cajero se acuerda del nombre.
+  const sugerenciasCliente = useMemo(() => {
+    if (!buscaClientePorNombre) return [];
+    return clientesRegistrados
+      .filter((c) => coincideBusqueda(textoCliente, c.razonSocialNombre, c.numeroDocumento))
+      .slice(0, 6);
+  }, [buscaClientePorNombre, textoCliente, clientesRegistrados]);
+
+  const listaSugerenciasCliente = (campo: CampoCliente) =>
+    campoClienteActivo === campo && buscaClientePorNombre && (cargandoClientes || sugerenciasCliente.length > 0) ? (
+      <div className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
+        {cargandoClientes && sugerenciasCliente.length === 0 ? (
+          <p className="text-xs text-gray-400 px-3 py-2.5">Buscando en tus clientes…</p>
+        ) : (
+          sugerenciasCliente.map((c) => (
+            <button
+              key={c.clienteId}
+              type="button"
+              onMouseDown={() => elegirClienteRegistrado(c)}
+              className="w-full text-left px-3 py-2 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer"
+            >
+              <span className="block text-xs font-semibold text-gray-800 truncate">{c.razonSocialNombre}</span>
+              <span className="block text-[11px] text-gray-400">
+                {c.tipoDocumento?.tipoDocumentoNombre} {c.numeroDocumento}
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+    ) : null;
+
+  const elegirClienteRegistrado = (c: Cliente) => {
+    const doc = c.numeroDocumento ?? "";
+    setDocumento(doc);
+    setNombreManualCliente(c.razonSocialNombre ?? "");
+    setDireccionManualCliente(c.direccion?.[0]?.direccionLineal ?? "");
+    const celular = (c.telefono ?? "").replace(/\D/g, "").replace(/^51(?=\d{9}$)/, "");
+    if (/^9\d{8}$/.test(celular)) setTelWhatsapp(celular);
+    // Mismo criterio que al abrir el cobro: con RUC corresponde factura.
+    if (doc.length === 11 && tipoComprobante === "Boleta") setTipoComprobante("Factura");
+    else if (doc.length > 0 && doc.length < 11 && tipoComprobante === "Factura") {
+      setTipoComprobante(config?.useNotaVenta && config?.isBoletaOrFactura === "n" ? "Nota de Venta" : "Boleta");
+    }
+    setCampoClienteActivo(null);
+  };
 
   const maxDocLen = tipoComprobante === "Boleta" ? 8 : 11;
   const docPlaceholder =
     tipoComprobante === "Factura"
-      ? "RUC de la empresa (11 dígitos)"
+      ? "RUC de la empresa (11 dígitos) o nombre"
       : tipoComprobante === "Nota de Venta"
-        ? "DNI o RUC del cliente (opcional)"
-        : "DNI del cliente (8 dígitos, opcional)";
+        ? "DNI, RUC o nombre del cliente (opcional)"
+        : "DNI (8 dígitos) o nombre del cliente (opcional)";
 
   const buscarClienteRef = useRef(buscarCliente);
   useEffect(() => { buscarClienteRef.current = buscarCliente; });
@@ -2206,6 +2285,13 @@ export function CajaAutopagoVista({
 
   const abrirPago = () => {
     if (items.length === 0) return;
+    // Un nombre a medio escribir no identifica a nadie: o se elige de la lista (que rellena
+    // el documento) o se borra, para no cobrar a "Clientes Varios" sin querer.
+    if (buscaClientePorNombre) {
+      showToast("Elige el cliente de la lista, escribe su documento o borra el texto", "error");
+      setCampoClienteActivo("lateral");
+      return;
+    }
     const len = documentoTrim.length;
     if (len > 0 && ![8, 9, 11].includes(len)) {
       showToast("El documento debe tener 8 (DNI), 9 (CE) u 11 (RUC) dígitos, o déjalo vacío", "error");
@@ -2426,6 +2512,10 @@ export function CajaAutopagoVista({
   };
 
   const emitirVenta = async (conImpresion = false) => {
+    if (buscaClientePorNombre) {
+      showToast("Elige el cliente de la lista, escribe su documento o borra el texto", "error");
+      return;
+    }
     if (!empresa) {
       showToast("No se pudo cargar la empresa emisora. Intenta de nuevo.", "error");
       return;
@@ -3093,11 +3183,14 @@ export function CajaAutopagoVista({
               <UserRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 value={documento}
-                onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                inputMode="numeric"
-                placeholder="DNI o RUC del cliente (opcional)"
+                onChange={(e) => escribirCliente(e.target.value, "lateral")}
+                onFocus={() => setCampoClienteActivo("lateral")}
+                onBlur={() => setTimeout(() => setCampoClienteActivo((c) => (c === "lateral" ? null : c)), 150)}
+                inputMode={/^\d*$/.test(documento) ? "numeric" : "text"}
+                placeholder="DNI, RUC o nombre del cliente (opcional)"
                 className="w-full pl-8 pr-7 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all shadow-sm text-xs"
               />
+              {listaSugerenciasCliente("lateral")}
               {documento && (
                 <button
                   type="button"
@@ -3412,11 +3505,14 @@ export function CajaAutopagoVista({
                 <UserRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   value={documento}
-                  onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                  inputMode="numeric"
-                  placeholder="DNI o RUC del cliente (opcional)"
+                  onChange={(e) => escribirCliente(e.target.value, "movil")}
+                  onFocus={() => setCampoClienteActivo("movil")}
+                  onBlur={() => setTimeout(() => setCampoClienteActivo((c) => (c === "movil" ? null : c)), 150)}
+                  inputMode={/^\d*$/.test(documento) ? "numeric" : "text"}
+                  placeholder="DNI, RUC o nombre del cliente (opcional)"
                   className="w-full pl-8 pr-7 py-2 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all text-xs"
                 />
+                {listaSugerenciasCliente("movil")}
                 {documento && (
                   <button
                     type="button"
@@ -3883,14 +3979,16 @@ export function CajaAutopagoVista({
                   <div className="relative">
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode={/^\d*$/.test(documento) ? "numeric" : "text"}
                       value={documento}
-                      onChange={(e) => setDocumento(e.target.value.replace(/\D/g, "").slice(0, maxDocLen))}
+                      onChange={(e) => escribirCliente(e.target.value, "modal", maxDocLen)}
+                      onFocus={() => setCampoClienteActivo("modal")}
+                      onBlur={() => setTimeout(() => setCampoClienteActivo((c) => (c === "modal" ? null : c)), 150)}
                       placeholder={
                         tipoComprobante === "Factura"
-                          ? "Ingresa RUC de la empresa (11 dígitos) *"
+                          ? "RUC de la empresa (11 dígitos) o nombre *"
                           : totales.total >= 700 && tipoComprobante === "Boleta"
-                            ? "Ingresa DNI (8 dígitos) - Requerido por SUNAT"
+                            ? "DNI (8 dígitos) o nombre - Requerido por SUNAT"
                             : docPlaceholder
                       }
                       className={`w-full h-8.5 pl-3 pr-7 bg-white rounded border text-xs font-semibold outline-none transition-all ${
@@ -3912,6 +4010,7 @@ export function CajaAutopagoVista({
                         <X size={12} />
                       </button>
                     )}
+                    {listaSugerenciasCliente("modal")}
                   </div>
                   {boletaDniIncompleto && (
                     <p className="text-[10px] text-amber-600 font-medium">
@@ -4424,6 +4523,7 @@ export default function CajaAutopago() {
   const recursoSucursal = useSucursal();
   const recursoEmpresa = useEmpresaEmisor();
   const recursoCategorias = useCategoriasLista();
+  const recursoClientes = useClientesSucursal(undefined, false);
   const { ventasSincronizadas } = useOfflineSales();
   const ultimaRevalidacionRef = useRef(0);
 
@@ -4450,6 +4550,7 @@ export default function CajaAutopago() {
     recursoSucursal,
     recursoEmpresa,
     recursoCategorias,
+    recursoClientes,
     ultimaRevalidacionRef,
   };
 
