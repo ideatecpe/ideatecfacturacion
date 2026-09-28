@@ -4,6 +4,7 @@ import { BoletaCompany } from './Boleta'
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/app/components/ui/Toast';
 import { cacheEmpresa, getEmpresaCache } from '@/lib/offline/offlineDb';
+import { guardarEmisorTicket } from '@/lib/impresion/ticketComprobante';
 
 export function useEmpresaEmisor() {
   const { showToast } = useToast();
@@ -33,6 +34,8 @@ export function useEmpresaEmisor() {
           { headers: { Authorization: `Bearer ${accessToken}` } }
         )
         const data = res.data
+        // Logo, teléfono y email para la impresión rápida del ticket (no van en el payload).
+        guardarEmisorTicket(data)
         const empresaResuelta: BoletaCompany = {
           empresaId: data.id,
           numeroDocumento: data.ruc,

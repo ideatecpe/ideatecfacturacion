@@ -40,7 +40,7 @@ import { useClienteBoleta } from "../boleta/gestionBoletas/useClienteBoleta";
 import { Cliente } from "../../clientes/gestionClientes/typesCliente";
 import { notificarVentaRegistrada } from "@/lib/eventosCaja";
 import { useSucursal } from "../boleta/gestionBoletas/useSucursal";
-import { logEmision } from "../boleta/gestionBoletas/emitirBoletaApi";
+import { logEmision, reservarNumero, liberarNumero } from "../boleta/gestionBoletas/emitirBoletaApi";
 import { formatoFechaActual, fechaLocalISO, fmtMonto } from "@/app/components/ui/formatoFecha";
 import { ProductoSucursal } from "../../productos/gestioProductos/Producto";
 import { useProductosSucursal } from "../../productos/gestioProductos/useProductosSucursal";
@@ -64,6 +64,14 @@ import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import CajaAutopago from "@/app/factufly/operaciones/components/CajaAutopago";
 import React from "react";
+import { coincideBusqueda } from "@/app/utils/normalizarTexto";
+import {
+  anchoTicketConfig,
+  imprimirComprobanteRapido,
+  leerPersonalizacion,
+  separarNumeroCompleto,
+  type TipoComprobanteTicket,
+} from "@/lib/impresion/ticketComprobante";
 
 // ── Interfaces locales ───────────────────────────────────────
 interface DetalleLocal extends Partial<BoletaDetalle> {
@@ -1253,16 +1261,35 @@ function NotaVentaContent() {
   ]);
 
   // ── Buscar cliente automático ────────────────────────────────
-  const clientesFiltrados = clientes.filter((c) => {
-    if (c.tipoDocumento.tipoDocumentoId !== tipoDoc) return false;
-    if (busqueda.length === 0) return true;
-    return (
-      c.numeroDocumento.includes(busqueda) ||
-      c.razonSocialNombre.toLowerCase().includes(busqueda.toLowerCase())
-    );
-  });
+  // Busca entre los clientes ya registrados por documento O por nombre, sin importar con
+  // qué tipo de documento estén guardados: el cajero se acuerda del nombre, no del DNI.
+  // Los del tipo que está elegido arriba salen primero.
+  const textoBusquedaCliente = busqueda.trim().toLowerCase();
+  const clientesFiltrados = clientes
+    .filter((c) => {
+      if (textoBusquedaCliente.length === 0) return c.tipoDocumento.tipoDocumentoId === tipoDoc;
+      // coincideBusqueda ignora tildes y mayúsculas y admite palabras sueltas.
+      return coincideBusqueda(textoBusquedaCliente, c.razonSocialNombre, c.numeroDocumento);
+    })
+    .sort(
+      (a, b) =>
+        Number(b.tipoDocumento.tipoDocumentoId === tipoDoc) -
+        Number(a.tipoDocumento.tipoDocumentoId === tipoDoc),
+    )
+    .slice(0, 50);
 
   const seleccionarDeLista = (c: Cliente) => {
+    const tipo = c.tipoDocumento.tipoDocumentoId;
+    // La nota de venta usa DNI o CE, igual que la boleta.
+    if (tipo !== "01" && tipo !== "04") {
+      setShowDropdown(false);
+      showToast(
+        `${c.razonSocialNombre} está registrado con RUC: emítele una Factura.`,
+        "info",
+      );
+      return;
+    }
+    if (tipo !== tipoDoc) setTipoDoc(tipo);
     setBusqueda(c.numeroDocumento);
     setShowDropdown(false);
     const direccion = c.direccion?.[0];
@@ -2044,6 +2071,76 @@ function NotaVentaContent() {
   // stockItems en el payload). Aquí ya no se llama a la API: solo refrescamos el
   // stock real y avisamos si quedó bajo. Sin stock, la venta ni se habría creado.
   const stockDescontadoRef = useRef(false);
+
+  // Impresión rápida: con el número real ya asignado por la API, el ticket se
+  // arma en el navegador y sale sin esperar a SUNAT ni al HTML del backend.
+  // Guarda si salió, para que procesarSegundoPlano no lo imprima otra vez.
+  const impresoRapidoRef = useRef<Promise<boolean> | null>(null);
+  const lanzarImpresionRapida = (
+    payload: Record<string, unknown> | null | undefined,
+    tipo: TipoComprobanteTicket,
+    serie: string | null | undefined,
+    correlativo: string | number | null | undefined,
+  ): Promise<boolean> | null => {
+    const anchoMm = anchoTicketConfig(config?.tamañoImpresion);
+    const corr = parseInt(String(correlativo ?? ""), 10);
+    const ruc = empresa?.numeroDocumento ?? user?.ruc;
+    if (!payload || !config?.isImprime || !config?.impresionRapida || !anchoMm || !serie || !Number.isFinite(corr) || !ruc) {
+      return null;
+    }
+    const idsVales = Array.isArray(payload.vales) ? (payload.vales as number[]) : [];
+    return imprimirComprobanteRapido({
+      payload,
+      tipo,
+      serie,
+      correlativo: corr,
+      ruc,
+      token: accessToken,
+      sucursal,
+      cajero: user?.username ?? null,
+      trabajadores,
+      vales: vales.filter((v) => idsVales.includes(v.idVale)),
+      anchoMm,
+      personalizacion: leerPersonalizacion(config?.ticketPersonalizado),
+    });
+  };
+
+  // Impresión rápida con número reservado: aparta el número (un solo comando, ~150 ms),
+  // imprime el ticket en el acto y deja que la venta se guarde después con ese mismo
+  // número. Devuelve la reserva para poder devolverla si el guardado falla.
+  const reservaRef = useRef<{ tipo: "01" | "03" | "NV"; correlativo: number } | null>(null);
+  const reservarEImprimir = async (
+    tipo: "01" | "03" | "NV",
+    payload: Record<string, unknown> | null | undefined,
+  ) => {
+    reservaRef.current = null;
+    const ruc = empresa?.numeroDocumento ?? user?.ruc;
+    if (!payload || !ruc || !config?.isImprime || !config?.impresionRapida) return null;
+    if (!anchoTicketConfig(config?.tamañoImpresion)) return null;
+
+    const anexo = sucursal?.codEstablecimiento ?? "0000";
+    const reserva = await reservarNumero(ruc, anexo, tipo, accessToken);
+    if (!reserva) return null;
+
+    payload.serieReservada = reserva.serie;
+    payload.correlativoReservado = reserva.correlativo;
+    if (tipo !== "NV") payload.sucursalIdReservada = reserva.sucursalId;
+
+    reservaRef.current = { tipo, correlativo: reserva.correlativo };
+    impresoRapidoRef.current = lanzarImpresionRapida(payload, tipo, reserva.serie, reserva.correlativo);
+    return reserva;
+  };
+
+  // El ticket ya salió con el número reservado pero la venta no se guardó: se devuelve el
+  // número para no dejar un salto en la numeración y se avisa que ese papel no vale.
+  const liberarReservaSiFallo = () => {
+    const reserva = reservaRef.current;
+    const ruc = empresa?.numeroDocumento ?? user?.ruc;
+    if (!reserva || !ruc) return;
+    reservaRef.current = null;
+    void liberarNumero(ruc, sucursal?.codEstablecimiento ?? "0000", reserva.tipo, reserva.correlativo, accessToken);
+    showToast("El ticket ya se imprimió, pero la venta NO se registró: anúlalo y vuelve a emitir.", "error");
+  };
   const descontarStockSiAplica = async (_comprobanteId: number) => {
     if (!config?.isStock) return;
     if (stockDescontadoRef.current) return;
@@ -2197,9 +2294,11 @@ function NotaVentaContent() {
     setEmitiendo(true);
     setErrorEmision(null);
     stockDescontadoRef.current = false;
+    impresoRapidoRef.current = null;
     try {
       const urlNV = `${process.env.NEXT_PUBLIC_API_URL}/api/NotaVenta`;
       const bodyNV = prepararNV();
+      const reserva = await reservarEImprimir("NV", bodyNV);
       logEmision("NotaVenta", urlNV, bodyNV);
 
       const resNV = await axios.post(
@@ -2210,6 +2309,11 @@ function NotaVentaContent() {
       const comprobanteId = resNV.data.comprobanteId ?? resNV.data.ComprobanteId;
       notificarVentaRegistrada();
       const numeroCompleto: string = resNV.data.numeroCompleto ?? resNV.data.NumeroCompleto ?? "";
+      const numeroNV = separarNumeroCompleto(numeroCompleto);
+      // Sin reserva (no se pudo apartar el número), el ticket sale ahora con el número real.
+      if (!reserva) {
+        impresoRapidoRef.current = lanzarImpresionRapida(bodyNV, "NV", numeroNV?.serie, numeroNV?.correlativo);
+      }
       const correlativoEmitido = parseInt(numeroCompleto.split("-")[1] ?? "0", 10);
       if (correlativoEmitido > 0) {
         setCorrelativoActual(correlativoEmitido + 1);
@@ -2221,6 +2325,7 @@ function NotaVentaContent() {
       descontarStockSiAplica(comprobanteId);
       procesarSegundoPlano(comprobanteId);
     } catch (err: any) {
+      liberarReservaSiFallo();
       const data = err?.response?.data;
       const mensaje =
         data?.mensaje ?? data?.message ?? "Error al generar la Nota de Venta";
@@ -2277,7 +2382,9 @@ function NotaVentaContent() {
     // ── Auto-impresión según configuración ──
     // iframe oculto: imprime sin abrir nueva pestaña.
     // HTML en iframe = vectorial perfecto (solo PDF en iframe es borroso).
-    if (config?.isImprime && previewUrl) {
+    // Si la impresión rápida ya sacó el ticket, no se imprime otra vez.
+    const yaImpreso = impresoRapidoRef.current ? await impresoRapidoRef.current : false;
+    if (config?.isImprime && previewUrl && !yaImpreso) {
       try {
         const iframe = document.createElement("iframe");
         iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:0;";
@@ -2701,10 +2808,14 @@ function NotaVentaContent() {
                           onBlur={() =>
                             setTimeout(() => setShowDropdown(false), 150)
                           }
+                          // El límite de dígitos solo aplica cuando se escribe un documento:
+                          // si el texto trae letras es un nombre y tiene que caber entero.
                           maxLength={
-                            tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : 12
+                            /^\d*$/.test(busqueda)
+                              ? tipoDoc === "01" ? 8 : tipoDoc === "06" ? 11 : tipoDoc === "04" ? 9 : 12
+                              : 80
                           }
-                          placeholder="Buscar por nº doc o nombre..."
+                          placeholder="Buscar por nombre, DNI o RUC..."
                           className={`w-full pl-4 pr-10 py-1.5 bg-white border rounded-xl focus:ring-2 focus:ring-brand-blue/20 outline-none transition-all text-sm disabled:opacity-50
                             ${docInvalido ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 focus:border-brand-blue/50"}`}
                         />
@@ -2728,8 +2839,10 @@ function NotaVentaContent() {
                                     className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
                                   >
                                     <span className="text-sm text-gray-800">
-                                      {c.numeroDocumento} -{" "}
-                                      {c.razonSocialNombre}
+                                      <span className="text-[11px] font-semibold text-gray-400">
+                                        {c.tipoDocumento.tipoDocumentoNombre}
+                                      </span>{" "}
+                                      {c.numeroDocumento} - {c.razonSocialNombre}
                                     </span>
                                   </button>
                                 ))

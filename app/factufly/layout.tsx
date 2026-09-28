@@ -340,6 +340,7 @@ export default function DashboardLayout({
         icon: Wrench,
         children: [
           { id: "agente-impresion", label: "Agente de impresión" },
+          { id: "tickets", label: "Tickets" },
           // La tienda online entrega sus pedidos en la Caja Autopago.
           ...(config?.isStock && config?.isCajaAutopago
             ? [{ id: "tienda-online", label: "Tienda online" }]
