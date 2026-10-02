@@ -35,6 +35,7 @@ import axios from "axios";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import {
   avisarConexionViva,
+  esRespuestaSinRed,
   marcarPeticionIniciada,
   marcarPeticionTerminada,
 } from "@/lib/offline/senalRed";
@@ -186,8 +187,10 @@ export default function DashboardLayout({
       },
       (error) => {
         const cancelado = error.code === "ERR_CANCELED" || axios.isCancel?.(error);
+        // El 504 que inventa el service worker sin red no es una respuesta del servidor.
+        const sinRed = !error.response || esRespuestaSinRed(error.response);
         // Si el servidor contestó (aunque sea un 4xx/5xx), la red funciona.
-        if (error.response) avisarConexionViva();
+        if (!sinRed) avisarConexionViva();
 
         // 🚨 Detectar token de autenticación expirado o inválido (401)
         if (error.response?.status === 401) {
@@ -203,7 +206,7 @@ export default function DashboardLayout({
 
         if (
           !cancelado &&
-          (!error.response || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED" || (typeof navigator !== "undefined" && !navigator.onLine))
+          (sinRed || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED" || (typeof navigator !== "undefined" && !navigator.onLine))
         ) {
           // No se asume "sin conexión" con un solo fallo (puede ser un 401, CORS,
           // timeout del backend o una API de terceros caída): se verifica antes.
@@ -222,6 +225,11 @@ export default function DashboardLayout({
       if (!esPing) marcarPeticionIniciada();
       try {
         const response = await originalFetch(...args);
+        if (esRespuestaSinRed(response)) {
+          // La respondió el service worker porque no hay red, no el servidor.
+          if (!esPing) window.dispatchEvent(new Event("app:posible-sin-conexion"));
+          return response;
+        }
         // Llegó una respuesta del servidor: prueba directa de que hay conexión.
         if (!esPing) avisarConexionViva();
 

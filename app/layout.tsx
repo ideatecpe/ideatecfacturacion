@@ -7,6 +7,7 @@ import { SessionProvider } from "@/app/components/SessionProvider";
 import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/app/components/ui/Toast";
 import { PwaRegister } from "@/app/components/PwaRegister";
+import { CachePaginasPorUsuario } from "@/app/components/offline/CachePaginasPorUsuario";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -117,6 +118,7 @@ export default async function RootLayout({
       >
         <PwaRegister />
         <SessionProvider session={session}>
+          <CachePaginasPorUsuario />
           <AuthProvider>
             <ToastProvider>
               {children}

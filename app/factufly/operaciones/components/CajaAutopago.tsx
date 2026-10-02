@@ -2483,8 +2483,8 @@ export function CajaAutopagoVista({
     };
 
     const ventaId = await enqueueVenta(payload, stockItems, resumenTicket, tipo);
-
-    if (stockItems.length) descontarStockLocal(stockItems);
+    // El stock local ya se descontó al cobrar (actualizarStockLocalTrasVenta en
+    // emitirVenta): descontarlo otra vez aquí restaba el doble en cada venta sin red.
 
     const datosTicket = {
       id: ventaId,
@@ -2603,8 +2603,31 @@ export function CajaAutopagoVista({
     const tipoCodigo: "01" | "03" | "NV" = esNotaVenta ? "NV" : tipoComprobanteVenta === "Factura" ? "01" : "03";
     const anexoVenta = sucursal?.codEstablecimiento ?? empresa?.establecimientoAnexo ?? "0000";
     const rucVenta = empresa?.numeroDocumento ?? "";
+    // Ya se sabe que no hay red: la venta va directo a la cola. Intentar antes el
+    // servidor solo retrasaba el ticket hasta que la petición fallara, y con WiFi
+    // conectado pero sin internet eso puede tardar bastante.
+    const sinRed = !isOnline || (typeof navigator !== "undefined" && !navigator.onLine);
+
+    const encolarSinConexion = async (imprimirProvisional: boolean) => {
+      await manejarVentaSinConexion(payload, esNotaVenta ? "notaventa" : "comprobante", imprimirProvisional, itemsVendidos);
+      if (whatsappDestino) {
+        showToast("Sin conexión: la venta se guardó, pero el comprobante no se envió por WhatsApp. Envíalo desde Comprobantes al reconectar.", "info");
+      }
+    };
 
     void (async () => {
+      if (sinRed) {
+        try {
+          await encolarSinConexion(conImpresion);
+        } catch {
+          showToast("No se pudo guardar la venta sin conexión. Vuelve a cobrarla.", "error");
+        } finally {
+          terminarEmisionSegundoPlano(procesoId);
+          emisionesEnCursoRef.current = Math.max(0, emisionesEnCursoRef.current - 1);
+        }
+        return;
+      }
+
       // Impresión rápida: se aparta el número (un solo comando, ~150 ms) y el ticket sale
       // de inmediato, sin esperar a que termine de guardarse la venta. El número es el
       // definitivo: sale del mismo UPDATE atómico que usa la emisión.
@@ -2653,10 +2676,7 @@ export function CajaAutopagoVista({
           if (esErrorTransitorio(errGuardar)) {
             // Con reserva el ticket real ya salió (y la venta encolada lleva ese mismo
             // número), así que no se imprime además el provisional.
-            await manejarVentaSinConexion(payload, esNotaVenta ? "notaventa" : "comprobante", conImpresion && !reserva, itemsVendidos);
-            if (whatsappDestino) {
-              showToast("Sin conexión: la venta se guardó, pero el comprobante no se envió por WhatsApp. Envíalo desde Comprobantes al reconectar.", "info");
-            }
+            await encolarSinConexion(conImpresion && !reserva);
             return;
           }
           throw errGuardar;
