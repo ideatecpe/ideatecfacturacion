@@ -1,5 +1,6 @@
 'use client'
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, FileSpreadsheet, Download, Calendar, Building2 } from 'lucide-react'
 import { cn } from '@/app/utils/cn'
 import { useReporteCuentasPorCobrar } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/UseReporteCuentasPorCobrar'
@@ -119,7 +120,9 @@ export const ModalReporteCuentasPorCobrar = ({
     fechaDesde && fechaHasta ? `${fechaDesde} → ${fechaHasta}` : fechaDesde ? `Desde ${fechaDesde}` : null,
   ].filter(Boolean) as string[]
 
-  return (
+  // Portal a <body>: dentro de la página heredaba márgenes (space-y) y
+  // transforms que recortaban el fondo oscuro.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" style={{ height: '100dvh' }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col animate-in zoom-in-95 duration-200">
 
@@ -271,6 +274,7 @@ export const ModalReporteCuentasPorCobrar = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, CreditCard, Calendar, AlertCircle, Clock, History, ChevronDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/app/utils/cn'
 import { formatFecha } from '@/app/factufly/comprobantes/gestionComprobantes/helpers'
@@ -93,7 +94,9 @@ export const ModalPagarCuota = ({
     await onConfirm(payload)
   }
 
-  return (
+  // Portal a <body>: dentro de la página heredaba márgenes (space-y) y
+  // transforms que recortaban el fondo oscuro.
+  return createPortal(
     <div className="fixed inset-0 z-50 w-full h-full flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col animate-in zoom-in-95 duration-200" style={{ maxHeight: '90vh' }}>
 
@@ -357,6 +360,7 @@ export const ModalPagarCuota = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

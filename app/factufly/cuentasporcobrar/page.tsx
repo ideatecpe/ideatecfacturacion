@@ -1,10 +1,11 @@
 "use client";
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search, X, Filter, ChevronDown, RefreshCw,
-  DollarSign, Calendar, Check, Eye, CreditCard,
+  DollarSign, Calendar, Check, CreditCard,
   AlertTriangle,
-  FileSpreadsheet
+  FileSpreadsheet, Users, FileText, Wallet
 } from 'lucide-react';
 import { cn } from '@/app/utils/cn';
 import { useAuth } from '@/context/AuthContext';
@@ -12,7 +13,11 @@ import { useToast } from '@/app/components/ui/Toast';
 import { useCuentasPorCobrar } from './gestionCuentasPorCobrar/UseCuentasPorCobrar';
 import { useCuotasComprobante } from './gestionCuentasPorCobrar/UseCuotasComprobante';
 import { usePagarCuota } from './gestionCuentasPorCobrar/UsePagarCuota';
-import { CuentaPorCobrar, Cuota, PagarCuotaPayload } from './gestionCuentasPorCobrar/CuentasPorCobrar';
+import { CuentaPorCobrar, Cuota, PagarCuotaPayload, ResumenClienteCuenta } from './gestionCuentasPorCobrar/CuentasPorCobrar';
+import { useCobroCliente } from './gestionCuentasPorCobrar/UseCobroCliente';
+import { ModalCobrarCliente } from '@/app/components/modalCuentasPorCobrar/ModalCobrarCliente';
+import { ModalPagoRegistrado } from '@/app/components/modalCuentasPorCobrar/ModalPagoRegistrado';
+import type { ResultadoPagoProps } from '@/app/components/modalCuentasPorCobrar/ResultadoPago';
 import { formatFecha, formatMoneda, tipoComprobanteLabel, getEstadoCuota, ESTADO_CUOTA_COLORS, getCuotaVencida, getDiasVencida } from './gestionCuentasPorCobrar/helpers';
 import { ModalPagarCuota } from '@/app/components/modalCuentasPorCobrar/ModalPagarCuota';
 import { useSucursalRuc } from '../operaciones/boleta/gestionBoletas/useSucursalRuc';
@@ -20,6 +25,45 @@ import { useSucursal } from '../operaciones/boleta/gestionBoletas/useSucursal';
 import { ModalReporteCuentasPorCobrar } from '@/app/components/modalCuentasPorCobrar/ModalReporteCuentasPorCobrar';
 
 const TIPO_BASE = ['Todos', 'Factura', 'Boleta'];
+
+type Vista = 'clientes' | 'comprobantes';
+const CLAVE_VISTA = 'cuentasPorCobrar_vista';
+
+// La vista elegida se recuerda en localStorage, que no existe en el servidor:
+// leerla al crear el estado hacía que el HTML del servidor ("Por cliente") no
+// coincidiera con el del navegador. useSyncExternalStore hidrata con la vista
+// por defecto y recién después aplica la guardada.
+let vistaActual: Vista | null = null;
+const oyentesVista = new Set<() => void>();
+const leerVista = (): Vista => {
+  if (vistaActual === null) {
+    try {
+      vistaActual = localStorage.getItem(CLAVE_VISTA) === 'comprobantes' ? 'comprobantes' : 'clientes';
+    } catch {
+      vistaActual = 'clientes';
+    }
+  }
+  return vistaActual;
+};
+const guardarVista = (v: Vista) => {
+  vistaActual = v;
+  try { localStorage.setItem(CLAVE_VISTA, v); } catch {}
+  oyentesVista.forEach(f => f());
+};
+const suscribirVista = (f: () => void) => {
+  oyentesVista.add(f);
+  return () => { oyentesVista.delete(f); };
+};
+
+// Misma regla que el backend: sin documento ("Clientes Varios", "0") se separa por nombre.
+const DOCS_GENERICOS = ['', '0', '-', '00000000', '99999999'];
+const claveCliente = (numDoc: string | null, nombre: string | null) => {
+  const doc = (numDoc ?? '').trim();
+  return DOCS_GENERICOS.includes(doc) ? `SD|${(nombre ?? '').trim().toUpperCase()}` : doc;
+};
+
+const saldoComprobante = (c: CuentaPorCobrar) =>
+  c.saldoPendiente ?? ((!c.montoCredito || c.montoCredito === 0) ? c.importeTotal : c.montoCredito);
 
 export default function CuentasPorCobrarPage() {
   const { user, accessToken } = useAuth();
@@ -46,6 +90,13 @@ export default function CuentasPorCobrarPage() {
   const hookCuentas = useCuentasPorCobrar();
   const hookCuotas  = useCuotasComprobante();
   const hookPagar   = usePagarCuota();
+  const hookClientes = useCobroCliente();
+
+  const vista = useSyncExternalStore(suscribirVista, leerVista, (): Vista => 'clientes');
+  const cambiarVista = guardarVista;
+  const [clienteCobrar, setClienteCobrar] = useState<ResumenClienteCuenta | null>(null);
+  // Constancia del pago de una sola cuota (desde "Pagar cuota").
+  const [pagoRegistrado, setPagoRegistrado] = useState<ResultadoPagoProps | null>(null);
 
   const [cuentas, setCuentas]                           = useState<CuentaPorCobrar[]>([]);
   const [comprobanteSeleccionado, setComprobanteSeleccionado] = useState<CuentaPorCobrar | null>(null);
@@ -62,11 +113,17 @@ export default function CuentasPorCobrarPage() {
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
 
   const cargar = async () => {
-    const data = await hookCuentas.fetchCuentas({
-      empresaRuc: rucEmpresa,
-      establecimientoAnexo: isSuperAdmin ? sucursalFiltro : (getCodEstablecimiento() ?? null)
-    });
+    const establecimientoAnexo = isSuperAdmin ? sucursalFiltro : (getCodEstablecimiento() ?? null);
+    const [data] = await Promise.all([
+      hookCuentas.fetchCuentas({ empresaRuc: rucEmpresa, establecimientoAnexo }),
+      hookClientes.fetchClientes(rucEmpresa, establecimientoAnexo),
+    ]);
     setCuentas(data);
+  };
+
+  const cerrarCobroCliente = (huboPago: boolean) => {
+    setClienteCobrar(null);
+    if (huboPago) cargar();
   };
 
   useEffect(() => {
@@ -127,18 +184,72 @@ export default function CuentasPorCobrarPage() {
     });
   }, [cuentas, search, filtroTipo]);
 
+  const clientesFiltrados = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return hookClientes.clientes;
+    return hookClientes.clientes.filter(c =>
+      (c.clienteRznSocial ?? '').toLowerCase().includes(q) ||
+      (c.clienteNumDoc ?? '').includes(q));
+  }, [hookClientes.clientes, search]);
+
+  const totalesPorMoneda = useMemo(() => {
+    const t: Record<string, number> = {};
+    for (const c of clientesFiltrados) t[c.tipoMoneda] = (t[c.tipoMoneda] ?? 0) + c.saldoPendiente;
+    return t;
+  }, [clientesFiltrados]);
+
   const handlePagar = async (payload: PagarCuotaPayload) => {
+    const comp = comprobanteSeleccionado;
+    // Foto de las cuotas antes del pago: de ahí sale lo que se debía y lo ya pagado.
+    const cuotasAntes = cuotas;
     const ok = await hookPagar.pagarCuota(payload.cuotaId, payload);
-    if (ok && comprobanteSeleccionado) {
-      const data = await hookCuotas.fetchCuotas(comprobanteSeleccionado.comprobanteId);
+    if (ok && comp) {
+      const data = await hookCuotas.fetchCuotas(comp.comprobanteId);
       setCuotas(data);
       setCuotaPagar(null);
       // Refrescar listado para quitar comprobantes totalmente pagados
       cargar();
+
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      const saldoAnterior = r2(cuotasAntes.reduce(
+        (t, c) => t + (getEstadoCuota(c) === 'PAGADO' ? 0 : c.monto - (c.montoPagado ?? 0)), 0));
+      const aplicado = r2(payload.montoPagado);
+      const saldoRestante = r2(Math.max(0, saldoAnterior - aplicado));
+      const clave = claveCliente(comp.clienteNumDoc, comp.clienteRznSocial);
+      const establecimientoAnexo = isSuperAdmin ? sucursalFiltro : (getCodEstablecimiento() ?? null);
+      // Lo que el cliente sigue debiendo en total (todas sus notas), para la constancia.
+      const pendientes = await hookClientes
+        .fetchComprobantesCliente(rucEmpresa, establecimientoAnexo, clave, comp.tipoMoneda)
+        .catch(() => null);
+
+      setPagoRegistrado({
+        empresaRuc: rucEmpresa,
+        clienteNombre: comp.clienteRznSocial || 'Cliente',
+        clienteDoc: clave.startsWith('SD|') ? null : comp.clienteNumDoc,
+        telefonoInicial: comp.clienteWhatsApp || null,
+        moneda: comp.tipoMoneda,
+        fechaPago: payload.fechaPago.slice(0, 10),
+        medioPago: payload.medioPago,
+        numeroOperacion: payload.numeroOperacion ?? null,
+        montoTotal: aplicado,
+        saldoClienteRestante: pendientes ? r2(pendientes.reduce((t, c) => t + c.saldo, 0)) : saldoRestante,
+        pagos: [{
+          comprobanteId: comp.comprobanteId,
+          numeroCompleto: comp.numeroCompleto,
+          fechaEmision: comp.fechaEmision,
+          importeTotal: comp.importeTotal,
+          pagadoAntes: r2(Math.max(0, comp.importeTotal - saldoAnterior)),
+          saldoAnterior,
+          montoAplicado: aplicado,
+          saldoRestante,
+          estado: saldoRestante > 0.004 ? 'PARCIAL' : 'PAGADO',
+        }],
+      });
     }
   };
 
   const loading = hookCuentas.loading || !huboIntentoInicial;
+  const loadingClientes = hookClientes.loadingClientes || !huboIntentoInicial;
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500">
@@ -150,6 +261,19 @@ export default function CuentasPorCobrarPage() {
         />
       )}
       
+      {clienteCobrar && (
+        <ModalCobrarCliente
+          cliente={clienteCobrar}
+          empresaRuc={rucEmpresa}
+          establecimientoAnexo={isSuperAdmin ? sucursalFiltro : (getCodEstablecimiento() ?? null)}
+          onClose={cerrarCobroCliente}
+        />
+      )}
+
+      {pagoRegistrado && (
+        <ModalPagoRegistrado {...pagoRegistrado} onClose={() => setPagoRegistrado(null)} />
+      )}
+
       {/* Modal Pagar */}
       {cuotaPagar && comprobanteSeleccionado && (
         <ModalPagarCuota
@@ -165,13 +289,34 @@ export default function CuentasPorCobrarPage() {
       {/* Filtros */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex items-center bg-white border border-gray-200 rounded-md p-0.5 shrink-0">
+            <button
+              onClick={() => cambiarVista('clientes')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded transition-colors whitespace-nowrap",
+                vista === 'clientes' ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"
+              )}
+            >
+              <Users size={14} /> Por cliente
+            </button>
+            <button
+              onClick={() => cambiarVista('comprobantes')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded transition-colors whitespace-nowrap",
+                vista === 'comprobantes' ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"
+              )}
+            >
+              <FileText size={14} /> Por comprobante
+            </button>
+          </div>
           <div className="relative flex-1 max-w-md">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar por cliente, RUC/DNI o N° comprobante..."
+              placeholder={vista === 'clientes' ? "Buscar cliente por nombre, RUC o DNI..." : "Buscar por cliente, RUC/DNI o N° comprobante..."}
               className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-brand-blue/50 outline-none transition-all  text-xs"
             />
             {search && (
@@ -179,6 +324,7 @@ export default function CuentasPorCobrarPage() {
                 <X size={14} />
               </button>
             )}
+          </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap shrink-0">
             <button
@@ -210,6 +356,7 @@ export default function CuentasPorCobrarPage() {
                   <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
               )}
+            {vista === 'comprobantes' && (<>
             <DropdownFiltro label="Tipo" value={filtroTipo} options={tipoOpts} onChange={setFiltroTipo} />
             <button
               onClick={() => setShowAvanzado(o => !o)}
@@ -226,10 +373,11 @@ export default function CuentasPorCobrarPage() {
                 Limpiar
               </button>
             )}
+            </>)}
           </div>
         </div>
 
-        {showAvanzado && (
+        {vista === 'comprobantes' && showAvanzado && (
           <div className="bg-white border border-gray-200 rounded-md overflow-hidden animate-in slide-in-from-top-2 duration-200">
             <div className="px-5 py-4">
               <div className="flex flex-wrap items-end gap-4">
@@ -269,10 +417,96 @@ export default function CuentasPorCobrarPage() {
 
       {/* Contador */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          Total <span className="font-semibold text-gray-900">{filtered.length}</span> comprobantes a crédito
-        </p>
+        {vista === 'clientes' ? (
+          <p className="text-sm text-gray-500">
+            <span className="font-semibold text-gray-900">{clientesFiltrados.length}</span> cliente(s) con deuda
+            {Object.entries(totalesPorMoneda).map(([mon, total]) => (
+              <span key={mon}> · Por cobrar <span className="font-semibold text-blue-700">{formatMoneda(total, mon)}</span></span>
+            ))}
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500">
+            Total <span className="font-semibold text-gray-900">{filtered.length}</span> comprobantes a crédito
+          </p>
+        )}
       </div>
+
+      {vista === 'clientes' && (
+        <div className="bg-white rounded-xl shadow-sm border border-[#E2EAF6] overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse cpc-table">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
+                  <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-28 text-center">Pendientes</th>
+                  <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-44">Deuda más antigua</th>
+                  <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-36 text-right">Saldo por cobrar</th>
+                  <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-36 text-center">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {loadingClientes ? (
+                  <tr><td colSpan={5} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <RefreshCw size={24} className="animate-spin text-blue-400" />
+                      <span className="text-sm text-gray-400">Cargando clientes...</span>
+                    </div>
+                  </td></tr>
+                ) : hookClientes.errorClientes ? (
+                  <tr><td colSpan={5} className="px-6 py-16 text-center text-sm text-red-500">
+                    {hookClientes.errorClientes}{' '}
+                    <button onClick={cargar} className="text-blue-600 font-semibold hover:underline">Reintentar</button>
+                  </td></tr>
+                ) : clientesFiltrados.length === 0 ? (
+                  <tr><td colSpan={5} className="px-6 py-16 text-center text-sm text-gray-400">
+                    No hay clientes con deuda pendiente.
+                  </td></tr>
+                ) : clientesFiltrados.map(c => {
+                  const dias = c.fechaVencimientoMasAntigua ? getDiasVencida(c.fechaVencimientoMasAntigua) : 0;
+                  return (
+                    <tr key={`${c.clienteClave}|${c.tipoMoneda}`} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-3 py-3">
+                        <p className="text-xs font-semibold text-gray-900">{c.clienteRznSocial || 'Cliente'}</p>
+                        <p className="text-[11px] text-gray-400">
+                          {c.sinDocumento ? (
+                            <span className="inline-flex items-center gap-1 text-amber-600"><AlertTriangle size={10} /> Sin documento</span>
+                          ) : c.clienteNumDoc}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3 text-center w-28">
+                        <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-lg">{c.cantidadComprobantes}</span>
+                      </td>
+                      <td className="px-3 py-3 w-44">
+                        <p className="text-xs text-gray-700">Desde {formatFecha(c.fechaEmisionMasAntigua)}</p>
+                        {dias > 0 ? (
+                          <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-0.5">
+                            <AlertTriangle size={10} /> Vencida hace {dias} día(s)
+                          </p>
+                        ) : c.fechaVencimientoMasAntigua && (
+                          <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
+                            <Calendar size={10} /> Vence {formatFecha(c.fechaVencimientoMasAntigua)}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-sm font-bold text-blue-700 text-right whitespace-nowrap w-36">
+                        {formatMoneda(c.saldoPendiente, c.tipoMoneda)}
+                      </td>
+                      <td className="px-3 py-3 text-center w-36">
+                        <button
+                          onClick={() => setClienteCobrar(c)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          <Wallet size={13} /> Cobrar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Tabla */}
       <style>{`
@@ -281,6 +515,7 @@ export default function CuentasPorCobrarPage() {
         .cpc-table thead { width: 100%; }
       `}</style>
 
+      {vista === 'comprobantes' && (
       <div className="bg-white rounded-xl shadow-sm border border-[#E2EAF6] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse cpc-table">
@@ -291,20 +526,21 @@ export default function CuentasPorCobrarPage() {
                 <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
                 <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Importe</th>
                 <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Crédito</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Saldo</th>
                 <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-20 text-center">Moneda</th>
-                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-40 text-center">Ver</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-40 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan={7} className="px-6 py-16 text-center">
+                <tr><td colSpan={8} className="px-6 py-16 text-center">
                   <div className="flex flex-col items-center gap-3">
                     <RefreshCw size={24} className="animate-spin text-blue-400" />
                     <span className="text-sm text-gray-400">Cargando cuentas por cobrar...</span>
                   </div>
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="px-6 py-16 text-center text-sm text-gray-400">
+                <tr><td colSpan={8} className="px-6 py-16 text-center text-sm text-gray-400">
                   No se encontraron comprobantes a crédito.
                 </td></tr>
               ) : filtered.map(c => (
@@ -322,15 +558,18 @@ export default function CuentasPorCobrarPage() {
                   <td className="px-3 py-2 text-xs font-semibold text-blue-700 text-right whitespace-nowrap w-32">
                     {formatMoneda((!c.montoCredito || c.montoCredito === 0) ? c.importeTotal : c.montoCredito, c.tipoMoneda)}
                   </td>
+                  <td className="px-3 py-2 text-xs font-bold text-gray-900 text-right whitespace-nowrap w-32">
+                    {formatMoneda(saldoComprobante(c), c.tipoMoneda)}
+                  </td>
                   <td className="px-3 py-2 text-center w-20">
                     <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{c.tipoMoneda}</span>
                   </td>
-                  <td className="px-3 py-2 text-center w-36">
+                  <td className="px-3 py-2 text-center w-40">
                     <button
                       onClick={() => verCuotas(c)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap"
                     >
-                      <Eye size={13} /> Ver cuotas
+                      <CreditCard size={13} /> Pagar cuota
                     </button>
                   </td>
                 </tr>
@@ -339,9 +578,10 @@ export default function CuentasPorCobrarPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Modal detalle cuotas */}
-      {comprobanteSeleccionado && (
+      {comprobanteSeleccionado && createPortal(
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 flex flex-col animate-in zoom-in-95 duration-200" style={{ maxHeight: '90vh' }}>
 
@@ -544,7 +784,10 @@ export default function CuentasPorCobrarPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        // Portal a <body>: dentro del contenedor space-y-3 el fondo oscuro
+        // heredaba 12 px de margen inferior y no llegaba hasta abajo.
+        document.body,
       )}
     </div>
   );
