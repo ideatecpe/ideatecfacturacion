@@ -36,6 +36,26 @@ export function avisarConexionViva() {
 }
 
 /**
+ * Sin red, public/sw.js responde él mismo un 504 marcado con esta cabecera (no
+ * puede devolver "nada"). No vino del servidor, así que no prueba que haya
+ * conexión: tomarlo como respuesta hacía que la app alternara entre "con" y
+ * "sin conexión" cada pocos segundos.
+ */
+const CABECERA_SIN_RED = "x-factufly-sin-red";
+
+export function esRespuestaSinRed(
+  res: { headers?: unknown } | null | undefined,
+): boolean {
+  const headers = res?.headers as
+    | { get?: (k: string) => unknown; [k: string]: unknown }
+    | undefined;
+  if (!headers) return false;
+  const valor =
+    typeof headers.get === "function" ? headers.get(CABECERA_SIN_RED) : headers[CABECERA_SIN_RED];
+  return valor != null && valor !== "";
+}
+
+/**
  * ¿El fallo se debe a la red y no al servidor ni a un bug?
  *
  * Sirve para no mostrar toasts de "Error al cargar X" cuando el usuario ya está
@@ -47,7 +67,7 @@ export function esFalloDeRed(err: unknown): boolean {
   if (typeof navigator !== "undefined" && !navigator.onLine) return true;
   if (axios.isAxiosError(err)) {
     // Si no hay respuesta, la petición ni siquiera llegó al servidor.
-    return !err.response;
+    return !err.response || esRespuestaSinRed(err.response);
   }
   // fetch lanza TypeError cuando no logra conectar.
   return err instanceof TypeError;
