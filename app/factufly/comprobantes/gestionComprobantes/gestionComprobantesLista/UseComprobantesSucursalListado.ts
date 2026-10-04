@@ -10,6 +10,7 @@ interface UseComprobantesSucursalListadoParams {
   limit?: number
   offset?: number
   usuarioId?: number | null
+  medioPago?: string | null
 }
 
 interface UseComprobantesSucursalListadoReturn {
@@ -30,7 +31,7 @@ export const useComprobantesSucursalListado = (): UseComprobantesSucursalListado
   const [hasMore, setHasMore] = useState(true)
 
   const fetchComprobantes = useCallback(async ({
-    sucursalId, fechaDesde, fechaHasta, limit = 100, offset = 0, usuarioId
+    sucursalId, fechaDesde, fechaHasta, limit = 100, offset = 0, usuarioId, medioPago
   }: UseComprobantesSucursalListadoParams): Promise<ComprobanteListado[]> => {
     setLoading(true)
     setError(null)
@@ -39,6 +40,7 @@ export const useComprobantesSucursalListado = (): UseComprobantesSucursalListado
       if (fechaDesde) url.searchParams.append("fechaDesde", fechaDesde)
       if (fechaHasta) url.searchParams.append("fechaHasta", fechaHasta)
       if (usuarioId != null) url.searchParams.append("usuarioId", String(usuarioId))
+      if (medioPago) url.searchParams.append("medioPago", medioPago)
       url.searchParams.append("limit", limit.toString())
       url.searchParams.append("offset", offset.toString())
 

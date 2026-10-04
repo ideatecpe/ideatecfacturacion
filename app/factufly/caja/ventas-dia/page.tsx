@@ -38,6 +38,8 @@ import type {
   ComprobanteDetalleItem,
 } from "@/app/factufly/comprobantes/gestionComprobantes/Comprobante";
 
+const MEDIOS_PAGO = ["Efectivo", "Tarjeta", "Yape", "Plin", "Transferencia"];
+
 const hoyISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -83,6 +85,7 @@ export default function VentasDelDiaPage() {
 
   const [fecha, setFecha] = useState(hoyISO());
   const [usuarioId, setUsuarioId] = useState<number | null>(null);
+  const [medioPago, setMedioPago] = useState<string>("");
   const [seleccionadoId, setSeleccionadoId] = useState<number | null>(null);
 
   const { comprobantes, loading, fetchComprobantes } =
@@ -112,9 +115,10 @@ export default function VentasDelDiaPage() {
       fechaDesde: `${fecha}T00:00:00`,
       fechaHasta: `${fecha}T23:59:59`,
       usuarioId: filtroUsuarioId,
+      medioPago: medioPago || null,
       limit: 200,
     });
-  }, [sucursalId, fecha, filtroUsuarioId, fetchComprobantes]);
+  }, [sucursalId, fecha, filtroUsuarioId, medioPago, fetchComprobantes]);
 
   useEffect(() => {
     cargar();
@@ -123,7 +127,7 @@ export default function VentasDelDiaPage() {
   useEffect(() => {
     setSeleccionadoId(null);
     resetDetalles();
-  }, [fecha, filtroUsuarioId, resetDetalles]);
+  }, [fecha, filtroUsuarioId, medioPago, resetDetalles]);
 
   const seleccionar = (doc: ComprobanteListado) => {
     setSeleccionadoId(doc.comprobanteId);
@@ -396,6 +400,25 @@ export default function VentasDelDiaPage() {
               </select>
             </div>
           )}
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              Medio de pago:
+            </span>
+            <select
+              value={medioPago}
+              onChange={(e) => setMedioPago(e.target.value)}
+              className="h-8 px-2.5 text-xs font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/10 transition-colors min-w-[150px]"
+            >
+              <option value="">Todos los medios</option>
+              {MEDIOS_PAGO.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+              <option value="SinPago">Crédito / Sin pago</option>
+            </select>
+          </div>
         </div>
 
         {/* Resumen: cantidad y total de ventas filtradas */}
