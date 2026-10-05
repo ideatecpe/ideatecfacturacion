@@ -48,6 +48,8 @@ interface Props {
   onSeleccionarProducto: (key: number, productoId: number, seleccionado?: ProductoSucursal) => void;
   onRemove: (key: number) => void;
   onAgregarProveedor: (key: number) => void;
+  /** Abre el registro de un producto que todavía no existe, para esta línea. */
+  onCrearProducto?: (key: number, texto: string) => void;
 }
 
 const inputCls =
@@ -72,6 +74,7 @@ export default function LineaCompraRow({
   onSeleccionarProducto,
   onRemove,
   onAgregarProveedor,
+  onCrearProducto,
 }: Props) {
   const sucursalIdEfectiva = mostrarSucursal ? linea.sucursalId : sucursalFija?.id ?? 0;
 
@@ -184,6 +187,8 @@ export default function LineaCompraRow({
           disabled={sucursalIdEfectiva === 0 || loadingSucursal || disabled}
           placeholder={loadingSucursal ? "Cargando..." : "Seleccione o busque por código..."}
           showError={!!errors.productoId}
+          onCrearNuevo={onCrearProducto ? (texto) => onCrearProducto(linea.key, texto) : undefined}
+          textoCrearNuevo="Crear producto nuevo"
           opciones={productosSucursal.map((p) => ({
             value: p.productoId,
             label: `${p.nomProducto} (${p.codigo})`,

@@ -27,7 +27,14 @@ interface ModalCrearProductoRapidoProps {
   categorias: Categoria[];
   totalProductos: number;
   sucursalId: number;
-  onProductoCreado: (producto: ProductoSucursal) => void;
+  /**
+   * "venta" (caja): el producto nace con el stock indicado.
+   * "compra" (ingreso de stock): nace con stock 0 y la cantidad se devuelve para la
+   * línea de la compra, que es la que mete el stock con su costo y su lote. Si se
+   * creara con stock, al registrar el ingreso se sumaría dos veces.
+   */
+  modo?: "venta" | "compra";
+  onProductoCreado: (producto: ProductoSucursal, compra?: { cantidad: number; precioCompra: number }) => void;
 }
 
 function incrementarCodigo(codigo: string): string {
@@ -46,8 +53,10 @@ export default function ModalCrearProductoRapido({
   categorias,
   totalProductos,
   sucursalId,
+  modo = "venta",
   onProductoCreado,
 }: ModalCrearProductoRapidoProps) {
+  const esCompra = modo === "compra";
   const { user, accessToken } = useAuth();
   const { showToast } = useToast();
 
@@ -70,21 +79,27 @@ export default function ModalCrearProductoRapido({
       setNomProducto(esCodigo ? "" : nombreInicial || (!/^\d{4,}$/.test(codigoBarrasInicial) ? codigoBarrasInicial : ""));
       setPrecioVenta("");
       setPrecioCompra("");
-      setStock("10");
+      setStock(esCompra ? "1" : "10");
       setUnidadMedida("NIU");
       setGuardando(false);
-
-      if (categorias.length > 0) {
-        setCategoriaId(categorias[0].categoriaId);
-      } else {
-        setCategoriaId(0);
-      }
+      setCategoriaId(0);
 
       setTimeout(() => {
         nombreInputRef.current?.focus();
       }, 100);
     }
-  }, [isOpen, codigoBarrasInicial, nombreInicial, categorias]);
+  }, [isOpen, codigoBarrasInicial, nombreInicial, esCompra]);
+
+  // Separado del reinicio de arriba: si las categorías llegan con el modal ya abierto
+  // (en Compras se piden al abrir el registro), solo se elige la primera, sin borrar
+  // lo que el usuario ya escribió.
+  useEffect(() => {
+    if (isOpen && categorias.length > 0) {
+      setCategoriaId((actual) =>
+        actual && categorias.some((c) => c.categoriaId === actual) ? actual : categorias[0].categoriaId,
+      );
+    }
+  }, [isOpen, categorias]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,12 +119,13 @@ export default function ModalCrearProductoRapido({
 
     const numStock = parseFloat(stock);
     if (isNaN(numStock) || numStock <= 0) {
-      showToast("Ingresa una cantidad de stock inicial mayor a 0", "info");
+      showToast(esCompra ? "Ingresa la cantidad que llega en esta compra" : "Ingresa una cantidad de stock inicial mayor a 0", "info");
       return;
     }
 
     const numPrecioCompra = parseFloat(precioCompra);
-    if (!precioCompra || isNaN(numPrecioCompra) || numPrecioCompra < 0) {
+    // En una compra el costo va a la línea del ingreso, que exige que sea mayor a 0.
+    if (!precioCompra || isNaN(numPrecioCompra) || numPrecioCompra < 0 || (esCompra && numPrecioCompra <= 0)) {
       showToast("Ingresa un precio de compra válido", "info");
       return;
     }
@@ -132,7 +148,7 @@ export default function ModalCrearProductoRapido({
           categoriaId: categoriaId || (categorias[0]?.categoriaId ?? 0),
           sucursalId,
           precioUnitario: numPrecioVenta,
-          stock: numStock,
+          stock: esCompra ? 0 : numStock,
           costoUnitario: numPrecioCompra,
           codigoBarras: codigoBarras.trim() || null,
           alertaStockBajoActiva: true,
@@ -158,16 +174,21 @@ export default function ModalCrearProductoRapido({
               sucursalProductoId: res.data?.sucursalProducto?.sucursalProductoId ?? res.data?.productoId,
               nomSucursal: res.data?.sucursalProducto?.nomSucursal ?? null,
               precioUnitario: numPrecioVenta,
-              stock: numStock,
+              stock: esCompra ? 0 : numStock,
               ultimoPrecioCompra: numPrecioCompra,
             },
           };
 
           showToast(
-            `✓ Producto "${productoFinal.nomProducto}" creado y agregado a la venta`,
+            esCompra
+              ? `Producto "${productoFinal.nomProducto}" creado y agregado a la compra`
+              : `Producto "${productoFinal.nomProducto}" creado y agregado a la venta`,
             "success",
           );
-          onProductoCreado(productoFinal);
+          onProductoCreado(
+            productoFinal,
+            esCompra ? { cantidad: numStock, precioCompra: numPrecioCompra } : undefined,
+          );
           onClose();
           return;
         } catch (err) {
@@ -204,7 +225,7 @@ export default function ModalCrearProductoRapido({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Registrar Producto Rápido"
+      title={esCompra ? "Registrar producto nuevo" : "Registrar Producto Rápido"}
       className="max-w-lg"
       elevated
     >
@@ -213,9 +234,11 @@ export default function ModalCrearProductoRapido({
         <div className="flex items-center gap-2.5 p-3 bg-blue-50/80 border border-blue-100 rounded-xl text-brand-blue">
           <PackagePlus className="w-5 h-5 shrink-0" />
           <div className="text-xs">
-            <p className="font-bold">Registro exprés para venta inmediata</p>
+            <p className="font-bold">{esCompra ? "Producto nuevo para esta compra" : "Registro exprés para venta inmediata"}</p>
             <p className="text-blue-600/90 text-[11px]">
-              Ingresa los datos esenciales. Podrás editar fotos y detalles más tarde en el catálogo.
+              {esCompra
+                ? "Se crea con stock 0 y entra a la compra con la cantidad y el costo que indiques: el stock se carga al registrar el ingreso."
+                : "Ingresa los datos esenciales. Podrás editar fotos y detalles más tarde en el catálogo."}
             </p>
           </div>
         </div>
@@ -314,7 +337,7 @@ export default function ModalCrearProductoRapido({
 
           <div className="space-y-1">
             <label className="block text-xs font-bold text-gray-700">
-              Precio Compra (S/) <span className="text-rose-500">*</span>
+              {esCompra ? "Costo unitario (S/)" : "Precio Compra (S/)"} <span className="text-rose-500">*</span>
             </label>
             <div className="relative">
               <span className="text-xs font-bold text-gray-400 absolute left-3 top-1/2 -translate-y-1/2">
@@ -356,10 +379,10 @@ export default function ModalCrearProductoRapido({
         <div className="space-y-1.5 bg-gray-50/80 p-3 rounded-xl border border-gray-100">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold text-gray-700 flex items-center gap-1">
-              <Boxes className="w-3.5 h-3.5 text-gray-500" /> Stock Inicial <span className="text-rose-500">*</span>
+              <Boxes className="w-3.5 h-3.5 text-gray-500" /> {esCompra ? "Cantidad que llega" : "Stock Inicial"} <span className="text-rose-500">*</span>
             </label>
             <span className="text-[10px] text-gray-400">
-              Unidades físicas disponibles ahora
+              {esCompra ? "Unidades que ingresan con esta compra" : "Unidades físicas disponibles ahora"}
             </span>
           </div>
 
@@ -416,6 +439,8 @@ export default function ModalCrearProductoRapido({
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 Registrando...
               </>
+            ) : esCompra ? (
+              "Registrar y agregar a la compra"
             ) : (
               "Registrar y Vender"
             )}

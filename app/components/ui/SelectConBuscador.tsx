@@ -1,4 +1,4 @@
-import { ChevronDown, Search, X } from "lucide-react";
+import { ChevronDown, Search, X, Plus } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { coincideBusqueda } from "@/app/utils/normalizarTexto";
 
@@ -19,6 +19,9 @@ interface Props {
   className?: string;
   compact?: boolean;
   placement?: "auto" | "top" | "bottom";
+  /** Si se pasa, el desplegable ofrece crear un registro nuevo con el texto buscado. */
+  onCrearNuevo?: (texto: string) => void;
+  textoCrearNuevo?: string;
 }
 
 export function SelectConBuscador({
@@ -31,6 +34,8 @@ export function SelectConBuscador({
   className,
   compact = true,
   placement = "auto",
+  onCrearNuevo,
+  textoCrearNuevo = "Crear nuevo",
 }: Props) {
   const [abierto, setAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -215,6 +220,23 @@ export function SelectConBuscador({
               ))
             )}
           </div>
+
+          {onCrearNuevo && (
+            <button
+              type="button"
+              onMouseDown={() => {
+                onCrearNuevo(busqueda.trim());
+                setAbierto(false);
+              }}
+              className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-brand-blue bg-blue-50/60 hover:bg-blue-100/70 border-t border-blue-100 transition-colors text-left"
+            >
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                {textoCrearNuevo}
+                {busqueda.trim() && <> «{busqueda.trim()}»</>}
+              </span>
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import React from "react";
 import axios from "axios";
-import { Plus, Loader2, ScanBarcode, CameraOff, Search, Sparkles } from "lucide-react";
+import { Plus, Loader2, ScanBarcode, CameraOff, Search, Sparkles, PackagePlus } from "lucide-react";
 import { scanImageData } from "@undecaf/zbar-wasm";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
@@ -17,6 +17,8 @@ import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { avisarStockRepuestoWhatsapp } from "@/app/factufly/productos/gestioProductos/stockAlerta";
 import LineaCompraRow, { LineaCompra, NUEVO_PROVEEDOR_VALUE } from "./LineaCompraRow";
 import AgregarProveedor from "./AgregarProveedor";
+import ModalCrearProductoRapido from "@/app/factufly/operaciones/components/ModalCrearProductoRapido";
+import { useCategoriasLista } from "@/app/factufly/productos/gestioProductos/useCategoriasLista";
 
 /** Switch segmentado: misma data en todas las líneas que comparten sucursal,
  * para no repetir el fetch de productos cada vez que se agrega una línea. */
@@ -55,7 +57,15 @@ function useProductosPorSucursalCache() {
     [accessToken],
   );
 
-  return { cache, loadingIds, ensureProductos };
+  // Un producto recién creado entra a la lista de inmediato, sin esperar a recargarla.
+  const agregarProducto = React.useCallback((sucursalId: number, producto: ProductoSucursal) => {
+    setCache((prev) => ({
+      ...prev,
+      [sucursalId]: [producto, ...(prev[sucursalId] ?? []).filter((p) => p.productoId !== producto.productoId)],
+    }));
+  }, []);
+
+  return { cache, loadingIds, ensureProductos, agregarProducto };
 }
 
 function SwitchSegmentado<T extends string>({
@@ -146,8 +156,17 @@ export default function RegistrarCompra({
   // aviso de stock bajo ahora vive por sucursal, y lo necesitamos para avisar
   // aunque el usuario sea de una sola sucursal.
   const { sucursales } = useSucursalRuc(isOpen);
-  const { cache: productosCache, loadingIds: productosLoadingIds, ensureProductos } =
+  const { cache: productosCache, loadingIds: productosLoadingIds, ensureProductos, agregarProducto } =
     useProductosPorSucursalCache();
+  const { categorias, fetchCategorias } = useCategoriasLista();
+
+  // Registro de un producto que llegó y aún no está en el catálogo.
+  const [crearProducto, setCrearProducto] = React.useState<{
+    lineaKey: number | null;
+    sucursalId: number;
+    codigoBarras: string;
+    nombre: string;
+  } | null>(null);
 
   const forzadoUnProveedor = !!proveedorPreseleccionado;
 
@@ -186,6 +205,10 @@ export default function RegistrarCompra({
 
   const modoSucursal: "fijo" | "porItem" = isSuperAdmin ? "porItem" : "fijo";
 
+  React.useEffect(() => {
+    if (isOpen && user?.ruc) fetchCategorias(user.ruc);
+  }, [isOpen, user?.ruc, fetchCategorias]);
+
   // Precalentar caché de productos fresca al abrir modal
   React.useEffect(() => {
     if (isOpen) {
@@ -209,6 +232,7 @@ export default function RegistrarCompra({
       setLineaAEliminar(null);
       setEleccionLote(null);
       setDuplicadoManual(null);
+      setCrearProducto(null);
     } else {
       stopScanning();
     }
@@ -234,7 +258,15 @@ export default function RegistrarCompra({
         });
 
       if (!encontrado) {
-        showToast(`No se encontró producto con código "${raw}"`, "info");
+        // Producto que llegó y aún no está en el catálogo: se registra ahí mismo con su código.
+        showToast(`"${raw}" no está registrado: complétalo para agregarlo a la compra`, "info");
+        setCrearProducto({
+          lineaKey: null,
+          sucursalId: sucursalIdEfectiva,
+          codigoBarras: /^\d{4,}$/.test(raw) ? raw : "",
+          nombre: /^\d{4,}$/.test(raw) ? "" : raw,
+        });
+        setQuickSearch("");
         return;
       }
 
@@ -573,6 +605,59 @@ export default function RegistrarCompra({
   };
 
   const handleEliminarLinea = (key: number) => setLineaAEliminar(key);
+
+  /** Sucursal donde se crea el producto: la de la línea, la fija del usuario o la primera. */
+  const sucursalParaProductoNuevo = (lineaKey: number | null): number => {
+    if (modoSucursal === "fijo") return sucursalFija?.id ?? 0;
+    const linea = lineas.find((l) => l.key === lineaKey) ?? lineas.find((l) => l.estado !== "guardado");
+    return linea?.sucursalId || 0;
+  };
+
+  const abrirCrearProducto = (lineaKey: number | null, texto = "") => {
+    const sucursalId = sucursalParaProductoNuevo(lineaKey);
+    if (!sucursalId) {
+      showToast("Elige primero la sucursal de la línea", "info");
+      return;
+    }
+    const esCodigo = /^\d{4,}$/.test(texto.trim());
+    setCrearProducto({
+      lineaKey,
+      sucursalId,
+      codigoBarras: esCodigo ? texto.trim() : "",
+      nombre: esCodigo ? "" : texto.trim(),
+    });
+  };
+
+  const handleProductoNuevoCreado = (
+    producto: ProductoSucursal,
+    compra?: { cantidad: number; precioCompra: number },
+  ) => {
+    if (!crearProducto) return;
+    const { sucursalId, lineaKey } = crearProducto;
+    agregarProducto(sucursalId, producto);
+    // Se vuelve a pedir la lista en segundo plano para traer lo que el backend completa.
+    ensureProductos(sucursalId, true);
+
+    const datos = {
+      productoId: producto.productoId,
+      unidadMedida: producto.unidadMedida,
+      cantidad: String(compra?.cantidad ?? 1),
+      precioCompra: compra ? String(compra.precioCompra) : "",
+    };
+
+    // La línea desde la que se pidió, o la primera vacía, o una nueva.
+    const destino =
+      lineas.find((l) => l.key === lineaKey && l.estado !== "guardado") ??
+      lineas.find((l) => l.productoId === 0 && l.estado !== "guardado");
+    if (destino) {
+      setLineas((prev) => prev.map((l) => (l.key === destino.key ? { ...l, ...datos } : l)));
+      setLineaErrors((prev) => ({ ...prev, [destino.key]: {} }));
+    } else {
+      const nueva = nuevaLinea(modoProveedor === "unico" ? proveedorIdHeader : 0, sucursalId);
+      setLineas((prev) => [...prev, { ...nueva, ...datos }]);
+    }
+    setCrearProducto(null);
+  };
 
   const confirmarEliminarLinea = () => {
     if (lineaAEliminar == null) return;
@@ -1150,6 +1235,7 @@ export default function RegistrarCompra({
                       onSeleccionarProducto={handleSeleccionarProducto}
                       onRemove={handleEliminarLinea}
                       onAgregarProveedor={handleAbrirNuevoProveedor}
+                      onCrearProducto={abrirCrearProducto}
                     />
                   ))}
                 </tbody>
@@ -1158,6 +1244,7 @@ export default function RegistrarCompra({
           </div>
 
           <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={handleClickAgregarProducto}
@@ -1166,6 +1253,16 @@ export default function RegistrarCompra({
             >
               <Plus className="w-3.5 h-3.5" /> Agregar producto
             </button>
+            <button
+              type="button"
+              onClick={() => abrirCrearProducto(null)}
+              disabled={guardando}
+              title="Registrar un producto que llegó y todavía no está en tu catálogo"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <PackagePlus className="w-3.5 h-3.5" /> Producto nuevo
+            </button>
+            </div>
 
             <p className="text-xs text-gray-500">
               Total general:{" "}
@@ -1229,6 +1326,18 @@ export default function RegistrarCompra({
       }}
       onProveedorAgregado={handleProveedorCreado}
       elevated
+    />
+
+    <ModalCrearProductoRapido
+      isOpen={!!crearProducto}
+      onClose={() => setCrearProducto(null)}
+      modo="compra"
+      codigoBarrasInicial={crearProducto?.codigoBarras ?? ""}
+      nombreInicial={crearProducto?.nombre ?? ""}
+      categorias={categorias}
+      totalProductos={crearProducto ? (productosCache[crearProducto.sucursalId]?.length ?? 0) : 0}
+      sucursalId={crearProducto?.sucursalId ?? 0}
+      onProductoCreado={handleProductoNuevoCreado}
     />
 
     <Modal
