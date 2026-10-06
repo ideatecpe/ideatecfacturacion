@@ -1323,6 +1323,17 @@ export function CajaAutopagoVista({
     return copia;
   }, [busqueda, productosSucursal, statsVentas, config?.isStock, productosPorId, reservasOtraCaja]);
 
+  // Acepta decimales ("0.5"), fracciones ("1/8") y mixtos ("1 1/2"). Devuelve null si es inválido o está incompleto.
+  const parsearCantidad = (raw: string): number | null => {
+    const s = raw.trim();
+    let m = s.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+    if (m) return Number(m[3]) > 0 ? Number(m[1]) + Number(m[2]) / Number(m[3]) : null;
+    m = s.match(/^(\d+)\/(\d+)$/);
+    if (m) return Number(m[2]) > 0 ? Number(m[1]) / Number(m[2]) : null;
+    if (/^(\d+\.?\d*|\.\d+)$/.test(s)) return parseFloat(s);
+    return null;
+  };
+
   const cambiarCantidad = (key: string, delta: number) => {
     if (delta > 0) {
       const item = items.find((i) => i.key === key);
@@ -3383,21 +3394,21 @@ export function CajaAutopagoVista({
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const raw = e.target.value.replace(",", ".");
-                            if (raw === "" || raw === ".") {
+                            if (!/^[\d.\s/]*$/.test(raw)) return;
+                            const parsed = parsearCantidad(raw);
+                            if (parsed === null) {
                               setItems((prev) =>
                                 prev.map((it) =>
                                   it.key === i.key ? { ...it, cantidad: 0, cantidadStr: raw } : it,
                                 ),
                               );
-                            } else if (/^\d*\.?\d*$/.test(raw)) {
-                              const parsed = parseFloat(raw);
-                              const val = isNaN(parsed) ? 0 : parsed;
-                              actualizarCantidadDirecta(i.key, val, raw);
+                            } else {
+                              actualizarCantidadDirecta(i.key, parsed, raw);
                             }
                           }}
                           onBlur={(e) => {
                             const raw = e.target.value.replace(",", ".");
-                            const parsed = parseFloat(raw);
+                            const parsed = parsearCantidad(raw) ?? NaN;
                             if (isNaN(parsed) || parsed <= 0) {
                               setItems((prev) => prev.filter((it) => it.key !== i.key));
                             } else {
@@ -3411,7 +3422,7 @@ export function CajaAutopagoVista({
                             }
                           }}
                           className="w-12 h-6 text-center text-xs font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded focus:border-brand-blue focus:bg-white outline-none tabular-nums px-0.5"
-                          title="Ingresa la cantidad o peso (ej. 0.5, 0.4)"
+                          title="Ingresa la cantidad o peso (ej. 0.5, 1/4, 1/8, 1 1/2)"
                         />
 
                         <button
@@ -3646,16 +3657,17 @@ export function CajaAutopagoVista({
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => {
                           const raw = e.target.value.replace(",", ".");
-                          if (raw === "" || raw === ".") {
+                          if (!/^[\d.\s/]*$/.test(raw)) return;
+                          const parsed = parsearCantidad(raw);
+                          if (parsed === null) {
                             setItems((prev) => prev.map((it) => (it.key === i.key ? { ...it, cantidad: 0, cantidadStr: raw } : it)));
-                          } else if (/^\d*\.?\d*$/.test(raw)) {
-                            const parsed = parseFloat(raw);
-                            actualizarCantidadDirecta(i.key, isNaN(parsed) ? 0 : parsed, raw);
+                          } else {
+                            actualizarCantidadDirecta(i.key, parsed, raw);
                           }
                         }}
                         onBlur={(e) => {
                           const raw = e.target.value.replace(",", ".");
-                          const parsed = parseFloat(raw);
+                          const parsed = parsearCantidad(raw) ?? NaN;
                           if (isNaN(parsed) || parsed <= 0) {
                             setItems((prev) => prev.filter((it) => it.key !== i.key));
                           } else {
