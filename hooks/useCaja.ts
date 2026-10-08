@@ -92,6 +92,26 @@ export interface CuadreTurno {
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
+/**
+ * fetch que deja en la consola cuánto tardó cada API de la caja, para medir
+ * desde el navegador la misma demora que se ve en Postman.
+ */
+async function fetchCaja(accion: string, url: string, init?: RequestInit): Promise<Response> {
+  const metodo = (init?.method ?? "GET").toUpperCase();
+  const ruta = url.replace(BASE_URL ?? "", "");
+  const inicio = performance.now();
+  try {
+    const res = await fetch(url, init);
+    const seg = ((performance.now() - inicio) / 1000).toFixed(2);
+    console.log(`[Caja] ${accion} · ${metodo} ${ruta} → ${seg} s (${res.status})`);
+    return res;
+  } catch (e) {
+    const seg = ((performance.now() - inicio) / 1000).toFixed(2);
+    console.log(`[Caja] ${accion} · ${metodo} ${ruta} → falló a los ${seg} s`);
+    throw e;
+  }
+}
+
 /** Lee el `mensaje` que devuelven los controllers para poder mostrarlo tal cual. */
 async function mensajeDeError(res: Response, porDefecto: string): Promise<string> {
   try {
@@ -154,7 +174,7 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
       return null;
     }
     try {
-      const res = await fetch(`${BASE_URL}/api/Caja/estado/${sucursalId}`, { headers: headers() });
+      const res = await fetchCaja("Estado de caja", `${BASE_URL}/api/Caja/estado/${sucursalId}`, { headers: headers() });
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo consultar la caja"));
 
       const data: CajaEstado = await res.json();
@@ -179,7 +199,7 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
 
   const abrirCaja = useCallback(
     async (montoInicial: number, observaciones?: string) => {
-      const res = await fetch(`${BASE_URL}/api/Caja/abrir`, {
+      const res = await fetchCaja("Abrir caja", `${BASE_URL}/api/Caja/abrir`, {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ sucursalId, montoInicial, observaciones }),
@@ -194,7 +214,7 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
   );
 
   const iniciarTurno = useCallback(async () => {
-    const res = await fetch(`${BASE_URL}/api/Caja/turno/iniciar`, {
+    const res = await fetchCaja("Iniciar turno", `${BASE_URL}/api/Caja/turno/iniciar`, {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({ sucursalId }),
@@ -208,7 +228,7 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
 
   const obtenerCuadre = useCallback(
     async (cajaTurnoId: number): Promise<CuadreTurno> => {
-      const res = await fetch(`${BASE_URL}/api/Caja/turno/${cajaTurnoId}/cuadre`, { headers: headers() });
+      const res = await fetchCaja("Resumen para cuadrar/cerrar", `${BASE_URL}/api/Caja/turno/${cajaTurnoId}/cuadre`, { headers: headers() });
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo calcular el cuadre"));
 
       return res.json();
@@ -218,7 +238,7 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
 
   const cuadrar = useCallback(
     async (cajaTurnoId: number, efectivoContado: number, cerrarCaja: boolean, observaciones?: string) => {
-      const res = await fetch(`${BASE_URL}/api/Caja/cuadrar`, {
+      const res = await fetchCaja(cerrarCaja ? "Cerrar caja" : "Cuadrar caja", `${BASE_URL}/api/Caja/cuadrar`, {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ cajaTurnoId, efectivoContado, cerrarCaja, observaciones }),
@@ -234,7 +254,7 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
 
   const registrarRetiro = useCallback(
     async (cajaTurnoId: number, monto: number, motivo: string) => {
-      const res = await fetch(`${BASE_URL}/api/Caja/retiro`, {
+      const res = await fetchCaja("Retirar efectivo", `${BASE_URL}/api/Caja/retiro`, {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ cajaTurnoId, monto, motivo }),
