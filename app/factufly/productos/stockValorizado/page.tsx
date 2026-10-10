@@ -15,6 +15,7 @@ const ORIGEN_STYLE: Record<string, { label: string; className: string }> = {
   COMPRA: { label: "Compra", className: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200" },
   SALDO_INICIAL: { label: "Saldo inicial", className: "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200" },
   DEVOLUCION_VENTA: { label: "Devolución", className: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200" },
+  DESPIECE: { label: "Despiece", className: "bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200" },
   AJUSTE: { label: "Ajuste", className: "bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-200" },
 };
 

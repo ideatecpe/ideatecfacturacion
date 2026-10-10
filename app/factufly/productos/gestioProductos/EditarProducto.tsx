@@ -330,7 +330,9 @@ export default function EditarProducto({
       categoriaId: producto.categoria?.categoriaId ?? 0,
       sucursalId: 0,
       precioUnitario: producto.sucursalProducto.precioUnitario,
-      stock: producto.sucursalProducto.stock ?? 0,
+      // En partes que se despiezan al vender, el stock que llega incluye lo que aún está en
+      // el entero; aquí se edita solo lo que ya está cortado.
+      stock: (producto.sucursalProducto.stock ?? 0) - (producto.sucursalProducto.stockDespiece ?? 0),
       costoUnitario: producto.sucursalProducto.ultimoPrecioCompra ?? null,
       urlImagenProducto: producto.urlImagenProducto ?? null,
       codigoBarras: producto.codigoBarras ?? "",
@@ -472,7 +474,7 @@ export default function EditarProducto({
     const stockActual =
       form.esPaquete && baseDelPaquete && form.factorConversion
         ? Math.floor((baseDelPaquete.sucursalProducto.stock ?? 0) / form.factorConversion)
-        : producto.sucursalProducto.stock ?? 0;
+        : (producto.sucursalProducto.stock ?? 0) - (producto.sucursalProducto.stockDespiece ?? 0);
     if (
       config?.isStock &&
       form.tipoProducto === "BIEN" &&
@@ -557,7 +559,7 @@ export default function EditarProducto({
           precioUnitario: Number(precioInput || 0),
           stock:
             config?.isStock && form.tipoProducto === "BIEN"
-              ? form.stock ?? 0
+              ? (form.stock ?? 0) + (producto.sucursalProducto.stockDespiece ?? 0)
               : null,
           // El backend persiste este costo como último precio de compra al guardar
           // (ver EditarProductoAsync); se refleja aquí para no requerir un refresh.

@@ -11,7 +11,10 @@ export interface SucursalProducto {
   sucursalProductoId: number;
   nomSucursal: string | null;
   precioUnitario: number;
+  /** Disponible para vender. En partes con "despiezar al vender" incluye lo que sale del entero. */
   stock?: number | null;
+  /** Parte de `stock` que todavía no está cortada: sale del entero al venderla. Solo lectura. */
+  stockDespiece?: number | null;
   ultimoPrecioCompra?: number | null;
   fechaUltimaCompra?: string | null;
   precioMayorista?: number | null;

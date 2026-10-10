@@ -93,6 +93,11 @@ export interface TiendaOnlineConfig {
 
   /** Mesas numeradas, cada una con su QR (…?mesa=N). 0 = sin mesas numeradas. */
   cantidadMesas: number;
+  /**
+   * Mesa real de cada QR, por si los stickers se pegaron cruzados: [3, 1, 2] = el QR
+   * de ?mesa=1 está en la mesa 3… Vacío = cada QR en su propia mesa. Los QR no cambian.
+   */
+  mesasQr: number[];
 
   permiteDelivery: boolean;
   costoDelivery: number;
@@ -146,6 +151,8 @@ export interface TiendaPublica {
   /** Horario de cada día (vacío si no usa horario). */
   horario?: HorarioDia[];
   cantidadMesas?: number;
+  /** Ver TiendaOnlineConfig.mesasQr. */
+  mesasQr?: number[];
 
   permiteDelivery?: boolean;
   costoDelivery?: number;
@@ -337,6 +344,11 @@ export function urlMesa(enlaceTienda: string, mesa: number): string {
   const url = new URL(enlaceTienda);
   url.searchParams.set("mesa", String(mesa));
   return url.toString();
+}
+
+/** Mesa donde está pegado el QR de ?mesa=N (los stickers pueden haberse pegado cruzados). */
+export function mesaDeQr(mesasQr: number[] | null | undefined, qr: number): number {
+  return mesasQr?.[qr - 1] ?? qr;
 }
 
 /** Mismo criterio que el backend: el envío es gratis desde cierto monto de productos. */

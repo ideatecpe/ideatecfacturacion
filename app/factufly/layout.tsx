@@ -319,6 +319,7 @@ export default function DashboardLayout({
           ? {
               children: [
                 { id: "lista", label: "Listado" },
+                { id: "despiece", label: "Despiece" },
                 { id: "kardex", label: "Kardex" },
                 { id: "stockValorizado", label: "Stock Valorizado" },
                 { id: "rentabilidad", label: "Rentabilidad" },

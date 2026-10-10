@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { conVarianteImagen } from "@/app/utils/cloudflareImagen";
-import { PedidoCreado, ProductoPublico, TiendaPublica, tiendaApi } from "@/lib/pedidosOnline";
+import { PedidoCreado, ProductoPublico, TiendaPublica, mesaDeQr, tiendaApi } from "@/lib/pedidosOnline";
 import { variablesTemaTienda } from "@/lib/colores";
 import BarraCategorias, { IconoDeSeccion } from "./BarraCategorias";
 import CheckoutPedido, { LineaCarrito } from "./CheckoutPedido";
@@ -476,12 +476,17 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
 
   // Mesa del QR (…?mesa=3). Solo vale si la tienda lleva a la mesa y, con mesas
   // numeradas, si esa mesa existe; si no, el cliente elige cómo recibir el pedido.
+  // El número del enlace es el del QR: si los stickers se pegaron cruzados, el negocio
+  // indicó en qué mesa quedó cada QR y el pedido sale a nombre de esa mesa.
   const numeroMesa = mesaInicial ? parseInt(mesaInicial, 10) : NaN;
-  const mesaQr =
-    mesaInicial && tienda.permiteMesa &&
-    (!(tienda.cantidadMesas ?? 0) || (numeroMesa >= 1 && numeroMesa <= (tienda.cantidadMesas ?? 0)))
+  const cantidadMesas = tienda.cantidadMesas ?? 0;
+  const mesaQr = !mesaInicial || !tienda.permiteMesa
+    ? null
+    : !cantidadMesas
       ? mesaInicial.trim()
-      : null;
+      : numeroMesa >= 1 && numeroMesa <= cantidadMesas
+        ? String(mesaDeQr(tienda.mesasQr, numeroMesa))
+        : null;
 
   // Safari de iPhone desplaza la página al enfocar un campo que está en una barra
   // fija, aunque ya esté a la vista. En la franja se enfoca sin desplazar y, por

@@ -19,7 +19,7 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { useToast } from "@/app/components/ui/Toast";
-import { HorarioDia, TiendaOnlineConfig, pedidosOnlineApi, urlMesa, urlTiendaPublica } from "@/lib/pedidosOnline";
+import { HorarioDia, TiendaOnlineConfig, mesaDeQr, pedidosOnlineApi, urlMesa, urlTiendaPublica } from "@/lib/pedidosOnline";
 import { COLORES_TIENDA_ORIGINALES, contraste, luminancia, normalizarHex, variablesTemaTienda } from "@/lib/colores";
 import { QrPersonalizado } from "./QrPersonalizado";
 
@@ -49,6 +49,7 @@ const CONFIG_INICIAL: TiendaOnlineConfig = {
   cerradaTemporalmente: false,
   horario: [],
   cantidadMesas: 0,
+  mesasQr: [],
   permiteDelivery: false,
   costoDelivery: 0,
   pedidoMinimoDelivery: 0,
@@ -81,6 +82,24 @@ const leerMonto = (texto: string) => {
   const n = parseFloat(texto.replace(",", "."));
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
 };
+
+/**
+ * Ajusta la mesa de cada QR a una nueva cantidad de mesas: se conserva lo que sigue
+ * siendo válido y los QR que quedan sin mesa toman, en orden, las mesas libres.
+ */
+function ajustarMesasQr(mesasQr: number[], cantidad: number): number[] {
+  if (!mesasQr.length) return [];
+  const usadas = new Set<number>();
+  const lista = Array.from({ length: cantidad }, (_, i) => {
+    const mesa = mesasQr[i];
+    if (!mesa || mesa > cantidad || usadas.has(mesa)) return 0;
+    usadas.add(mesa);
+    return mesa;
+  });
+  const libres = Array.from({ length: cantidad }, (_, i) => i + 1).filter((m) => !usadas.has(m));
+  const ajustada = lista.map((m) => m || libres.shift()!);
+  return ajustada.every((m, i) => m === i + 1) ? [] : ajustada;
+}
 
 /** domingo=0 … sábado=6, en el orden en que se muestran (lunes primero). */
 const DIAS_SEMANA: { valor: number; corta: string; larga: string }[] = [
@@ -122,7 +141,8 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
     pedidosOnlineApi
       .obtenerConfig(sucursalId, accessToken)
       .then((c) => {
-        setConfig(c);
+        // Una API sin la reasignación de QR no manda mesasQr: cada QR en su mesa.
+        setConfig({ ...c, mesasQr: c.mesasQr ?? [] });
         // Solo hay enlace publicado si la tienda ya se guardó alguna vez.
         setGuardadoSlug(c.activa ? c.slug : null);
       })
@@ -174,7 +194,7 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
         { ...siguiente, slug: (siguiente.slug ?? "").replace(/-+$/, "") },
         accessToken,
       );
-      setConfig(guardada);
+      setConfig({ ...guardada, mesasQr: guardada.mesasQr ?? [] });
       setGuardadoSlug(guardada.activa ? guardada.slug : null);
       showToast(mensajeExito, "success");
       return true;
@@ -232,6 +252,23 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
   };
 
   const mesasQrRef = useRef<HTMLDivElement>(null);
+  const qrCruzados = config.mesasQr.length > 0;
+
+  const cambiarCantidadMesas = (cantidad: number) =>
+    setConfig((prev) => ({ ...prev, cantidadMesas: cantidad, mesasQr: ajustarMesasQr(prev.mesasQr, cantidad) }));
+
+  /**
+   * El QR ya impreso (?mesa=qr) quedó pegado en otra mesa. Se intercambia con el QR que
+   * tenía esa mesa, para que ninguna mesa quede con dos QR ni sin ninguno.
+   */
+  const asignarMesaAQr = (qr: number, mesa: number) =>
+    setConfig((prev) => {
+      const lista = Array.from({ length: prev.cantidadMesas }, (_, i) => mesaDeQr(prev.mesasQr, i + 1));
+      const otroQr = lista.indexOf(mesa);
+      if (otroQr >= 0) lista[otroQr] = lista[qr - 1];
+      lista[qr - 1] = mesa;
+      return { ...prev, mesasQr: ajustarMesasQr(lista, prev.cantidadMesas) };
+    });
   const [mesaCopiada, setMesaCopiada] = useState<number | null>(null);
 
   const copiarEnlaceMesa = async (mesa: number, url: string) => {
@@ -244,8 +281,9 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
     }
   };
 
-  const descargarQrMesa = (mesa: number) => {
-    const svg = mesasQrRef.current?.querySelector(`[data-mesa="${mesa}"] svg`);
+  const descargarQrMesa = (qr: number) => {
+    const svg = mesasQrRef.current?.querySelector(`[data-mesa="${qr}"] svg`);
+    const mesa = mesaDeQr(config.mesasQr, qr);
     if (svg instanceof SVGSVGElement && guardadoSlug) descargarSvgComoPng(svg, `qr-${guardadoSlug}-mesa-${mesa}.png`);
   };
 
@@ -254,7 +292,7 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
     const tarjetas = [...(mesasQrRef.current?.querySelectorAll<HTMLElement>("[data-mesa]") ?? [])]
       .map((el) => {
         const svg = el.querySelector("svg")?.outerHTML ?? "";
-        return `<div class="tarjeta"><p class="mesa">Mesa ${el.dataset.mesa}</p>${svg}<p class="texto">Escanea y haz tu pedido</p><p class="url">${el.dataset.url ?? ""}</p></div>`;
+        return `<div class="tarjeta"><p class="mesa">Mesa ${el.dataset.mesaReal}</p>${svg}<p class="texto">Escanea y haz tu pedido</p><p class="url">${el.dataset.url ?? ""}</p></div>`;
       })
       .join("");
     const ventana = window.open("", "_blank", "noopener=no,width=900,height=700");
@@ -616,7 +654,7 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
                 max={MAX_MESAS}
                 value={config.cantidadMesas || ""}
                 onChange={(e) =>
-                  cambiar("cantidadMesas", Math.min(MAX_MESAS, Math.max(0, parseInt(e.target.value, 10) || 0)))
+                  cambiarCantidadMesas(Math.min(MAX_MESAS, Math.max(0, parseInt(e.target.value, 10) || 0)))
                 }
                 disabled={deshabilitado}
                 placeholder="0"
@@ -635,25 +673,50 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-gray-500">
                     {config.cantidadMesas} {config.cantidadMesas === 1 ? "mesa" : "mesas"}. Imprímelos y pega cada uno en su mesa.
+                    {config.cantidadMesas > 1 &&
+                      " ¿Un QR quedó en otra mesa? Indica en qué mesa está y guarda: el QR impreso sigue sirviendo."}
                   </p>
-                  <BotonSecundario onClick={imprimirQrMesas}>
-                    <Printer className="w-3.5 h-3.5" /> Imprimir todos
-                  </BotonSecundario>
+                  <div className="flex flex-wrap gap-2">
+                    {qrCruzados && canEdit && (
+                      <BotonSecundario onClick={() => cambiar("mesasQr", [])}>
+                        <RotateCcw className="w-3.5 h-3.5" /> Cada QR en su mesa
+                      </BotonSecundario>
+                    )}
+                    <BotonSecundario onClick={imprimirQrMesas}>
+                      <Printer className="w-3.5 h-3.5" /> Imprimir todos
+                    </BotonSecundario>
+                  </div>
                 </div>
                 <div
                   ref={mesasQrRef}
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[28rem] overflow-y-auto pr-1"
                 >
-                  {Array.from({ length: config.cantidadMesas }, (_, i) => i + 1).map((mesa) => {
-                    const enlaceMesa = urlMesa(enlace, mesa);
+                  {Array.from({ length: config.cantidadMesas }, (_, i) => i + 1).map((qr) => {
+                    // El enlace (y el QR impreso) es siempre el del número de QR; solo
+                    // cambia la mesa a la que llega el pedido.
+                    const enlaceMesa = urlMesa(enlace, qr);
+                    const mesa = mesaDeQr(config.mesasQr, qr);
+                    const cruzado = mesa !== qr;
                     return (
                       <div
-                        key={mesa}
-                        data-mesa={mesa}
+                        key={qr}
+                        data-mesa={qr}
+                        data-mesa-real={mesa}
                         data-url={enlaceMesa}
-                        className="rounded-md border border-gray-200 bg-white p-2 flex flex-col items-center gap-1.5 min-w-0"
+                        className={`rounded-md border bg-white p-2 flex flex-col items-center gap-1.5 min-w-0 ${
+                          cruzado ? "border-amber-300" : "border-gray-200"
+                        }`}
                       >
-                        <p className="text-xs font-bold text-gray-800">Mesa {mesa}</p>
+                        <div className="w-full flex items-center justify-between gap-1.5">
+                          <p className="text-xs font-bold text-gray-800">Mesa {mesa}</p>
+                          <span
+                            className={`text-[10px] font-semibold rounded px-1.5 py-0.5 ${
+                              cruzado ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
+                            }`}
+                          >
+                            QR {qr}
+                          </span>
+                        </div>
                         <QrPersonalizado valor={enlaceMesa} tamano={88} colores={coloresQr} />
                         <p className="w-full text-center text-[10px] leading-snug text-brand-blue break-all select-all" title={enlaceMesa}>
                           {enlaceMesa}
@@ -661,20 +724,40 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
-                            onClick={() => copiarEnlaceMesa(mesa, enlaceMesa)}
+                            onClick={() => copiarEnlaceMesa(qr, enlaceMesa)}
                             className="text-[11px] font-semibold text-brand-blue hover:underline flex items-center gap-1"
                           >
-                            {mesaCopiada === mesa ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                            {mesaCopiada === mesa ? "Copiado" : "Copiar"}
+                            {mesaCopiada === qr ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            {mesaCopiada === qr ? "Copiado" : "Copiar"}
                           </button>
                           <button
                             type="button"
-                            onClick={() => descargarQrMesa(mesa)}
+                            onClick={() => descargarQrMesa(qr)}
                             className="text-[11px] font-semibold text-brand-blue hover:underline flex items-center gap-1"
                           >
                             <Download className="w-3 h-3" /> Descargar
                           </button>
                         </div>
+                        {config.cantidadMesas > 1 && (
+                          <label className="w-full flex items-center justify-center gap-1.5 border-t border-gray-100 pt-1.5">
+                            <span className="text-[11px] text-gray-500">Pegado en la</span>
+                            <select
+                              value={mesa}
+                              onChange={(e) => asignarMesaAQr(qr, Number(e.target.value))}
+                              disabled={deshabilitado}
+                              aria-label={`Mesa donde está pegado el QR ${qr}`}
+                              className={`h-7 rounded-md border px-1.5 text-[11px] font-semibold outline-none focus:border-brand-blue disabled:bg-gray-50 ${
+                                cruzado ? "border-amber-300 text-amber-800" : "border-gray-200 text-gray-700"
+                              }`}
+                            >
+                              {Array.from({ length: config.cantidadMesas }, (_, i) => i + 1).map((m) => (
+                                <option key={m} value={m}>
+                                  Mesa {m}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                       </div>
                     );
                   })}

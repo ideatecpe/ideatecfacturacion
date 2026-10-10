@@ -30,6 +30,7 @@ import { SelectConAgregar } from "@/app/components/ui/SelectConAgregar";
 import { SelectConBuscador } from "@/app/components/ui/SelectConBuscador";
 import { generarEAN13Interno, formatoBarcodeSeguro } from "./barcodeFormato";
 import { esUnidadContable } from "./unidadMedida";
+import CalculadoraPorKilo from "./CalculadoraPorKilo";
 
 interface Props {
   isOpen: boolean;
@@ -1363,7 +1364,7 @@ export default function AgregarProducto({
               value={costoInput}
               onChange={(e) => {
                 const valor = e.target.value;
-                if (!/^\d*\.?\d{0,2}$/.test(valor)) return;
+                if (!/^\d*\.?\d{0,4}$/.test(valor)) return;
                 if (errors.costoUnitario) setErrors((prev) => ({ ...prev, costoUnitario: false }));
                 setCostoInput(valor);
                 setForm((prev) => ({
@@ -1378,7 +1379,8 @@ export default function AgregarProducto({
                   return;
                 }
                 const num = parseFloat(costoInput);
-                setCostoInput(num.toFixed(2));
+                // Dos decimales salvo que el costo necesite más (p. ej. calculado por peso: 1.4563).
+                setCostoInput(Number(num.toFixed(2)) === num ? num.toFixed(2) : String(num));
                 setForm((prev) => ({ ...prev, costoUnitario: num }));
               }}
               placeholder="Ej: 3.50"
@@ -1448,6 +1450,22 @@ export default function AgregarProducto({
             />
           )} */}
         </div>
+
+        {/* Por kilo: el proveedor dice "son 10 kg, son S/ 15" — se convierte a precio por kilo. */}
+        {config?.isStock && form.tipoProducto === "BIEN" && form.unidadMedida === "KGM" && !form.esPaquete && (
+          <CalculadoraPorKilo
+            onUsar={({ costo, venta, stock }) => {
+              setCostoInput(String(costo));
+              setForm((prev) => ({
+                ...prev,
+                costoUnitario: costo,
+                ...(venta != null ? { precioUnitario: venta } : {}),
+                ...(stock != null ? { stock } : {}),
+              }));
+              setErrors((prev) => ({ ...prev, costoUnitario: false, ...(venta != null ? { precioUnitario: false } : {}) }));
+            }}
+          />
+        )}
 
 
         {/* ¿Es un paquete/caja? — fila propia */}

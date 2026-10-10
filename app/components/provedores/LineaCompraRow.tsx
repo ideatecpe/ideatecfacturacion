@@ -55,6 +55,11 @@ interface Props {
 const inputCls =
   "w-full px-2 py-1.5 text-xs bg-gray-50 border rounded-md outline-none focus:border-brand-blue/50 focus:bg-white disabled:opacity-50";
 
+/** Precio unitario a partir del total: hasta 4 decimales (como se guarda), sin ceros sobrantes. */
+const precioDesdeTotal = (total: number, cantidad: number) => String(Math.round((total / cantidad) * 10000) / 10000);
+
+const ABREVIATURA: Record<string, string> = { KGM: "kg", GRM: "g", LTR: "L", MLT: "mL", NIU: "und.", BX: "caja" };
+
 export default function LineaCompraRow({
   index,
   linea,
@@ -86,6 +91,32 @@ export default function LineaCompraRow({
   const loadingSucursal = productosLoadingIds.has(sucursalIdEfectiva);
   const producto = productosSucursal.find((p) => p.productoId === linea.productoId);
   const subtotal = (Number(linea.cantidad) || 0) * (Number(linea.precioCompra) || 0);
+
+  // El proveedor suele decir "son 25.3 kg, son S/ 227.70": se puede escribir el total pagado
+  // y el precio por unidad (por kilo) se calcula solo. Mientras el total lo escribe el
+  // usuario, manda él: si luego cambia la cantidad, se recalcula el precio, no el total.
+  const [totalEscrito, setTotalEscrito] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setTotalEscrito(null);
+  }, [linea.productoId]);
+
+  const cambiarTotal = (texto: string) => {
+    setTotalEscrito(texto);
+    const total = Number(texto);
+    const cantidad = Number(linea.cantidad);
+    if (total > 0 && cantidad > 0) onChange(linea.key, "precioCompra", precioDesdeTotal(total, cantidad));
+  };
+
+  const cambiarCantidad = (texto: string) => {
+    onChange(linea.key, "cantidad", texto);
+    const total = Number(totalEscrito);
+    const cantidad = Number(texto);
+    if (totalEscrito != null && total > 0 && cantidad > 0)
+      onChange(linea.key, "precioCompra", precioDesdeTotal(total, cantidad));
+  };
+
+  const unidadCorta = ABREVIATURA[(linea.unidadMedida || "").toUpperCase()] ?? (linea.unidadMedida || "und.").toLowerCase();
+  const precioCalculado = totalEscrito != null && Number(totalEscrito) > 0 && Number(linea.cantidad) > 0;
 
   const esPaquete = !!producto?.esPaquete && !!producto?.factorConversion;
   const productoBase = esPaquete
@@ -231,7 +262,7 @@ export default function LineaCompraRow({
             min={0}
             step={esPaquete ? 1 : "any"}
             value={linea.cantidad}
-            onChange={(e) => onChange(linea.key, "cantidad", e.target.value)}
+            onChange={(e) => cambiarCantidad(e.target.value)}
             placeholder="0"
             disabled={disabled}
             className={`${inputCls} ${linea.unidadMedida ? "pr-9" : ""} ${
@@ -254,15 +285,22 @@ export default function LineaCompraRow({
           <input
             type="number"
             min={0}
-            step="0.01"
+            step="any"
             value={linea.precioCompra}
-            onChange={(e) => onChange(linea.key, "precioCompra", e.target.value)}
+            onChange={(e) => {
+              setTotalEscrito(null);
+              onChange(linea.key, "precioCompra", e.target.value);
+            }}
             placeholder="0.00"
             disabled={disabled}
-            className={`${inputCls} pl-6 ${errors.precioCompra ? "border-rose-400" : "border-gray-200"}`}
+            className={`${inputCls} pl-6 ${errors.precioCompra ? "border-rose-400" : precioCalculado ? "border-emerald-300 bg-emerald-50/60" : "border-gray-200"}`}
           />
         </div>
-        {producto?.sucursalProducto?.ultimoPrecioCompra && producto.sucursalProducto.ultimoPrecioCompra > 0 && (
+        {precioCalculado ? (
+          <p className="text-[9px] text-emerald-700 mt-0.5 leading-tight">
+            S/ {Number(linea.precioCompra).toFixed(2)} el {unidadCorta} · calculado del total
+          </p>
+        ) : producto?.sucursalProducto?.ultimoPrecioCompra && producto.sucursalProducto.ultimoPrecioCompra > 0 && (
           <p className="text-[9px] text-gray-500 mt-0.5 leading-tight">
             Últ. costo: <strong>S/ {producto.sucursalProducto.ultimoPrecioCompra.toFixed(2)}</strong>
           </p>
@@ -279,10 +317,31 @@ export default function LineaCompraRow({
         />
       </td>
 
-      <td className="px-1.5 py-1.5 align-top w-[95px]">
-        <div className="px-2 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md text-right">
-          {subtotal.toFixed(2)}
+      <td className="px-1.5 py-1.5 align-top w-[110px]">
+        <div className="relative">
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-emerald-600/70 pointer-events-none">
+            S/
+          </span>
+          <input
+            type="number"
+            min={0}
+            step="any"
+            value={totalEscrito ?? (subtotal > 0 ? subtotal.toFixed(2) : "")}
+            onChange={(e) => cambiarTotal(e.target.value)}
+            onBlur={() => {
+              // Al salir, el total vuelve a mostrarse redondeado a céntimos.
+              if (totalEscrito != null && !(Number(totalEscrito) > 0)) setTotalEscrito(null);
+            }}
+            placeholder="0.00"
+            disabled={disabled}
+            title="Escribe el total que pagaste y el precio por unidad se calcula solo"
+            aria-label="Total pagado"
+            className={`${inputCls} pl-6 text-right font-bold text-emerald-700 bg-emerald-50 border-emerald-100 focus:bg-white`}
+          />
         </div>
+        {totalEscrito != null && !(Number(linea.cantidad) > 0) && (
+          <p className="text-[9px] text-amber-600 mt-0.5 leading-tight">Pon la cantidad para calcular el precio</p>
+        )}
       </td>
 
       <td className="px-1.5 py-1.5 text-center align-top w-8">

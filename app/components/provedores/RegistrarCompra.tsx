@@ -1208,7 +1208,8 @@ export default function RegistrarCompra({
                       Vencimiento <span className="normal-case font-normal text-gray-400">(opc.)</span>
                     </th>
                     <th className="px-1.5 py-2 text-right font-bold text-gray-500 uppercase text-[10px]">
-                      Subtotal
+                      Total pagado
+                      <span className="block normal-case font-normal text-gray-400">o escribe el total</span>
                     </th>
                     <th />
                   </tr>

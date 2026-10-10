@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import Barcode from "react-barcode";
-import { Edit2, Trash2, Tag, Printer, MapPin, AlertTriangle, CalendarClock } from "lucide-react";
+import { Edit2, Trash2, Tag, Printer, MapPin, AlertTriangle, CalendarClock, Scissors } from "lucide-react";
 
 import { Card } from "@/app/components/ui/Card";
 import { cn } from "@/app/utils/cn";
@@ -51,6 +51,8 @@ interface ProductoCardProps {
   toggleSeleccionPromo: (productoId: number) => void;
   handleOpenEdit: (prod: ProductoSucursal) => void;
   handleOpenDelete: (prod: ProductoSucursal) => void;
+  /** Solo llega si el producto tiene despiece configurado. */
+  onDespiezar?: (prod: ProductoSucursal) => void;
   abrirModalImprimir: (lista: ProductoSucursal[]) => void;
   productoBase?: ProductoSucursal;
   getEstadoStock: (p: ProductoSucursal) => "agotado" | "bajo" | "normal";
@@ -72,6 +74,7 @@ function ProductoCard({
   toggleSeleccionPromo,
   handleOpenEdit,
   handleOpenDelete,
+  onDespiezar,
   abrirModalImprimir,
   productoBase,
   getEstadoStock,
@@ -159,6 +162,16 @@ function ProductoCard({
           ) : (
             !soloLectura && (
               <>
+                {onDespiezar && (
+                  <button
+                    onClick={() => onDespiezar(prod)}
+                    title="Despiezar"
+                    aria-label={`Despiezar ${prod.nomProducto}`}
+                    className="p-1 text-gray-500 hover:text-brand-blue hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <Scissors className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={() => handleOpenEdit(prod)}
                   title="Editar producto"
@@ -251,6 +264,15 @@ function ProductoCard({
                 >
                   STOCK: {formatearCantidadUnidad(prod.sucursalProducto.stock ?? 0, prod.unidadMedida)}{" "}
                   {abreviaturaUnidad(prod.unidadMedida)}
+                </p>
+              )}
+              {(prod.sucursalProducto.stockDespiece ?? 0) > 0 && (
+                <p
+                  className="text-[10px] leading-tight text-emerald-700"
+                  title="Se corta del producto entero al venderlo"
+                >
+                  {formatearCantidadUnidad(prod.sucursalProducto.stockDespiece ?? 0, prod.unidadMedida)}{" "}
+                  {abreviaturaUnidad(prod.unidadMedida)} del entero
                 </p>
               )}
             </>

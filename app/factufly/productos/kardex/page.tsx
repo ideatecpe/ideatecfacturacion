@@ -30,6 +30,8 @@ const TIPO_LABEL: Record<string, string> = {
   SALIDA_VENTA: "Salida por venta",
   SALIDA_NOTA: "Salida por nota",
   SALIDA_VENCIMIENTO: "Salida por vencimiento",
+  ENTRADA_DESPIECE: "Entrada por despiece",
+  SALIDA_DESPIECE: "Salida por despiece",
   AJUSTE: "Ajuste",
 };
 
@@ -69,6 +71,18 @@ const TIPO_STYLE: Record<string, { badge: string; cantidad: string; signo: strin
     cantidad: "text-rose-700",
     signo: "−",
     fila: "border-l-2 border-l-rose-300",
+  },
+  ENTRADA_DESPIECE: {
+    badge: "bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200",
+    cantidad: "text-teal-700",
+    signo: "+",
+    fila: "border-l-2 border-l-teal-300",
+  },
+  SALIDA_DESPIECE: {
+    badge: "bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200",
+    cantidad: "text-orange-700",
+    signo: "−",
+    fila: "border-l-2 border-l-orange-300",
   },
   AJUSTE: {
     badge: "bg-purple-50 text-purple-700 ring-1 ring-inset ring-purple-200",

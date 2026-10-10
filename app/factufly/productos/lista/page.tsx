@@ -24,8 +24,10 @@ import {
   CalendarClock,
   ScanBarcode,
   Layers,
+  Scissors,
 } from "lucide-react";
 import axios from "axios";
+import Link from "next/link";
 
 import { Button } from "@/app/components/ui/Button";
 import { Modal } from "@/app/components/ui/Modal";
@@ -39,6 +41,8 @@ import { ProductoSucursal } from "../gestioProductos/Producto";
 import AgregarProducto from "../gestioProductos/AgregarProducto";
 import EditarProducto from "../gestioProductos/EditarProducto";
 import ModalCombo from "../gestioProductos/ModalCombo";
+import ModalDespiezar from "../despiece/ModalDespiezar";
+import { useDespiece } from "../despiece/useDespiece";
 import ProductoCard from "./ProductoCard";
 
 import { useProductosSucursal } from "../gestioProductos/useProductosSucursal";
@@ -128,7 +132,7 @@ export default function ProductosPage() {
   } = useVales();
 
   //Productos de la sucursal actual
-  const { productosSucursal, loadingSucursal, setProductosSucursal } =
+  const { productosSucursal, loadingSucursal, setProductosSucursal, fetchProductosSucursal } =
     useProductosSucursal(null, !isSuperAdmin); // solo fetcha si no es superAdmin
 
   //Todos los productos de la emoresa o todas las sucursales
@@ -191,6 +195,17 @@ const [importFile, setImportFile] = useState<File | null>(null);
   const [isReporteOpen, setIsReporteOpen] = useState(false);
   const [isVentasProductoOpen, setIsVentasProductoOpen] = useState(false);
   const sucursalId = parseInt(user?.sucursalID ?? "0");
+
+  // Despiece: los productos que se compran enteros (pollo, res…) se despiezan desde su fila.
+  const usaDespiece = !!config?.isStock && !isSuperAdmin && !soloLectura;
+  const despiece = useDespiece(sucursalId || null, usaDespiece);
+  const [despiezarId, setDespiezarId] = useState<number | null>(null);
+  const recetaDespiezar = despiezarId != null ? despiece.recetas.find((r) => r.productoBaseId === despiezarId) ?? null : null;
+  const productosDespiezables = React.useMemo(
+    () => new Set(despiece.recetas.map((r) => r.productoBaseId)),
+    [despiece.recetas],
+  );
+  const abrirDespiezar = React.useCallback((prod: ProductoSucursal) => setDespiezarId(prod.productoId), []);
 
   // Promoción masiva: selección múltiple de productos para aplicar el mismo % de descuento
   const [modoSeleccionPromo, setModoSeleccionPromo] = useState(false);
@@ -491,6 +506,19 @@ const [importFile, setImportFile] = useState<File | null>(null);
       const nombres = paquetesQueLoUsan.map((p) => p.nomProducto).join(", ");
       showToast(
         `No puedes eliminar "${prod.nomProducto}": es el producto base de ${nombres}.`,
+        "error",
+      );
+      return;
+    }
+    // Lo mismo con el despiece: primero se quita de ahí.
+    const recetaDelProducto = despiece.recetas.find(
+      (r) => r.productoBaseId === prod.productoId || r.partes.some((pt) => pt.productoId === prod.productoId),
+    );
+    if (recetaDelProducto) {
+      showToast(
+        recetaDelProducto.productoBaseId === prod.productoId
+          ? `No puedes eliminar "${prod.nomProducto}": se despieza. Quita su despiece primero (Productos → Despiece).`
+          : `No puedes eliminar "${prod.nomProducto}": es una parte del despiece de ${recetaDelProducto.nomProducto}.`,
         "error",
       );
       return;
@@ -1147,6 +1175,15 @@ const [importFile, setImportFile] = useState<File | null>(null);
                 {modoSeleccionPromo ? "Cancelar selección" : "Seleccionar"}
               </Button>
             )}
+            {usaDespiece && (
+              <Link
+                href="/factufly/productos/despiece"
+                className="flex items-center gap-1.5 py-2.5 px-3 text-xs font-semibold text-gray-700 bg-white border border-gray-200 hover:border-brand-blue hover:text-brand-blue rounded-md transition-colors whitespace-nowrap"
+                title="Productos que compras enteros y vendes por partes (pollo, res…)"
+              >
+                <Scissors className="w-3.5 h-3.5" /> Despiece
+              </Link>
+            )}
             {!soloLectura && !isSuperAdmin && (
               <button
                 type="button"
@@ -1623,6 +1660,7 @@ const [importFile, setImportFile] = useState<File | null>(null);
                         toggleSeleccionPromo={toggleSeleccionPromo}
                         handleOpenEdit={handleOpenEdit}
                         handleOpenDelete={handleOpenDelete}
+                        onDespiezar={productosDespiezables.has(prod.productoId) ? abrirDespiezar : undefined}
                         abrirModalImprimir={abrirModalImprimir}
                         productoBase={
                           prod.esPaquete && prod.productoBaseId
@@ -1690,6 +1728,18 @@ const [importFile, setImportFile] = useState<File | null>(null);
         sucursalId={sucursalId}
         onGuardado={handleComboGuardado}
       />
+      {usaDespiece && (
+        <ModalDespiezar
+          isOpen={despiezarId != null}
+          onClose={() => setDespiezarId(null)}
+          receta={recetaDespiezar}
+          despiezar={despiece.despiezar}
+          onDespiezado={() => {
+            // Stock del entero y de las partes, y quizá sus precios: se releen del servidor.
+            void fetchProductosSucursal();
+          }}
+        />
+      )}
       <EditarProducto
         isOpen={isEditOpen}
         producto={editTarget}
