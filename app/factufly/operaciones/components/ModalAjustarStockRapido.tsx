@@ -15,6 +15,8 @@ interface ModalAjustarStockRapidoProps {
   isOpen: boolean;
   onClose: () => void;
   producto: ProductoSucursal | null;
+  /** Cantidad que se quiere vender y no alcanza (p. ej. 5 kg con 0.2 kg en stock). null = producto en 0. */
+  cantidadPedida?: number | null;
   onStockGuardado: (productoActualizado: ProductoSucursal, autoAgregar: boolean) => void;
 }
 
@@ -22,6 +24,7 @@ export default function ModalAjustarStockRapido({
   isOpen,
   onClose,
   producto,
+  cantidadPedida = null,
   onStockGuardado,
 }: ModalAjustarStockRapidoProps) {
   const { user, accessToken } = useAuth();
@@ -37,12 +40,19 @@ export default function ModalAjustarStockRapido({
   const costoInputRef = useRef<HTMLInputElement>(null);
 
   const costoRegistrado = producto?.sucursalProducto.ultimoPrecioCompra ?? null;
+  // Stock ya cargado en el producto (sin lo que saldría del entero en partes de despiece).
+  const stockFisico = Math.max(
+    0,
+    (producto?.sucursalProducto.stock ?? 0) - (producto?.sucursalProducto.stockDespiece ?? 0),
+  );
+  const fmt = (n: number) => String(parseFloat(n.toFixed(3)));
   const tieneCostoRegistrado = costoRegistrado != null && costoRegistrado > 0;
 
   useEffect(() => {
     if (isOpen && producto) {
       const costoPrevio = producto.sucursalProducto.ultimoPrecioCompra;
-      setStockInput("1");
+      // Si se pidió una cantidad, se propone justo esa como stock (lo mínimo para venderla).
+      setStockInput(cantidadPedida != null && cantidadPedida > 0 ? fmt(cantidadPedida) : "1");
       setCostoInput(costoPrevio != null && costoPrevio > 0 ? String(costoPrevio) : "");
       setAutoAgregar(true);
       setGuardando(false);
@@ -53,7 +63,7 @@ export default function ModalAjustarStockRapido({
         stockInputRef.current?.select();
       }, 100);
     }
-  }, [isOpen, producto]);
+  }, [isOpen, producto, cantidadPedida]);
 
   if (!producto) return null;
 
@@ -70,6 +80,11 @@ export default function ModalAjustarStockRapido({
     const numStock = parseFloat(stockInput);
     if (isNaN(numStock) || numStock <= 0) {
       showToast("Ingresa una cantidad de stock válida mayor a 0", "info");
+      stockInputRef.current?.focus();
+      return;
+    }
+    if (cantidadPedida != null && autoAgregar && numStock < cantidadPedida) {
+      showToast(`Para vender ${fmt(cantidadPedida)} ${unidad} el stock debe ser al menos ${fmt(cantidadPedida)} ${unidad}.`, "info");
       stockInputRef.current?.focus();
       return;
     }
@@ -124,15 +139,13 @@ export default function ModalAjustarStockRapido({
         ...producto,
         sucursalProducto: {
           ...producto.sucursalProducto,
-          stock: numStock,
+          // Disponible: lo cargado más lo que sale del entero (partes de despiece).
+          stock: numStock + (producto.sucursalProducto.stockDespiece ?? 0),
           ultimoPrecioCompra: costoFinal,
         },
       };
 
-      showToast(
-        `✓ Stock de "${producto.nomProducto}" actualizado a ${numStock} ${unidad}`,
-        "success",
-      );
+      showToast(`Stock de "${producto.nomProducto}" actualizado a ${fmt(numStock)} ${unidad}`, "success");
 
       onStockGuardado(productoActualizado, autoAgregar);
       onClose();
@@ -166,10 +179,23 @@ export default function ModalAjustarStockRapido({
         <div className="flex items-center gap-3 p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-amber-900">
           <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
           <div className="text-xs">
-            <p className="font-bold">Producto sin stock disponible</p>
-            <p className="text-amber-700 text-[11px]">
-              Ingresa el stock físico real que tienes para venderlo de inmediato.
-            </p>
+            {cantidadPedida != null ? (
+              <>
+                <p className="font-bold">
+                  No alcanza: hay {fmt(stockFisico)} {unidad} y quieres vender {fmt(cantidadPedida)} {unidad}
+                </p>
+                <p className="text-amber-700 text-[11px]">
+                  Si en realidad tienes más, pon cuánto hay y se vende de inmediato.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-bold">Producto sin stock disponible</p>
+                <p className="text-amber-700 text-[11px]">
+                  Ingresa el stock físico real que tienes para venderlo de inmediato.
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -206,7 +232,7 @@ export default function ModalAjustarStockRapido({
                 Precio: S/ {(producto.sucursalProducto.precioUnitario ?? 0).toFixed(2)}
               </span>
               <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full border border-rose-200">
-                Stock actual: 0 {unidad}
+                Stock actual: {fmt(stockFisico)} {unidad}
               </span>
             </div>
           </div>
@@ -215,7 +241,8 @@ export default function ModalAjustarStockRapido({
         {/* Input de Nuevo Stock */}
         <div className="space-y-1.5">
           <label className="block text-xs font-bold text-gray-700">
-            Nuevo Stock disponible ({unidad}) <span className="text-rose-500">*</span>
+            {cantidadPedida != null ? "¿Cuánto tienes en total?" : "Nuevo Stock disponible"} ({unidad}){" "}
+            <span className="text-rose-500">*</span>
           </label>
           <div className="relative">
             <input
@@ -238,7 +265,10 @@ export default function ModalAjustarStockRapido({
           {/* Botones de sugerencias rápidas */}
           <div className="flex items-center gap-1.5 flex-wrap pt-1">
             <span className="text-[10px] font-medium text-gray-400 mr-1">Fijar:</span>
-            {[1, 2, 5, 10, 20, 50].map((num) => (
+            {(cantidadPedida != null
+              ? Array.from(new Set([cantidadPedida, Math.ceil(cantidadPedida), 10, 20, 50].filter((n) => n >= cantidadPedida))).slice(0, 5)
+              : [1, 2, 5, 10, 20, 50]
+            ).map((num) => (
               <button
                 key={num}
                 type="button"
@@ -249,7 +279,7 @@ export default function ModalAjustarStockRapido({
                     : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300"
                 }`}
               >
-                {num} {unidad}
+                {fmt(num)} {unidad}
               </button>
             ))}
             <button
@@ -324,7 +354,9 @@ export default function ModalAjustarStockRapido({
           />
           <span className="text-xs font-medium text-gray-700 flex items-center gap-1">
             <ShoppingCart size={13} className="text-brand-blue" />
-            Agregar a la venta automáticamente al guardar
+            {cantidadPedida != null
+              ? `Dejar ${fmt(cantidadPedida)} ${unidad} en la venta al guardar`
+              : "Agregar a la venta automáticamente al guardar"}
           </span>
         </label>
 

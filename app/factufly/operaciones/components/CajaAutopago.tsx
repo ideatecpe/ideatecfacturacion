@@ -653,6 +653,16 @@ export function CajaAutopagoVista({
   const [direccionManualCliente, setDireccionManualCliente] = useState("");
   const [tipoComprobante, setTipoComprobante] = useState<"Boleta" | "Nota de Venta" | "Factura">("Boleta");
   const [productoSinStock, setProductoSinStock] = useState<ProductoSucursal | null>(null);
+  // Si el ajuste se abrió porque una cantidad del carrito no alcanza (p. ej. 5 kg con 0.2 kg
+  // en stock): cuánto se pidió y en qué línea, para dejarla así al guardar el stock.
+  const [ajustePedido, setAjustePedido] = useState<{ cantidad: number; itemKey: string } | null>(null);
+  const ajustePedidoRef = useRef(ajustePedido);
+  ajustePedidoRef.current = ajustePedido;
+
+  const abrirAjusteStock = (p: ProductoSucursal, cantidadPedida?: number, itemKey?: string) => {
+    setAjustePedido(cantidadPedida != null && itemKey ? { cantidad: parseFloat(cantidadPedida.toFixed(3)), itemKey } : null);
+    setProductoSinStock(p);
+  };
   const [modalCrearRapidoAbierto, setModalCrearRapidoAbierto] = useState(false);
   const [codigoBarrasNuevoProducto, setCodigoBarrasNuevoProducto] = useState("");
   const [nombreNuevoProducto, setNombreNuevoProducto] = useState("");
@@ -823,7 +833,7 @@ export function CajaAutopagoVista({
       const idx = baseItems.findIndex((i) => i.productoId === p.productoId);
       if (idx !== -1) {
         if (disp !== null && disp < 1) {
-          showToast(`Stock insuficiente: solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${p.nomProducto}"`, "info");
+          abrirAjusteStock(p, baseItems[idx].cantidad + 1, baseItems[idx].key);
           return baseItems;
         }
         const itemActualizado = { ...baseItems[idx], cantidad: baseItems[idx].cantidad + 1 };
@@ -871,7 +881,15 @@ export function CajaAutopagoVista({
         if (sucursalId) cacheProductos(Number(sucursalId), next).catch(() => {});
         return next;
       });
-      if (autoAgregar) {
+      const pedido = ajustePedidoRef.current;
+      if (pedido) {
+        // Venía de una cantidad que no alcanzaba: la línea queda con lo que se pidió.
+        if (autoAgregar)
+          setItems((prev) =>
+            prev.map((i) => (i.key === pedido.itemKey ? { ...i, cantidad: pedido.cantidad, cantidadStr: undefined } : i)),
+          );
+        setAjustePedido(null);
+      } else if (autoAgregar) {
         agregarProducto(productoActualizado);
       }
       fetchProductosSucursal().catch(() => {});
@@ -1341,12 +1359,9 @@ export function CajaAutopagoVista({
         const prod = productosSucursal.find((p) => p.productoId === item.productoId);
         if (prod) {
           const disp = calcularDisponible(prod, itemsMasReservas, productosSucursal, config?.isStock ?? false);
-          if (disp !== null && disp <= 0) {
-            showToast(`Stock insuficiente: no hay más unidades disponibles de "${item.descripcion}"`, "info");
-            return;
-          }
           if (disp !== null && delta > disp) {
-            showToast(`Solo quedan ${parseFloat(disp.toFixed(3))} disponibles de "${item.descripcion}"`, "info");
+            // No alcanza: se ofrece cargar el stock real ahí mismo, en vez de solo avisar.
+            abrirAjusteStock(prod, item.cantidad + delta, item.key);
             return;
           }
         }
@@ -1373,10 +1388,9 @@ export function CajaAutopagoVista({
         const disp = calcularDisponible(prod, itemsMasReservas, productosSucursal, config?.isStock ?? false);
         const incremento = val - item.cantidad;
         if (disp !== null && disp < incremento) {
-          showToast(
-            `Stock insuficiente para "${item.descripcion}". Máximo disponible: ${parseFloat((disp + item.cantidad).toFixed(3))}`,
-            "info",
-          );
+          // El campo vuelve a mostrar la cantidad que sí había, y se ofrece cargar el stock real.
+          setItems((prev) => prev.map((i) => (i.key === key ? { ...i, cantidadStr: undefined } : i)));
+          abrirAjusteStock(prod, val, key);
           return;
         }
       }
@@ -4527,8 +4541,12 @@ export function CajaAutopagoVista({
 
       <ModalAjustarStockRapido
         isOpen={!!productoSinStock}
-        onClose={() => setProductoSinStock(null)}
+        onClose={() => {
+          setProductoSinStock(null);
+          setAjustePedido(null);
+        }}
         producto={productoSinStock}
+        cantidadPedida={ajustePedido?.cantidad ?? null}
         onStockGuardado={handleStockGuardado}
       />
 
