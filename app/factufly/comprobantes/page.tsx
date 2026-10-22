@@ -151,7 +151,7 @@ export default function VerComprobantesPage() {
   const [avFechaDesde, setAvFechaDesde] = useState("");
   const [avFechaHasta, setAvFechaHasta] = useState("");
 
-  // ── Búsqueda server-side por número de documento ──
+  // ── Búsqueda server-side (cliente, RUC/DNI o N° comprobante) en todos los registros ──
   const [serverSearch, setServerSearch] = useState<ComprobanteListado[] | null>(null);
   const [serverSearchLoading, setServerSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -159,33 +159,42 @@ export default function VerComprobantesPage() {
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     const trimmed = search.trim();
-    const isDocNumber = /^\d{6,}$/.test(trimmed);
-    if (!isDocNumber) {
+    if (trimmed.length < 3 || !accessToken) {
       setServerSearch(null);
       return;
     }
+    let cancelado = false;
     searchTimerRef.current = setTimeout(async () => {
       setServerSearchLoading(true);
       try {
-        const params = { fechaDesde: null, fechaHasta: null, offset: 0, limit: 200 };
-        let data: ComprobanteListado[] = [];
-        if (isSuperAdmin && sucursalFiltro) {
-          data = await hookClienteSucursal.fetchComprobantes({ ...params, sucursalId: sucursalFiltro, clienteNumDoc: trimmed });
-        } else if (isSuperAdmin) {
-          data = await hookCliente.fetchComprobantes({ ...params, rucEmpresa, clienteNumDoc: trimmed });
-        } else {
-          data = await hookClienteSucursal.fetchComprobantes({ ...params, sucursalId, clienteNumDoc: trimmed });
-        }
-        setServerSearch(data);
+        const base = process.env.NEXT_PUBLIC_API_URL;
+        const path =
+          isSuperAdmin && !sucursalFiltro
+            ? `listado/ruc/${rucEmpresa}`
+            : `listado/sucursal/${isSuperAdmin ? sucursalFiltro : sucursalId}`;
+        const url = new URL(`${base}/api/Comprobantes/${path}`);
+        url.searchParams.append("busqueda", trimmed);
+        url.searchParams.append("limit", "200");
+        url.searchParams.append("offset", "0");
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        const data: ComprobanteListado[] = await res.json();
+        if (!cancelado) setServerSearch(data);
       } catch {
-        setServerSearch(null);
+        if (!cancelado) setServerSearch(null);
       } finally {
-        setServerSearchLoading(false);
+        if (!cancelado) setServerSearchLoading(false);
       }
     }, 600);
-    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+    return () => {
+      cancelado = true;
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      setServerSearchLoading(false);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, isSuperAdmin, sucursalFiltro, rucEmpresa, sucursalId]);
+  }, [search, accessToken, isSuperAdmin, sucursalFiltro, rucEmpresa, sucursalId]);
 
   //CARGA MASIVA
   const [showModalCargaMasiva, setShowModalCargaMasiva] = useState(false);
