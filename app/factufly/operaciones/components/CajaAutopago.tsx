@@ -611,6 +611,45 @@ export function CajaAutopagoVista({
   const [items, setItems] = useState<ItemCarrito[]>([]);
   const itemsRef = useRef<ItemCarrito[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
+  // Unidad en la que el cajero escribe el peso de los productos en KG. Solo es de
+  // pantalla: internamente la cantidad SIEMPRE se guarda en kg. Se recuerda la elección.
+  const [unidadPeso, setUnidadPeso] = useState<"kg" | "g">("kg");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("factufly_unidad_peso") === "g") setUnidadPeso("g");
+    } catch {}
+  }, []);
+  const cambiarUnidadPeso = (u: "kg" | "g") => {
+    setUnidadPeso(u);
+    try { localStorage.setItem("factufly_unidad_peso", u); } catch {}
+    // Lo que se estaba escribiendo estaba en la unidad anterior: se descarta el texto.
+    setItems((prev) => prev.map((i) => (i.unidadMedida === "KGM" && i.cantidadStr !== undefined ? { ...i, cantidadStr: undefined } : i)));
+  };
+  const usaGramos = (i: ItemCarrito) => unidadPeso === "g" && i.unidadMedida === "KGM";
+  /** Valor escrito en pantalla → kg. */
+  const aKg = (i: ItemCarrito, v: number) => (usaGramos(i) ? v / 1000 : v);
+  /** Cantidad (kg) → valor a mostrar en el input. */
+  const cantidadVisible = (i: ItemCarrito) => (usaGramos(i) ? parseFloat((i.cantidad * 1000).toFixed(1)) : i.cantidad);
+  /** Paso de los botones +/-: 50 g en gramos, 1 en lo demás. */
+  const pasoCantidad = (i: ItemCarrito) => (usaGramos(i) ? 0.05 : 1);
+  const selectorUnidadPeso = (i: ItemCarrito) =>
+    i.unidadMedida === "KGM" ? (
+      <div className="flex items-center rounded border border-gray-200 overflow-hidden text-[10px] font-bold ml-1">
+        {(["kg", "g"] as const).map((u) => (
+          <button
+            key={u}
+            type="button"
+            onClick={() => cambiarUnidadPeso(u)}
+            className={`h-6 px-1.5 cursor-pointer transition-colors ${
+              unidadPeso === u ? "bg-brand-blue text-white" : "bg-white text-gray-500 hover:bg-gray-100"
+            }`}
+            title={u === "g" ? "Escribir el peso en gramos" : "Escribir el peso en kilos"}
+          >
+            {u}
+          </button>
+        ))}
+      </div>
+    ) : null;
 
   const pedidoEnCobroRef = useRef<PedidoOnline | null>(null);
   const emisionesEnCursoRef = useRef(0);
@@ -3388,7 +3427,7 @@ export function CajaAutopagoVista({
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => cambiarCantidad(i.key, -1)}
+                          onClick={() => cambiarCantidad(i.key, -pasoCantidad(i))}
                           className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
                           title="Disminuir"
                         >
@@ -3403,7 +3442,7 @@ export function CajaAutopagoVista({
                               ? i.cantidadStr
                               : i.cantidad === 0
                                 ? ""
-                                : i.cantidad
+                                : cantidadVisible(i)
                           }
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
@@ -3417,12 +3456,12 @@ export function CajaAutopagoVista({
                                 ),
                               );
                             } else {
-                              actualizarCantidadDirecta(i.key, parsed, raw);
+                              actualizarCantidadDirecta(i.key, aKg(i, parsed), raw);
                             }
                           }}
                           onBlur={(e) => {
                             const raw = e.target.value.replace(",", ".");
-                            const parsed = parsearCantidad(raw) ?? NaN;
+                            const parsed = aKg(i, parsearCantidad(raw) ?? NaN);
                             if (isNaN(parsed) || parsed <= 0) {
                               setItems((prev) => prev.filter((it) => it.key !== i.key));
                             } else {
@@ -3441,12 +3480,13 @@ export function CajaAutopagoVista({
 
                         <button
                           type="button"
-                          onClick={() => cambiarCantidad(i.key, 1)}
+                          onClick={() => cambiarCantidad(i.key, pasoCantidad(i))}
                           className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all cursor-pointer"
                           title="Aumentar"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
+                        {selectorUnidadPeso(i)}
                       </div>
 
                       <div className="flex items-center gap-1">
@@ -3659,7 +3699,7 @@ export function CajaAutopagoVista({
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => cambiarCantidad(i.key, -1)}
+                          onClick={() => cambiarCantidad(i.key, -pasoCantidad(i))}
                           className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
                         >
                           <Minus className="w-3 h-3" />
@@ -3667,7 +3707,7 @@ export function CajaAutopagoVista({
                       <input
                         type="text"
                         inputMode="decimal"
-                        value={i.cantidadStr !== undefined ? i.cantidadStr : i.cantidad === 0 ? "" : i.cantidad}
+                        value={i.cantidadStr !== undefined ? i.cantidadStr : i.cantidad === 0 ? "" : cantidadVisible(i)}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => {
                           const raw = e.target.value.replace(",", ".");
@@ -3676,12 +3716,12 @@ export function CajaAutopagoVista({
                           if (parsed === null) {
                             setItems((prev) => prev.map((it) => (it.key === i.key ? { ...it, cantidad: 0, cantidadStr: raw } : it)));
                           } else {
-                            actualizarCantidadDirecta(i.key, parsed, raw);
+                            actualizarCantidadDirecta(i.key, aKg(i, parsed), raw);
                           }
                         }}
                         onBlur={(e) => {
                           const raw = e.target.value.replace(",", ".");
-                          const parsed = parsearCantidad(raw) ?? NaN;
+                          const parsed = aKg(i, parsearCantidad(raw) ?? NaN);
                           if (isNaN(parsed) || parsed <= 0) {
                             setItems((prev) => prev.filter((it) => it.key !== i.key));
                           } else {
@@ -3692,11 +3732,12 @@ export function CajaAutopagoVista({
                       />
                       <button
                         type="button"
-                        onClick={() => cambiarCantidad(i.key, 1)}
+                        onClick={() => cambiarCantidad(i.key, pasoCantidad(i))}
                         className="h-6 w-6 flex items-center justify-center rounded bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-95 transition-all"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
+                      {selectorUnidadPeso(i)}
                     </div>
 
                     <div className="flex items-center gap-1">
