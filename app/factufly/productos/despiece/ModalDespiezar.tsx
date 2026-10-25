@@ -96,6 +96,25 @@ export default function ModalDespiezar({ isOpen, onClose, receta, despiezar, onD
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, receta?.productoBaseId]);
 
+  // Si la receta se relee con partes nuevas (p. ej. se configuró una parte más), se agregan
+  // sus filas sin tocar lo que ya se escribió en las demás.
+  useEffect(() => {
+    if (!isOpen) return;
+    setFilas((prev) => {
+      const faltan = partes.filter((p) => !prev.some((f) => f.productoId === p.productoId));
+      if (faltan.length === 0) return prev;
+      return [
+        ...prev,
+        ...faltan.map((p) => ({
+          productoId: p.productoId,
+          cantidad: "",
+          cantidadEditada: false,
+          precio: p.precioUnitario > 0 ? p.precioUnitario.toFixed(2) : "",
+        })),
+      ];
+    });
+  }, [isOpen, partes]);
+
   if (!receta) return null;
 
   const unidad = abreviaturaUnidad(receta.unidadMedida);
@@ -121,16 +140,19 @@ export default function ModalDespiezar({ isOpen, onClose, receta, despiezar, onD
     setFilas((prev) => prev.map((f) => (f.productoId === productoId ? { ...f, ...cambios } : f)));
 
   // ── Cálculo en vivo ──
-  const filasCalc = filas.map((f) => {
-    const parte = partes.find((p) => p.productoId === f.productoId)!;
+  // Las filas pueden quedar desfasadas de la receta (se releyó y una parte se quitó o dejó
+  // de estar disponible): las que ya no tienen parte se ignoran.
+  const filasCalc = filas.flatMap((f) => {
+    const parte = partes.find((p) => p.productoId === f.productoId);
+    if (!parte) return [];
     const q = leerNumero(f.cantidad);
     const precio = leerNumero(f.precio);
-    return {
+    return [{
       fila: f,
       parte,
       cantidad: Number.isFinite(q) && q > 0 ? q : 0,
       precio: Number.isFinite(precio) && precio > 0 ? precio : 0,
-    };
+    }];
   });
 
   const stockAlcanza = !cantValida || cant <= receta.stock + 0.0005;
