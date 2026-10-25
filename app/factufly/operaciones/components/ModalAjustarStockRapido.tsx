@@ -51,8 +51,13 @@ export default function ModalAjustarStockRapido({
   useEffect(() => {
     if (isOpen && producto) {
       const costoPrevio = producto.sucursalProducto.ultimoPrecioCompra;
-      // Si se pidió una cantidad, se propone justo esa como stock (lo mínimo para venderla).
-      setStockInput(cantidadPedida != null && cantidadPedida > 0 ? fmt(cantidadPedida) : "1");
+      // El input pide cuántas unidades se INGRESAN (se suman al stock actual).
+      // Si se pidió una cantidad, se propone justo lo que falta para poder venderla.
+      const falta =
+        cantidadPedida != null && cantidadPedida > 0
+          ? Math.max(0, parseFloat((cantidadPedida - stockFisico).toFixed(3)))
+          : 0;
+      setStockInput(falta > 0 ? fmt(falta) : "1");
       setCostoInput(costoPrevio != null && costoPrevio > 0 ? String(costoPrevio) : "");
       setAutoAgregar(true);
       setGuardando(false);
@@ -77,14 +82,17 @@ export default function ModalAjustarStockRapido({
     if (e) e.preventDefault();
     if (!producto) return;
 
-    const numStock = parseFloat(stockInput);
-    if (isNaN(numStock) || numStock <= 0) {
-      showToast("Ingresa una cantidad de stock válida mayor a 0", "info");
+    const cantidadIngreso = parseFloat(stockInput);
+    if (isNaN(cantidadIngreso) || cantidadIngreso <= 0) {
+      showToast("Ingresa cuántas unidades vas a ingresar (mayor a 0)", "info");
       stockInputRef.current?.focus();
       return;
     }
+    // Stock final = lo que ya hay + lo que se ingresa ahora.
+    const numStock = parseFloat((stockFisico + cantidadIngreso).toFixed(3));
     if (cantidadPedida != null && autoAgregar && numStock < cantidadPedida) {
-      showToast(`Para vender ${fmt(cantidadPedida)} ${unidad} el stock debe ser al menos ${fmt(cantidadPedida)} ${unidad}.`, "info");
+      const falta = parseFloat((cantidadPedida - stockFisico).toFixed(3));
+      showToast(`Para vender ${fmt(cantidadPedida)} ${unidad} debes ingresar al menos ${fmt(falta)} ${unidad}.`, "info");
       stockInputRef.current?.focus();
       return;
     }
@@ -185,14 +193,14 @@ export default function ModalAjustarStockRapido({
                   No alcanza: hay {fmt(stockFisico)} {unidad} y quieres vender {fmt(cantidadPedida)} {unidad}
                 </p>
                 <p className="text-amber-700 text-[11px]">
-                  Si en realidad tienes más, pon cuánto hay y se vende de inmediato.
+                  Si te llegó más mercadería, indica cuántas unidades ingresas y se suma al stock.
                 </p>
               </>
             ) : (
               <>
                 <p className="font-bold">Producto sin stock disponible</p>
                 <p className="text-amber-700 text-[11px]">
-                  Ingresa el stock físico real que tienes para venderlo de inmediato.
+                  Indica cuántas unidades ingresas para venderlo de inmediato.
                 </p>
               </>
             )}
@@ -241,7 +249,7 @@ export default function ModalAjustarStockRapido({
         {/* Input de Nuevo Stock */}
         <div className="space-y-1.5">
           <label className="block text-xs font-bold text-gray-700">
-            {cantidadPedida != null ? "¿Cuánto tienes en total?" : "Nuevo Stock disponible"} ({unidad}){" "}
+            ¿Cuántas unidades vas a ingresar? ({unidad}){" "}
             <span className="text-rose-500">*</span>
           </label>
           <div className="relative">
@@ -264,11 +272,16 @@ export default function ModalAjustarStockRapido({
 
           {/* Botones de sugerencias rápidas */}
           <div className="flex items-center gap-1.5 flex-wrap pt-1">
-            <span className="text-[10px] font-medium text-gray-400 mr-1">Fijar:</span>
-            {(cantidadPedida != null
-              ? Array.from(new Set([cantidadPedida, Math.ceil(cantidadPedida), 10, 20, 50].filter((n) => n >= cantidadPedida))).slice(0, 5)
-              : [1, 2, 5, 10, 20, 50]
-            ).map((num) => (
+            <span className="text-[10px] font-medium text-gray-400 mr-1">Ingresar:</span>
+            {(() => {
+              const falta =
+                cantidadPedida != null && cantidadPedida > 0
+                  ? Math.max(0, parseFloat((cantidadPedida - stockFisico).toFixed(3)))
+                  : 0;
+              return falta > 0
+                ? Array.from(new Set([falta, 1, 5, 10, 20].filter((n) => n >= falta))).slice(0, 5)
+                : [1, 2, 5, 10, 20, 50];
+            })().map((num) => (
               <button
                 key={num}
                 type="button"
@@ -290,6 +303,20 @@ export default function ModalAjustarStockRapido({
               <Plus size={11} /> 1
             </button>
           </div>
+
+          {/* Vista previa del stock resultante */}
+          {(() => {
+            const ingreso = parseFloat(stockInput);
+            if (isNaN(ingreso) || ingreso <= 0) return null;
+            return (
+              <p className="text-[11px] text-gray-500 pt-0.5">
+                Stock: {fmt(stockFisico)} + {fmt(ingreso)} ={" "}
+                <span className="font-bold text-gray-800">
+                  {fmt(stockFisico + ingreso)} {unidad}
+                </span>
+              </p>
+            );
+          })()}
         </div>
 
         {/* Input de Precio de compra */}
@@ -355,7 +382,7 @@ export default function ModalAjustarStockRapido({
           <span className="text-xs font-medium text-gray-700 flex items-center gap-1">
             <ShoppingCart size={13} className="text-brand-blue" />
             {cantidadPedida != null
-              ? `Dejar ${fmt(cantidadPedida)} ${unidad} en la venta al guardar`
+              ? `Vender ${fmt(cantidadPedida)} ${unidad} en esta venta al guardar`
               : "Agregar a la venta automáticamente al guardar"}
           </span>
         </label>
