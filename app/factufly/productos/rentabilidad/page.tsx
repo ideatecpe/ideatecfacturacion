@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Calendar,
   PackageSearch,
@@ -10,6 +10,10 @@ import {
   ChevronUp,
   LineChart as LineChartIcon,
   Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Check,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -26,8 +30,35 @@ import { DropdownFiltro } from "@/app/components/ui/DropdownFiltro";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useSucursalRuc } from "@/app/factufly/operaciones/boleta/gestionBoletas/useSucursalRuc";
+import { useProductosSucursal } from "@/app/factufly/productos/gestioProductos/useProductosSucursal";
+import { useCategoriasLista } from "@/app/factufly/productos/gestioProductos/useCategoriasLista";
 import { useRentabilidadLista } from "../useRentabilidadLista";
 import { coincideBusqueda } from "@/app/utils/normalizarTexto";
+
+type CampoOrden =
+  | "utilidadBruta"
+  | "margenPorcentaje"
+  | "cantidadVendida"
+  | "ingresoVentas"
+  | "costoVentas";
+
+type DireccionOrden = "desc" | "asc";
+
+const OPCIONES_ORDEN: {
+  id: string;
+  label: string;
+  campo: CampoOrden;
+  dir: DireccionOrden;
+}[] = [
+  { id: "utilidadBruta:desc", label: "Mayor ganancia (S/)", campo: "utilidadBruta", dir: "desc" },
+  { id: "utilidadBruta:asc", label: "Menor ganancia (S/)", campo: "utilidadBruta", dir: "asc" },
+  { id: "margenPorcentaje:desc", label: "Mayor rentabilidad (%)", campo: "margenPorcentaje", dir: "desc" },
+  { id: "margenPorcentaje:asc", label: "Menor rentabilidad (%)", campo: "margenPorcentaje", dir: "asc" },
+  { id: "cantidadVendida:desc", label: "Más vendidos", campo: "cantidadVendida", dir: "desc" },
+  { id: "cantidadVendida:asc", label: "Menos vendidos", campo: "cantidadVendida", dir: "asc" },
+  { id: "ingresoVentas:desc", label: "Mayor ingreso (S/)", campo: "ingresoVentas", dir: "desc" },
+  { id: "ingresoVentas:asc", label: "Menor ingreso (S/)", campo: "ingresoVentas", dir: "asc" },
+];
 
 const getFechaHoy = (): string => {
   const hoy = new Date();
@@ -38,15 +69,30 @@ const getFechaHoy = (): string => {
 };
 
 export default function RentabilidadPage() {
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const { config, loading: loadingConfig } = useConfiguracion();
   const isSuperAdmin = user?.rol === "superadmin";
 
   const { sucursales } = useSucursalRuc(isSuperAdmin);
   const [filtroSucursal, setFiltroSucursal] = useState<string>("Todos");
+  const [filtroCategoria, setFiltroCategoria] = useState<string>("Todos");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [ordenCampo, setOrdenCampo] = useState<CampoOrden>("utilidadBruta");
+  const [ordenDir, setOrdenDir] = useState<DireccionOrden>("desc");
+  const [menuOrdenAbierto, setMenuOrdenAbierto] = useState(false);
+  const menuOrdenRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuOrdenRef.current && !menuOrdenRef.current.contains(e.target as Node)) {
+        setMenuOrdenAbierto(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const fechaHoy = getFechaHoy();
   const esHoy =
@@ -66,6 +112,41 @@ export default function RentabilidadPage() {
   const sucursalId = isSuperAdmin
     ? sucursales.find((s) => s.nombre === filtroSucursal)?.sucursalId ?? 0
     : parseInt(user?.sucursalID ?? "0");
+
+  const { productosSucursal } = useProductosSucursal(sucursalId || null, !!sucursalId);
+  const { categorias, fetchCategorias } = useCategoriasLista();
+
+  useEffect(() => {
+    if (accessToken && user?.ruc) {
+      fetchCategorias(user.ruc);
+    }
+  }, [accessToken, user?.ruc, fetchCategorias]);
+
+  // Mapa rápido productoId -> nombre de categoría (si es paquete sin categoría propia, hereda la de su producto base)
+  const categoriaPorProductoId = useMemo(() => {
+    const porId = new Map(productosSucursal.map((p) => [p.productoId, p]));
+    const map = new Map<number, string>();
+    for (const p of productosSucursal) {
+      const cat =
+        p.categoria?.categoriaNombre ||
+        (p.productoBaseId ? porId.get(p.productoBaseId)?.categoria?.categoriaNombre : undefined);
+      if (cat) {
+        map.set(p.productoId, cat);
+      }
+    }
+    return map;
+  }, [productosSucursal]);
+
+  const opcionesCategorias = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of categorias) {
+      if (c.categoriaNombre) set.add(c.categoriaNombre);
+    }
+    for (const cat of categoriaPorProductoId.values()) {
+      if (cat) set.add(cat);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
+  }, [categorias, categoriaPorProductoId]);
 
   const {
     rentabilidad,
@@ -131,13 +212,42 @@ export default function RentabilidadPage() {
     }
   };
 
-  const filtrosActivos = filtroSucursal !== "Todos" || !!fechaDesde || !!fechaHasta || !!busqueda;
+  const handleSortColumna = (campo: CampoOrden) => {
+    if (ordenCampo === campo) {
+      setOrdenDir((prev) => (prev === "desc" ? "asc" : "desc"));
+    } else {
+      setOrdenCampo(campo);
+      setOrdenDir("desc");
+    }
+  };
+
+  const labelOrdenActual = useMemo(() => {
+    const idActual = `${ordenCampo}:${ordenDir}`;
+    const encontrado = OPCIONES_ORDEN.find((o) => o.id === idActual);
+    if (encontrado) return encontrado.label;
+    if (ordenCampo === "costoVentas") {
+      return ordenDir === "desc" ? "Mayor costo (S/)" : "Menor costo (S/)";
+    }
+    return "Mayor ganancia (S/)";
+  }, [ordenCampo, ordenDir]);
+
+  const filtrosActivos =
+    filtroSucursal !== "Todos" ||
+    filtroCategoria !== "Todos" ||
+    !!fechaDesde ||
+    !!fechaHasta ||
+    !!busqueda ||
+    ordenCampo !== "utilidadBruta" ||
+    ordenDir !== "desc";
 
   const limpiarFiltros = () => {
     setFiltroSucursal("Todos");
+    setFiltroCategoria("Todos");
     setFechaDesde("");
     setFechaHasta("");
     setBusqueda("");
+    setOrdenCampo("utilidadBruta");
+    setOrdenDir("desc");
   };
 
   const toggleExpandido = (r: (typeof rentabilidad)[number]) => {
@@ -148,9 +258,30 @@ export default function RentabilidadPage() {
     setExpandido(r.productoId);
   };
 
+  const rentabilidadFiltrada = useMemo(() => {
+    const base = rentabilidad.filter((r) => {
+      const catProducto = categoriaPorProductoId.get(r.productoId) ?? "Sin categoría";
+      if (filtroCategoria !== "Todos" && catProducto !== filtroCategoria) {
+        return false;
+      }
+      if (busqueda.trim()) {
+        return coincideBusqueda(busqueda, r.nomProducto, r.codigo, catProducto);
+      }
+      return true;
+    });
+
+    return [...base].sort((a, b) => {
+      const valA = a[ordenCampo] ?? 0;
+      const valB = b[ordenCampo] ?? 0;
+      const diff = ordenDir === "desc" ? valB - valA : valA - valB;
+      if (diff !== 0) return diff;
+      return (b.utilidadBruta ?? 0) - (a.utilidadBruta ?? 0);
+    });
+  }, [rentabilidad, busqueda, filtroCategoria, categoriaPorProductoId, ordenCampo, ordenDir]);
+
   const totales = useMemo(
     () =>
-      rentabilidad.reduce(
+      rentabilidadFiltrada.reduce(
         (acc, r) => ({
           ingreso: acc.ingreso + r.ingresoVentas,
           costo: acc.costo + r.costoVentas,
@@ -158,14 +289,20 @@ export default function RentabilidadPage() {
         }),
         { ingreso: 0, costo: 0, utilidad: 0 },
       ),
-    [rentabilidad],
+    [rentabilidadFiltrada],
   );
   const margenTotal = totales.ingreso === 0 ? 0 : (totales.utilidad / totales.ingreso) * 100;
 
-  const rentabilidadFiltrada = useMemo(() => {
-    if (!busqueda.trim()) return rentabilidad;
-    return rentabilidad.filter((r) => coincideBusqueda(busqueda, r.nomProducto, r.codigo));
-  }, [rentabilidad, busqueda]);
+  const renderSortIcon = (campo: CampoOrden) => {
+    if (ordenCampo !== campo) {
+      return <ArrowUpDown className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors" />;
+    }
+    return ordenDir === "desc" ? (
+      <ArrowDown className="w-3 h-3 text-brand-blue" />
+    ) : (
+      <ArrowUp className="w-3 h-3 text-brand-blue" />
+    );
+  };
 
   const chartData = useMemo(
     () =>
@@ -223,6 +360,58 @@ export default function RentabilidadPage() {
             onChange={setFiltroSucursal}
           />
         )}
+
+        <DropdownFiltro
+          label="Categoría: Todas"
+          value={filtroCategoria}
+          options={["Todos", ...opcionesCategorias]}
+          onChange={setFiltroCategoria}
+          searchable
+        />
+
+        <div className="relative" ref={menuOrdenRef}>
+          <button
+            type="button"
+            onClick={() => setMenuOrdenAbierto((prev) => !prev)}
+            className="h-9 px-3 text-xs font-semibold rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            title="Ordenar productos por rentabilidad, ganancia o ventas"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-brand-blue shrink-0" />
+            <span>{labelOrdenActual}</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${
+                menuOrdenAbierto ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          {menuOrdenAbierto && (
+            <div className="absolute top-full mt-1 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-52 py-1">
+              {OPCIONES_ORDEN.map((op) => {
+                const activo = ordenCampo === op.campo && ordenDir === op.dir;
+                return (
+                  <button
+                    key={op.id}
+                    type="button"
+                    onClick={() => {
+                      setOrdenCampo(op.campo);
+                      setOrdenDir(op.dir);
+                      setMenuOrdenAbierto(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs transition-colors text-left cursor-pointer ${
+                      activo
+                        ? "bg-blue-50 text-brand-blue font-semibold"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span>{op.label}</span>
+                    {activo && <Check className="w-3.5 h-3.5 text-brand-blue shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-1.5 sm:ml-auto">
           <button
@@ -329,11 +518,67 @@ export default function RentabilidadPage() {
             <tr className="whitespace-nowrap">
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Código</th>
               <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Producto</th>
-              <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Cant. Vendida</th>
-              <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Ingreso</th>
-              <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Costo</th>
-              <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Utilidad</th>
-              <th className="text-right font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Margen</th>
+              <th className="text-left font-bold text-gray-500 uppercase tracking-wide px-3 py-2.5">Categoría</th>
+              <th className="text-right font-bold uppercase tracking-wide px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleSortColumna("cantidadVendida")}
+                  className={`group inline-flex items-center justify-end gap-1 cursor-pointer select-none transition-colors ${
+                    ordenCampo === "cantidadVendida" ? "text-brand-blue" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <span>Cant. Vendida</span>
+                  {renderSortIcon("cantidadVendida")}
+                </button>
+              </th>
+              <th className="text-right font-bold uppercase tracking-wide px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleSortColumna("ingresoVentas")}
+                  className={`group inline-flex items-center justify-end gap-1 cursor-pointer select-none transition-colors ${
+                    ordenCampo === "ingresoVentas" ? "text-brand-blue" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <span>Ingreso</span>
+                  {renderSortIcon("ingresoVentas")}
+                </button>
+              </th>
+              <th className="text-right font-bold uppercase tracking-wide px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleSortColumna("costoVentas")}
+                  className={`group inline-flex items-center justify-end gap-1 cursor-pointer select-none transition-colors ${
+                    ordenCampo === "costoVentas" ? "text-brand-blue" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <span>Costo</span>
+                  {renderSortIcon("costoVentas")}
+                </button>
+              </th>
+              <th className="text-right font-bold uppercase tracking-wide px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleSortColumna("utilidadBruta")}
+                  className={`group inline-flex items-center justify-end gap-1 cursor-pointer select-none transition-colors ${
+                    ordenCampo === "utilidadBruta" ? "text-brand-blue" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <span>Utilidad</span>
+                  {renderSortIcon("utilidadBruta")}
+                </button>
+              </th>
+              <th className="text-right font-bold uppercase tracking-wide px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleSortColumna("margenPorcentaje")}
+                  className={`group inline-flex items-center justify-end gap-1 cursor-pointer select-none transition-colors ${
+                    ordenCampo === "margenPorcentaje" ? "text-brand-blue" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <span>Margen</span>
+                  {renderSortIcon("margenPorcentaje")}
+                </button>
+              </th>
               <th className="w-10 px-3 py-2.5"></th>
             </tr>
           </thead>
@@ -341,7 +586,7 @@ export default function RentabilidadPage() {
             {loadingRentabilidad &&
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i} className="border-b border-gray-100 animate-pulse">
-                  <td className="px-3 py-3" colSpan={8}>
+                  <td className="px-3 py-3" colSpan={9}>
                     <div className="h-3 bg-gray-200 rounded w-full" />
                   </td>
                 </tr>
@@ -349,7 +594,7 @@ export default function RentabilidadPage() {
 
             {!loadingRentabilidad && sucursalId === 0 && (
               <tr>
-                <td colSpan={8} className="py-16 text-center">
+                <td colSpan={9} className="py-16 text-center">
                   <div className="flex flex-col items-center">
                     <div className="bg-gray-100 rounded-full p-4 mb-3">
                       <PackageSearch className="w-10 h-10 text-gray-300" />
@@ -362,7 +607,7 @@ export default function RentabilidadPage() {
 
             {!loadingRentabilidad && sucursalId > 0 && rentabilidad.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-16 text-center">
+                <td colSpan={9} className="py-16 text-center">
                   <div className="flex flex-col items-center">
                     <div className="bg-gray-100 rounded-full p-4 mb-3">
                       <PackageSearch className="w-10 h-10 text-gray-300" />
@@ -376,14 +621,18 @@ export default function RentabilidadPage() {
 
             {!loadingRentabilidad && sucursalId > 0 && rentabilidad.length > 0 && rentabilidadFiltrada.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-16 text-center">
+                <td colSpan={9} className="py-16 text-center">
                   <div className="flex flex-col items-center">
                     <div className="bg-gray-100 rounded-full p-4 mb-3">
                       <PackageSearch className="w-10 h-10 text-gray-300" />
                     </div>
                     <p className="text-gray-500 font-semibold text-sm">Sin resultados</p>
                     <p className="text-gray-400 text-xs mt-1">
-                      No se encontraron productos para &quot;{busqueda}&quot;
+                      {filtroCategoria !== "Todos" && busqueda
+                        ? `No se encontraron productos para "${busqueda}" en la categoría "${filtroCategoria}"`
+                        : filtroCategoria !== "Todos"
+                          ? `No hay ventas registradas en la categoría "${filtroCategoria}" para este periodo`
+                          : `No se encontraron productos para "${busqueda}"`}
                     </p>
                   </div>
                 </td>
@@ -393,6 +642,7 @@ export default function RentabilidadPage() {
             {!loadingRentabilidad &&
               rentabilidadFiltrada.map((r, idx) => {
                 const isOpen = expandido === r.productoId;
+                const nombreCategoria = categoriaPorProductoId.get(r.productoId);
                 return (
                   <React.Fragment key={r.productoId}>
                     <tr
@@ -416,6 +666,15 @@ export default function RentabilidadPage() {
                           )}
                         </span>
                       </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {nombreCategoria ? (
+                          <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                            {nombreCategoria}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">{r.cantidadVendida}</td>
                       <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">S/ {r.ingresoVentas.toFixed(2)}</td>
                       <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">S/ {r.costoVentas.toFixed(2)}</td>
@@ -435,7 +694,7 @@ export default function RentabilidadPage() {
                     </tr>
                     {isOpen && (
                       <tr className="bg-blue-50/30">
-                        <td colSpan={8} className="px-3 pb-3 pt-0">
+                        <td colSpan={9} className="px-3 pb-3 pt-0">
                           <div className="ml-1 rounded-lg border border-blue-100 bg-white overflow-hidden">
                             <div className="flex items-center gap-1.5 px-3 py-2 bg-blue-50/60 border-b border-blue-100">
                               <LineChartIcon className="w-3.5 h-3.5 text-brand-blue" />
