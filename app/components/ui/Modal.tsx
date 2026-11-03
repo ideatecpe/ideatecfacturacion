@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -14,7 +14,27 @@ interface ModalProps {
   elevated?: boolean;
 }
 
+// Pila de modales abiertos: con ESC solo debe cerrarse el que está más arriba
+// (p. ej. un modal "elevated" abierto encima de otro), no todos a la vez.
+const pilaModalesAbiertos: (() => void)[] = [];
+
 export const Modal = ({ isOpen, onClose, title, children, className, elevated = false }: ModalProps) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    pilaModalesAbiertos.push(onClose);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && pilaModalesAbiertos[pilaModalesAbiertos.length - 1] === onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      const idx = pilaModalesAbiertos.lastIndexOf(onClose);
+      if (idx !== -1) pilaModalesAbiertos.splice(idx, 1);
+    };
+  }, [isOpen, onClose]);
+
   return (
     <AnimatePresence>
       {isOpen && (
