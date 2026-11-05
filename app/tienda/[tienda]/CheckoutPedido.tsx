@@ -23,7 +23,10 @@ import {
   Store,
   UtensilsCrossed,
 } from "lucide-react";
+import MapaUbicacion from "@/app/components/mapas/MapaUbicacion";
+import { Coordenadas, direccionDe, parsearCoordenadas, textoCoordenadas, ubicacionActual } from "@/lib/mapas";
 import {
+  CotizacionEnvio,
   ErrorTienda,
   MedioPagoPedido,
   PedidoCreado,
@@ -90,7 +93,10 @@ export default function CheckoutPedido({
   // El comprobante es opcional: si el cliente no lo pide, el pedido llega sin
   // comprobante y el cajero elige al cobrar (boleta o nota de venta). Solo se deja
   // activado de entrada si la vez anterior el cliente sí dejó su DNI o RUC.
-  const [quiereComprobante, setQuiereComprobante] = useState(false);
+  const [quiereComprobanteElegido, setQuiereComprobante] = useState(false);
+  // Sin SUNAT configurado la tienda solo emite notas de venta: no se ofrece boleta ni factura.
+  const ofreceComprobante = tienda.emiteComprobantes !== false;
+  const quiereComprobante = ofreceComprobante && quiereComprobanteElegido;
   const [tipoComprobante, setTipoComprobante] = useState<"BOLETA" | "FACTURA">(
     guardado.tipoComprobante === "FACTURA" ? "FACTURA" : "BOLETA",
   );
@@ -128,62 +134,121 @@ export default function CheckoutPedido({
   const [direccionDeUbicacion, setDireccionDeUbicacion] = useState(false);
 
   const esDelivery = tipoEntrega === "DELIVERY";
-  const costoEnvio = esDelivery ? costoEnvioPara(tienda, subtotal) : 0;
+  // En delivery el cliente siempre marca su punto en el mapa. Si la tienda también está
+  // marcada, el envío (y la zona) los calcula el backend según la distancia por calles;
+  // si no, se cobra el envío fijo y el mapa solo sirve para que el repartidor llegue.
+  const tiendaEnMapa: Coordenadas | null =
+    tienda.latitudTienda != null && tienda.longitudTienda != null
+      ? { lat: tienda.latitudTienda, lng: tienda.longitudTienda }
+      : null;
+  const zonaDibujada = tienda.zonaPoligono && tienda.zonaPoligono.length >= 3 ? tienda.zonaPoligono : null;
+  const usaMapa = esDelivery && (!!tiendaEnMapa || !!zonaDibujada);
+  const [cotizacion, setCotizacion] = useState<CotizacionEnvio | null>(null);
+  const [cotizando, setCotizando] = useState(false);
+  const costoEnvio = !esDelivery ? 0 : usaMapa ? (cotizacion?.costoEnvio ?? 0) : costoEnvioPara(tienda, subtotal);
   const total = Math.round((subtotal + costoEnvio) * 100) / 100;
   const pedidoMinimo = tienda.pedidoMinimoDelivery ?? 0;
   const faltaParaMinimo = esDelivery && subtotal < pedidoMinimo ? pedidoMinimo - subtotal : 0;
   const faltaParaGratis =
     esDelivery && costoEnvio > 0 && tienda.deliveryGratisDesde ? tienda.deliveryGratisDesde - subtotal : 0;
 
-  /** Trae la dirección de esas coordenadas y la pone en el campo, salvo que el cliente ya haya escrito la suya. */
-  const completarDireccion = async (lat: number, lng: number) => {
+  // Cotiza el envío cada vez que cambia el punto o el monto (con una pausa corta: el
+  // cliente suele mover el pin varias veces seguidas).
+  const secuenciaCotizacion = useRef(0);
+  useEffect(() => {
+    const punto = parsearCoordenadas(ubicacion);
+    if (!usaMapa || !punto) {
+      setCotizacion(null);
+      setCotizando(false);
+      return;
+    }
+    const secuencia = ++secuenciaCotizacion.current;
+    setCotizando(true);
+    const t = setTimeout(async () => {
+      try {
+        const c = await tiendaApi.cotizarEnvio(tienda.sucursalId, punto.lat, punto.lng, subtotal, tienda.entorno);
+        if (secuencia === secuenciaCotizacion.current) setCotizacion(c);
+      } catch (e) {
+        if (secuencia === secuenciaCotizacion.current)
+          setCotizacion({
+            disponible: false,
+            mensaje: e instanceof Error ? e.message : "No pudimos calcular el envío.",
+            distanciaKm: null,
+            aproximada: false,
+            costoEnvio: 0,
+            gratis: false,
+          });
+      } finally {
+        if (secuencia === secuenciaCotizacion.current) setCotizando(false);
+      }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [usaMapa, ubicacion, subtotal, tienda.sucursalId, tienda.entorno]);
+
+  /** El cliente movió el pin, tocó el mapa o buscó una dirección. */
+  const elegirPunto = (c: Coordenadas, direccionBuscada?: string) => {
+    setUbicacion(textoCoordenadas(c));
+    setAvisoUbicacion(null);
+    setError(null);
+    if (direccionBuscada) {
+      setDireccion(direccionBuscada);
+      setDireccionDeUbicacion(true);
+      setDireccionEscrita(false);
+      return;
+    }
+    void completarDireccionDe(c);
+  };
+
+  /** Dirección del punto del mapa, salvo que el cliente ya haya escrito la suya. */
+  const completarDireccionDe = async (c: Coordenadas) => {
+    if (direccionEscrita) return;
     setBuscandoDireccion(true);
     try {
-      const res = await fetch(`/api/geocodificar?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}`);
-      const datos = (await res.json()) as { ok?: boolean; direccion?: string | null };
-      if (datos.ok && datos.direccion) {
-        if (!direccionEscrita) {
-          setDireccion(datos.direccion);
-          setDireccionDeUbicacion(true);
-        }
+      const d = await direccionDe(c);
+      if (d) {
+        setDireccion(d);
+        setDireccionDeUbicacion(true);
       } else {
-        setAvisoUbicacion("Agregamos tu ubicación, pero no pudimos obtener la dirección: escríbela tú.");
+        setAvisoUbicacion("Marcamos tu ubicación, pero no pudimos obtener la dirección: escríbela tú.");
       }
-    } catch {
-      setAvisoUbicacion("Agregamos tu ubicación, pero no pudimos obtener la dirección: escríbela tú.");
     } finally {
       setBuscandoDireccion(false);
     }
   };
 
-  /** Ubicación exacta del celular: el repartidor llega sin depender solo de la dirección escrita. */
-  const usarMiUbicacion = () => {
-    if (!("geolocation" in navigator)) {
-      setAvisoUbicacion("Tu celular no permite compartir la ubicación. Escribe una buena referencia.");
-      return;
-    }
+  const usarMiUbicacionEnMapa = async () => {
     setBuscandoUbicacion(true);
     setAvisoUbicacion(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUbicacion(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`);
-        setBuscandoUbicacion(false);
-        void completarDireccion(pos.coords.latitude, pos.coords.longitude);
-      },
-      () => {
-        setAvisoUbicacion("No pudimos obtener tu ubicación. Revisa el permiso de ubicación o escribe una buena referencia.");
-        setBuscandoUbicacion(false);
-      },
-      { enableHighAccuracy: true, timeout: 12000 },
-    );
+    try {
+      const c = await ubicacionActual();
+      setDireccionEscrita(false);
+      setUbicacion(textoCoordenadas(c));
+      setBuscandoDireccion(true);
+      const d = await direccionDe(c);
+      if (d) {
+        setDireccion(d);
+        setDireccionDeUbicacion(true);
+      } else {
+        setAvisoUbicacion("Marcamos tu ubicación, pero no pudimos obtener la dirección: escríbela tú.");
+      }
+    } catch (e) {
+      setAvisoUbicacion(e instanceof Error ? e.message : "No pudimos obtener tu ubicación.");
+    } finally {
+      setBuscandoUbicacion(false);
+      setBuscandoDireccion(false);
+    }
   };
 
+  // En delivery no se ofrece tarjeta: se paga con Yape (con captura) o en efectivo al recibir.
   const mediosDisponibles: MedioPagoPedido[] = [
     ...(tienda.aceptaYape ? (["Yape"] as const) : []),
     ...(tienda.aceptaEfectivo ? (["Efectivo"] as const) : []),
-    ...(tienda.aceptaTarjeta ? (["Tarjeta"] as const) : []),
+    ...(tienda.aceptaTarjeta && !esDelivery ? (["Tarjeta"] as const) : []),
   ];
-  const [medioPago, setMedioPago] = useState<MedioPagoPedido>(mediosDisponibles[0] ?? "Efectivo");
+  const [medioPagoElegido, setMedioPago] = useState<MedioPagoPedido>(mediosDisponibles[0] ?? "Efectivo");
+  const medioPago: MedioPagoPedido = mediosDisponibles.includes(medioPagoElegido)
+    ? medioPagoElegido
+    : (mediosDisponibles[0] ?? medioPagoElegido);
   const [pagaCon, setPagaCon] = useState("");
 
   const [captura, setCaptura] = useState<{ url: string | null; vistaPrevia: string } | null>(null);
@@ -269,6 +334,12 @@ export default function CheckoutPedido({
 
     if (esDelivery) {
       if (faltaParaMinimo > 0) return `El pedido mínimo para delivery es ${formatoSoles(pedidoMinimo)}.`;
+      if (usaMapa) {
+        if (!ubicacion) return "Marca en el mapa dónde te llevamos el pedido.";
+        if (cotizando) return "Estamos calculando el envío, un momento.";
+        if (cotizacion && !cotizacion.disponible) return cotizacion.mensaje ?? "No podemos llevar el pedido a esa dirección.";
+      }
+      if (mediosDisponibles.length === 0) return "Esta tienda no tiene medios de pago para delivery.";
       if (direccion.trim().length < 5) return "Escribe la dirección donde te llevamos el pedido.";
       if (!celular) return "Para el delivery necesitamos tu celular, por si el repartidor necesita ubicarte.";
     }
@@ -474,6 +545,75 @@ export default function CheckoutPedido({
                     </div>
                   )}
 
+                  {esDelivery && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-800">¿Dónde te lo llevamos?</p>
+                        <button
+                          type="button"
+                          onClick={() => void usarMiUbicacionEnMapa()}
+                          disabled={buscandoUbicacion}
+                          className="shrink-0 inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-[var(--t-pri,#0B1F49)]/30 bg-[var(--t-pri,#0B1F49)]/5 text-xs font-semibold text-[var(--t-pri,#0B1F49)] disabled:opacity-60"
+                        >
+                          {buscandoUbicacion ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5" />}
+                          {buscandoUbicacion ? "Buscando…" : "Usar mi ubicación actual"}
+                        </button>
+                      </div>
+                      <MapaUbicacion
+                        posicion={parsearCoordenadas(ubicacion)}
+                        onCambiar={elegirPunto}
+                        referencia={tiendaEnMapa ? { ...tiendaEnMapa, etiqueta: tienda.nombreTienda } : null}
+                        radioKm={tienda.radioDeliveryKm ?? null}
+                        poligono={zonaDibujada}
+                        encuadrarZona={!ubicacion}
+                        conBuscador
+                        placeholderBuscador="Busca tu dirección o mueve el pin"
+                        alto={240}
+                      />
+                      <p className="text-[11px] text-slate-500">
+                        {ubicacion
+                          ? "¿No es ahí? Arrastra el pin rojo o toca el punto exacto de tu casa."
+                          : "Usa tu ubicación actual, busca tu dirección o toca el mapa donde quieres recibir tu pedido. Tu dirección se completa sola."}
+                      </p>
+                      {usaMapa && ubicacion && (
+                        <div
+                          className={`rounded-lg border px-3 py-2 text-xs ${
+                            cotizando
+                              ? "border-slate-200 bg-slate-50 text-slate-500"
+                              : cotizacion && !cotizacion.disponible
+                                ? "border-rose-200 bg-rose-50 text-rose-700"
+                                : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                          }`}
+                        >
+                          {cotizando ? (
+                            <span className="flex items-center gap-1.5">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Calculando la distancia y el envío…
+                            </span>
+                          ) : cotizacion && !cotizacion.disponible ? (
+                            <span className="flex items-start gap-1.5">
+                              <AlertCircle className="w-4 h-4 shrink-0" /> {cotizacion.mensaje}
+                            </span>
+                          ) : cotizacion ? (
+                            <span className="flex flex-wrap items-center gap-x-1.5">
+                              <Bike className="w-3.5 h-3.5" />
+                              {cotizacion.distanciaKm != null && (
+                                <span>
+                                  A <strong className="tabular-nums">{cotizacion.distanciaKm.toFixed(1)} km</strong> de la tienda ·
+                                </span>
+                              )}
+                              <span>
+                                Envío{" "}
+                                <strong className="tabular-nums">
+                                  {cotizacion.costoEnvio > 0 ? formatoSoles(cotizacion.costoEnvio) : "gratis"}
+                                </strong>
+                              </span>
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <Campo etiqueta="Dirección de entrega">
                     <input
                       value={direccion}
@@ -501,36 +641,9 @@ export default function CheckoutPedido({
                     />
                   </Campo>
 
-                  {ubicacion ? (
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs">
-                      <Check className="w-4 h-4 shrink-0 text-emerald-600" />
-                      <span className="flex-1 font-semibold text-emerald-700">Ubicación agregada</span>
-                      <a
-                        href={`https://www.google.com/maps?q=${ubicacion}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-emerald-700 underline"
-                      >
-                        Ver
-                      </a>
-                      <button type="button" onClick={() => setUbicacion(null)} className="font-semibold text-slate-500">
-                        Quitar
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={usarMiUbicacion}
-                      disabled={buscandoUbicacion}
-                      className="w-full h-10 flex items-center justify-center gap-2 rounded-lg border border-[var(--t-pri,#0B1F49)]/30 bg-[var(--t-pri,#0B1F49)]/5 text-sm font-semibold text-[var(--t-pri,#0B1F49)] disabled:opacity-60"
-                    >
-                      {buscandoUbicacion ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
-                      {buscandoUbicacion ? "Buscando tu ubicación…" : "Usar mi ubicación actual y completar mi dirección"}
-                    </button>
-                  )}
                   {avisoUbicacion && <p className="text-xs text-amber-700">{avisoUbicacion}</p>}
 
-                  <p className="text-xs text-slate-600">
+                  <p className={`text-xs text-slate-600 ${usaMapa ? "hidden" : ""}`}>
                     Envío:{" "}
                     <span className="font-semibold tabular-nums">
                       {costoEnvio > 0 ? formatoSoles(costoEnvio) : "gratis"}
@@ -579,7 +692,8 @@ export default function CheckoutPedido({
             </Campo>
           </Seccion>
 
-          {/* ── Comprobante ── */}
+          {/* ── Comprobante (solo si la empresa emite boletas y facturas) ── */}
+          {ofreceComprobante && (
           <Seccion titulo="Comprobante">
             <button
               type="button"
@@ -664,6 +778,7 @@ export default function CheckoutPedido({
               </>
             )}
           </Seccion>
+          )}
 
           {/* ── Pago ── */}
           <Seccion titulo="¿Cómo pagas?">
@@ -685,11 +800,16 @@ export default function CheckoutPedido({
                       <CreditCard className="w-5 h-5" />
                     )
                   }
-                  titulo={m}
+                  titulo={m === "Efectivo" && esDelivery ? "Efectivo al recibir" : m}
                   compacta
                 />
               ))}
             </div>
+            {esDelivery && mediosDisponibles.length === 0 && (
+              <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                Esta tienda no tiene Yape ni efectivo activos para delivery.
+              </p>
+            )}
 
             {medioPago === "Efectivo" && (
               <div className="rounded-xl bg-white border border-slate-200 p-3.5 space-y-2.5">
@@ -834,9 +954,13 @@ export default function CheckoutPedido({
               </div>
               <div className="flex justify-between">
                 <span>Envío</span>
-                <span className={`tabular-nums ${costoEnvio === 0 ? "font-semibold text-emerald-700" : ""}`}>
-                  {costoEnvio > 0 ? formatoSoles(costoEnvio) : "Gratis"}
-                </span>
+                {usaMapa && !cotizacion?.disponible ? (
+                  <span className="text-slate-400">Elige tu ubicación</span>
+                ) : (
+                  <span className={`tabular-nums ${costoEnvio === 0 ? "font-semibold text-emerald-700" : ""}`}>
+                    {costoEnvio > 0 ? formatoSoles(costoEnvio) : "Gratis"}
+                  </span>
+                )}
               </div>
             </div>
           )}

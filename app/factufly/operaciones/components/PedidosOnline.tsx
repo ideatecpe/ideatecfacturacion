@@ -47,16 +47,24 @@ const REPETIR_ALERTA_MS = 6000;
 const MOTIVO_YAPE_RECHAZADO = "No pudimos confirmar tu pago con Yape. Acércate a caja para ayudarte.";
 
 /**
- * Flujo simple: el cajero solo cobra (o verifica el Yape y cobra) o cancela. Al
- * emitir la venta el pedido queda "Listo" y se cierra; no hay pasos intermedios.
+ * El cajero cobra (o verifica el Yape y cobra) o cancela. Al emitir la venta el pedido
+ * queda "Listo" y se cierra, salvo el delivery: ese sigue a la vista con "Salió a
+ * reparto" (el cliente ve "en camino") y "Entregado".
  */
-const porAtender = (p: PedidoOnline) =>
+const porCobrar = (p: PedidoOnline) =>
   !p.cobrado && (p.estado === "PENDIENTE" || p.estado === "ACEPTADO" || p.estado === "LISTO");
+
+/** Delivery ya cobrado que falta despachar o entregar: sigue a la vista hasta marcarlo entregado. */
+const enReparto = (p: PedidoOnline) =>
+  p.tipoEntrega === "DELIVERY" && p.cobrado && (p.estado === "LISTO" || p.estado === "EN_CAMINO");
+
+const porAtender = (p: PedidoOnline) => porCobrar(p) || enReparto(p);
 
 const ETIQUETA_ESTADO: Record<EstadoPedido, { texto: string; clase: string }> = {
   PENDIENTE: { texto: "Nuevo", clase: "bg-rose-100 text-rose-700" },
   ACEPTADO: { texto: "Nuevo", clase: "bg-rose-100 text-rose-700" },
   LISTO: { texto: "Listo", clase: "bg-emerald-100 text-emerald-700" },
+  EN_CAMINO: { texto: "En camino", clase: "bg-sky-100 text-sky-700" },
   ENTREGADO: { texto: "Entregado", clase: "bg-gray-100 text-gray-600" },
   CANCELADO: { texto: "Cancelado", clase: "bg-gray-100 text-gray-500" },
 };
@@ -392,6 +400,7 @@ export default function PedidosOnline({ sucursalId, accessToken }: Props) {
                     onDescartarCancelacion={() => setCancelando(null)}
                     onCobrar={() => cobrarEnCaja(pedido)}
                     onRevisarYape={() => setCapturaAbierta(pedido)}
+                    onCambiarEstado={(estado) => cambiarEstado(pedido, estado)}
                   />
                 ))
               )}
@@ -505,6 +514,7 @@ function EntregaDelivery({ pedido }: { pedido: PedidoOnline }) {
     `Cliente: ${pedido.clienteNombre}${pedido.clienteTelefono ? ` · ${pedido.clienteTelefono}` : ""}`,
     `Dirección: ${pedido.direccionEntrega}`,
     pedido.referenciaEntrega ? `Referencia: ${pedido.referenciaEntrega}` : null,
+    pedido.distanciaKm != null ? `Distancia: ${Number(pedido.distanciaKm).toFixed(1)} km` : null,
     `Cómo llegar: ${enlace}`,
     lineaDeCobro(pedido),
   ]
@@ -527,7 +537,7 @@ function EntregaDelivery({ pedido }: { pedido: PedidoOnline }) {
       {pedido.referenciaEntrega && <p className="pl-5 text-[11px] text-gray-500">Ref.: {pedido.referenciaEntrega}</p>}
       <p className={`pl-5 text-[10px] font-medium ${pedido.ubicacionEntrega ? "text-emerald-700" : "text-gray-400"}`}>
         {pedido.ubicacionEntrega
-          ? "El cliente compartió su ubicación exacta"
+          ? `Ubicación exacta en el mapa${pedido.distanciaKm != null ? ` · a ${Number(pedido.distanciaKm).toFixed(1)} km por calles` : ""}`
           : "Solo la dirección escrita: puede no ser exacta"}
       </p>
 
@@ -585,6 +595,7 @@ function TarjetaPedido({
   onDescartarCancelacion,
   onCobrar,
   onRevisarYape,
+  onCambiarEstado,
 }: {
   pedido: PedidoOnline;
   procesando: boolean;
@@ -595,19 +606,25 @@ function TarjetaPedido({
   onDescartarCancelacion: () => void;
   onCobrar: () => void;
   onRevisarYape: () => void;
+  onCambiarEstado: (estado: EstadoPedido) => void;
 }) {
-  const activo = porAtender(pedido);
+  const activo = porCobrar(pedido);
+  const repartiendo = enReparto(pedido);
   const etiqueta = activo
     ? ETIQUETA_ESTADO.PENDIENTE
-    : pedido.cobrado
-      ? ETIQUETA_ESTADO.LISTO
-      : ETIQUETA_ESTADO[pedido.estado];
+    : repartiendo
+      ? pedido.estado === "EN_CAMINO"
+        ? ETIQUETA_ESTADO.EN_CAMINO
+        : { texto: "Por despachar", clase: "bg-amber-100 text-amber-800" }
+      : pedido.cobrado && pedido.estado !== "ENTREGADO"
+        ? ETIQUETA_ESTADO.LISTO
+        : ETIQUETA_ESTADO[pedido.estado];
   const yapePorVerificar = activo && pedido.medioPago === "Yape" && !!pedido.urlCapturaPago;
 
   return (
     <article
       className={`rounded-lg bg-white border shadow-xs overflow-hidden ${
-        activo ? "border-rose-300 ring-1 ring-rose-200" : "border-gray-200"
+        activo ? "border-rose-300 ring-1 ring-rose-200" : repartiendo ? "border-sky-300 ring-1 ring-sky-100" : "border-gray-200"
       }`}
     >
       <header className="flex items-start gap-3 px-3.5 pt-3">
@@ -765,6 +782,30 @@ function TarjetaPedido({
               {procesando && <Loader2 size={13} className="animate-spin" />} Cancelar pedido
             </button>
           </div>
+        </div>
+      ) : repartiendo ? (
+        <div className="border-t border-gray-100 px-3.5 py-2.5 flex gap-2">
+          {pedido.estado === "LISTO" ? (
+            <button
+              type="button"
+              onClick={() => onCambiarEstado("EN_CAMINO")}
+              disabled={procesando}
+              className="flex-1 h-9 rounded-md bg-sky-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-sky-700 disabled:opacity-50"
+              title="El cliente ve que su pedido va en camino"
+            >
+              {procesando ? <Loader2 size={13} className="animate-spin" /> : <Bike size={14} />} Salió a reparto
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onCambiarEstado("ENTREGADO")}
+              disabled={procesando}
+              className="flex-1 h-9 rounded-md bg-emerald-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 hover:bg-emerald-700 disabled:opacity-50"
+              title={pedido.medioPago === "Efectivo" ? "El repartidor entregó y cobró el efectivo" : "El repartidor entregó el pedido"}
+            >
+              {procesando ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={14} />} Entregado
+            </button>
+          )}
         </div>
       ) : (
         activo && (

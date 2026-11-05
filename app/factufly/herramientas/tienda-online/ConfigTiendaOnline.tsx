@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
-  Bike,
   Check,
   Clock,
   Copy,
@@ -22,6 +21,8 @@ import { useToast } from "@/app/components/ui/Toast";
 import { HorarioDia, TiendaOnlineConfig, mesaDeQr, pedidosOnlineApi, urlMesa, urlTiendaPublica } from "@/lib/pedidosOnline";
 import { COLORES_TIENDA_ORIGINALES, contraste, luminancia, normalizarHex, variablesTemaTienda } from "@/lib/colores";
 import { QrPersonalizado } from "./QrPersonalizado";
+import ConfigDelivery from "./ConfigDelivery";
+import ConfigBanners, { borrarImagenBanner } from "./ConfigBanners";
 
 interface Props {
   sucursalId: number;
@@ -56,6 +57,15 @@ const CONFIG_INICIAL: TiendaOnlineConfig = {
   deliveryGratisDesde: null,
   zonaDelivery: null,
   tiempoDelivery: null,
+  latitudTienda: null,
+  longitudTienda: null,
+  radioDeliveryKm: null,
+  zonaPoligono: null,
+  direccionTienda: null,
+  modoCostoDelivery: "FIJO",
+  kmIncluidosDelivery: 0,
+  costoKmDelivery: 0,
+  banners: [],
   colorPrimario: null,
   colorSecundario: null,
   colorFondo: null,
@@ -75,12 +85,6 @@ const TURNO_POR_DEFECTO = { abre: "08:00", cierra: "20:00" };
 const aMinutos = (hora: string) => {
   const [h, m] = hora.split(":").map(Number);
   return (h || 0) * 60 + (m || 0);
-};
-
-/** Monto en soles desde un input: vacío o inválido = 0, con 2 decimales como máximo. */
-const leerMonto = (texto: string) => {
-  const n = parseFloat(texto.replace(",", "."));
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
 };
 
 /**
@@ -135,6 +139,10 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
   const [guardadoSlug, setGuardadoSlug] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
+  // Imágenes del banner que ya están guardadas: al quitarlas se borran de Cloudflare
+  // recién cuando se guarda (si no se guarda, la tienda las sigue usando).
+  const [idsBannersGuardados, setIdsBannersGuardados] = useState<ReadonlySet<string>>(new Set());
+  const idsDe = (c: TiendaOnlineConfig) => new Set(c.banners.map((b) => b.imageId).filter((id): id is string => !!id));
 
   useEffect(() => {
     if (!accessToken) return;
@@ -142,7 +150,9 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
       .obtenerConfig(sucursalId, accessToken)
       .then((c) => {
         // Una API sin la reasignación de QR no manda mesasQr: cada QR en su mesa.
-        setConfig({ ...c, mesasQr: c.mesasQr ?? [] });
+        const cargada = { ...c, mesasQr: c.mesasQr ?? [], banners: c.banners ?? [] };
+        setConfig(cargada);
+        setIdsBannersGuardados(idsDe(cargada));
         // Solo hay enlace publicado si la tienda ya se guardó alguna vez.
         setGuardadoSlug(c.activa ? c.slug : null);
       })
@@ -194,8 +204,15 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
         { ...siguiente, slug: (siguiente.slug ?? "").replace(/-+$/, "") },
         accessToken,
       );
-      setConfig({ ...guardada, mesasQr: guardada.mesasQr ?? [] });
+      const nueva = { ...guardada, mesasQr: guardada.mesasQr ?? [], banners: guardada.banners ?? [] };
+      setConfig(nueva);
       setGuardadoSlug(guardada.activa ? guardada.slug : null);
+      // Las imágenes que se quitaron del banner ya no las usa nadie.
+      const vigentes = idsDe(nueva);
+      idsBannersGuardados.forEach((id) => {
+        if (!vigentes.has(id)) void borrarImagenBanner(id);
+      });
+      setIdsBannersGuardados(vigentes);
       showToast(mensajeExito, "success");
       return true;
     } catch (e) {
@@ -454,6 +471,14 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
           />
         </label>
       </div>
+
+      {/* ── Banner del encabezado ── */}
+      <ConfigBanners
+        banners={config.banners}
+        onChange={(b) => cambiar("banners", b)}
+        idsGuardados={idsBannersGuardados}
+        disabled={deshabilitado}
+      />
 
       {/* ── Colores de la tienda y de los QR ── */}
       <div className="px-4 py-4 bg-white space-y-4">
@@ -768,63 +793,7 @@ export function ConfigTiendaOnline({ sucursalId, entorno, accessToken, canEdit }
       )}
 
       {/* ── Delivery ── */}
-      {config.permiteDelivery && (
-        <div className="px-4 py-3 bg-white space-y-3">
-          <div>
-            <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
-              <Bike className="w-3.5 h-3.5 text-brand-blue" /> Delivery
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              El cliente deja su dirección, referencia y celular (y si quiere, su ubicación). El envío se suma al total y en caja se cobra como una línea más.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <CampoMonto
-              etiqueta="Costo de envío"
-              valor={config.costoDelivery}
-              onChange={(v) => cambiar("costoDelivery", v ?? 0)}
-              disabled={deshabilitado}
-              placeholder="0.00 = gratis"
-            />
-            <CampoMonto
-              etiqueta="Pedido mínimo"
-              valor={config.pedidoMinimoDelivery}
-              onChange={(v) => cambiar("pedidoMinimoDelivery", v ?? 0)}
-              disabled={deshabilitado}
-              placeholder="Sin mínimo"
-            />
-            <CampoMonto
-              etiqueta="Envío gratis desde (opcional)"
-              valor={config.deliveryGratisDesde}
-              onChange={(v) => cambiar("deliveryGratisDesde", v && v > 0 ? v : null)}
-              disabled={deshabilitado}
-              placeholder="Nunca"
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-600">Zona de reparto (opcional)</span>
-              <input
-                value={config.zonaDelivery ?? ""}
-                onChange={(e) => cambiar("zonaDelivery", e.target.value.slice(0, 200))}
-                disabled={deshabilitado}
-                placeholder="Ej.: Solo Cercado de Cajamarca y Baños del Inca"
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-2.5 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15 disabled:bg-gray-50"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-gray-600">Tiempo estimado (opcional)</span>
-              <input
-                value={config.tiempoDelivery ?? ""}
-                onChange={(e) => cambiar("tiempoDelivery", e.target.value.slice(0, 40))}
-                disabled={deshabilitado}
-                placeholder="Ej.: 30 a 45 min"
-                className="mt-1 w-full h-9 rounded-md border border-gray-200 px-2.5 text-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15 disabled:bg-gray-50"
-              />
-            </label>
-          </div>
-        </div>
-      )}
+      {config.permiteDelivery && <ConfigDelivery config={config} cambiar={cambiar} disabled={deshabilitado} />}
 
       <div className="px-4 py-3 bg-white">
         <div className="flex items-center gap-4">
@@ -1106,43 +1075,6 @@ function Aviso({ children }: { children: React.ReactNode }) {
 }
 
 /** Monto en soles. Mantiene lo escrito mientras se edita y lo normaliza al salir del campo. */
-function CampoMonto({
-  etiqueta,
-  valor,
-  onChange,
-  disabled,
-  placeholder,
-}: {
-  etiqueta: string;
-  valor: number | null;
-  onChange: (v: number | null) => void;
-  disabled?: boolean;
-  placeholder?: string;
-}) {
-  const [texto, setTexto] = useState(valor ? valor.toFixed(2) : "");
-  return (
-    <label className="block">
-      <span className="text-xs font-medium text-gray-600">{etiqueta}</span>
-      <div className="mt-1 flex items-stretch rounded-md border border-gray-200 overflow-hidden focus-within:border-brand-blue focus-within:ring-2 focus-within:ring-brand-blue/15">
-        <span className="flex items-center px-2.5 bg-gray-50 text-xs font-semibold text-gray-400 border-r border-gray-200">S/</span>
-        <input
-          value={texto}
-          onChange={(e) => {
-            const limpio = e.target.value.replace(/[^\d.,]/g, "").slice(0, 8);
-            setTexto(limpio);
-            onChange(limpio ? leerMonto(limpio) : null);
-          }}
-          onBlur={() => setTexto(texto ? leerMonto(texto).toFixed(2) : "")}
-          disabled={disabled}
-          inputMode="decimal"
-          placeholder={placeholder}
-          className="flex-1 min-w-0 h-9 px-2.5 text-sm tabular-nums outline-none disabled:bg-gray-50"
-        />
-      </div>
-    </label>
-  );
-}
-
 function BotonSecundario({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <button

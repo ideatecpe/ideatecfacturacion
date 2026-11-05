@@ -63,6 +63,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Imágenes del mapa (Google / OpenStreetMap): son miles y cambian según dónde se
+  // mire; guardarlas llenaría el almacenamiento del celular. Las maneja el navegador.
+  if (/^mt\d\.google\.com$/.test(url.hostname) || url.hostname.endsWith('tile.openstreetmap.org')) {
+    return;
+  }
+
   // 1. Assets estáticos de Next (inmutables por hash)
   if (url.origin === self.location.origin && url.pathname.startsWith('/_next/static/')) {
     event.respondWith(

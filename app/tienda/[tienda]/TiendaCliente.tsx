@@ -30,6 +30,7 @@ import { variablesTemaTienda } from "@/lib/colores";
 import BarraCategorias, { IconoDeSeccion } from "./BarraCategorias";
 import CheckoutPedido, { LineaCarrito } from "./CheckoutPedido";
 import SeguimientoPedido from "./SeguimientoPedido";
+import SliderBanners from "./SliderBanners";
 import { formatoSoles, guardarLocal, leerLocal, normalizar } from "./formato";
 
 type Carrito = Record<number, number>;
@@ -345,6 +346,31 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
     return null;
   }, [tienda?.logoBase64, tienda?.ruc]);
 
+  // El ícono de la pestaña es el logo de la empresa (el de sus comprobantes), no el de FactuFly.
+  useEffect(() => {
+    if (!logoEmpresaUrl) return;
+    const enlaces = [...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')];
+    const antes = enlaces.map((l) => l.href);
+    let propio: HTMLLinkElement | null = null;
+    if (enlaces.length === 0) {
+      propio = document.createElement("link");
+      propio.rel = "icon";
+      document.head.appendChild(propio);
+      enlaces.push(propio);
+    }
+    enlaces.forEach((l) => {
+      l.href = logoEmpresaUrl;
+      l.removeAttribute("type");
+      l.removeAttribute("sizes");
+    });
+    return () => {
+      if (propio) propio.remove();
+      else enlaces.forEach((l, i) => (l.href = antes[i]));
+    };
+  }, [logoEmpresaUrl]);
+
+  const banners = useMemo(() => (tienda?.banners ?? []).map((b) => b.url).filter(Boolean), [tienda?.banners]);
+
   const cantidadCombos = useMemo(() => productos.filter((p) => p.esCombo).length, [productos]);
 
   const irASeccion = (nombre: string) => {
@@ -598,8 +624,9 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
             </h2>
 
             <p className="text-xs sm:text-sm text-slate-300/90 max-w-lg leading-relaxed">
-              {tienda.mensaje && !tienda.mensaje.toLowerCase().includes("tienda de prueba") && !tienda.mensaje.toLowerCase().includes("pide desde tu celular")
-                ? tienda.mensaje
+              {/* El mensaje de bienvenida de la tienda; sin mensaje, uno según cómo atiende. */}
+              {tienda.mensaje?.trim()
+                ? tienda.mensaje.trim()
                 : mesaQr
                   ? `Pide desde tu celular y te lo llevamos a la mesa ${mesaQr}. Rápido, fácil y sin colas.`
                   : tienda.permiteMesa && (tienda.cantidadMesas ?? 0) === 0
@@ -655,17 +682,11 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
             )}
           </div>
 
-          {/* Columna Derecha – Fotografía principal del servicio */}
-          <div className="lg:col-span-5 hidden lg:block relative">
-            <div className="relative rounded-3xl overflow-hidden border border-white/15 shadow-2xl h-[280px] sm:h-[300px] w-full group bg-slate-900/60">
-              <img
-                src="/tienda/online1.jpeg"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/tienda/online1.png";
-                }}
-                alt="Haz tu pedido desde donde estés"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-              />
+          {/* Columna Derecha – Banner de la tienda (sus imágenes, o la fotografía de siempre).
+              Con imágenes propias también se ve en el celular. */}
+          <div className={`lg:col-span-5 relative ${banners.length > 0 ? "block" : "hidden lg:block"}`}>
+            <div className="relative rounded-3xl overflow-hidden border border-white/15 shadow-2xl h-[200px] sm:h-[280px] lg:h-[300px] w-full group bg-slate-900/60">
+              <SliderBanners imagenes={banners} alt="Haz tu pedido desde donde estés" />
 
               {/* Gradiente sutil para profundidad y contraste */}
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20 pointer-events-none" />

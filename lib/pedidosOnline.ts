@@ -5,7 +5,10 @@
  */
 import { HubConnection, HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 
-export type EstadoPedido = "PENDIENTE" | "ACEPTADO" | "LISTO" | "ENTREGADO" | "CANCELADO";
+/** EN_CAMINO es solo de delivery: el repartidor ya salió con el pedido. */
+export type EstadoPedido = "PENDIENTE" | "ACEPTADO" | "LISTO" | "EN_CAMINO" | "ENTREGADO" | "CANCELADO";
+/** FIJO = un solo costo de envío. DISTANCIA = base (con km incluidos) + costo por km adicional. */
+export type ModoCostoDelivery = "FIJO" | "DISTANCIA";
 export type MedioPagoPedido = "Efectivo" | "Tarjeta" | "Yape";
 export type TipoEntregaPedido = "RECOJO" | "MESA" | "DELIVERY";
 
@@ -45,6 +48,8 @@ export interface PedidoOnline {
   ubicacionEntrega: string | null;
   /** Ya incluido en total. */
   costoEnvio: number;
+  /** Km por calles de la tienda al cliente con los que se calculó el envío. */
+  distanciaKm: number | null;
   medioPago: MedioPagoPedido;
   pagaCon: number | null;
   urlCapturaPago: string | null;
@@ -64,6 +69,16 @@ export interface PedidosSucursal {
   tiendaActiva: boolean;
   pedidos: PedidoOnline[];
 }
+
+/** Imagen del encabezado de la tienda (Cloudflare Images). */
+export interface BannerTienda {
+  url: string;
+  /** Id en Cloudflare, para borrarla cuando se quita. */
+  imageId?: string | null;
+}
+
+/** Hasta cuántas imágenes puede tener el banner. */
+export const MAX_BANNERS = 6;
 
 export interface TiendaOnlineConfig {
   slug: string | null;
@@ -106,6 +121,22 @@ export interface TiendaOnlineConfig {
   deliveryGratisDesde: number | null;
   zonaDelivery: string | null;
   tiempoDelivery: string | null;
+  /** Ubicación del local en el mapa; null = delivery sin mapa (sin distancia ni zona). */
+  latitudTienda: number | null;
+  longitudTienda: number | null;
+  /** Círculo de reparto alrededor de la tienda (km en línea recta); null = sin círculo. */
+  radioDeliveryKm: number | null;
+  /** Zona de reparto dibujada en el mapa, puntos [lat, lng]; manda sobre el círculo. */
+  zonaPoligono: [number, number][] | null;
+  /** Dirección del local como la escribe la tienda (se rellena desde el mapa). */
+  direccionTienda: string | null;
+  modoCostoDelivery: ModoCostoDelivery;
+  /** Con modo DISTANCIA, costoDelivery es la base e incluye estos km. */
+  kmIncluidosDelivery: number;
+  costoKmDelivery: number;
+
+  /** Imágenes del encabezado, en el orden en que pasan; vacío = la imagen de siempre. */
+  banners: BannerTienda[];
 
   /** Colores "#RRGGBB"; null = el original. Con qrColor2 el QR va en degradado. */
   colorPrimario: string | null;
@@ -160,6 +191,17 @@ export interface TiendaPublica {
   deliveryGratisDesde?: number | null;
   zonaDelivery?: string | null;
   tiempoDelivery?: string | null;
+  latitudTienda?: number | null;
+  longitudTienda?: number | null;
+  radioDeliveryKm?: number | null;
+  zonaPoligono?: [number, number][] | null;
+  modoCostoDelivery?: ModoCostoDelivery;
+  kmIncluidosDelivery?: number;
+  costoKmDelivery?: number;
+  /** La empresa emite boletas y facturas (SUNAT configurado); si no, no se ofrece comprobante. */
+  emiteComprobantes?: boolean;
+  /** Imágenes del encabezado (pasan solas); vacío = la imagen de siempre. */
+  banners?: BannerTienda[];
 
   /** Colores de marca "#RRGGBB"; null = los originales. */
   colorPrimario?: string | null;
@@ -203,6 +245,18 @@ export interface NuevoPedidoOnline {
   items: { productoId: number; cantidad: number }[];
 }
 
+/** Costo de envío a un punto del mapa, antes de enviar el pedido. */
+export interface CotizacionEnvio {
+  /** false = no se puede llevar ahí (fuera de zona, falta el mínimo…): ver mensaje. */
+  disponible: boolean;
+  mensaje: string | null;
+  distanciaKm: number | null;
+  /** El ruteo no respondió y la distancia se estimó. */
+  aproximada: boolean;
+  costoEnvio: number;
+  gratis: boolean;
+}
+
 export interface PedidoCreado {
   token: string;
   numero: number;
@@ -220,6 +274,7 @@ export interface PedidoSeguimiento {
   mesa: string | null;
   direccionEntrega?: string | null;
   costoEnvio?: number;
+  distanciaKm?: number | null;
   medioPago: MedioPagoPedido;
   motivoCancelacion: string | null;
   fechaCreacion: string;
@@ -281,6 +336,13 @@ export const tiendaApi = {
 
   seguimiento: (token: string, entorno?: string | null) =>
     pedirJson<PedidoSeguimiento>(`${API}/api/tienda/pedido/${token}${conEntorno(entorno)}`, { cache: "no-store" }),
+
+  /** Costo de envío a esas coordenadas según la distancia por calles y la zona de reparto. */
+  cotizarEnvio: (sucursalId: number, lat: number, lng: number, subtotal: number, entorno?: string | null) => {
+    const params = new URLSearchParams({ lat: lat.toFixed(6), lng: lng.toFixed(6), subtotal: subtotal.toFixed(2) });
+    if (entorno === "beta") params.set("e", "beta");
+    return pedirJson<CotizacionEnvio>(`${API}/api/tienda/${sucursalId}/envio?${params.toString()}`, { cache: "no-store" });
+  },
 };
 
 // ── Caja (con sesión) ─────────────────────────────────────────────────────
@@ -352,6 +414,17 @@ export function mesaDeQr(mesasQr: number[] | null | undefined, qr: number): numb
 }
 
 /** Mismo criterio que el backend: el envío es gratis desde cierto monto de productos. */
+/** Costo por distancia (misma regla que el backend): base con km incluidos + km adicionales, hacia arriba a 10 céntimos. */
+export function costoPorDistancia(
+  base: number,
+  kmIncluidos: number,
+  costoKm: number,
+  km: number,
+): number {
+  const costo = base + Math.max(0, km - kmIncluidos) * costoKm;
+  return Math.ceil(Math.round(costo * 10000) / 1000) / 10;
+}
+
 export function costoEnvioPara(tienda: Pick<TiendaPublica, "costoDelivery" | "deliveryGratisDesde">, subtotal: number): number {
   const gratisDesde = tienda.deliveryGratisDesde;
   if (gratisDesde != null && gratisDesde > 0 && subtotal >= gratisDesde) return 0;
