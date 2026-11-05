@@ -350,29 +350,6 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
     return null;
   }, [tienda?.logoBase64, tienda?.ruc]);
 
-  // El ícono de la pestaña es el logo de la empresa (el de sus comprobantes), no el de FactuFly.
-  useEffect(() => {
-    if (!logoEmpresaUrl) return;
-    const enlaces = [...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')];
-    const antes = enlaces.map((l) => l.href);
-    let propio: HTMLLinkElement | null = null;
-    if (enlaces.length === 0) {
-      propio = document.createElement("link");
-      propio.rel = "icon";
-      document.head.appendChild(propio);
-      enlaces.push(propio);
-    }
-    enlaces.forEach((l) => {
-      l.href = logoEmpresaUrl;
-      l.removeAttribute("type");
-      l.removeAttribute("sizes");
-    });
-    return () => {
-      if (propio) propio.remove();
-      else enlaces.forEach((l, i) => (l.href = antes[i]));
-    };
-  }, [logoEmpresaUrl]);
-
   const banners = useMemo(() => (tienda?.banners ?? []).map((b) => b.url).filter(Boolean), [tienda?.banners]);
 
   const cantidadCombos = useMemo(() => productos.filter((p) => p.esCombo).length, [productos]);
