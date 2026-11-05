@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { datosTiendaServidor } from "@/lib/tiendaServidor";
 
 /**
  * Ícono de la pestaña de una tienda online: el logo de la empresa (el mismo de sus
@@ -7,7 +8,6 @@ import { NextRequest, NextResponse } from "next/server";
  * cambiarlo. Sin logo (o si algo falla) se entrega el ícono de FactuFly.
  */
 
-const API = process.env.NEXT_PUBLIC_API_URL;
 const TAMANO = 128;
 const ICONO_POR_DEFECTO = "/android-chrome-192x192.png";
 
@@ -27,18 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tien
   const porDefecto = () =>
     NextResponse.redirect(new URL(ICONO_POR_DEFECTO, req.url), { headers: { "Cache-Control": "no-store" } });
 
-  if (!API || !clave) return porDefecto();
-
-  let base64: string | null = null;
-  try {
-    const res = await fetch(`${API}/api/tienda/${encodeURIComponent(clave)}${beta ? "?e=beta" : ""}`, {
-      next: { revalidate: 600 },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (res.ok) base64 = ((await res.json()) as { logoBase64?: string | null }).logoBase64 ?? null;
-  } catch {
-    return porDefecto();
-  }
+  const base64 = (await datosTiendaServidor(clave, beta))?.logoBase64;
   if (!base64) return porDefecto();
 
   // Puede venir como data URL o como base64 suelto.

@@ -30,7 +30,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { conVarianteImagen } from "@/app/utils/cloudflareImagen";
 import { PedidoCreado, ProductoPublico, TiendaPublica, mesaDeQr, tiendaApi } from "@/lib/pedidosOnline";
-import { variablesTemaTienda } from "@/lib/colores";
+import { colorBarraTienda, variablesTemaTienda } from "@/lib/colores";
 import BarraCategorias, { IconoDeSeccion } from "./BarraCategorias";
 import CheckoutPedido, { LineaCarrito } from "./CheckoutPedido";
 import SeguimientoPedido from "./SeguimientoPedido";
@@ -114,26 +114,12 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
     [tienda?.colorPrimario, tienda?.colorSecundario, tienda?.colorFondo, tienda?.colorTarjeta],
   );
 
-  // Van en <html> para alcanzar también los paneles fijos. Safari de iPhone ya no
-  // usa theme-color: pinta la zona de la hora con el fondo de la página, así que el
-  // fondo base lleva el color principal (el contenido tiene su propio fondo claro).
+  // Van en <html> para alcanzar también los paneles fijos.
   useEffect(() => {
     const html = document.documentElement;
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    const anteriorHtml = html.style.backgroundColor;
-    const anteriorBody = document.body.style.backgroundColor;
-    const anteriorMeta = meta?.content;
-
     for (const [variable, valor] of Object.entries(tema)) html.style.setProperty(variable, valor);
-    html.style.backgroundColor = tema["--t-pri"];
-    document.body.style.backgroundColor = tema["--t-pri"];
-    if (meta) meta.content = tema["--t-pri"];
-
     return () => {
       for (const variable of Object.keys(tema)) html.style.removeProperty(variable);
-      html.style.backgroundColor = anteriorHtml;
-      document.body.style.backgroundColor = anteriorBody;
-      if (meta && anteriorMeta) meta.content = anteriorMeta;
     };
   }, [tema]);
 
@@ -153,6 +139,29 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
 
   const [tokenPedido, setTokenPedido] = useState<string | null>(null);
   const [verSeguimiento, setVerSeguimiento] = useState(false);
+
+  // Barra del celular (hora, batería) del mismo color que lo que se ve arriba: el
+  // encabezado en el catálogo, el principal en "cerrado" y en el seguimiento. Safari del
+  // iPhone ya no usa theme-color y pinta esa zona con el fondo de la página, así que se
+  // cambian los dos. El servidor ya la mandó bien (page.tsx); esto la sigue cuando
+  // cambia la pantalla. Mientras carga se deja la del servidor.
+  const barra = tienda ? colorBarraTienda(tienda.colorPrimario, tienda.abierta && !(tokenPedido && verSeguimiento)) : null;
+  useEffect(() => {
+    if (!barra) return;
+    const html = document.documentElement;
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const anteriorHtml = html.style.backgroundColor;
+    const anteriorBody = document.body.style.backgroundColor;
+    const anteriorMeta = meta?.content;
+    html.style.backgroundColor = barra;
+    document.body.style.backgroundColor = barra;
+    if (meta) meta.content = barra;
+    return () => {
+      html.style.backgroundColor = anteriorHtml;
+      document.body.style.backgroundColor = anteriorBody;
+      if (meta && anteriorMeta) meta.content = anteriorMeta;
+    };
+  }, [barra]);
 
   const sucursalId = tienda?.sucursalId ?? null;
 
@@ -680,7 +689,8 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
       {/* ══════════════ HERO BANNER COMPACTO Y PROFUNDO ══════════════ */}
       <header
         style={{
-          backgroundColor: "color-mix(in srgb, var(--t-pri, #0B1F49) 68%, #020617)",
+          // El mismo tono que la barra del celular (colorEncabezadoTienda en lib/colores).
+          backgroundColor: "var(--t-encabezado, color-mix(in srgb, var(--t-pri, #0B1F49) 68%, #020617))",
         }}
         className="relative text-[var(--t-sobre-pri,#FFFFFF)] pt-4 pb-9 sm:pt-5 sm:pb-10 px-4 overflow-hidden"
       >

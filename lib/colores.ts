@@ -57,6 +57,20 @@ export function textoSobre(fondo: string): string {
   return contraste(fondo, "#FFFFFF") >= contraste(fondo, "#0F172A") ? "#FFFFFF" : "#0F172A";
 }
 
+/** Encabezado de la tienda abierta: el color principal oscurecido (68 % principal + casi negro). */
+export function colorEncabezadoTienda(primario?: string | null): string {
+  return mezclar(normalizarHex(primario) ?? COLORES_TIENDA_ORIGINALES.primario, "#020617", 0.32);
+}
+
+/**
+ * Color de la barra del celular (donde va la hora y la batería): el mismo que se ve
+ * arriba de la página, para que no quede una franja de otro color. Con la tienda
+ * abierta es el encabezado; en la pantalla de cerrado y el seguimiento, el principal.
+ */
+export function colorBarraTienda(primario: string | null | undefined, catalogo: boolean): string {
+  return catalogo ? colorEncabezadoTienda(primario) : (normalizarHex(primario) ?? COLORES_TIENDA_ORIGINALES.primario);
+}
+
 /**
  * Variables CSS del tema de la tienda. Combina los 4 colores (primario, secundario,
  * fondo general y tarjetas) y deriva contrastes, bordes y hovers automáticos.
@@ -78,6 +92,7 @@ export function variablesTemaTienda(
 
   return {
     "--t-pri": pri,
+    "--t-encabezado": colorEncabezadoTienda(pri),
     // Sobre un color oscuro, el hover y las superficies se aclaran; sobre uno claro, se oscurecen.
     "--t-pri-hover": priEsOscuro ? mezclar(pri, "#FFFFFF", 0.1) : mezclar(pri, "#000000", 0.1),
     "--t-pri-claro": priEsOscuro ? mezclar(pri, "#FFFFFF", 0.12) : mezclar(pri, "#000000", 0.08),
