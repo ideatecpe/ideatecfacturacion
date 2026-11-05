@@ -856,7 +856,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
           cambiaba de alto al fijarse y, al abrirse el teclado, la página subía y
           bajaba sola. */}
       {buscadorFijo && (
-        <div className="sm:hidden fixed inset-x-0 top-0 z-40 bg-[var(--t-pri,#0B1F49)]/95 backdrop-blur-xl px-3 py-2 shadow-xl border-b border-white/10">
+        <div style={{ backgroundColor: "color-mix(in srgb, var(--t-pri, #0B1F49) 68%, #020617)" }} className="sm:hidden fixed inset-x-0 top-0 z-40 px-3 py-2 border-b border-white/10">
           <div className="relative flex items-center gap-2">
             {secciones.length > 0 && (
               <BarraCategorias
