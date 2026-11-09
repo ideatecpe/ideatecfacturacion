@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BellRing,
   Bike,
+  ChefHat,
+  CircleCheckBig,
   Clock,
   Loader2,
   ShoppingBag,
@@ -32,21 +34,29 @@ interface Props {
 // Los cambios llegan al instante por SignalR; la consulta periódica solo cubre
 // el caso de que la conexión en tiempo real no esté disponible.
 const CONSULTA_RESPALDO_MS = 15000;
-// Flujo simple: el pedido queda listo en cuanto la caja emite la venta.
+// Recojo y mesa terminan en cuanto la caja emite la venta. El delivery sigue con
+// "en camino" y "entregado".
 const ESTADOS_FINALES: EstadoPedido[] = ["LISTO", "ENTREGADO", "CANCELADO"];
+const ESTADOS_FINALES_DELIVERY: EstadoPedido[] = ["ENTREGADO", "CANCELADO"];
 
 export default function SeguimientoPedido({ token, tienda, onSeguirComprando, onPedidoTerminado }: Props) {
   const [pedido, setPedido] = useState<PedidoSeguimiento | null>(null);
   const [noEncontrado, setNoEncontrado] = useState(false);
   const estadoAnteriorRef = useRef<EstadoPedido | null>(null);
 
-  const finalizado = !!pedido && ESTADOS_FINALES.includes(pedido.estado);
+  const finalizado =
+    !!pedido &&
+    (pedido.tipoEntrega === "DELIVERY" ? ESTADOS_FINALES_DELIVERY : ESTADOS_FINALES).includes(pedido.estado);
 
   const consultar = useCallback(async () => {
     try {
       const datos = await tiendaApi.seguimiento(token, tienda.entorno);
-      // Suena y vibra en el celular del cliente cuando su pedido pasa a "listo".
-      if (estadoAnteriorRef.current && estadoAnteriorRef.current !== "LISTO" && datos.estado === "LISTO") {
+      // Suena y vibra en el celular del cliente cuando su pedido avanza (listo, en camino, entregado).
+      if (
+        estadoAnteriorRef.current &&
+        estadoAnteriorRef.current !== datos.estado &&
+        (datos.estado === "LISTO" || datos.estado === "EN_CAMINO" || datos.estado === "ENTREGADO")
+      ) {
         reproducirAlertaPedido();
       }
       estadoAnteriorRef.current = datos.estado;
@@ -111,9 +121,53 @@ export default function SeguimientoPedido({ token, tienda, onSeguirComprando, on
   }
 
   const cancelado = pedido.estado === "CANCELADO";
-  const indiceActual = pedido.estado === "LISTO" || pedido.estado === "ENTREGADO" ? 1 : 0;
+  const esDelivery = pedido.tipoEntrega === "DELIVERY";
+  const indiceActual = esDelivery
+    ? pedido.estado === "ENTREGADO"
+      ? 3
+      : pedido.estado === "EN_CAMINO"
+        ? 2
+        : pedido.estado === "LISTO"
+          ? 1
+          : 0
+    : pedido.estado === "LISTO" || pedido.estado === "ENTREGADO"
+      ? 1
+      : 0;
 
-  const pasos = [
+  const pasosDelivery = [
+    {
+      estado: "PENDIENTE" as const,
+      icono: Clock,
+      titulo: "Pedido enviado",
+      detalle:
+        pedido.medioPago === "Yape"
+          ? "La tienda está verificando tu pago con Yape."
+          : "La tienda recibió tu pedido y lo va a confirmar.",
+    },
+    {
+      estado: "LISTO" as const,
+      icono: ChefHat,
+      titulo: "Preparando tu pedido",
+      detalle: "Tu pedido está confirmado. En cuanto salga te avisamos.",
+    },
+    {
+      estado: "EN_CAMINO" as const,
+      icono: Bike,
+      titulo: "En camino",
+      detalle:
+        pedido.medioPago === "Efectivo"
+          ? `El repartidor va a tu dirección. Ten listo ${formatoSoles(pedido.total)} en efectivo.`
+          : "El repartidor va a tu dirección.",
+    },
+    {
+      estado: "ENTREGADO" as const,
+      icono: CircleCheckBig,
+      titulo: "Entregado",
+      detalle: "¡Gracias por tu compra!",
+    },
+  ];
+
+  const pasosLocal = [
     {
       estado: "PENDIENTE" as const,
       icono: Clock,
@@ -135,6 +189,7 @@ export default function SeguimientoPedido({ token, tienda, onSeguirComprando, on
             : "Acércate a caja y di tu número de pedido. ¡Gracias por tu compra!",
     },
   ];
+  const pasos = esDelivery ? pasosDelivery : pasosLocal;
 
   return (
     <Contenedor tienda={tienda}>

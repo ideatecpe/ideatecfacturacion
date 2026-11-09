@@ -221,6 +221,7 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
               montoTotal={resultado.montoAplicado}
               saldoClienteRestante={resultado.saldoClienteRestante}
               pagos={pagosResultado}
+              onCerrar={() => onClose(true)}
             />
           </div>
         ) : (

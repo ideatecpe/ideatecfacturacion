@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowRight,
   Check,
   ChevronRight,
   Clock,
+  Compass,
   Flame,
+  Gift,
   ImageIcon,
   ImageOff,
   Loader2,
@@ -18,18 +21,20 @@ import {
   RotateCcw,
   Search,
   ShoppingBag,
-  Sparkles,
   Store,
   Tag,
   UtensilsCrossed,
   X,
+  Zap,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { conVarianteImagen } from "@/app/utils/cloudflareImagen";
 import { PedidoCreado, ProductoPublico, TiendaPublica, mesaDeQr, tiendaApi } from "@/lib/pedidosOnline";
-import { variablesTemaTienda } from "@/lib/colores";
+import { colorBarraTienda, variablesTemaTienda } from "@/lib/colores";
 import BarraCategorias, { IconoDeSeccion } from "./BarraCategorias";
 import CheckoutPedido, { LineaCarrito } from "./CheckoutPedido";
 import SeguimientoPedido from "./SeguimientoPedido";
+import SliderBanners from "./SliderBanners";
 import { formatoSoles, guardarLocal, leerLocal, normalizar } from "./formato";
 
 type Carrito = Record<number, number>;
@@ -60,7 +65,7 @@ const MIN_MAS_VENDIDOS = 3;
 const ICONOS_SECCION: Record<string, IconoDeSeccion> = {
   [SECCION_PEDIR_DE_NUEVO]: { Icono: RotateCcw, clase: "text-emerald-500" },
   [SECCION_MAS_VENDIDOS]: { Icono: Flame, clase: "text-orange-500" },
-  [SECCION_COMBOS]: { Icono: Sparkles, clase: "text-[var(--t-sec,#FBBF24)]" },
+  [SECCION_COMBOS]: { Icono: Gift, clase: "text-[var(--t-sec,#FBBF24)]" },
 };
 
 const idSeccion = (nombre: string) => `seccion-${normalizar(nombre).replace(/[^a-z0-9]+/g, "-")}`;
@@ -109,26 +114,12 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
     [tienda?.colorPrimario, tienda?.colorSecundario, tienda?.colorFondo, tienda?.colorTarjeta],
   );
 
-  // Van en <html> para alcanzar también los paneles fijos. Safari de iPhone ya no
-  // usa theme-color: pinta la zona de la hora con el fondo de la página, así que el
-  // fondo base lleva el color principal (el contenido tiene su propio fondo claro).
+  // Van en <html> para alcanzar también los paneles fijos.
   useEffect(() => {
     const html = document.documentElement;
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    const anteriorHtml = html.style.backgroundColor;
-    const anteriorBody = document.body.style.backgroundColor;
-    const anteriorMeta = meta?.content;
-
     for (const [variable, valor] of Object.entries(tema)) html.style.setProperty(variable, valor);
-    html.style.backgroundColor = tema["--t-pri"];
-    document.body.style.backgroundColor = tema["--t-pri"];
-    if (meta) meta.content = tema["--t-pri"];
-
     return () => {
       for (const variable of Object.keys(tema)) html.style.removeProperty(variable);
-      html.style.backgroundColor = anteriorHtml;
-      document.body.style.backgroundColor = anteriorBody;
-      if (meta && anteriorMeta) meta.content = anteriorMeta;
     };
   }, [tema]);
 
@@ -148,6 +139,29 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
 
   const [tokenPedido, setTokenPedido] = useState<string | null>(null);
   const [verSeguimiento, setVerSeguimiento] = useState(false);
+
+  // Barra del celular (hora, batería) del mismo color que lo que se ve arriba: el
+  // encabezado en el catálogo, el principal en "cerrado" y en el seguimiento. Safari del
+  // iPhone ya no usa theme-color y pinta esa zona con el fondo de la página, así que se
+  // cambian los dos. El servidor ya la mandó bien (page.tsx); esto la sigue cuando
+  // cambia la pantalla. Mientras carga se deja la del servidor.
+  const barra = tienda ? colorBarraTienda(tienda.colorPrimario, tienda.abierta && !(tokenPedido && verSeguimiento)) : null;
+  useEffect(() => {
+    if (!barra) return;
+    const html = document.documentElement;
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const anteriorHtml = html.style.backgroundColor;
+    const anteriorBody = document.body.style.backgroundColor;
+    const anteriorMeta = meta?.content;
+    html.style.backgroundColor = barra;
+    document.body.style.backgroundColor = barra;
+    if (meta) meta.content = barra;
+    return () => {
+      html.style.backgroundColor = anteriorHtml;
+      document.body.style.backgroundColor = anteriorBody;
+      if (meta && anteriorMeta) meta.content = anteriorMeta;
+    };
+  }, [barra]);
 
   const sucursalId = tienda?.sucursalId ?? null;
 
@@ -345,7 +359,25 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
     return null;
   }, [tienda?.logoBase64, tienda?.ruc]);
 
+  const banners = useMemo(() => (tienda?.banners ?? []).map((b) => b.url).filter(Boolean), [tienda?.banners]);
+
   const cantidadCombos = useMemo(() => productos.filter((p) => p.esCombo).length, [productos]);
+
+  const inputBusquedaRef = useRef<HTMLInputElement>(null);
+
+  // Atajo "/" en escritorio para enfocar rápido el buscador.
+  useEffect(() => {
+    const alTecla = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const editando = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (e.key === "/" && !editando && !mostrarCheckout) {
+        e.preventDefault();
+        inputBusquedaRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", alTecla);
+    return () => window.removeEventListener("keydown", alTecla);
+  }, [mostrarCheckout]);
 
   const irASeccion = (nombre: string) => {
     setSeccionActiva(nombre);
@@ -508,47 +540,71 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
   // celular la letra va a 16 px: con menos, el iPhone hace zoom al tocarlo y
   // desplaza la página.
   const campoBusqueda = (enFranja: boolean) => (
-    <div className="relative flex-1">
-      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+    <div className="relative flex-1 group/search">
+      <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200 ${busqueda ? "text-[var(--t-pri,#0B1F49)]" : "text-slate-400 group-focus-within/search:text-[var(--t-pri,#0B1F49)]"}`} />
       <input
+        ref={enFranja ? undefined : inputBusquedaRef}
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
         onTouchEnd={enFranja ? enfocarSinDesplazar : undefined}
         placeholder="¿Qué se te antoja hoy?"
-        className={`w-full h-9 pl-9 pr-8 ${enFranja ? "rounded-md" : "rounded-xl"} bg-slate-50 border border-slate-200 text-base sm:text-xs outline-none placeholder:text-slate-400 focus:bg-white focus:border-[var(--t-pri,#0B1F49)] focus:ring-2 focus:ring-[var(--t-pri,#0B1F49)]/10 transition-all`}
+        className={`w-full ${enFranja ? "h-9 rounded-lg pl-9 pr-8" : "h-10 sm:h-11 rounded-xl pl-10 pr-24"} bg-white border border-slate-200/90 text-base sm:text-xs font-medium text-slate-800 outline-none placeholder:text-slate-400 placeholder:font-normal focus:bg-white focus:border-[var(--t-pri,#0B1F49)] focus:ring-4 focus:ring-[var(--t-pri,#0B1F49)]/10 transition-all duration-200`}
       />
-      {busqueda && (
-        <button
-          type="button"
-          onClick={() => setBusqueda("")}
-          aria-label="Limpiar búsqueda"
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      )}
+      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+        {busqueda ? (
+          <>
+            {!enFranja && (
+              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md bg-[var(--t-pri,#0B1F49)]/10 text-[var(--t-pri,#0B1F49)] text-[10px] font-bold tabular-nums">
+                {filtrados.length} {filtrados.length === 1 ? "resultado" : "resultados"}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setBusqueda("")}
+              aria-label="Limpiar búsqueda"
+              className="p-1 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-200/70 active:scale-90 transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </>
+        ) : (
+          !enFranja && (
+            <kbd className="hidden md:inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-mono font-semibold text-slate-400 bg-white border border-slate-200/80 rounded-md shadow-2xs pointer-events-none">
+              /
+            </kbd>
+          )
+        )}
+      </div>
     </div>
   );
 
   // ── Catálogo ───────────────────────────────────────────────────────────
   return (
     <div
-      className="min-h-screen pb-32 transition-colors"
+      className="min-h-screen pb-32 transition-colors selection:bg-[var(--t-sec,#FBBF24)] selection:text-[var(--t-sobre-sec,#0F172A)]"
       style={{
         backgroundColor: "var(--t-fondo, #f8fafc)",
         color: "var(--t-sobre-fondo, #0F172A)",
       }}
     >
       {/* ══════════════ TOP NAVBAR ══════════════ */}
-      <nav className="border-b border-white/10 bg-[var(--t-pri,#0B1F49)] sm:sticky sm:top-0 z-40">
-        <div className="mx-auto max-w-6xl px-4 py-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
+      <nav
+        style={{ backgroundColor: "color-mix(in srgb, var(--t-pri, #0B1F49) 68%, #020617)" }}
+        className="border-b border-white/10 sm:sticky sm:top-0 z-40"
+      >
+        <div className="mx-auto max-w-6xl px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {logoEmpresaUrl ? (
-              <div className="h-9 w-9 shrink-0 rounded-lg bg-white p-0.5 flex items-center justify-center overflow-hidden border border-white/20">
-                <img src={logoEmpresaUrl} alt={nombreEmpresa} className="w-full h-full object-contain rounded-md" />
-              </div>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                className="h-10 w-10 shrink-0 rounded-xl bg-white p-1 flex items-center justify-center overflow-hidden shadow-md"
+              >
+                <img src={logoEmpresaUrl} alt={nombreEmpresa} className="w-full h-full object-contain rounded-lg" />
+              </motion.div>
             ) : (
-              <div className="h-9 w-9 shrink-0 rounded-lg bg-[var(--t-pri-claro,#132c5e)] text-white flex items-center justify-center font-black text-base border border-white/15">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-[var(--t-pri,#0B1F49)] text-white flex items-center justify-center font-black text-base border border-white/15 shadow-md">
                 {nombreEmpresa.charAt(0) || "T"}
               </div>
             )}
@@ -557,49 +613,119 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                 {nombreEmpresa}
               </h1>
               {direccionCompleta && (
-                <p className="text-[10px] font-medium tracking-wide text-white/70 truncate">
-                  {direccionCompleta} · MINI MARKET
+                <p className="text-[11px] font-medium tracking-wide text-slate-300 truncate flex items-center gap-1 mt-0.5">
+                  <MapPin className="w-3 h-3 text-[var(--t-sec,#FBBF24)] shrink-0" />
+                  <span className="truncate">{direccionCompleta} · MINI MARKET</span>
                 </p>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             {mesaQr && (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--t-sec,#FBBF24)] text-[var(--t-sobre-sec,#0F172A)] text-xs font-bold">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--t-sec,#FBBF24)] text-[var(--t-sobre-sec,#0F172A)] text-xs font-extrabold shadow-sm">
                 <UtensilsCrossed className="w-3.5 h-3.5" /> Mesa {mesaQr}
               </span>
             )}
-            <button
+
+            <motion.button
               type="button"
-              onClick={() => totalUnidades > 0 ? setMostrarCheckout(true) : undefined}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--t-pri-claro,#132c5e)] hover:bg-[var(--t-pri-hover,#122852)] border border-white/15 text-white text-xs font-semibold transition-all active:scale-95"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => (totalUnidades > 0 ? setMostrarCheckout(true) : undefined)}
+              className={`group relative flex items-center gap-2 pl-3.5 pr-2 py-1.5 rounded-full border text-xs font-bold transition-all duration-200 ${
+                totalUnidades > 0
+                  ? "bg-black/35 hover:bg-black/50 border-[var(--t-sec,#FBBF24)]/60 text-white shadow-lg shadow-black/30 cursor-pointer"
+                  : "bg-black/25 hover:bg-black/40 border-white/15 text-white"
+              }`}
             >
+              <ShoppingBag className={`w-3.5 h-3.5 transition-transform duration-200 group-hover:-rotate-6 ${totalUnidades > 0 ? "text-[var(--t-sec,#FBBF24)]" : "text-white/80"}`} />
               <span>Mi pedido</span>
-              <span className="min-w-5 h-5 px-1.5 rounded-full bg-[var(--t-sec,#FBBF24)] text-[var(--t-sobre-sec,#0F172A)] font-bold text-[11px] flex items-center justify-center tabular-nums">
+              {totalUnidades > 0 && (
+                <span className="hidden sm:inline text-white/40 font-normal">·</span>
+              )}
+              {totalUnidades > 0 && (
+                <span className="hidden sm:inline font-extrabold text-[var(--t-sec,#FBBF24)] tabular-nums">
+                  {formatoSoles(total)}
+                </span>
+              )}
+              <motion.span
+                key={totalUnidades}
+                initial={{ scale: 0.7 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                className="min-w-5.5 h-5.5 px-1.5 rounded-full bg-[var(--t-sec,#FBBF24)] text-[var(--t-sobre-sec,#0F172A)] font-black text-[11px] flex items-center justify-center tabular-nums shadow-xs"
+              >
                 {totalUnidades}
-              </span>
-            </button>
+              </motion.span>
+            </motion.button>
           </div>
         </div>
       </nav>
 
-      {/* ══════════════ HERO BANNER ══════════════ */}
-      <header className="relative bg-[var(--t-pri,#0B1F49)] text-[var(--t-sobre-pri,#FFFFFF)] pt-6 pb-12 px-4 overflow-hidden">
-        <div className="pointer-events-none absolute -right-20 -top-20 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-        <div className="pointer-events-none absolute left-1/4 -bottom-20 w-80 h-80 bg-[var(--t-sec,#FBBF24)]/5 rounded-full blur-3xl" />
+      {/* Barra vertical de scroll personalizada con los colores del tema de la tienda */}
+      <style>{`
+        html {
+          scrollbar-width: thin;
+          scrollbar-color: var(--t-pri, #0B1F49) var(--t-fondo, #f8fafc);
+        }
+        ::-webkit-scrollbar {
+          width: 9px;
+          height: 9px;
+        }
+        ::-webkit-scrollbar-track {
+          background: var(--t-fondo, #f8fafc);
+        }
+        ::-webkit-scrollbar-thumb {
+          background: color-mix(in srgb, var(--t-pri, #0B1F49) 65%, transparent);
+          border-radius: 9999px;
+          border: 2px solid var(--t-fondo, #f8fafc);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: var(--t-sec, #FBBF24);
+        }
+      `}</style>
 
-        <div className="mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+      {/* ══════════════ HERO BANNER COMPACTO Y PROFUNDO ══════════════ */}
+      <header
+        style={{
+          // El mismo tono que la barra del celular (colorEncabezadoTienda en lib/colores).
+          backgroundColor: "var(--t-encabezado, color-mix(in srgb, var(--t-pri, #0B1F49) 68%, #020617))",
+        }}
+        className="relative text-[var(--t-sobre-pri,#FFFFFF)] pt-4 pb-9 sm:pt-5 sm:pb-10 px-4 overflow-hidden"
+      >
+        <div className="relative mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-center">
           {/* Columna Izquierda */}
-          <div className="lg:col-span-7 space-y-3.5">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-[1.15]">
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="lg:col-span-6 space-y-3"
+          >
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight leading-[1.1]">
               Haz tu pedido <br className="hidden sm:inline" />
-              <span className="text-[var(--t-sec,#FBBF24)]">desde donde estés</span>
+              <span className="relative inline-block text-[var(--t-sec,#FBBF24)]">
+                desde donde estés
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 220 12"
+                  fill="none"
+                  className="pointer-events-none absolute -bottom-1 left-0 w-full h-2 text-[var(--t-sec,#FBBF24)]/55"
+                >
+                  <path
+                    d="M3 9C55 2.5 155 2.5 217 9"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
             </h2>
 
-            <p className="text-xs sm:text-sm text-slate-300/90 max-w-lg leading-relaxed">
-              {tienda.mensaje && !tienda.mensaje.toLowerCase().includes("tienda de prueba") && !tienda.mensaje.toLowerCase().includes("pide desde tu celular")
-                ? tienda.mensaje
+            <p className="text-xs sm:text-sm text-slate-200 max-w-lg leading-relaxed font-normal">
+              {/* El mensaje de bienvenida de la tienda; sin mensaje, uno según cómo atiende. */}
+              {tienda.mensaje?.trim()
+                ? tienda.mensaje.trim()
                 : mesaQr
                   ? `Pide desde tu celular y te lo llevamos a la mesa ${mesaQr}. Rápido, fácil y sin colas.`
                   : tienda.permiteMesa && (tienda.cantidadMesas ?? 0) === 0
@@ -611,101 +737,106 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
                       : "Recógelo listo en caja. Rápido, fácil y sin colas."}
             </p>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
+            {/* Botones de Acción */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.03, y: -1 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => irASeccion(SECCION_COMBOS)}
-                className="px-5 py-2.5 rounded-full bg-[var(--t-sec,#FBBF24)] hover:brightness-110 text-[var(--t-sobre-sec,#0F172A)] font-bold text-xs shadow-lg shadow-[var(--t-sec,#FBBF24)]/20 active:scale-95 transition-all"
+                className="group relative overflow-hidden inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--t-sec,#FBBF24)] text-[var(--t-sobre-sec,#0F172A)] font-extrabold text-xs shadow-lg shadow-[var(--t-sec,#FBBF24)]/30 transition-all cursor-pointer"
               >
-                Ver combos
-              </button>
-              <button
+                <Gift className="w-3.5 h-3.5 transition-transform duration-300 group-hover:scale-110" />
+                <span>Ver combos</span>
+                {cantidadCombos > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-black/15 text-[10px] font-black tabular-nums leading-none">
+                    {cantidadCombos}
+                  </span>
+                )}
+                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </motion.button>
+
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => {
                   const cat = secciones.find((s) => s.nombre !== SECCION_COMBOS)?.nombre;
                   if (cat) irASeccion(cat);
                 }}
-                className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white border border-white/20 font-semibold text-xs transition-all active:scale-95"
+                className="hidden sm:inline-flex group items-center gap-2 px-4 py-2.5 rounded-xl bg-black/30 hover:bg-black/45 text-white border border-white/15 font-bold text-xs transition-all cursor-pointer"
               >
-                Explorar categorías
-              </button>
+                <Compass className="w-3.5 h-3.5 text-[var(--t-sec,#FBBF24)] transition-transform duration-300 group-hover:rotate-45" />
+                <span>Explorar categorías</span>
+              </motion.button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-3 border-t border-white/10 max-w-xs">
-              <div>
-                <p className="text-lg sm:text-xl font-black text-white">{productos.length}+</p>
-                <p className="text-[10px] text-slate-400">productos en tienda</p>
+            {/* Franja compacta de métricas con contraste nítido */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="inline-flex items-center gap-2 rounded-xl bg-black/30 border border-white/12 px-3 py-1.5">
+                <ShoppingBag className="w-3.5 h-3.5 text-[var(--t-sec,#FBBF24)] shrink-0" />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xs sm:text-sm font-black text-white tabular-nums">{productos.length}+</span>
+                  <span className="text-[11px] text-slate-300">productos</span>
+                </div>
               </div>
-              <div>
-                <p className="text-lg sm:text-xl font-black text-white">S/ 0</p>
-                <p className="text-[10px] text-slate-400">costo de servicio</p>
+
+              <div className="inline-flex items-center gap-2 rounded-xl bg-black/30 border border-white/12 px-3 py-1.5">
+                <Tag className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xs sm:text-sm font-black text-white tabular-nums">S/ 0</span>
+                  <span className="text-[11px] text-slate-300">comisión</span>
+                </div>
+              </div>
+
+              <div className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-black/30 border border-white/12 px-3 py-1.5">
+                <Zap className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <span className="text-[11px] font-bold text-white">Atención sin colas</span>
               </div>
             </div>
 
             {tokenPedido && (
-              <button
+              <motion.button
                 type="button"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
                 onClick={() => setVerSeguimiento(true)}
-                className="mt-2 inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/15 px-4 py-2.5 text-xs font-semibold text-white transition-colors"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[var(--t-sec,#FBBF24)]/25 to-black/30 border border-[var(--t-sec,#FBBF24)]/45 px-3.5 py-2 text-xs font-bold text-white shadow-md transition-all"
               >
-                <Receipt className="w-4 h-4 text-[var(--t-sec,#FBBF24)]" />
-                Tienes un pedido en curso. Ver seguimiento
-                <ChevronRight className="w-4 h-4" />
-              </button>
+                <Receipt className="w-3.5 h-3.5 text-[var(--t-sec,#FBBF24)]" />
+                <span>Tienes un pedido en curso · Ver estado</span>
+                <ChevronRight className="w-3.5 h-3.5 text-[var(--t-sec,#FBBF24)]" />
+              </motion.button>
             )}
-          </div>
+          </motion.div>
 
-          {/* Columna Derecha – Fotografía principal del servicio */}
-          <div className="lg:col-span-5 hidden lg:block relative">
-            <div className="relative rounded-3xl overflow-hidden border border-white/15 shadow-2xl h-[280px] sm:h-[300px] w-full group bg-slate-900/60">
-              <img
-                src="/tienda/online1.jpeg"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/tienda/online1.png";
-                }}
-                alt="Haz tu pedido desde donde estés"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-              />
-
-              {/* Gradiente sutil para profundidad y contraste */}
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20 pointer-events-none" />
-
-              {/* Tarjeta flotante inferior que indica combos disponibles */}
-              <div className="absolute bottom-3.5 inset-x-3.5 z-10 flex items-center justify-between gap-3 p-3 rounded-2xl bg-slate-950/80 backdrop-blur-md border border-white/15 shadow-xl">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white leading-tight">
-                    {cantidadCombos > 0 ? `¡${cantidadCombos} combos disponibles!` : "Pagas al recoger en caja"}
-                  </p>
-                  <p className="text-[10px] text-white/70 truncate">
-                    Ahorra en paquetes armados de la semana
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => irASeccion(SECCION_COMBOS)}
-                  className="px-3.5 py-1.5 rounded-xl bg-[var(--t-sec,#FBBF24)] hover:brightness-110 text-[var(--t-sobre-sec,#0F172A)] text-xs font-black shrink-0 transition-colors shadow-sm active:scale-95"
-                >
-                  Ver combos
-                </button>
-              </div>
+          {/* Columna Derecha – Banner rectangular sin borde exterior (solo en escritorio) */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.08, ease: "easeOut" }}
+            className="hidden lg:block lg:col-span-6 relative w-full max-w-[430px] ml-auto"
+          >
+            <div className="relative rounded-2xl overflow-hidden aspect-[16/9] w-full group bg-slate-950">
+              <SliderBanners imagenes={banners} alt="Haz tu pedido desde donde estés" />
             </div>
-          </div>
+          </motion.div>
         </div>
       </header>
 
-      {/* ══════════════ BARRA DE BÚSQUEDA ══════════════ */}
+      {/* ══════════════ BARRA DE BÚSQUEDA Y CATEGORÍAS ══════════════ */}
       {/* En escritorio queda fija bajo el encabezado. En celular se desplaza con la
           página y, al salir de la pantalla, aparece la franja azul de abajo. */}
       <div
         id="catalogo-completo"
         ref={setMarcaBuscador}
-        className="relative sm:sticky sm:top-[52px] z-30 -mt-6 mx-auto max-w-6xl px-4"
+        className="relative sm:sticky sm:top-[58px] z-30 -mt-7 mx-auto max-w-6xl px-4"
       >
         <div
-          className="relative backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl border space-y-2"
+          className="relative backdrop-blur-xl rounded-2xl sm:rounded-3xl p-3 sm:p-3.5 border space-y-2.5"
           style={{
-            backgroundColor: "var(--t-tarjeta, rgba(255, 255, 255, 0.95))",
-            borderColor: "var(--t-tarjeta-borde, rgba(226, 232, 240, 0.8))",
+            backgroundColor: "var(--t-tarjeta, rgba(255, 255, 255, 0.96))",
+            borderColor: "var(--t-tarjeta-borde, rgba(226, 232, 240, 0.9))",
           }}
         >
           {campoBusqueda(false)}
@@ -725,7 +856,7 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
           cambiaba de alto al fijarse y, al abrirse el teclado, la página subía y
           bajaba sola. */}
       {buscadorFijo && (
-        <div className="sm:hidden fixed inset-x-0 top-0 z-40 bg-[var(--t-pri,#0B1F49)] px-3 py-2 shadow-lg">
+        <div style={{ backgroundColor: "color-mix(in srgb, var(--t-pri, #0B1F49) 68%, #020617)" }} className="sm:hidden fixed inset-x-0 top-0 z-40 px-3 py-2 border-b border-white/10">
           <div className="relative flex items-center gap-2">
             {secciones.length > 0 && (
               <BarraCategorias
@@ -741,40 +872,42 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
         </div>
       )}
 
-
-
       {/* ══════════════ CATÁLOGO ══════════════ */}
-      <main className="mx-auto max-w-6xl px-4 pt-5 space-y-7">
+      <main className="mx-auto max-w-6xl px-4 pt-6 space-y-8">
         {destacadas.map((d) => {
           const esRepetir = d.nombre === SECCION_PEDIR_DE_NUEVO;
           const { Icono, clase } = ICONOS_SECCION[d.nombre];
           return (
-            <section key={d.nombre} id={idSeccion(d.nombre)} data-seccion={d.nombre} className="scroll-mt-20 sm:scroll-mt-40">
-              <div className="mb-3 flex items-end justify-between gap-3">
+            <section key={d.nombre} id={idSeccion(d.nombre)} data-seccion={d.nombre} className="scroll-mt-20 sm:scroll-mt-44">
+              <div className="mb-3.5 flex items-end justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <Icono className={`w-4 h-4 ${clase}`} />
-                    <h2 className="text-base sm:text-lg font-black" style={{ color: "var(--t-sobre-fondo, #0f172a)" }}>{d.nombre}</h2>
+                  <div className="flex items-center gap-2">
+                    <span className="h-7 w-7 rounded-lg bg-white shadow-xs border border-slate-200/80 flex items-center justify-center shrink-0">
+                      <Icono className={`w-4 h-4 ${clase}`} />
+                    </span>
+                    <h2 className="text-base sm:text-xl font-black tracking-tight" style={{ color: "var(--t-sobre-fondo, #0f172a)" }}>
+                      {d.nombre}
+                    </h2>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {esRepetir ? "Lo que pediste la última vez" : "Lo que más piden nuestros clientes"}
+                  <p className="text-xs text-slate-500 mt-1">
+                    {esRepetir ? "Lo que pediste la última vez" : "Los favoritos que más piden nuestros clientes"}
                   </p>
                 </div>
                 {esRepetir && (
                   <button
                     type="button"
                     onClick={() => repetirPedido(d.items)}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] px-3.5 py-1.5 text-[11px] font-semibold text-[var(--t-sobre-pri,#FFFFFF)] shadow-sm active:scale-95 transition-all"
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] px-4 py-2 text-xs font-bold text-[var(--t-sobre-pri,#FFFFFF)] shadow-sm active:scale-95 transition-all cursor-pointer"
                   >
-                    <RotateCcw className="w-3 h-3" /> Agregar todo
+                    <RotateCcw className="w-3.5 h-3.5" /> Agregar todo
                   </button>
                 )}
               </div>
 
               {/* Celular: una fila que se desliza con el dedo. Escritorio: cuadrícula. */}
-              <div className="py-1 flex gap-2.5 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-6 lg:overflow-visible">
+              <div className="py-1 flex gap-3 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-6 lg:overflow-visible">
                 {d.items.map((p) => (
-                  <div key={p.productoId} className="grid w-36 sm:w-44 lg:w-auto shrink-0 snap-start">
+                  <div key={p.productoId} className="grid w-38 sm:w-44 lg:w-auto shrink-0 snap-start">
                     <TarjetaProducto producto={p} cantidad={carrito[p.productoId] ?? 0} onCambiar={cambiarCantidad} />
                   </div>
                 ))}
@@ -784,11 +917,27 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
         })}
 
         {secciones.length === 0 ? (
-          <div className="py-14 flex flex-col items-center gap-2 text-center">
-            <PackageSearch className="w-8 h-8 text-slate-300" />
-            <p className="text-xs font-medium text-slate-500">
-              {productos.length === 0 ? "Esta tienda aún no tiene productos." : "No encontramos productos con esa búsqueda."}
-            </p>
+          <div className="py-16 flex flex-col items-center gap-3 text-center">
+            <div className="h-14 w-14 rounded-2xl bg-slate-200/60 flex items-center justify-center text-slate-400">
+              <PackageSearch className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-slate-700">
+                {productos.length === 0 ? "Esta tienda aún no tiene productos" : "No encontramos coincidencias"}
+              </p>
+              <p className="text-xs text-slate-500">
+                {productos.length === 0 ? "Vuelve a intentarlo en unos minutos." : "Prueba buscando con otra palabra o explora las categorías."}
+              </p>
+            </div>
+            {busqueda && (
+              <button
+                type="button"
+                onClick={() => setBusqueda("")}
+                className="mt-1 px-4 py-2 rounded-xl bg-[var(--t-pri,#0B1F49)] text-white text-xs font-bold hover:opacity-90 transition-opacity"
+              >
+                Ver todo el catálogo
+              </button>
+            )}
           </div>
         ) : (
           secciones.map((s) => (
@@ -798,34 +947,47 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
               key={s.nombre}
               id={idSeccion(s.nombre)}
               data-seccion={s.nombre}
-              className="scroll-mt-20 sm:scroll-mt-40 [content-visibility:auto] [contain-intrinsic-size:auto_900px]"
+              className="scroll-mt-20 sm:scroll-mt-44 [content-visibility:auto] [contain-intrinsic-size:auto_900px]"
             >
-              <div className="mb-3 flex items-end justify-between gap-3">
+              <div className="mb-3.5 flex items-end justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    {s.nombre === SECCION_COMBOS && <Sparkles className="w-4 h-4 text-[var(--t-sec,#FBBF24)]" />}
-                    <h2 className="text-base sm:text-lg font-black" style={{ color: "var(--t-sobre-fondo, #0f172a)" }}>{s.nombre}</h2>
-                    <span className="text-[11px] font-normal text-slate-400">{s.items.length} productos</span>
+                  <div className="flex items-center gap-2">
+                    {s.nombre === SECCION_COMBOS && (
+                      <span className="h-7 w-7 rounded-lg bg-[var(--t-sec,#FBBF24)]/20 border border-[var(--t-sec,#FBBF24)]/40 flex items-center justify-center shrink-0">
+                        <Gift className="w-4 h-4 text-[var(--t-sec,#FBBF24)]" />
+                      </span>
+                    )}
+                    <h2 className="text-base sm:text-xl font-black tracking-tight" style={{ color: "var(--t-sobre-fondo, #0f172a)" }}>
+                      {s.nombre}
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-200/75 text-slate-600 text-[11px] font-bold tabular-nums">
+                      {s.items.length}
+                    </span>
                   </div>
                   {s.nombre === SECCION_COMBOS && (
-                    <p className="text-[11px] text-slate-500 mt-0.5">Paquetes armados para ahorrar</p>
+                    <p className="text-xs text-slate-500 mt-1">Paquetes armados listos para ahorrar</p>
                   )}
                 </div>
                 {s.nombre !== SECCION_COMBOS && (
-                  <button type="button" onClick={() => irASeccion(s.nombre)} className="text-[11px] font-semibold text-[var(--t-pri,#0B1F49)] hover:underline">
-                    Ver todo
+                  <button
+                    type="button"
+                    onClick={() => irASeccion(s.nombre)}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[var(--t-pri,#0B1F49)] hover:underline"
+                  >
+                    <span>Ver sección</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
 
               {s.nombre === SECCION_COMBOS ? (
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                   {s.items.map((p) => (
                     <TarjetaCombo key={p.productoId} producto={p} cantidad={carrito[p.productoId] ?? 0} onCambiar={cambiarCantidad} />
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                   {s.items.map((p) => (
                     <TarjetaProducto key={p.productoId} producto={p} cantidad={carrito[p.productoId] ?? 0} onCambiar={cambiarCantidad} />
                   ))}
@@ -837,32 +999,53 @@ export default function TiendaCliente({ clave, entorno, mesaInicial }: Props) {
       </main>
 
       {/* Aviso flotante */}
-      {aviso && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 max-w-[calc(100%-2rem)] rounded-lg bg-slate-900 text-white text-xs font-medium px-3.5 py-2 shadow-lg">
-          {aviso}
-        </div>
-      )}
-
-      {/* Barra flotante inferior */}
-      {totalUnidades > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 px-4 pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-slate-50 via-slate-50/90 to-transparent">
-          <button
-            type="button"
-            onClick={() => setMostrarCheckout(true)}
-            className="mx-auto max-w-5xl w-full flex items-center gap-2.5 rounded-xl bg-[var(--t-pri,#0B1F49)] text-[var(--t-sobre-pri,#FFFFFF)] px-3.5 py-3 shadow-xl shadow-[var(--t-pri,#0B1F49)]/25 active:scale-[0.99] transition-transform text-sm"
+      <AnimatePresence>
+        {aviso && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 max-w-[calc(100%-2rem)] rounded-xl bg-slate-900/95 backdrop-blur-md border border-white/10 text-white text-xs font-semibold px-4 py-2.5 shadow-xl flex items-center gap-2"
           >
-            <span className="relative">
-              <ShoppingBag className="w-4 h-4" />
-              <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-[var(--t-sec,#FBBF24)] text-[9px] font-bold text-slate-900 flex items-center justify-center tabular-nums">
-                {totalUnidades}
+            <Check className="w-3.5 h-3.5 text-[var(--t-sec,#FBBF24)] shrink-0" />
+            <span>{aviso}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Barra flotante inferior compacta */}
+      <AnimatePresence>
+        {totalUnidades > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 30 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-slate-50 via-slate-50/90 to-transparent pointer-events-none"
+          >
+            <button
+              type="button"
+              onClick={() => setMostrarCheckout(true)}
+              className="pointer-events-auto group mx-auto max-w-4xl w-full flex items-center gap-2.5 rounded-xl bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] text-[var(--t-sobre-pri,#FFFFFF)] px-3.5 py-2.5 shadow-xl shadow-[var(--t-pri,#0B1F49)]/25 active:scale-[0.99] transition-all text-sm cursor-pointer"
+            >
+              <span className="relative flex items-center">
+                <ShoppingBag className="w-4 h-4 text-[var(--t-sec,#FBBF24)]" />
+                <motion.span
+                  key={totalUnidades}
+                  initial={{ scale: 0.6 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-[var(--t-sec,#FBBF24)] text-[9px] font-black text-[var(--t-sobre-sec,#0F172A)] flex items-center justify-center tabular-nums"
+                >
+                  {totalUnidades}
+                </motion.span>
               </span>
-            </span>
-            <span className="flex-1 text-left font-semibold text-sm">Ver mi pedido</span>
-            <span className="font-bold tabular-nums text-sm">{formatoSoles(total)}</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
+              <span className="flex-1 text-left font-bold text-sm">Ver mi pedido</span>
+              <span className="font-extrabold tabular-nums text-sm">{formatoSoles(total)}</span>
+              <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Checkout */}
       {mostrarCheckout && (
@@ -1120,7 +1303,7 @@ function ImagenProducto({ producto: p, className }: { producto: ProductoPublico;
               setCargada(false);
               setIntento((i) => (i === "thumbnail" ? "original" : "fallo"));
             }}
-            className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-200 ${cargada ? "opacity-100" : "opacity-0"}`}
+            className={`absolute inset-0 w-full h-full object-contain transition-all duration-500 ease-out group-hover:scale-105 ${cargada ? "opacity-100" : "opacity-0"}`}
           />
         </>
       )}
@@ -1149,25 +1332,25 @@ function TarjetaProducto({
         backgroundColor: "var(--t-tarjeta, #ffffff)",
         borderColor: cantidad > 0 ? "var(--t-sec, #FBBF24)" : "var(--t-tarjeta-borde, rgba(226, 232, 240, 0.9))",
       }}
-      className={`rounded-2xl border overflow-hidden flex flex-col justify-between transition-all group select-none ${
-        p.disponible ? "cursor-pointer active:scale-[0.98]" : "opacity-60 cursor-not-allowed"
+      className={`rounded-2xl border overflow-hidden flex flex-col justify-between transition-all duration-300 group select-none ${
+        p.disponible ? "cursor-pointer hover:-translate-y-0.5 active:scale-[0.98]" : "opacity-60 cursor-not-allowed"
       } ${
-        cantidad > 0 ? "ring-2 ring-[var(--t-sec,#FBBF24)]/50 shadow-md" : "hover:shadow-md"
+        cantidad > 0 ? "ring-2 ring-[var(--t-sec,#FBBF24)]/55 shadow-lg shadow-[var(--t-sec,#FBBF24)]/10" : "hover:shadow-lg hover:shadow-slate-900/5"
       }`}
     >
       {/* Área superior: Imagen con fondo blanco o tarjeta */}
       <div
         style={{ backgroundColor: "var(--t-tarjeta, #ffffff)" }}
-        className="relative aspect-square w-full flex items-center justify-center p-2.5 overflow-hidden"
+        className="relative aspect-square w-full flex items-center justify-center p-3 overflow-hidden"
       >
         <ImagenProducto producto={p} className="w-full h-full" />
         {p.porcentajeDescuento && p.disponible && (
-          <span className="absolute top-2 left-2 rounded-md bg-orange-500 px-1.5 py-0.5 text-[9px] font-bold text-white z-10">
-            <Tag className="w-2 h-2 inline mr-0.5" />-{p.porcentajeDescuento}%
+          <span className="absolute top-2.5 left-2.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-2 py-0.5 text-[10px] font-extrabold text-white shadow-sm z-10 flex items-center gap-0.5">
+            <Tag className="w-2.5 h-2.5" />-{p.porcentajeDescuento}%
           </span>
         )}
         {!p.disponible && (
-          <span className="absolute inset-x-2 bottom-2 rounded-md bg-slate-900/85 py-0.5 text-center text-[9px] font-semibold text-white z-10">
+          <span className="absolute inset-x-2.5 bottom-2.5 rounded-lg bg-slate-900/85 backdrop-blur-xs py-1 text-center text-[10px] font-bold text-white z-10">
             Agotado
           </span>
         )}
@@ -1179,31 +1362,31 @@ function TarjetaProducto({
           backgroundColor: "var(--t-tarjeta-footer, #f8fafc)",
           borderColor: "var(--t-tarjeta-borde, #f1f5f9)",
         }}
-        className="p-2 sm:p-2.5 border-t flex-1 flex flex-col justify-between"
+        className="p-2.5 sm:p-3 border-t flex-1 flex flex-col justify-between"
       >
         <div>
           <p
             style={{ color: "var(--t-sobre-tarjeta, #1e293b)" }}
-            className="text-[11px] sm:text-xs font-bold leading-snug line-clamp-2 min-h-7"
+            className="text-[11px] sm:text-xs font-bold leading-snug line-clamp-2 min-h-7 group-hover:text-[var(--t-pri,#0B1F49)] transition-colors"
           >
             {p.nombre}
           </p>
-          <p className="text-[10px] opacity-60 mt-0.5 font-medium truncate">
+          <p className="text-[10px] opacity-55 mt-0.5 font-medium truncate">
             {p.unidadMedida === "NIU" ? "Unidad" : (p.unidadMedida ?? "Unidad")}
           </p>
         </div>
 
         <div
           style={{ borderColor: "var(--t-tarjeta-borde, rgba(226,232,240,0.6))" }}
-          className="mt-2 pt-1.5 border-t flex items-center justify-between gap-1"
+          className="mt-2.5 pt-2 border-t flex items-center justify-between gap-1.5"
         >
           <div className="min-w-0">
             {p.porcentajeDescuento && (
-              <p className="text-[9px] opacity-50 line-through tabular-nums leading-none">{formatoSoles(p.precioRegular)}</p>
+              <p className="text-[9px] opacity-50 line-through tabular-nums leading-none mb-0.5">{formatoSoles(p.precioRegular)}</p>
             )}
             <p
               style={{ color: "var(--t-sobre-tarjeta, #0f172a)" }}
-              className="text-xs sm:text-sm font-black tabular-nums"
+              className="text-xs sm:text-sm font-black tabular-nums tracking-tight"
             >
               {formatoSoles(p.precio)}
             </p>
@@ -1218,7 +1401,7 @@ function TarjetaProducto({
                   onCambiar(p, 1);
                 }}
                 aria-label={`Agregar ${p.nombre}`}
-                className="w-7 h-7 rounded-full bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] text-[var(--t-sobre-pri,#FFFFFF)] flex items-center justify-center active:scale-95 transition-all shrink-0 shadow-sm"
+                className="w-7.5 h-7.5 rounded-full bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] text-[var(--t-sobre-pri,#FFFFFF)] flex items-center justify-center hover:scale-105 active:scale-90 transition-all shrink-0 shadow-sm cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -1234,7 +1417,7 @@ function TarjetaProducto({
                     onCambiar(p, -1);
                   }}
                   aria-label="Quitar uno"
-                  className="h-7 w-6 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-l-full transition-all"
+                  className="h-7.5 w-6.5 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-l-full transition-all cursor-pointer"
                 >
                   <Minus className="w-3 h-3" />
                 </button>
@@ -1246,7 +1429,7 @@ function TarjetaProducto({
                     onCambiar(p, 1);
                   }}
                   aria-label="Agregar uno"
-                  className="h-7 w-6 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-r-full transition-all"
+                  className="h-7.5 w-6.5 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-r-full transition-all cursor-pointer"
                 >
                   <Plus className="w-3 h-3" />
                 </button>
@@ -1278,12 +1461,12 @@ function TarjetaCombo({
       onClick={handleClickCard}
       style={{
         backgroundColor: "var(--t-tarjeta, #ffffff)",
-        borderColor: cantidad > 0 ? "var(--t-sec, #FBBF24)" : "var(--t-tarjeta-borde, rgba(251, 191, 36, 0.4))",
+        borderColor: cantidad > 0 ? "var(--t-sec, #FBBF24)" : "var(--t-tarjeta-borde, rgba(251, 191, 36, 0.45))",
       }}
-      className={`rounded-xl border p-3 sm:p-3.5 flex flex-col sm:flex-row items-center gap-3 sm:gap-4 transition-all select-none ${
-        p.disponible ? "cursor-pointer active:scale-[0.99]" : "opacity-60 cursor-not-allowed"
+      className={`group rounded-2xl border p-3.5 sm:p-4 flex flex-col sm:flex-row items-center gap-3.5 sm:gap-4 transition-all duration-300 select-none ${
+        p.disponible ? "cursor-pointer hover:-translate-y-0.5 active:scale-[0.99]" : "opacity-60 cursor-not-allowed"
       } ${
-        cantidad > 0 ? "ring-2 ring-[var(--t-sec,#FBBF24)]/50 shadow-md" : "hover:shadow-md"
+        cantidad > 0 ? "ring-2 ring-[var(--t-sec,#FBBF24)]/55 shadow-lg shadow-[var(--t-sec,#FBBF24)]/10" : "hover:shadow-lg hover:shadow-slate-900/5"
       }`}
     >
       <div
@@ -1291,18 +1474,18 @@ function TarjetaCombo({
           backgroundColor: "var(--t-tarjeta-footer, #f8fafc)",
           borderColor: "var(--t-tarjeta-borde, #e2e8f0)",
         }}
-        className="relative w-full sm:w-28 aspect-[16/9] sm:aspect-square shrink-0 rounded-lg border border-dashed flex items-center justify-center p-1.5 overflow-hidden"
+        className="relative w-full sm:w-28 aspect-[16/9] sm:aspect-square shrink-0 rounded-xl border border-dashed flex items-center justify-center p-2 overflow-hidden"
       >
         <ImagenProducto producto={p} className="w-full h-full" />
       </div>
 
-      <div className="flex-1 min-w-0 space-y-1 text-left w-full">
-        <div className="inline-flex items-center gap-1 rounded-full bg-[var(--t-sec,#FBBF24)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--t-sobre-sec,#0F172A)] uppercase tracking-wide">
-          <Sparkles className="w-2.5 h-2.5" /> Combo
+      <div className="flex-1 min-w-0 space-y-1.5 text-left w-full">
+        <div className="inline-flex items-center gap-1 rounded-full bg-[var(--t-sec,#FBBF24)] px-2.5 py-0.5 text-[10px] font-extrabold text-[var(--t-sobre-sec,#0F172A)] uppercase tracking-wide shadow-2xs">
+          <Gift className="w-2.5 h-2.5" /> Combo Ahorro
         </div>
         <h3
           style={{ color: "var(--t-sobre-tarjeta, #0f172a)" }}
-          className="text-sm sm:text-base font-bold leading-snug line-clamp-2"
+          className="text-sm sm:text-base font-extrabold leading-snug line-clamp-2"
         >
           {p.nombre}
         </h3>
@@ -1310,7 +1493,7 @@ function TarjetaCombo({
           <ul className="space-y-0.5 text-[11px] text-slate-500 font-medium">
             {p.incluye.map((item, idx) => (
               <li key={idx} className="flex items-center gap-1.5">
-                <span className="w-1 h-1 rounded-full bg-slate-300 shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--t-sec,#FBBF24)] shrink-0" />
                 <span className="truncate">{item}</span>
               </li>
             ))}
@@ -1318,12 +1501,12 @@ function TarjetaCombo({
         )}
       </div>
 
-      <div className="sm:text-right flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto shrink-0 gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+      <div className="sm:text-right flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto shrink-0 gap-2.5 border-t sm:border-t-0 pt-2.5 sm:pt-0 border-slate-100">
         <div>
           {p.porcentajeDescuento && (
             <p className="text-[10px] text-slate-400 line-through tabular-nums">{formatoSoles(p.precioRegular)}</p>
           )}
-          <p className="text-lg sm:text-xl font-black text-[var(--t-pri,#0B1F49)] tabular-nums">{formatoSoles(p.precio)}</p>
+          <p className="text-lg sm:text-xl font-black text-[var(--t-pri,#0B1F49)] tabular-nums tracking-tight">{formatoSoles(p.precio)}</p>
         </div>
 
         {cantidad === 0 ? (
@@ -1333,9 +1516,10 @@ function TarjetaCombo({
               e.stopPropagation();
               onCambiar(p, 1);
             }}
-            className="px-4 py-1.5 rounded-full bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] text-[var(--t-sobre-pri,#FFFFFF)] text-xs font-semibold transition-all active:scale-95 shadow-sm"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--t-pri,#0B1F49)] hover:bg-[var(--t-pri-hover,#122852)] text-[var(--t-sobre-pri,#FFFFFF)] text-xs font-bold transition-all hover:scale-105 active:scale-95 shadow-sm cursor-pointer"
           >
-            Agregar
+            <Plus className="w-3.5 h-3.5" />
+            <span>Agregar</span>
           </button>
         ) : (
           <div
@@ -1349,9 +1533,9 @@ function TarjetaCombo({
                 onCambiar(p, -1);
               }}
               aria-label="Quitar uno"
-              className="h-7 w-7 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-l-full transition-all"
+              className="h-8 w-7.5 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-l-full transition-all cursor-pointer"
             >
-              <Minus className="w-3 h-3" />
+              <Minus className="w-3.5 h-3.5" />
             </button>
             <span className="min-w-5 text-center text-xs font-black tabular-nums">{cantidad}</span>
             <button
@@ -1361,9 +1545,9 @@ function TarjetaCombo({
                 onCambiar(p, 1);
               }}
               aria-label="Agregar uno"
-              className="h-7 w-7 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-r-full transition-all"
+              className="h-8 w-7.5 flex items-center justify-center hover:opacity-75 active:scale-90 rounded-r-full transition-all cursor-pointer"
             >
-              <Plus className="w-3 h-3" />
+              <Plus className="w-3.5 h-3.5" />
             </button>
           </div>
         )}

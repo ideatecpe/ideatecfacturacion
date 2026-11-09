@@ -32,7 +32,7 @@ export const ModalPagoRegistrado = ({ onClose, ...resultado }: ResultadoPagoProp
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          <ResultadoPago {...resultado} />
+          <ResultadoPago {...resultado} onCerrar={onClose} />
         </div>
 
         <div className="px-6 py-3 border-t border-gray-100 flex justify-end shrink-0 bg-gray-50/40 rounded-b-2xl">

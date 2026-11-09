@@ -1,5 +1,5 @@
 'use client'
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, FileText, MessageCircle, Printer } from 'lucide-react'
 import { cn } from '@/app/utils/cn'
 import { useAuth } from '@/context/AuthContext'
@@ -29,6 +29,8 @@ export interface ResultadoPagoProps {
   montoTotal: number
   saldoClienteRestante: number
   pagos: PagoPorComprobante[]
+  /** Cierra el modal: al enviar por WhatsApp se cierra al instante y el envío sigue en segundo plano. */
+  onCerrar?: () => void
 }
 
 /**
@@ -42,11 +44,40 @@ export const ResultadoPago = (props: ResultadoPagoProps) => {
   const { config } = useConfiguracion()
   const { fetchProductos } = useCobroCliente()
 
-  const [telefono, setTelefono] = useState(props.telefonoInicial ?? '')
+  const [telefono, setTelefono] = useState(props.telefonoInicial?.trim() ?? '')
+  const telefonoEditado = useRef(false)
+  const [buscandoTelefono, setBuscandoTelefono] = useState(false)
   const [imprimiendo, setImprimiendo] = useState(false)
   const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false)
   const [incluirProductos, setIncluirProductos] = useState(true)
   const productosCache = useRef<ProductoComprobante[] | null>(null)
+
+  // El comprobante casi nunca trae el WhatsApp (en la venta no se pide): se toma el
+  // teléfono que el cliente tiene registrado en Clientes, buscándolo por documento
+  // (o por nombre si la venta salió sin documento).
+  useEffect(() => {
+    if (props.telefonoInicial?.trim() || !accessToken || !empresaRuc) return
+    const termino = (clienteDoc ?? clienteNombre).trim()
+    if (!termino || /^clientes? varios$/i.test(termino)) return
+    let cancelado = false
+    setBuscandoTelefono(true)
+    fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/Cliente/search/${empresaRuc}?q=${encodeURIComponent(termino)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    )
+      .then(res => (res.ok ? res.json() : []))
+      .then((lista: { numeroDocumento?: string | null; razonSocialNombre?: string | null; telefono?: string | null }[]) => {
+        if (cancelado || telefonoEditado.current) return
+        const cliente = (lista ?? []).find(c => clienteDoc
+          ? c.numeroDocumento?.trim() === clienteDoc.trim()
+          : c.razonSocialNombre?.trim().toUpperCase() === clienteNombre.trim().toUpperCase())
+        const tel = cliente?.telefono?.trim()
+        if (tel) setTelefono(tel)
+      })
+      .catch(() => { /* sin teléfono registrado: el cajero lo escribe */ })
+      .finally(() => { if (!cancelado) setBuscandoTelefono(false) })
+    return () => { cancelado = true }
+  }, [props.telefonoInicial, accessToken, empresaRuc, clienteDoc, clienteNombre])
 
   // 'YYYY-MM-DD' solo se lee como UTC y en Lima saldría el día anterior.
   const fechaPagoLocal = `${fechaPago}T00:00:00`
@@ -127,9 +158,16 @@ export const ResultadoPago = (props: ResultadoPagoProps) => {
   const telefonoValido = normalizarCelularPeru(telefono)
 
   // Igual que la caja con los comprobantes: se genera el PDF y se envía por la API de WhatsApp.
+  // La API tarda unos segundos: el modal se cierra al instante y el aviso llega al terminar
+  // (los toasts viven en el layout, así que salen aunque el modal ya no exista).
   const enviarWhatsapp = async () => {
     if (!telefonoValido || enviandoWhatsapp) return
+    const destino = telefono.replace(/\D/g, '').slice(-9)
     setEnviandoWhatsapp(true)
+    if (props.onCerrar) {
+      showToast(`Enviando constancia por WhatsApp al ${destino}...`, 'info')
+      props.onCerrar()
+    }
     try {
       const datos = await datosConstancia()
       const pdf = await generarPdfConstancia(datos)
@@ -139,9 +177,11 @@ export const ResultadoPago = (props: ResultadoPagoProps) => {
         nombreArchivo: `Constancia-pago-${clienteDoc ?? 'cliente'}-${fechaPago}.pdf`,
         mensaje: construirMensajeWhatsapp(datos),
       })
-      showToast(`Constancia enviada por WhatsApp al ${telefono.replace(/\D/g, '').slice(-9)}`, 'success')
+      showToast(`WhatsApp enviado: constancia de ${clienteNombre} al ${destino}`, 'success')
     } catch (err) {
-      showToast(err instanceof Error ? `No se pudo enviar por WhatsApp: ${err.message}` : 'No se pudo enviar por WhatsApp', 'error')
+      showToast(err instanceof Error
+        ? `No se pudo enviar la constancia de ${clienteNombre} por WhatsApp: ${err.message}`
+        : `No se pudo enviar la constancia de ${clienteNombre} por WhatsApp`, 'error')
     } finally {
       setEnviandoWhatsapp(false)
     }
@@ -219,7 +259,8 @@ export const ResultadoPago = (props: ResultadoPagoProps) => {
         <div className="flex items-end gap-2">
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Celular WhatsApp</label>
-            <input value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="9 dígitos"
+            <input value={telefono} onChange={e => { telefonoEditado.current = true; setTelefono(e.target.value) }}
+              placeholder={buscandoTelefono ? 'Buscando...' : '9 dígitos'}
               className="w-36 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-blue/50 text-sm" />
           </div>
           <button onClick={enviarWhatsapp} disabled={!telefonoValido || enviandoWhatsapp}
