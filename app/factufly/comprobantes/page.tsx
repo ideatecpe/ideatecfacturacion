@@ -1774,6 +1774,9 @@ const DropdownOpciones = ({
     comprobante.tipoComprobante === "01" ||
     comprobante.tipoComprobante === "03";
   const esNotaVenta = comprobante.tipoComprobante === "NV";
+  const esNotaCreditoDebito =
+    comprobante.tipoComprobante === "07" ||
+    comprobante.tipoComprobante === "08";
   const estaAnulada = comprobante.estadoSunat === "ANULADO";
 
   const handleOpen = () => {
@@ -1912,6 +1915,18 @@ const DropdownOpciones = ({
                 className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left text-red-600 hover:bg-red-50"
               >
                 <Ban size={14} className="text-red-500" /> Anular venta
+              </button>
+            )}
+            {esNotaCreditoDebito && mostrarDetallesAdicionales && esAceptado && (
+              <button
+                onClick={() => {
+                  onDetallesAdicionales?.();
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50"
+              >
+                <FileText size={14} className="text-blue-500" /> Detalles
+                Adicionales
               </button>
             )}
           </div>,
