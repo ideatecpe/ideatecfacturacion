@@ -1152,17 +1152,21 @@ function FacturaContent() {
 
   useEffect(() => {
     if (!aplicarDetraccion || totales.importeTotal === 0) return;
-    const monto = parseFloat(
-      ((totales.importeTotal * detraccion.porcentajeDetraccion) / 100).toFixed(
-        2,
-      ),
-    );
+    // Detracción: SIEMPRE en soles. Si la factura es USD se convierte con el
+    // tipo de cambio y se redondea al entero más cercano (≥ .50 sube).
+    const baseSoles =
+      factura.tipoMoneda === "USD"
+        ? totales.importeTotal * tipoCambio
+        : totales.importeTotal;
+    const monto = Math.round((baseSoles * detraccion.porcentajeDetraccion) / 100);
     setDetraccion((prev) => ({ ...prev, montoDetraccion: monto }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     aplicarDetraccion,
     detraccion.porcentajeDetraccion,
     factura.importeTotal,
+    factura.tipoMoneda,
+    tipoCambio,
   ]);
 
   // ── Totales ──────────────────────────────────────────────────
@@ -1303,6 +1307,13 @@ function FacturaContent() {
     );
   }, [totales.total, factura.tipoPago, pagos.length]);
 
+  // La detracción se guarda siempre en soles. Para restarla del total (que está
+  // en la moneda de la factura) se expresa en esa moneda.
+  const detraccionEnMonedaFactura =
+    factura.tipoMoneda === "USD" && tipoCambio > 0
+      ? detraccion.montoDetraccion / tipoCambio
+      : detraccion.montoDetraccion;
+
   // ── Auto-calcular cuotas ─────────────────────────────────────
   useEffect(() => {
     if (factura.tipoPago !== "Credito" && factura.tipoPago !== "CreditoInicial")
@@ -1313,7 +1324,7 @@ function FacturaContent() {
     }
 
     // Restar detracción si aplica (solo en crédito)
-    const baseDetraccion = aplicarDetraccion ? detraccion.montoDetraccion : 0;
+    const baseDetraccion = aplicarDetraccion ? detraccionEnMonedaFactura : 0;
     const basePagoInicial =
       factura.tipoPago === "CreditoInicial" ? totalPagado : 0;
     const baseCalculo = Math.max(
@@ -1340,7 +1351,7 @@ function FacturaContent() {
     factura.tipoPago,
     totalPagado,
     aplicarDetraccion,
-    detraccion.montoDetraccion,
+    detraccionEnMonedaFactura,
   ]);
 
   // ── Comisión por pago con tarjeta (POS) — control interno, informativo ──
@@ -2197,7 +2208,7 @@ function FacturaContent() {
 
     // Base neta = total - pago inicial (si aplica) - detracción (si aplica)
     const baseDetraccion =
-      esCredito && aplicarDetraccion ? detraccion.montoDetraccion : 0;
+      esCredito && aplicarDetraccion ? detraccionEnMonedaFactura : 0;
     const basePagoInicial = esCreditoInicial ? totalPagado : 0;
 
     const montoCredito = esCredito
@@ -2458,7 +2469,7 @@ function FacturaContent() {
     const pagoInvalido = pagos.some((p) => !p.monto || Number(p.monto) <= 0);
     const cuotaInvalida = cuotas.some((c) => !c.monto || Number(c.monto) <= 0);
     const montoDetraccionAplicada = aplicarDetraccion
-      ? detraccion.montoDetraccion
+      ? detraccionEnMonedaFactura
       : 0;
 
     if (factura.tipoPago !== "Credito" && pagoInvalido) {
@@ -3761,7 +3772,7 @@ function FacturaContent() {
                           0,
                           totales.total -
                             (aplicarDetraccion
-                              ? detraccion.montoDetraccion
+                              ? detraccionEnMonedaFactura
                               : 0) -
                             (factura.tipoPago === "CreditoInicial"
                               ? totalPagado
@@ -3985,9 +3996,12 @@ function FacturaContent() {
                             value={detraccion.porcentajeDetraccion}
                             onChange={(e) => {
                               const pct = Number(e.target.value);
-                              const monto = parseFloat(
-                                ((totales.importeTotal * pct) / 100).toFixed(2),
-                              );
+                              // Detracción en soles (convierte si es USD), entero más cercano
+                              const baseSoles =
+                                factura.tipoMoneda === "USD"
+                                  ? totales.importeTotal * tipoCambio
+                                  : totales.importeTotal;
+                              const monto = Math.round((baseSoles * pct) / 100);
                               setDetraccion((prev) => ({
                                 ...prev,
                                 porcentajeDetraccion: pct,
@@ -4001,7 +4015,7 @@ function FacturaContent() {
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-[10px] text-gray-400 uppercase font-bold">
-                            Monto Detracción
+                            Monto Detracción (S/)
                           </label>
                           <input
                             type="number"
@@ -5038,7 +5052,7 @@ function FacturaContent() {
                         Detracción ({detraccion.porcentajeDetraccion}%):
                       </span>
                       <span className="font-medium text-amber-600 w-20">
-                        -{simbolo} {fmtMonto(detraccion.montoDetraccion)}
+                        -S/ {fmtMonto(detraccion.montoDetraccion)}
                       </span>
                     </div>
                   )}

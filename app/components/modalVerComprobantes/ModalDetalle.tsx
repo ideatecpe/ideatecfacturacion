@@ -432,7 +432,7 @@ export const ModalDetalle = ({ comprobante, ruc, accessToken, loadingDetalles, n
                                                     </div>
                                                     <div className="flex justify-between text-xs">
                                                         <span className="text-gray-500">Monto</span>
-                                                        <span className="font-semibold text-amber-700">{simboloMoneda} {d.montoDetraccion.toFixed(2)}</span>
+                                                        <span className="font-semibold text-amber-700">S/ {d.montoDetraccion.toFixed(2)}</span>
                                                     </div>
                                                     {d.observacion && (
                                                         <div className="flex justify-between text-xs">

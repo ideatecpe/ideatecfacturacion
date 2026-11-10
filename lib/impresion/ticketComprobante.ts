@@ -377,7 +377,7 @@ function buildDetraccionHtml(detracciones: DetraccionTicket[], moneda: string, t
   for (const det of detracciones) {
     if (tipo === "01") sb += `<tr><td>Cta. BN</td><td>${HE(det.cuentaBancoDetraccion ?? "-")}</td></tr>`;
     sb += `<tr><td>% Detrac.</td><td>${Math.round(det.porcentajeDetraccion)}%</td></tr>`;
-    sb += `<tr><td>Monto</td><td>${moneda === "USD" ? "$" : "S/"} ${redondeoBancario(det.montoDetraccion)}</td></tr>`;
+    sb += `<tr><td>Monto</td><td>S/ ${redondeoBancario(det.montoDetraccion)}</td></tr>`;
   }
   return sb + "</table>";
 }
