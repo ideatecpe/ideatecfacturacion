@@ -69,6 +69,8 @@ export interface CajaEstado {
 export interface CajaRetiro {
   cajaRetiroId: number;
   cajaTurnoId: number;
+  /** "RETIRO" (sale efectivo) o "INGRESO" (entra efectivo, desde Gastos e ingresos). */
+  tipo?: "RETIRO" | "INGRESO";
   monto: number;
   motivo: string;
   fechaRetiro: string;
@@ -83,6 +85,8 @@ export interface CuadreTurno {
   saldoInicial: number;
   ventasEfectivo: number;
   totalRetiros: number;
+  /** Efectivo que entró al cajón sin ser venta (ingresos de Gastos e ingresos). */
+  totalIngresos?: number;
   efectivoEsperado: number;
   totalVentas: number;
   cantidadComprobantes: number;
@@ -253,11 +257,12 @@ export function useCaja({ autoIniciarTurno = false, activo = true }: Opciones = 
   );
 
   const registrarRetiro = useCallback(
-    async (cajaTurnoId: number, monto: number, motivo: string) => {
+    async (cajaTurnoId: number, monto: number, motivo: string, gastoCategoriaId?: number | null) => {
       const res = await fetchCaja("Retirar efectivo", `${BASE_URL}/api/Caja/retiro`, {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ cajaTurnoId, monto, motivo }),
+        // Con gastoCategoriaId el retiro también queda registrado como gasto (módulo Gastos).
+        body: JSON.stringify({ cajaTurnoId, monto, motivo, gastoCategoriaId: gastoCategoriaId ?? null }),
       });
       if (!res.ok) throw new Error(await mensajeDeError(res, "No se pudo registrar el retiro"));
 

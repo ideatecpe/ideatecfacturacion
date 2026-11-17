@@ -1,4 +1,6 @@
 "use client";
+import { useEmisionEmbebida } from "../emisionEmbebida";
+import { registrarIngresoEmitido } from "../../gastos/gestionGastos/ingresoPorEmitir";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
@@ -137,7 +139,9 @@ function NotaVentaContent() {
   // ── isSuperAdmin ─────────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
   const IGV_DEFAULT = config?.igv ? parseFloat(config.igv) : (user?.igv ?? 18);
-  const isCajaAutopago = !!(config?.isStock && config?.isCajaAutopago);
+  // Dentro de otro módulo (facturar un ingreso) siempre se usa el formulario clásico.
+  const emisionEmbebida = useEmisionEmbebida();
+  const isCajaAutopago = !emisionEmbebida && !!(config?.isStock && config?.isCajaAutopago);
 
   const { empresa } = useEmpresaEmisor();
   const { cliente, loadingCliente, errorCliente, buscarCliente } =
@@ -328,6 +332,7 @@ function NotaVentaContent() {
   // Nota de Venta es siempre documento de control interno: arranca marcado
   // como "Clientes Varios" por defecto (el cajero puede desmarcarlo si quiere
   // identificar al cliente igual).
+  const clienteCompartidoRef = useRef(false);
   const [clienteVarios, setClienteVarios] = useState(true);
   const [nombreEditable, setNombreEditable] = useState(false);
 
@@ -874,9 +879,19 @@ function NotaVentaContent() {
       setShowDropdownProducto(mapped.map(() => false));
     }
     if (data.cliente) {
-      setBoleta((prev) => ({ ...prev, cliente: data.cliente }));
-      if (data.cliente.numeroDocumento)
-        setBusqueda(data.cliente.numeroDocumento);
+      const doc = String(data.cliente.numeroDocumento ?? "");
+      if (!doc || /^0+$/.test(doc)) {
+        // Clientes varios: lo arma el efecto de la casilla.
+        setClienteVarios(true);
+      } else {
+        // Cliente con documento: que el efecto de "Clientes Varios" no lo borre al montar.
+        clienteCompartidoRef.current = true;
+        setClienteVarios(false);
+        if (data.cliente.tipoDocumento === "01" || data.cliente.tipoDocumento === "04")
+          setTipoDoc(data.cliente.tipoDocumento);
+        setBoleta((prev) => ({ ...prev, cliente: data.cliente }));
+        setBusqueda(doc);
+      }
     }
   }, []);
 
@@ -956,7 +971,7 @@ function NotaVentaContent() {
     // así que no tiene sentido re-renderizar todo el árbol cada segundo — eso
     // le robaba el foco a los inputs de Caja Autopago (input desmontado/vuelto
     // a montar en cada tick por el re-render masivo de este componente).
-    if (fechaEmisionEditada || (config?.isStock && config?.isCajaAutopago)) {
+    if (fechaEmisionEditada || isCajaAutopago) {
       if (intervaloRef.current) clearInterval(intervaloRef.current);
       return;
     }
@@ -966,10 +981,16 @@ function NotaVentaContent() {
     return () => {
       if (intervaloRef.current) clearInterval(intervaloRef.current);
     };
-  }, [fechaEmisionEditada, config?.isStock, config?.isCajaAutopago]);
+  }, [fechaEmisionEditada, isCajaAutopago]);
 
   // ── Clientes varios efecto ───────────────────────────────────
   useEffect(() => {
+    // Llegó un cliente precargado (otra pestaña o un ingreso por emitir): no tocarlo hasta que
+    // la casilla quede desmarcada; desde ahí la casilla vuelve a funcionar normal.
+    if (clienteCompartidoRef.current) {
+      if (!clienteVarios) clienteCompartidoRef.current = false;
+      return;
+    }
     if (clienteVarios) {
       setTipoDoc("00");
       setBoleta((prev) => ({
@@ -1543,7 +1564,7 @@ function NotaVentaContent() {
   // su propio escáner: este listener le quitaba el foco al buscador a mitad de
   // la lectura y se quedaba con el Enter.
   useEscanerGlobal(onScanCodigo, {
-    enabled: !(config?.isStock && config?.isCajaAutopago),
+    enabled: !isCajaAutopago,
   });
 
   // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
@@ -2310,6 +2331,19 @@ function NotaVentaContent() {
       notificarVentaRegistrada();
       const numeroCompleto: string = resNV.data.numeroCompleto ?? resNV.data.NumeroCompleto ?? "";
       const numeroNV = separarNumeroCompleto(numeroCompleto);
+      // Si esta venta factura un ingreso de "Gastos e ingresos", lo registra vinculado.
+      registrarIngresoEmitido({
+        comprobanteId,
+        tipoComprobante: "NV",
+        serie: numeroNV?.serie,
+        correlativo: numeroNV?.correlativo,
+        cliente: bodyNV.cliente,
+        importeTotal: bodyNV.importeTotal,
+        tipoMoneda: bodyNV.tipoMoneda,
+        pagos: bodyNV.pagos,
+        accessToken,
+        ruc: user?.ruc,
+      }).then((m) => { if (m) showToast(m.texto, m.tipo); });
       // Sin reserva (no se pudo apartar el número), el ticket sale ahora con el número real.
       if (!reserva) {
         impresoRapidoRef.current = lanzarImpresionRapida(bodyNV, "NV", numeroNV?.serie, numeroNV?.correlativo);
@@ -2720,7 +2754,7 @@ function NotaVentaContent() {
   };
 
   // ── Render ───────────────────────────────────────────────────
-  if (config?.isStock && config?.isCajaAutopago) {
+  if (isCajaAutopago) {
     return <CajaAutopago />;
   }
 

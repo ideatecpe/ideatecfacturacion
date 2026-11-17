@@ -1,4 +1,6 @@
 "use client";
+import { useEmisionEmbebida } from "../emisionEmbebida";
+import { registrarIngresoEmitido } from "../../gastos/gestionGastos/ingresoPorEmitir";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
@@ -188,7 +190,9 @@ function FacturaContent() {
   // ── 1. isSuperAdmin ──────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
   const IGV_DEFAULT = config?.igv ? parseFloat(config.igv) : (user?.igv ?? 18);
-  const isCajaAutopago = !!(config?.isStock && config?.isCajaAutopago);
+  // Dentro de otro módulo (facturar un ingreso) siempre se usa el formulario clásico.
+  const emisionEmbebida = useEmisionEmbebida();
+  const isCajaAutopago = !emisionEmbebida && !!(config?.isStock && config?.isCajaAutopago);
 
   //Editar y reenviar
   const searchParams = useSearchParams();
@@ -1056,7 +1060,7 @@ function FacturaContent() {
     // así que no tiene sentido re-renderizar todo el árbol cada segundo — eso
     // le robaba el foco a los inputs de Caja Autopago (input desmontado/vuelto
     // a montar en cada tick por el re-render masivo de este componente).
-    if (fechaEmisionEditada || (config?.isStock && config?.isCajaAutopago)) {
+    if (fechaEmisionEditada || isCajaAutopago) {
       if (intervaloRef.current) clearInterval(intervaloRef.current);
       return;
     }
@@ -1066,7 +1070,7 @@ function FacturaContent() {
     return () => {
       if (intervaloRef.current) clearInterval(intervaloRef.current);
     };
-  }, [fechaEmisionEditada, config?.isStock, config?.isCajaAutopago]);
+  }, [fechaEmisionEditada, isCajaAutopago]);
 
   // ── Sincronizar pagos ────────────────────────────────────────
   useEffect(() => {
@@ -1716,7 +1720,7 @@ function FacturaContent() {
   // su propio escáner: este listener le quitaba el foco al buscador a mitad de
   // la lectura y se quedaba con el Enter.
   useEscanerGlobal(onScanCodigo, {
-    enabled: !(config?.isStock && config?.isCajaAutopago),
+    enabled: !isCajaAutopago,
   });
 
   // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
@@ -2528,6 +2532,19 @@ function FacturaContent() {
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const comprobanteId = resFactura.data.comprobanteId;
+      // Si esta venta factura un ingreso de "Gastos e ingresos", lo registra vinculado.
+      registrarIngresoEmitido({
+        comprobanteId,
+        tipoComprobante: "01",
+        serie: resFactura.data.serie ?? facturaFinal?.serie,
+        correlativo: resFactura.data.correlativo ?? facturaFinal?.correlativo,
+        cliente: facturaFinal?.cliente,
+        importeTotal: facturaFinal?.importeTotal,
+        tipoMoneda: facturaFinal?.tipoMoneda,
+        pagos: facturaFinal?.pagos,
+        accessToken,
+        ruc: user?.ruc,
+      }).then((m) => { if (m) showToast(m.texto, m.tipo); });
       // Sin reserva (no se pudo apartar el número), el ticket sale ahora con el número real.
       if (!reserva) {
         impresoRapidoRef.current = lanzarImpresionRapida(facturaFinal, "01", resFactura.data.serie, resFactura.data.correlativo);
@@ -2994,7 +3011,7 @@ function FacturaContent() {
   };
 
   // ── Render ───────────────────────────────────────────────────
-  if (config?.isStock && config?.isCajaAutopago) {
+  if (isCajaAutopago) {
     return <CajaAutopago />;
   }
 

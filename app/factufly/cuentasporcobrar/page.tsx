@@ -1,11 +1,11 @@
 "use client";
-import { useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
+import { Fragment, useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search, X, Filter, ChevronDown, RefreshCw,
   DollarSign, Calendar, Check, CreditCard,
   AlertTriangle,
-  FileSpreadsheet, Users, FileText, Wallet
+  FileSpreadsheet, Users, FileText, Wallet, Package, ShoppingBasket
 } from 'lucide-react';
 import { cn } from '@/app/utils/cn';
 import { useAuth } from '@/context/AuthContext';
@@ -15,7 +15,7 @@ import { useCuotasComprobante } from './gestionCuentasPorCobrar/UseCuotasComprob
 import { usePagarCuota } from './gestionCuentasPorCobrar/UsePagarCuota';
 import { CuentaPorCobrar, Cuota, PagarCuotaPayload, ResumenClienteCuenta } from './gestionCuentasPorCobrar/CuentasPorCobrar';
 import { useCobroCliente } from './gestionCuentasPorCobrar/UseCobroCliente';
-import { ModalCobrarCliente } from '@/app/components/modalCuentasPorCobrar/ModalCobrarCliente';
+import { ModalCobrarCliente, type ModoCobro } from '@/app/components/modalCuentasPorCobrar/ModalCobrarCliente';
 import { ModalPagoRegistrado } from '@/app/components/modalCuentasPorCobrar/ModalPagoRegistrado';
 import type { ResultadoPagoProps } from '@/app/components/modalCuentasPorCobrar/ResultadoPago';
 import { formatFecha, formatMoneda, tipoComprobanteLabel, getEstadoCuota, ESTADO_CUOTA_COLORS, getCuotaVencida, getDiasVencida } from './gestionCuentasPorCobrar/helpers';
@@ -23,6 +23,8 @@ import { ModalPagarCuota } from '@/app/components/modalCuentasPorCobrar/ModalPag
 import { useSucursalRuc } from '../operaciones/boleta/gestionBoletas/useSucursalRuc';
 import { useSucursal } from '../operaciones/boleta/gestionBoletas/useSucursal';
 import { ModalReporteCuentasPorCobrar } from '@/app/components/modalCuentasPorCobrar/ModalReporteCuentasPorCobrar';
+import { BotonVerProductos, DetalleProductosComprobante, productosPendientes } from '@/app/components/modalCuentasPorCobrar/DetalleProductosComprobante';
+import { useProductosComprobantes } from './gestionCuentasPorCobrar/UseProductosComprobantes';
 
 const TIPO_BASE = ['Todos', 'Factura', 'Boleta'];
 
@@ -91,10 +93,27 @@ export default function CuentasPorCobrarPage() {
   const hookCuotas  = useCuotasComprobante();
   const hookPagar   = usePagarCuota();
   const hookClientes = useCobroCliente();
+  const detalle = useProductosComprobantes(rucEmpresa);
+  // Comprobantes con los productos desplegados en la tabla "Por comprobante".
+  const [abiertos, setAbiertos] = useState<Set<number>>(new Set());
+  const [productosModalAbierto, setProductosModalAbierto] = useState(true);
+
+  const alternarDetalle = (id: number) => {
+    void detalle.cargar([id]);
+    setAbiertos(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const vista = useSyncExternalStore(suscribirVista, leerVista, (): Vista => 'clientes');
   const cambiarVista = guardarVista;
-  const [clienteCobrar, setClienteCobrar] = useState<ResumenClienteCuenta | null>(null);
+  // Cobro por cliente; desde "Por comprobante" se abre el mismo modal con solo esa nota.
+  const [clienteCobrar, setClienteCobrar] = useState<{
+    cliente: ResumenClienteCuenta; soloComprobanteId?: number; modo?: ModoCobro;
+  } | null>(null);
   // Constancia del pago de una sola cuota (desde "Pagar cuota").
   const [pagoRegistrado, setPagoRegistrado] = useState<ResultadoPagoProps | null>(null);
 
@@ -123,7 +142,33 @@ export default function CuentasPorCobrarPage() {
 
   const cerrarCobroCliente = (huboPago: boolean) => {
     setClienteCobrar(null);
-    if (huboPago) cargar();
+    if (huboPago) {
+      cargar();
+      // Lo pagado de cada producto cambió.
+      void detalle.recargar();
+    }
+  };
+
+  // Abre el cobro de una sola nota, para elegir qué productos paga.
+  const cobrarComprobantePorProductos = (c: CuentaPorCobrar) => {
+    const clave = claveCliente(c.clienteNumDoc, c.clienteRznSocial);
+    cerrarModal();
+    setClienteCobrar({
+      cliente: {
+        clienteClave: clave,
+        clienteNumDoc: c.clienteNumDoc,
+        clienteRznSocial: c.clienteRznSocial,
+        clienteWhatsApp: c.clienteWhatsApp || null,
+        tipoMoneda: c.tipoMoneda,
+        cantidadComprobantes: 1,
+        saldoPendiente: saldoComprobante(c),
+        fechaEmisionMasAntigua: c.fechaEmision,
+        fechaVencimientoMasAntigua: c.fechaVencimiento,
+        sinDocumento: clave.startsWith('SD|'),
+      },
+      soloComprobanteId: c.comprobanteId,
+      modo: 'productos',
+    });
   };
 
   useEffect(() => {
@@ -137,6 +182,7 @@ export default function CuentasPorCobrarPage() {
   const verCuotas = async (c: CuentaPorCobrar) => {
     setComprobanteSeleccionado(c);
     setCuotas([]);
+    void detalle.cargar([c.comprobanteId]);
     const data = await hookCuotas.fetchCuotas(c.comprobanteId);
     setCuotas(data);
   };
@@ -209,6 +255,8 @@ export default function CuentasPorCobrarPage() {
       setCuotaPagar(null);
       // Refrescar listado para quitar comprobantes totalmente pagados
       cargar();
+      // El abono se descuenta de los productos: cambia lo que falta de cada uno.
+      void detalle.recargar([comp.comprobanteId]);
 
       const r2 = (n: number) => Math.round(n * 100) / 100;
       const saldoAnterior = r2(cuotasAntes.reduce(
@@ -263,7 +311,9 @@ export default function CuentasPorCobrarPage() {
       
       {clienteCobrar && (
         <ModalCobrarCliente
-          cliente={clienteCobrar}
+          cliente={clienteCobrar.cliente}
+          soloComprobanteId={clienteCobrar.soloComprobanteId}
+          modoInicial={clienteCobrar.modo}
           empresaRuc={rucEmpresa}
           establecimientoAnexo={isSuperAdmin ? sucursalFiltro : (getCodEstablecimiento() ?? null)}
           onClose={cerrarCobroCliente}
@@ -493,7 +543,7 @@ export default function CuentasPorCobrarPage() {
                       </td>
                       <td className="px-3 py-3 text-center w-36">
                         <button
-                          onClick={() => setClienteCobrar(c)}
+                          onClick={() => setClienteCobrar({ cliente: c })}
                           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap"
                         >
                           <Wallet size={13} /> Cobrar
@@ -543,12 +593,20 @@ export default function CuentasPorCobrarPage() {
                 <tr><td colSpan={8} className="px-6 py-16 text-center text-sm text-gray-400">
                   No se encontraron comprobantes a crédito.
                 </td></tr>
-              ) : filtered.map(c => (
-                <tr key={c.comprobanteId} className="hover:bg-gray-50/50 transition-colors">
+              ) : filtered.map(c => {
+                const abierto = abiertos.has(c.comprobanteId);
+                return (
+                <Fragment key={c.comprobanteId}>
+                <tr className={cn("transition-colors", abierto ? "bg-blue-50/30" : "hover:bg-gray-50/50")}>
                   <td className="px-3 py-2 text-xs text-gray-900 font-medium whitespace-nowrap w-32">{formatFecha(c.fechaEmision)}</td>
                   <td className="px-3 py-2 whitespace-nowrap w-44">
                     <p className="text-xs font-medium text-gray-900">{c.numeroCompleto}</p>
                     <p className="text-[11px] text-gray-400">{tipoComprobanteLabel(c.tipoComprobante)}</p>
+                    <BotonVerProductos
+                      abierto={abierto}
+                      productos={detalle.productos.get(c.comprobanteId)}
+                      onClick={() => alternarDetalle(c.comprobanteId)}
+                    />
                   </td>
                   <td className="px-3 py-4">
                     <p className="text-xs font-semibold text-gray-900">{c.clienteRznSocial}</p>
@@ -565,15 +623,42 @@ export default function CuentasPorCobrarPage() {
                     <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{c.tipoMoneda}</span>
                   </td>
                   <td className="px-3 py-2 text-center w-40">
-                    <button
-                      onClick={() => verCuotas(c)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap"
-                    >
-                      <CreditCard size={13} /> Pagar cuota
-                    </button>
+                    <div className="inline-flex flex-col items-stretch gap-1">
+                      <button
+                        onClick={() => verCuotas(c)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap"
+                      >
+                        <CreditCard size={13} /> Pagar cuota
+                      </button>
+                      <button
+                        onClick={() => cobrarComprobantePorProductos(c)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
+                      >
+                        <ShoppingBasket size={13} /> Por productos
+                      </button>
+                    </div>
                   </td>
                 </tr>
-              ))}
+                {abierto && (
+                  <tr className="bg-blue-50/30">
+                    <td colSpan={8} className="px-3 pb-3 pt-0">
+                      <div className="max-w-3xl sm:ml-32">
+                        <DetalleProductosComprobante
+                          productos={detalle.productos.get(c.comprobanteId)}
+                          cargando={detalle.cargando.has(c.comprobanteId)}
+                          error={detalle.fallidos.has(c.comprobanteId)}
+                          onReintentar={() => void detalle.cargar([c.comprobanteId])}
+                          moneda={c.tipoMoneda}
+                          importeTotal={c.importeTotal}
+                          saldo={saldoComprobante(c)}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -658,6 +743,49 @@ export default function CuentasPorCobrarPage() {
 
             {/* Lista cuotas */}
             <div className="px-6 py-4 flex-1 overflow-y-auto">
+              {/* Productos de la venta: para responder "¿de qué es esta deuda?" */}
+              {(() => {
+                const productosNota = detalle.productos.get(comprobanteSeleccionado.comprobanteId);
+                const pendientes = productosPendientes(productosNota).length;
+                // Con las cuotas a la vista el saldo sale de ellas (ya incluye el último abono).
+                const saldoNota = cuotas.length > 0
+                  ? Math.round(cuotas.reduce((t, cu) => t + (getEstadoCuota(cu) === 'PAGADO' ? 0 : cu.monto - (cu.montoPagado ?? 0)), 0) * 100) / 100
+                  : saldoComprobante(comprobanteSeleccionado);
+                return (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <button type="button" onClick={() => setProductosModalAbierto(o => !o)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        <Package size={13} className="text-gray-400" /> Productos
+                        {productosNota && (
+                          <span className="text-gray-400 font-semibold normal-case">
+                            ({productosNota.length}{pendientes < productosNota.length ? ` · ${productosNota.length - pendientes} pagado(s)` : ''})
+                          </span>
+                        )}
+                        <ChevronDown size={13} className={cn("transition-transform text-blue-600", productosModalAbierto && "rotate-180")} />
+                      </button>
+                      {pendientes > 0 && (
+                        <button type="button" onClick={() => cobrarComprobantePorProductos(comprobanteSeleccionado)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap">
+                          <ShoppingBasket size={13} /> Cobrar por productos
+                        </button>
+                      )}
+                    </div>
+                    {productosModalAbierto && (
+                      <DetalleProductosComprobante
+                        productos={productosNota}
+                        cargando={detalle.cargando.has(comprobanteSeleccionado.comprobanteId)}
+                        error={detalle.fallidos.has(comprobanteSeleccionado.comprobanteId)}
+                        onReintentar={() => void detalle.cargar([comprobanteSeleccionado.comprobanteId])}
+                        moneda={comprobanteSeleccionado.tipoMoneda}
+                        importeTotal={comprobanteSeleccionado.importeTotal}
+                        saldo={saldoNota}
+                      />
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cuotas</h4>
                 <span className="text-xs text-gray-400">{cuotas.length} cuota(s)</span>

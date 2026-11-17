@@ -20,6 +20,7 @@ import {
   Boxes,
   BookOpenCheck,
   Wrench,
+  Receipt,
 } from "lucide-react";
 import { Sidebar } from "../components/layout/Sidebar";
 import { Topbar } from "../components/layout/Topbar";
@@ -33,6 +34,7 @@ import { useAuth } from "@/context/AuthContext";
 import { signOut } from "next-auth/react";
 import axios from "axios";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
+import { useAvisoPorEmitir } from "./gastos/gestionGastos/avisoPorEmitir";
 import {
   avisarConexionViva,
   esRespuestaSinRed,
@@ -127,6 +129,10 @@ export default function DashboardLayout({
 }) {
   const { user } = useAuth();
   const { config } = useConfiguracion();
+  // Ingresos programados por emitir: número en el menú y aviso en la campanita (solo admins).
+  const porEmitir = useAvisoPorEmitir(
+    !!config?.usaGastos && (user?.rol === "admin" || user?.rol === "superadmin"),
+  );
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -337,6 +343,18 @@ export default function DashboardLayout({
           { id: "ingresos-stock", label: "Ingresos de Stock" },
         ],
       },
+      {
+        id: "gastos",
+        label: "Gastos e ingresos",
+        icon: Receipt,
+        children: [
+          { id: "todos", label: "Movimientos" },
+          { id: "programados", label: "Programados" },
+          { id: "resumen", label: "Resumen del mes" },
+          { id: "categorias", label: "Categorías" },
+          { id: "presupuestos", label: "Presupuestos" },
+        ],
+      },
       { id: "reportes", label: "Reportes", icon: BarChart3 },
       { id: "sunat", label: "SUNAT", icon: Zap },
       { id: "sire", label: "SIRE", icon: BookOpenCheck },
@@ -373,6 +391,7 @@ export default function DashboardLayout({
         if (item.id === "compras")           return config?.isStock ?? false;
         if (item.id === "sire")              return config?.usaSire ?? false;
         if (item.id === "caja")              return config?.administraCaja ?? false;
+        if (item.id === "gastos")            return config?.usaGastos ?? false;
         if (soloAdministrativo.has(item.id)) return !esFacturador;
         return true;
       })
@@ -382,9 +401,20 @@ export default function DashboardLayout({
         if (item.id === "caja" && esFacturador) {
           return { ...item, children: item.children?.filter((c) => c.id !== "historial") };
         }
+        // Los facturadores registran gastos e ingresos (caja chica) pero no ven el
+        // resumen ni gestionan categorías o presupuestos.
+        if (item.id === "gastos" && esFacturador) {
+          return { ...item, children: item.children?.filter((c) => c.id === "todos") };
+        }
+        if (item.id === "gastos" && porEmitir > 0) {
+          return {
+            ...item,
+            children: item.children?.map((c) => (c.id === "todos" ? { ...c, badge: porEmitir } : c)),
+          };
+        }
         return item;
       });
-  }, [config, user?.rol]);
+  }, [config, user?.rol, porEmitir]);
 
   const activeSubViewLabel = React.useMemo(() => {
     const parent = menuItems.find((m) => m.id === activeView);

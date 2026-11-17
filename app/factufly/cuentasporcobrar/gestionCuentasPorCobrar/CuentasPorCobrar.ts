@@ -135,6 +135,8 @@ export interface PagarClientePayload {
   clienteClave: string
   tipoMoneda: string
   comprobanteIds: number[]
+  /** Cobro por productos: líneas que paga; montoPagado debe ser lo que falta de ellas. */
+  detalleIds?: number[]
   montoPagado: number
   fechaPago: string
   medioPago: string
@@ -162,10 +164,15 @@ export interface PagoClienteResultado {
   saldoSeleccionRestante: number
   saldoClienteRestante: number
   detalle: PagoClienteDetalle[]
+  /** En un cobro por productos, las líneas que quedaron pagadas. */
+  productosPagados?: number[]
 }
 
-// Línea de un comprobante pagado: para que el cliente vea en qué gastó
+// Línea de un comprobante: qué compró el cliente y qué de eso ya pagó.
+// Los abonos por monto se descuentan de los productos en el orden de la nota;
+// los cobrados por producto quedan pagados (pagadoPorProducto).
 export interface ProductoComprobante {
+  detalleId: number
   comprobanteId: number
   item: number
   descripcion: string | null
@@ -173,4 +180,8 @@ export interface ProductoComprobante {
   unidadMedida: string | null
   precioVenta: number
   total: number
+  /** Lo que falta pagar de esta línea; 0 si está pagada. */
+  falta: number
+  pagado: boolean
+  pagadoPorProducto: boolean
 }

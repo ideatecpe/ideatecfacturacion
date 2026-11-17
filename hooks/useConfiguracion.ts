@@ -36,6 +36,8 @@ export interface Configuracion {
   impresionRapida?: boolean | null;
   /** JSON con la personalización del ticket (Herramientas → Tickets). */
   ticketPersonalizado?: string | null;
+  /** Habilita el módulo de Gastos (registro, categorías y presupuestos). */
+  usaGastos?: boolean | null;
 }
 
 // Cache a nivel de módulo: evita que un remount (p.ej. cambiar Boleta <-> Factura)

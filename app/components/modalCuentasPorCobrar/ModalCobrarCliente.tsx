@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  X, Wallet, Calendar, AlertTriangle, Check, RefreshCw, User, AlertCircle,
+  X, Wallet, Calendar, AlertTriangle, Check, RefreshCw, User, AlertCircle, ListTree, Banknote, ShoppingBasket,
 } from 'lucide-react'
 import { cn } from '@/app/utils/cn'
 import { useAuth } from '@/context/AuthContext'
@@ -17,7 +17,11 @@ import {
 } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/helpers'
 import { useCobroCliente } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/UseCobroCliente'
 import { agruparPorComprobante } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/constanciaPago'
+import { useProductosComprobantes } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/UseProductosComprobantes'
 import { ResultadoPago } from './ResultadoPago'
+import { BotonVerProductos, DetalleProductosComprobante, productosPendientes } from './DetalleProductosComprobante'
+
+export type ModoCobro = 'monto' | 'productos'
 
 interface ModalCobrarClienteProps {
   cliente: ResumenClienteCuenta
@@ -25,13 +29,18 @@ interface ModalCobrarClienteProps {
   establecimientoAnexo: string | null
   /** huboPago: true si se registró algún cobro (hay que refrescar los listados). */
   onClose: (huboPago: boolean) => void
+  /** Solo este comprobante (al cobrar desde la vista "Por comprobante"). */
+  soloComprobanteId?: number
+  modoInicial?: ModoCobro
 }
 
 const redondear = (n: number) => Math.round(n * 100) / 100
 
 const hoyLima = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date())
 
-export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, onClose }: ModalCobrarClienteProps) => {
+export const ModalCobrarCliente = ({
+  cliente, empresaRuc, establecimientoAnexo, onClose, soloComprobanteId, modoInicial = 'monto',
+}: ModalCobrarClienteProps) => {
   const { user } = useAuth()
   const { showToast } = useToast()
   const { fetchComprobantesCliente, pagarCliente } = useCobroCliente()
@@ -53,16 +62,32 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
   const [errorPago, setErrorPago] = useState<string | null>(null)
   const [resultado, setResultado] = useState<PagoClienteResultado | null>(null)
 
+  // Comprobantes con el detalle de productos desplegado.
+  const [abiertos, setAbiertos] = useState<Set<number>>(new Set())
+  const detalle = useProductosComprobantes(empresaRuc)
+
+  // "Por monto": paga una cantidad y se descuenta de lo más antiguo.
+  // "Por productos": marca qué productos paga y quedan registrados como pagados.
+  const [modo, setModo] = useState<ModoCobro>(modoInicial)
+  const [productosSel, setProductosSel] = useState<Set<number>>(new Set())
+
   const moneda = cliente.tipoMoneda || 'PEN'
   const nombreCliente = cliente.clienteRznSocial || 'Cliente'
 
-  const cargar = async () => {
+  const cargar = async (refrescarProductos = false) => {
     setCargando(true)
     setErrorCarga(null)
     try {
-      const data = await fetchComprobantesCliente(empresaRuc, establecimientoAnexo, cliente.clienteClave, moneda)
+      const todos = await fetchComprobantesCliente(empresaRuc, establecimientoAnexo, cliente.clienteClave, moneda)
+      const data = soloComprobanteId ? todos.filter(c => c.comprobanteId === soloComprobanteId) : todos
       setComprobantes(data)
       setSeleccionados(new Set(data.map(c => c.comprobanteId)))
+      setProductosSel(new Set())
+      if (modo === 'productos' || data.length === 1) setAbiertos(new Set(data.map(c => c.comprobanteId)))
+      // Los productos se piden de una vez en segundo plano: al desplegar ya están.
+      // Tras un cobro fallido se vuelven a pedir: lo pagado pudo cambiar.
+      const ids = data.map(c => c.comprobanteId)
+      void (refrescarProductos ? detalle.recargar(ids) : detalle.cargar(ids))
     } catch (err) {
       setErrorCarga(err instanceof Error ? err.message : 'Error al cargar los comprobantes')
     } finally {
@@ -107,11 +132,75 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
     return a > 0 && a < c.saldo - 0.004
   })
 
-  const todosSeleccionados = comprobantes.length > 0 && seleccionados.size === comprobantes.length
+  // ── Cobro por productos ──────────────────────────────────────────────────
+  const pendientesDe = (comprobanteId: number) => productosPendientes(detalle.productos.get(comprobanteId))
+  const todosPendientes = comprobantes.flatMap(c => pendientesDe(c.comprobanteId))
+  // Por comprobante: lo que falta de los productos marcados.
+  const cobroProductos = useMemo(() => {
+    const mapa = new Map<number, number>()
+    for (const c of comprobantes) {
+      const suma = redondear(productosPendientes(detalle.productos.get(c.comprobanteId))
+        .filter(p => productosSel.has(p.detalleId))
+        .reduce((t, p) => t + p.falta, 0))
+      if (suma > 0) mapa.set(c.comprobanteId, Math.min(suma, c.saldo))
+    }
+    return mapa
+  }, [comprobantes, detalle.productos, productosSel])
+  const totalProductos = redondear([...cobroProductos.values()].reduce((t, v) => t + v, 0))
+  const cargandoProductos = comprobantes.some(c => detalle.cargando.has(c.comprobanteId))
+  // La API anterior no manda detalleId: no se puede cobrar por productos hasta actualizarla.
+  const apiSinCobroPorProductos = comprobantes.some(c =>
+    (detalle.productos.get(c.comprobanteId) ?? []).some(p => !p.detalleId))
+
+  const alternarProducto = (detalleId: number) => {
+    setProductosSel(prev => {
+      const next = new Set(prev)
+      if (next.has(detalleId)) next.delete(detalleId)
+      else next.add(detalleId)
+      return next
+    })
+  }
+  const estadoProductosDe = (comprobanteId: number) => {
+    const pend = pendientesDe(comprobanteId)
+    const marcados = pend.filter(p => productosSel.has(p.detalleId)).length
+    return { todos: pend.length > 0 && marcados === pend.length, algunos: marcados > 0 && marcados < pend.length, hay: pend.length > 0 }
+  }
+  const alternarProductosDe = (comprobanteId: number) => {
+    const pend = pendientesDe(comprobanteId)
+    const { todos } = estadoProductosDe(comprobanteId)
+    setProductosSel(prev => {
+      const next = new Set(prev)
+      pend.forEach(p => (todos ? next.delete(p.detalleId) : next.add(p.detalleId)))
+      return next
+    })
+  }
+
+  const cambiarModo = (m: ModoCobro) => {
+    setModo(m)
+    setErrorPago(null)
+    if (m === 'productos') {
+      // Para elegir productos hay que verlos: se despliegan todos.
+      void detalle.cargar(comprobantes.map(c => c.comprobanteId))
+      setAbiertos(new Set(comprobantes.map(c => c.comprobanteId)))
+    }
+  }
+
+  const porProductos = modo === 'productos'
+  const todosSeleccionados = porProductos
+    ? todosPendientes.length > 0 && todosPendientes.every(p => productosSel.has(p.detalleId))
+    : comprobantes.length > 0 && seleccionados.size === comprobantes.length
   const alternarTodos = () => {
+    if (porProductos) {
+      setProductosSel(todosSeleccionados ? new Set() : new Set(todosPendientes.map(p => p.detalleId)))
+      return
+    }
     setSeleccionados(todosSeleccionados ? new Set() : new Set(comprobantes.map(c => c.comprobanteId)))
   }
   const alternar = (id: number) => {
+    if (porProductos) {
+      alternarProductosDe(id)
+      return
+    }
     setSeleccionados(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -120,17 +209,39 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
     })
   }
 
+  const todosAbiertos = comprobantes.length > 0 && abiertos.size === comprobantes.length
+  const alternarDetalle = (id: number) => {
+    void detalle.cargar([id])
+    setAbiertos(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const alternarTodosDetalles = () => {
+    if (todosAbiertos) {
+      setAbiertos(new Set())
+    } else {
+      void detalle.cargar(comprobantes.map(c => c.comprobanteId))
+      setAbiertos(new Set(comprobantes.map(c => c.comprobanteId)))
+    }
+  }
+
   const requiereEntidad = ['TRANSFERENCIA', 'TARJETA', 'CHEQUE'].includes(medioPago)
   const pideOperacion = medioPago !== 'EFECTIVO'
 
-  const errorMonto =
-    seleccionados.size === 0 ? 'Seleccione al menos un comprobante'
+  const errorMonto = porProductos
+    ? (productosSel.size === 0 || totalProductos <= 0 ? 'Marque los productos que paga' : null)
+    : seleccionados.size === 0 ? 'Seleccione al menos un comprobante'
       : montoNum <= 0 ? 'Ingrese el monto recibido'
         : montoNum > saldoSeleccionado + 0.004 ? `El monto no puede superar ${formatMoneda(saldoSeleccionado, moneda)}`
           : null
+  const montoACobrar = porProductos ? totalProductos : montoNum
+  const productosMarcados = todosPendientes.filter(p => productosSel.has(p.detalleId))
 
   const confirmar = async () => {
-    if (errorMonto || !fechaPago || enviando) return
+    if (errorMonto || !fechaPago || enviando || (porProductos && cargandoProductos)) return
     setEnviando(true)
     setErrorPago(null)
     try {
@@ -140,8 +251,11 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
         clienteClave: cliente.clienteClave,
         tipoMoneda: moneda,
         // Solo los que reciben dinero: si el monto no alcanza, los últimos seleccionados no se tocan.
-        comprobanteIds: comprobantes.filter(c => (reparto.get(c.comprobanteId) ?? 0) > 0).map(c => c.comprobanteId),
-        montoPagado: montoNum,
+        comprobanteIds: porProductos
+          ? [...cobroProductos.keys()]
+          : comprobantes.filter(c => (reparto.get(c.comprobanteId) ?? 0) > 0).map(c => c.comprobanteId),
+        detalleIds: porProductos ? productosMarcados.map(p => p.detalleId) : undefined,
+        montoPagado: montoACobrar,
         fechaPago: new Date(fechaPago).toISOString(),
         medioPago,
         entidadFinanciera: requiereEntidad ? (entidadFinanciera.trim() || null) : null,
@@ -156,7 +270,7 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
       setErrorPago(msg)
       showToast(msg, 'error')
       // Puede que otro cajero haya cobrado algo mientras tanto: se recargan los saldos.
-      cargar()
+      cargar(true)
     } finally {
       setEnviando(false)
     }
@@ -197,7 +311,9 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <div className="bg-blue-50 rounded-xl px-4 py-2 text-center">
-              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Deuda total</p>
+              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+                {soloComprobanteId && !resultado ? 'Saldo' : 'Deuda total'}
+              </p>
               <p className="text-base font-bold text-blue-700">{formatMoneda(resultado ? resultado.saldoClienteRestante : saldoTotal, moneda)}</p>
             </div>
             <button onClick={cerrar} className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-lg transition-colors cursor-pointer">
@@ -221,6 +337,7 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
               montoTotal={resultado.montoAplicado}
               saldoClienteRestante={resultado.saldoClienteRestante}
               pagos={pagosResultado}
+              productosPagados={resultado.productosPagados?.length ? resultado.productosPagados : undefined}
               onCerrar={() => onClose(true)}
             />
           </div>
@@ -232,13 +349,24 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
             <div className="flex-1 min-w-0 flex flex-col lg:overflow-hidden border-b lg:border-b-0 lg:border-r border-gray-100">
               <div className="px-6 py-3 flex items-center justify-between shrink-0">
                 <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 cursor-pointer select-none">
-                  <input type="checkbox" checked={todosSeleccionados} onChange={alternarTodos} disabled={cargando || comprobantes.length === 0}
+                  <input type="checkbox" checked={todosSeleccionados} onChange={alternarTodos}
+                    disabled={cargando || comprobantes.length === 0 || (porProductos && todosPendientes.length === 0)}
                     className="w-4 h-4 accent-blue-600 cursor-pointer" />
-                  Seleccionar todos
+                  {porProductos ? 'Marcar todos los productos' : 'Seleccionar todos'}
                 </label>
-                <span className="text-xs text-gray-400">
-                  {seleccionados.size} de {comprobantes.length} comprobante(s) · más antiguos primero
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-400">
+                    {porProductos
+                      ? `${productosMarcados.length} de ${todosPendientes.length} producto(s) pendientes`
+                      : `${seleccionados.size} de ${comprobantes.length} comprobante(s) · más antiguos primero`}
+                  </span>
+                  {comprobantes.length > 1 && !porProductos && (
+                    <button type="button" onClick={alternarTodosDetalles}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:underline whitespace-nowrap">
+                      <ListTree size={12} /> {todosAbiertos ? 'Ocultar productos' : 'Ver todos los productos'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="lg:flex-1 lg:overflow-y-auto px-3 pb-3">
@@ -250,7 +378,7 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
                 ) : errorCarga ? (
                   <div className="py-16 text-center space-y-3">
                     <p className="text-sm text-red-500">{errorCarga}</p>
-                    <button onClick={cargar} className="text-xs font-semibold text-blue-600 hover:underline">Reintentar</button>
+                    <button onClick={() => cargar()} className="text-xs font-semibold text-blue-600 hover:underline">Reintentar</button>
                   </div>
                 ) : comprobantes.length === 0 ? (
                   <div className="py-16 text-center text-sm text-gray-400">Este cliente no tiene comprobantes pendientes.</div>
@@ -268,20 +396,33 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {comprobantes.map(c => {
-                        const marcado = seleccionados.has(c.comprobanteId)
-                        const aplicado = reparto.get(c.comprobanteId) ?? 0
+                        const estadoProd = estadoProductosDe(c.comprobanteId)
+                        const marcado = porProductos ? estadoProd.todos || estadoProd.algunos : seleccionados.has(c.comprobanteId)
+                        const aplicado = porProductos ? (cobroProductos.get(c.comprobanteId) ?? 0) : (reparto.get(c.comprobanteId) ?? 0)
                         const dias = c.fechaVencimientoProxima ? getDiasVencida(c.fechaVencimientoProxima) : 0
                         const completo = aplicado > 0 && aplicado >= c.saldo - 0.004
+                        const abierto = abiertos.has(c.comprobanteId)
+                        // En "por productos" una nota sin nada marcado no se ve apagada: ahí se eligen.
+                        const apagado = !marcado && !porProductos
                         return (
-                          <tr key={c.comprobanteId} onClick={() => alternar(c.comprobanteId)}
-                            className={cn('cursor-pointer transition-colors', marcado ? 'hover:bg-blue-50/40' : 'opacity-50 hover:opacity-80')}>
+                          <React.Fragment key={c.comprobanteId}>
+                          <tr onClick={() => alternar(c.comprobanteId)}
+                            className={cn('cursor-pointer transition-colors align-top', apagado ? 'opacity-50 hover:opacity-80' : 'hover:bg-blue-50/40', abierto && 'bg-blue-50/30')}>
                             <td className="px-2 py-2.5">
-                              <input type="checkbox" checked={marcado} onChange={() => alternar(c.comprobanteId)} onClick={e => e.stopPropagation()}
+                              <input type="checkbox" checked={porProductos ? estadoProd.todos : marcado}
+                                ref={el => { if (el) el.indeterminate = porProductos && estadoProd.algunos }}
+                                disabled={porProductos && !estadoProd.hay}
+                                onChange={() => alternar(c.comprobanteId)} onClick={e => e.stopPropagation()}
                                 className="w-4 h-4 accent-blue-600 cursor-pointer" />
                             </td>
                             <td className="px-2 py-2.5">
                               <p className="font-semibold text-gray-900">{c.numeroCompleto}</p>
                               <p className="text-[11px] text-gray-400">{tipoComprobanteLabel(c.tipoComprobante)} · {formatFecha(c.fechaEmision)}</p>
+                              <BotonVerProductos
+                                abierto={abierto}
+                                productos={detalle.productos.get(c.comprobanteId)}
+                                onClick={() => alternarDetalle(c.comprobanteId)}
+                              />
                             </td>
                             <td className="px-2 py-2.5 whitespace-nowrap">
                               <p className="text-gray-600 flex items-center gap-1"><Calendar size={11} className="text-gray-400" /> {formatFecha(c.fechaVencimientoProxima)}</p>
@@ -313,6 +454,25 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
                               )}
                             </td>
                           </tr>
+                          {abierto && (
+                            <tr className="bg-blue-50/30">
+                              <td></td>
+                              <td colSpan={5} className="px-2 pb-3 pt-0">
+                                <DetalleProductosComprobante
+                                  productos={detalle.productos.get(c.comprobanteId)}
+                                  cargando={detalle.cargando.has(c.comprobanteId)}
+                                  error={detalle.fallidos.has(c.comprobanteId)}
+                                  onReintentar={() => void detalle.cargar([c.comprobanteId])}
+                                  moneda={moneda}
+                                  importeTotal={c.importeTotal}
+                                  saldo={c.saldo}
+                                  seleccion={porProductos ? productosSel : undefined}
+                                  onAlternar={porProductos ? alternarProducto : undefined}
+                                />
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         )
                       })}
                     </tbody>
@@ -324,17 +484,69 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
             {/* Panel de cobro */}
             <div className="w-full lg:w-96 shrink-0 flex flex-col lg:overflow-y-auto">
               <div className="px-6 py-4 space-y-3.5 flex-1">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">¿Cómo paga?</p>
+                  <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1">
+                    {([
+                      ['monto', 'Un monto', Banknote],
+                      ['productos', 'Por productos', ShoppingBasket],
+                    ] as const).map(([m, etiqueta, Icono]) => (
+                      <button key={m} type="button" onClick={() => cambiarModo(m)} disabled={enviando}
+                        className={cn('flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg transition-colors',
+                          modo === m ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+                        <Icono size={14} /> {etiqueta}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-gray-500">
+                    {porProductos
+                      ? 'Marca a la izquierda los productos que paga; quedan como pagados.'
+                      : 'Escribe cuánto paga; se descuenta de lo más antiguo.'}
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-center">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Seleccionado</p>
-                    <p className="text-sm font-bold text-gray-900">{formatMoneda(saldoSeleccionado, moneda)}</p>
+                    <p className="text-sm font-bold text-gray-900">{formatMoneda(porProductos ? totalProductos : saldoSeleccionado, moneda)}</p>
                   </div>
                   <div className="bg-blue-50 rounded-xl px-3 py-2.5 text-center">
                     <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-0.5">Queda debiendo</p>
-                    <p className="text-sm font-bold text-blue-700">{formatMoneda(Math.max(0, saldoTotal - montoNum), moneda)}</p>
+                    <p className="text-sm font-bold text-blue-700">{formatMoneda(Math.max(0, saldoTotal - montoACobrar), moneda)}</p>
                   </div>
                 </div>
 
+                {porProductos ? (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                      A cobrar <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="w-full px-4 py-2.5 bg-blue-50/60 border border-blue-100 rounded-xl text-base font-bold text-gray-900">
+                      {formatMoneda(totalProductos, moneda)}
+                    </div>
+                    {cargandoProductos ? (
+                      <p className="text-[11px] text-gray-400 flex items-center gap-1.5"><RefreshCw size={11} className="animate-spin" /> Cargando productos...</p>
+                    ) : apiSinCobroPorProductos ? (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                        El servidor aún no tiene el cobro por productos. Hay que actualizar (reiniciar) la API.
+                      </p>
+                    ) : errorMonto ? (
+                      comprobantes.length > 0 && <p className="text-xs text-rose-500">{errorMonto}</p>
+                    ) : (
+                      <div className="text-[11px] text-gray-500 space-y-0.5">
+                        <p>Quedan pagados <b>{productosMarcados.length}</b> producto(s):</p>
+                        <ul className="max-h-24 overflow-y-auto pl-1">
+                          {productosMarcados.map(p => (
+                            <li key={p.detalleId} className="flex justify-between gap-2">
+                              <span className="truncate">{p.descripcion || 'Producto'}</span>
+                              <span className="font-semibold text-gray-700 whitespace-nowrap">{formatMoneda(p.falta, moneda)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
@@ -362,6 +574,7 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
                     </p>
                   )}
                 </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="space-y-1.5">
@@ -413,12 +626,12 @@ export const ModalCobrarCliente = ({ cliente, empresaRuc, establecimientoAnexo, 
               </div>
 
               <div className="px-6 pb-5 pt-3 border-t border-gray-100 shrink-0">
-                <button onClick={confirmar} disabled={!!errorMonto || !fechaPago || enviando || cargando}
+                <button onClick={confirmar} disabled={!!errorMonto || !fechaPago || enviando || cargando || (porProductos && cargandoProductos)}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white text-sm font-bold rounded-xl bg-blue-600 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   {enviando
                     ? <span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
                     : <Wallet size={16} />}
-                  {enviando ? 'Registrando...' : `Cobrar ${formatMoneda(montoNum, moneda)}`}
+                  {enviando ? 'Registrando...' : `Cobrar ${formatMoneda(montoACobrar, moneda)}`}
                 </button>
               </div>
             </div>

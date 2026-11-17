@@ -1,4 +1,6 @@
 "use client";
+import { useEmisionEmbebida } from "../emisionEmbebida";
+import { registrarIngresoEmitido } from "../../gastos/gestionGastos/ingresoPorEmitir";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
@@ -150,7 +152,9 @@ function BoletaContent() {
   // ── isSuperAdmin ─────────────────────────────────────────────
   const isSuperAdmin = user?.rol === "superadmin";
   const IGV_DEFAULT = config?.igv ? parseFloat(config.igv) : (user?.igv ?? 18);
-  const isCajaAutopago = !!(config?.isStock && config?.isCajaAutopago);
+  // Dentro de otro módulo (facturar un ingreso) siempre se usa el formulario clásico.
+  const emisionEmbebida = useEmisionEmbebida();
+  const isCajaAutopago = !emisionEmbebida && !!(config?.isStock && config?.isCajaAutopago);
 
   const { empresa } = useEmpresaEmisor();
   const { cliente, loadingCliente, errorCliente, buscarCliente } =
@@ -336,7 +340,7 @@ function BoletaContent() {
     fechaCache,
   } = useProductosSucursal(
     isSuperAdmin ? sucursal?.sucursalId : undefined,
-    !(config?.isStock && config?.isCajaAutopago),
+    !isCajaAutopago,
   );
 
   const sinSucursal = isSuperAdmin && !sucursal;
@@ -352,6 +356,7 @@ function BoletaContent() {
   const [tipoDoc, setTipoDoc] = useState("01");
   const [busqueda, setBusqueda] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const clienteCompartidoRef = useRef(false);
   const [clienteVarios, setClienteVarios] = useState(false);
   const [nombreEditable, setNombreEditable] = useState(false);
 
@@ -916,9 +921,19 @@ function BoletaContent() {
       setShowDropdownProducto(mapped.map(() => false));
     }
     if (data.cliente) {
-      setBoleta((prev) => ({ ...prev, cliente: data.cliente }));
-      if (data.cliente.numeroDocumento)
-        setBusqueda(data.cliente.numeroDocumento);
+      const doc = String(data.cliente.numeroDocumento ?? "");
+      if (!doc || /^0+$/.test(doc)) {
+        // Clientes varios: lo arma el efecto de la casilla.
+        setClienteVarios(true);
+      } else {
+        // Cliente con documento: que el efecto de "Clientes Varios" no lo borre al montar.
+        clienteCompartidoRef.current = true;
+        setClienteVarios(false);
+        if (data.cliente.tipoDocumento === "01" || data.cliente.tipoDocumento === "04")
+          setTipoDoc(data.cliente.tipoDocumento);
+        setBoleta((prev) => ({ ...prev, cliente: data.cliente }));
+        setBusqueda(doc);
+      }
     }
   }, []);
 
@@ -998,7 +1013,7 @@ function BoletaContent() {
     // así que no tiene sentido re-renderizar todo el árbol cada segundo — eso
     // le robaba el foco a los inputs de Caja Autopago (input desmontado/vuelto
     // a montar en cada tick por el re-render masivo de este componente).
-    if (fechaEmisionEditada || (config?.isStock && config?.isCajaAutopago)) {
+    if (fechaEmisionEditada || isCajaAutopago) {
       if (intervaloRef.current) clearInterval(intervaloRef.current);
       return;
     }
@@ -1008,10 +1023,16 @@ function BoletaContent() {
     return () => {
       if (intervaloRef.current) clearInterval(intervaloRef.current);
     };
-  }, [fechaEmisionEditada, config?.isStock, config?.isCajaAutopago]);
+  }, [fechaEmisionEditada, isCajaAutopago]);
 
   // ── Clientes varios efecto ───────────────────────────────────
   useEffect(() => {
+    // Llegó un cliente precargado (otra pestaña o un ingreso por emitir): no tocarlo hasta que
+    // la casilla quede desmarcada; desde ahí la casilla vuelve a funcionar normal.
+    if (clienteCompartidoRef.current) {
+      if (!clienteVarios) clienteCompartidoRef.current = false;
+      return;
+    }
     if (clienteVarios) {
       setTipoDoc("00");
       setBoleta((prev) => ({
@@ -1585,7 +1606,7 @@ function BoletaContent() {
   // su propio escáner. Desactivamos el listener global de aquí para que una sola
   // lectura no dispare dos toasts (y no sume cantidades por duplicado).
   useEscanerGlobal(onScanCodigo, {
-    enabled: !(config?.isStock && config?.isCajaAutopago),
+    enabled: !isCajaAutopago,
   });
 
   // Stock real de un producto: si es paquete, el del producto base (su propio stock ya no se usa).
@@ -2368,6 +2389,19 @@ function BoletaContent() {
       try {
         const resBoleta = await generarXml(boletaFinal, accessToken);
         comprobanteId = resBoleta.comprobanteId;
+        // Si esta venta factura un ingreso de "Gastos e ingresos", lo registra vinculado.
+        registrarIngresoEmitido({
+          comprobanteId,
+          tipoComprobante: "03",
+          serie: resBoleta.serie ?? boletaFinal.serie,
+          correlativo: resBoleta.correlativo ?? boletaFinal.correlativo,
+          cliente: boletaFinal.cliente,
+          importeTotal: boletaFinal.importeTotal,
+          tipoMoneda: boletaFinal.tipoMoneda,
+          pagos: boletaFinal.pagos,
+          accessToken,
+          ruc: user?.ruc,
+        }).then((m) => { if (m) showToast(m.texto, m.tipo); });
         // Sin reserva (no se pudo apartar el número), el ticket sale ahora con el número real.
         if (!reserva) {
           impresoRapidoRef.current = lanzarImpresionRapida(boletaFinal, "03", resBoleta.serie, resBoleta.correlativo);
@@ -2866,7 +2900,7 @@ function BoletaContent() {
   };
 
   // ── Render ───────────────────────────────────────────────────
-  if (config?.isStock && config?.isCajaAutopago) {
+  if (isCajaAutopago) {
     return <CajaAutopago />;
   }
 

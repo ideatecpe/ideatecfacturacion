@@ -99,10 +99,10 @@ export function ControlCaja({ children, barraConMargen = false }: { children: Re
     }
   };
 
-  const onRetirar = async (monto: number, motivo: string) => {
+  const onRetirar = async (monto: number, motivo: string, gastoCategoriaId?: number | null) => {
     if (!estado?.turnoActual) return;
-    await registrarRetiro(estado.turnoActual.cajaTurnoId, monto, motivo);
-    showToast("Retiro registrado correctamente", "success");
+    await registrarRetiro(estado.turnoActual.cajaTurnoId, monto, motivo, gastoCategoriaId);
+    showToast(gastoCategoriaId ? "Retiro registrado y anotado en Gastos" : "Retiro registrado correctamente", "success");
   };
 
   const onCuadrar = async (efectivoContado: number, observaciones?: string) => {

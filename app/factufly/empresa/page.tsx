@@ -95,6 +95,7 @@ interface Configuracion {
   administraCaja:    boolean;
   usaLotePorPeps:    boolean;
   impresionRapida?:  boolean | null;
+  usaGastos?:        boolean | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1481,6 +1482,7 @@ export default function ConfiguracionPage() {
                     { key: "useNotaVenta"        as const, label: "Nota de Venta",          desc: "Habilitar emisión de notas de venta" },
                     { key: "usaSire"             as const, label: "SIRE (Registro de Ventas)", desc: "Módulo de cierre mensual del RVIE ante SUNAT" },
                     { key: "administraCaja"      as const, label: "Administrar apertura/cierres de caja", desc: "Exige aperturar caja para vender y habilita el cuadre por turnos" },
+                    { key: "usaGastos"           as const, label: "Gastos e ingresos",      desc: "Gastos e ingresos del negocio, programados, presupuestos y resumen del mes" },
                   ] as { key: keyof Configuracion; label: string; desc: string }[]).map(({ key, label, desc }) => (
                     <div key={key} className="flex items-center justify-between gap-4 px-4 py-3 bg-white">
                       <div>

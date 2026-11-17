@@ -66,6 +66,8 @@ function useTipoCambio() {
   return tc;
 }
 
+const BADGE_CLASE = "bg-[#f15050] text-white text-[10px] font-bold leading-none rounded-full flex items-center justify-center";
+
 export const Sidebar = ({
   isOpen,
   activeView,
@@ -83,20 +85,10 @@ export const Sidebar = ({
     return path === "operaciones/boleta-facturaelectronica";
   };
 
-  // Auto-expande el grupo activo cuando se navega directo por URL
-  useEffect(() => {
-    const activeParentId = menuItems.find(
-      (m) => m.children?.length && m.id === activeView,
-    )?.id;
-    if (activeParentId) {
-      setExpandedGroups((prev) =>
-        prev[activeParentId] ? prev : { ...prev, [activeParentId]: true },
-      );
-    }
-    // Solo depende de activeView: menuItems se recrea en cada render del
-    // layout padre y no debe disparar este efecto por sí solo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView]);
+  // El grupo de la página actual se muestra abierto mientras el usuario no lo cierre. Es un valor
+  // derivado (no un efecto) para que también funcione con los grupos que aparecen después de cargar
+  // la configuración, como Gastos e ingresos.
+  const grupoAbierto = (id: string) => expandedGroups[id] ?? id === activeView;
 
   const hoy = new Date();
   const fechaLabel = hoy.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
@@ -126,7 +118,9 @@ export const Sidebar = ({
           const hasChildren = !!item.children?.length;
           const groupActive = activeView === item.id;
           const active = groupActive && !hasChildren;
-          const isExpanded = hasChildren && (expandedGroups[item.id] ?? false);
+          const isExpanded = hasChildren && grupoAbierto(item.id);
+          // Avisos de los submenús (p. ej. ingresos por emitir): se ven en el grupo si está cerrado.
+          const badgeGrupo = item.children?.reduce((t, c) => t + (c.badge ?? 0), 0) ?? 0;
 
           if (!hasChildren) {
             const allowed = isOnline || isOfflineAllowed(item.id);
@@ -177,7 +171,7 @@ export const Sidebar = ({
             <div key={item.id} className="relative group">
               <button
                 onClick={() =>
-                  setExpandedGroups((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+                  setExpandedGroups((prev) => ({ ...prev, [item.id]: !grupoAbierto(item.id) }))
                 }
                 className={cn(
                   "relative w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-150",
@@ -195,12 +189,20 @@ export const Sidebar = ({
                 )}
 
                 <item.icon className={cn("w-4.5 h-4.5 shrink-0", groupActive ? "text-white" : "text-white/50 group-hover:text-white/90")} />
+                {badgeGrupo > 0 && !isOpen && (
+                  <span className={cn("absolute top-0.5 right-1.5 min-w-4 h-4 px-1", BADGE_CLASE)}>
+                    {badgeGrupo}
+                  </span>
+                )}
 
                 {isOpen && (
                   <>
                     <span className="text-[13px] font-medium truncate flex-1 text-left">
                       {item.label}
                     </span>
+                    {badgeGrupo > 0 && !isExpanded && (
+                      <span className={cn("min-w-4.5 h-4.5 px-1 shrink-0", BADGE_CLASE)}>{badgeGrupo}</span>
+                    )}
                     <ChevronRight
                       className={cn(
                         "w-3.5 h-3.5 shrink-0 transition-transform duration-150",
@@ -230,6 +232,11 @@ export const Sidebar = ({
                         )}
                       >
                         <span className="truncate">{child.label}</span>
+                        {!!child.badge && (
+                          <span className={cn("ml-auto min-w-4.5 h-4.5 px-1 shrink-0", BADGE_CLASE)} title="Ingresos programados por emitir">
+                            {child.badge}
+                          </span>
+                        )}
                         {!childAllowed && <Lock className="w-3 h-3 shrink-0 text-white/40 ml-auto" />}
                       </button>
                     );
@@ -258,6 +265,9 @@ export const Sidebar = ({
                         )}
                       >
                         <span>{child.label}</span>
+                        {!!child.badge && (
+                          <span className={cn("min-w-4.5 h-4.5 px-1 shrink-0", BADGE_CLASE)}>{child.badge}</span>
+                        )}
                         {!childAllowed && <Lock className="w-3 h-3 shrink-0 text-white/40" />}
                       </button>
                     );

@@ -70,6 +70,8 @@ export interface DatosConstancia {
   pagos: PagoPorComprobante[]
   /** Productos de cada comprobante pagado; vacío si no se pidió el detalle. */
   productos: ProductoComprobante[]
+  /** Cobro por productos: `productos` son solo los que se pagaron, no todo el comprobante. */
+  soloProductosPagados?: boolean
 }
 
 const esc = (v: string | null | undefined) =>
@@ -257,8 +259,8 @@ export async function generarPdfConstancia(d: DatosConstancia): Promise<Blob> {
           formatMoneda(it.precioVenta, d.tipoMoneda),
           formatMoneda(it.total, d.tipoMoneda),
         ]),
-        foot: [[{ content: 'Total del comprobante', colSpan: 3, styles: { halign: 'right' } },
-          formatMoneda(productos.reduce((t, it) => t + it.total, 0), d.tipoMoneda)]],
+        foot: [[{ content: d.soloProductosPagados ? 'Pagado en estos productos' : 'Total del comprobante', colSpan: 3, styles: { halign: 'right' } },
+          formatMoneda(d.soloProductosPagados ? p.montoAplicado : productos.reduce((t, it) => t + it.total, 0), d.tipoMoneda)]],
         styles: { fontSize: 8.5, cellPadding: 1.6 },
         headStyles: { fillColor: [232, 238, 248], textColor: 30, fontStyle: 'bold' },
         footStyles: { fillColor: [248, 250, 252], textColor: 30, fontStyle: 'bold' },

@@ -29,6 +29,8 @@ export interface ResultadoPagoProps {
   montoTotal: number
   saldoClienteRestante: number
   pagos: PagoPorComprobante[]
+  /** Cobro por productos: la constancia lista solo estas líneas (detalleId). */
+  productosPagados?: number[]
   /** Cierra el modal: al enviar por WhatsApp se cierra al instante y el envío sigue en segundo plano. */
   onCerrar?: () => void
 }
@@ -87,7 +89,9 @@ export const ResultadoPago = (props: ResultadoPagoProps) => {
     if (!incluirProductos || pagos.length === 0) return []
     if (productosCache.current) return productosCache.current
     try {
-      productosCache.current = await fetchProductos(empresaRuc, pagos.map(p => p.comprobanteId))
+      const todos = await fetchProductos(empresaRuc, pagos.map(p => p.comprobanteId))
+      const elegidos = props.productosPagados ? new Set(props.productosPagados) : null
+      productosCache.current = elegidos ? todos.filter(p => elegidos.has(p.detalleId)) : todos
       return productosCache.current
     } catch {
       showToast('No se pudo obtener el detalle de productos; la constancia sale sin él', 'error')
@@ -114,6 +118,7 @@ export const ResultadoPago = (props: ResultadoPagoProps) => {
       saldoClienteRestante,
       pagos,
       productos,
+      soloProductosPagados: !!props.productosPagados,
     }
   }
 

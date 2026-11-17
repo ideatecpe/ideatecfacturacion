@@ -19,12 +19,14 @@ import {
   WifiOff,
   RefreshCw,
   Trash2,
+  FileCheck,
 } from "lucide-react";
 import { View } from "@/app/types";
 import { signOut } from "next-auth/react";
 import { useAuth } from "@/context/AuthContext";
 import { DateChip } from "./DateChip";
 import { useNotifications, YapeAlert } from "@/hooks/useNotifications";
+import { useCantidadPorEmitir } from "@/app/factufly/gastos/gestionGastos/avisoPorEmitir";
 import { useOfflineSales } from "@/app/components/offline/OfflineSalesProvider";
 import { useToast } from "@/app/components/ui/Toast";
 import { useRouter } from "next/navigation";
@@ -221,6 +223,10 @@ export const Topbar = ({
   });
 
   const isBeta = user?.environment === "beta";
+  // Ingresos programados esperando su comprobante: siguen en la campanita hasta emitirlos o
+  // descartarlos (no se "leen" al abrirla, como los avisos de SUNAT).
+  const porEmitir = useCantidadPorEmitir();
+  const totalCampana = unseenCount + porEmitir;
 
   const logoSrc = user?.logoBase64
     ? `data:image/png;base64,${user.logoBase64}`
@@ -512,10 +518,10 @@ export const Topbar = ({
                       : "group-hover:text-brand-blue"
                   }`}
                 />
-                {unseenCount > 0 && (
+                {totalCampana > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 min-w-4.5 h-4.5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center px-1">
                     <span className="text-[10px] font-bold text-white leading-none">
-                      {unseenCount}
+                      {totalCampana}
                     </span>
                   </span>
                 )}
@@ -540,6 +546,36 @@ export const Topbar = ({
                   </div>
 
                   <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+                    {/* Ingresos programados por emitir (Gastos e ingresos) */}
+                    {porEmitir > 0 && (
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNotifOpen(false);
+                            irA("/factufly/gastos/todos");
+                          }}
+                          className="w-full flex items-start gap-3 px-4 py-3 text-left bg-sky-50/60 hover:bg-sky-50"
+                        >
+                          <div className="mt-0.5 p-1.5 bg-white rounded-lg border border-gray-100 shadow-sm shrink-0">
+                            <FileCheck className="w-4 h-4 text-brand-blue" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800">
+                              {porEmitir === 1
+                                ? "1 ingreso programado por emitir"
+                                : `${porEmitir} ingresos programados por emitir`}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Ya llegó su fecha. Emite el comprobante en Movimientos.
+                            </p>
+                            <p className="text-[10px] font-semibold text-brand-blue mt-1">
+                              Ir a Movimientos →
+                            </p>
+                          </div>
+                        </button>
+                      </li>
+                    )}
                     {/* Últimos documentos, sin importar el día */}
                     {recentDocs.map((doc) => {
                       const isPendiente = doc.estadoSunat === "PENDIENTE";
@@ -627,6 +663,7 @@ export const Topbar = ({
 
                     {/* Sin notificaciones */}
                     {recentDocs.length === 0 &&
+                      porEmitir === 0 &&
                       !certInfo?.isExpiringSoon &&
                       !certInfo?.isExpired && (
                         <li className="px-4 py-6 text-center text-sm text-gray-400">

@@ -1,12 +1,13 @@
 import { LucideIcon } from 'lucide-react';
 
-export type View = 'dashboard' | 'emision' | 'operaciones' | 'clientes' | 'trabajadores' | 'productos' | 'compras' | 'reportes' | 'sunat' | 'empresa' | 'sucursales' | 'usuarios' | 'comprobantes' | 'guiasremision' | 'cuentasporcobrar' | 'deudasporcobrar' | 'carga-comprobantes' | 'sire' | 'caja' | 'herramientas';
+export type View = 'dashboard' | 'emision' | 'operaciones' | 'clientes' | 'trabajadores' | 'productos' | 'compras' | 'reportes' | 'sunat' | 'empresa' | 'sucursales' | 'usuarios' | 'comprobantes' | 'guiasremision' | 'cuentasporcobrar' | 'deudasporcobrar' | 'carga-comprobantes' | 'sire' | 'caja' | 'gastos' | 'herramientas';
 
 export interface MenuItem {
   id: View;
   label: string;
   icon: LucideIcon;
-  children?: { id: string; label: string }[];
+  /** badge: número a la derecha del submenú (p. ej. ingresos por emitir). */
+  children?: { id: string; label: string; badge?: number }[];
 }
 
 export interface SalesData {

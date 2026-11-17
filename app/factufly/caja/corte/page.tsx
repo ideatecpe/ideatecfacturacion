@@ -36,6 +36,8 @@ interface CorteDiario {
   dineroInicial: number;
   ventasEfectivo: number;
   totalRetiros: number;
+  /** Efectivo que entró al cajón sin ser venta (ingresos de Gastos e ingresos). */
+  totalIngresos?: number;
   efectivoEsperado: number;
   ventasTotales: number;
   cantidadComprobantes: number;
@@ -205,6 +207,9 @@ export default function CajaPage() {
           <Seccion titulo="Dinero en Caja" icono={Banknote} color="blue">
             <Linea etiqueta="Ventas en efectivo" prefijo="+" valor={soles(corte.ventasEfectivo)} positivo />
             <Linea etiqueta="Dinero inicial" prefijo="+" valor={soles(corte.dineroInicial)} positivo />
+            {(corte.totalIngresos ?? 0) > 0 && (
+              <Linea etiqueta="Ingresos de efectivo" prefijo="+" valor={soles(corte.totalIngresos ?? 0)} positivo />
+            )}
             <Linea etiqueta="Retiros de caja" prefijo="−" valor={soles(corte.totalRetiros)} negativo={corte.totalRetiros > 0} />
             <Linea etiqueta="Total" valor={soles(corte.efectivoEsperado)} destacado />
           </Seccion>
@@ -235,9 +240,9 @@ export default function CajaPage() {
             ))}
           </Seccion>
 
-          <Seccion titulo="Retiro de caja" icono={ArrowDownCircle} color="rose">
+          <Seccion titulo="Retiros e ingresos de caja" icono={ArrowDownCircle} color="rose">
             {corte.retiros.length === 0 && (
-              <EstadoVacio texto="Sin retiros registrados este día." />
+              <EstadoVacio texto="Sin retiros ni ingresos registrados este día." />
             )}
             {corte.retiros.map((r) => (
               <div key={r.cajaRetiroId} className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50 last:border-0">
@@ -245,8 +250,8 @@ export default function CajaPage() {
                   <p className="text-xs text-gray-700 truncate font-medium">{r.motivo}</p>
                   <p className="text-[11px] text-gray-400">{r.nombreUsuario ?? "—"} · {horaCorta(r.fechaRetiro)}</p>
                 </div>
-                <span className="text-xs font-bold text-rose-600 tabular-nums shrink-0">
-                  −{soles(r.monto)}
+                <span className={`text-xs font-bold tabular-nums shrink-0 ${r.tipo === "INGRESO" ? "text-emerald-600" : "text-rose-600"}`}>
+                  {r.tipo === "INGRESO" ? "+" : "−"}{soles(r.monto)}
                 </span>
               </div>
             ))}

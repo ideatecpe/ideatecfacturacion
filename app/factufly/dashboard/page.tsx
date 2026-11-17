@@ -48,6 +48,7 @@ import { DropdownSucursal } from "@/app/components/ui/DropdownSucursal";
 import { NotificacionesSunatModal } from "@/app/components/modalnotificacionesSunat/NotificacionesSunatModal";
 import { ModalDashboardReport } from "@/app/components/modalDashboardReport/ModalDashboardReport";
 import { useDashboardReport } from "@/app/components/modalDashboardReport/useDashboardReport";
+import { TarjetaNovedad } from "@/app/components/novedades/TarjetaNovedad";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -511,6 +512,9 @@ export default function DashboardPage() {
           }
         />
       )}
+
+      {/* Novedades del sistema (p. ej. un módulo nuevo para activar) */}
+      <TarjetaNovedad />
 
       {/* ─── Header ─────────────────────────────────────────────────── */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
