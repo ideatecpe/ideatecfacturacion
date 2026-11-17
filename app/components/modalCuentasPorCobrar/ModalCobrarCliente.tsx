@@ -176,12 +176,11 @@ export const ModalCobrarCliente = ({
     [comprobantes, seleccionados],
   )
 
-  // Mientras el cajero no escriba otro monto, se cobra todo lo seleccionado.
-  useEffect(() => {
-    if (!montoEditado) setMonto(saldoSeleccionado > 0 ? saldoSeleccionado.toFixed(2) : '')
-  }, [saldoSeleccionado, montoEditado])
-
-  const montoNum = redondear(parseFloat(monto) || 0)
+  // Mientras el cajero no escriba otro monto, se cobra todo lo seleccionado. Se calcula
+  // al pintar (no con un efecto): con el efecto, al marcar o desmarcar una nota había un
+  // cuadro con el monto anterior, salía el error "no puede superar" y el modal parpadeaba.
+  const montoTexto = montoEditado ? monto : (saldoSeleccionado > 0 ? saldoSeleccionado.toFixed(2) : '')
+  const montoNum = redondear(parseFloat(montoTexto) || 0)
 
   // Vista previa del reparto: en el orden de la lista (por vencimiento), igual que el backend.
   const reparto = useMemo(() => {
@@ -715,17 +714,17 @@ export const ModalCobrarCliente = ({
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                       Monto recibido <span className="text-rose-500">*</span>
                     </label>
-                    <button type="button" onClick={() => { setMontoEditado(false); setMonto(saldoSeleccionado.toFixed(2)) }}
+                    <button type="button" onClick={() => setMontoEditado(false)}
                       className="text-[11px] font-semibold text-blue-600 hover:underline">
                       Cobrar todo
                     </button>
                   </div>
                   <div className="relative">
                     <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">{moneda === 'USD' ? '$' : 'S/'}</span>
-                    <input type="number" inputMode="decimal" min={0} step="0.01" value={monto}
+                    <input type="number" inputMode="decimal" min={0} step="0.01" value={montoTexto}
                       onChange={e => { setMontoEditado(true); setMonto(e.target.value) }}
                       className={cn('w-full pl-10 pr-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-brand-blue/50 text-base font-bold',
-                        errorMonto && monto !== '' ? 'border-rose-400' : 'border-gray-200')} />
+                        errorMonto && montoTexto !== '' ? 'border-rose-400' : 'border-gray-200')} />
                   </div>
                   {errorMonto && (comprobantes.length > 0) && <p className="text-xs text-rose-500">{errorMonto}</p>}
                   {!errorMonto && desglose}
