@@ -1,29 +1,23 @@
 "use client";
 import { Fragment, useState, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Search, X, Filter, ChevronDown, RefreshCw,
-  DollarSign, Calendar, Check, CreditCard,
+  Calendar, Check, CreditCard,
   AlertTriangle,
-  FileSpreadsheet, Users, FileText, Wallet, Package, ShoppingBasket
+  FileSpreadsheet, Users, FileText, Wallet
 } from 'lucide-react';
 import { cn } from '@/app/utils/cn';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/app/components/ui/Toast';
 import { useCuentasPorCobrar } from './gestionCuentasPorCobrar/UseCuentasPorCobrar';
-import { useCuotasComprobante } from './gestionCuentasPorCobrar/UseCuotasComprobante';
-import { usePagarCuota } from './gestionCuentasPorCobrar/UsePagarCuota';
-import { CuentaPorCobrar, Cuota, PagarCuotaPayload, ResumenClienteCuenta } from './gestionCuentasPorCobrar/CuentasPorCobrar';
+import { CuentaPorCobrar, ResumenClienteCuenta } from './gestionCuentasPorCobrar/CuentasPorCobrar';
 import { useCobroCliente } from './gestionCuentasPorCobrar/UseCobroCliente';
 import { ModalCobrarCliente, type ModoCobro } from '@/app/components/modalCuentasPorCobrar/ModalCobrarCliente';
-import { ModalPagoRegistrado } from '@/app/components/modalCuentasPorCobrar/ModalPagoRegistrado';
-import type { ResultadoPagoProps } from '@/app/components/modalCuentasPorCobrar/ResultadoPago';
-import { formatFecha, formatMoneda, tipoComprobanteLabel, getEstadoCuota, ESTADO_CUOTA_COLORS, getCuotaVencida, getDiasVencida } from './gestionCuentasPorCobrar/helpers';
-import { ModalPagarCuota } from '@/app/components/modalCuentasPorCobrar/ModalPagarCuota';
+import { formatFecha, formatMoneda, tipoComprobanteLabel, getDiasVencida } from './gestionCuentasPorCobrar/helpers';
 import { useSucursalRuc } from '../operaciones/boleta/gestionBoletas/useSucursalRuc';
 import { useSucursal } from '../operaciones/boleta/gestionBoletas/useSucursal';
 import { ModalReporteCuentasPorCobrar } from '@/app/components/modalCuentasPorCobrar/ModalReporteCuentasPorCobrar';
-import { BotonVerProductos, DetalleProductosComprobante, productosPendientes } from '@/app/components/modalCuentasPorCobrar/DetalleProductosComprobante';
+import { BotonVerProductos, DetalleProductosComprobante } from '@/app/components/modalCuentasPorCobrar/DetalleProductosComprobante';
 import { useProductosComprobantes } from './gestionCuentasPorCobrar/UseProductosComprobantes';
 
 const TIPO_BASE = ['Todos', 'Factura', 'Boleta'];
@@ -67,6 +61,36 @@ const claveCliente = (numDoc: string | null, nombre: string | null) => {
 const saldoComprobante = (c: CuentaPorCobrar) =>
   c.saldoPendiente ?? ((!c.montoCredito || c.montoCredito === 0) ? c.importeTotal : c.montoCredito);
 
+// La cuota pendiente más próxima; con una API sin ese dato, la del comprobante.
+const vencimientoDe = (c: CuentaPorCobrar) => c.fechaVencimientoProxima ?? c.fechaVencimiento;
+
+const hoyLima = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+
+/** Fecha de vencimiento y, debajo, si ya venció o cuánto falta. */
+const CeldaVencimiento = ({ fecha }: { fecha: string | null | undefined }) => {
+  if (!fecha) return <span className="text-xs text-gray-300">—</span>;
+  const vence = fecha.split('T')[0];
+  const dias = Math.round((new Date(vence).getTime() - new Date(hoyLima()).getTime()) / 86_400_000);
+  return (
+    <div>
+      <p className="text-xs text-gray-700 flex items-center gap-1 whitespace-nowrap">
+        <Calendar size={11} className="text-gray-400" /> {formatFecha(`${vence}T00:00:00`)}
+      </p>
+      {dias < 0 ? (
+        <p className="text-[10px] font-bold text-red-600 flex items-center gap-1 mt-0.5 whitespace-nowrap">
+          <AlertTriangle size={10} /> Vencida hace {-dias} día{dias === -1 ? '' : 's'}
+        </p>
+      ) : dias === 0 ? (
+        <p className="text-[10px] font-bold text-amber-600 mt-0.5 whitespace-nowrap">Vence hoy</p>
+      ) : (
+        <p className={cn('text-[10px] mt-0.5 whitespace-nowrap', dias <= 3 ? 'font-semibold text-amber-600' : 'text-gray-400')}>
+          Faltan {dias} día{dias === 1 ? '' : 's'}
+        </p>
+      )}
+    </div>
+  );
+};
+
 export default function CuentasPorCobrarPage() {
   const { user, accessToken } = useAuth();
   const { showToast } = useToast();
@@ -90,13 +114,10 @@ export default function CuentasPorCobrarPage() {
   }
 
   const hookCuentas = useCuentasPorCobrar();
-  const hookCuotas  = useCuotasComprobante();
-  const hookPagar   = usePagarCuota();
   const hookClientes = useCobroCliente();
   const detalle = useProductosComprobantes(rucEmpresa);
   // Comprobantes con los productos desplegados en la tabla "Por comprobante".
   const [abiertos, setAbiertos] = useState<Set<number>>(new Set());
-  const [productosModalAbierto, setProductosModalAbierto] = useState(true);
 
   const alternarDetalle = (id: number) => {
     void detalle.cargar([id]);
@@ -110,17 +131,13 @@ export default function CuentasPorCobrarPage() {
 
   const vista = useSyncExternalStore(suscribirVista, leerVista, (): Vista => 'clientes');
   const cambiarVista = guardarVista;
-  // Cobro por cliente; desde "Por comprobante" se abre el mismo modal con solo esa nota.
+  // Cobro por cliente; desde "Por comprobante" se abre el mismo modal con solo esa nota
+  // (ahí se elige si paga un monto o por productos).
   const [clienteCobrar, setClienteCobrar] = useState<{
     cliente: ResumenClienteCuenta; soloComprobanteId?: number; modo?: ModoCobro;
   } | null>(null);
-  // Constancia del pago de una sola cuota (desde "Pagar cuota").
-  const [pagoRegistrado, setPagoRegistrado] = useState<ResultadoPagoProps | null>(null);
 
   const [cuentas, setCuentas]                           = useState<CuentaPorCobrar[]>([]);
-  const [comprobanteSeleccionado, setComprobanteSeleccionado] = useState<CuentaPorCobrar | null>(null);
-  const [cuotas, setCuotas]                             = useState<Cuota[]>([]);
-  const [cuotaPagar, setCuotaPagar]                     = useState<Cuota | null>(null);
   const [search, setSearch]                             = useState('');
   const [filtroTipo, setFiltroTipo]                     = useState('Todos');
   const [showAvanzado, setShowAvanzado]                 = useState(false);
@@ -149,10 +166,9 @@ export default function CuentasPorCobrarPage() {
     }
   };
 
-  // Abre el cobro de una sola nota, para elegir qué productos paga.
-  const cobrarComprobantePorProductos = (c: CuentaPorCobrar) => {
+  // Abre el cobro de una sola nota: dentro elige si paga un monto o por productos.
+  const cobrarComprobante = (c: CuentaPorCobrar) => {
     const clave = claveCliente(c.clienteNumDoc, c.clienteRznSocial);
-    cerrarModal();
     setClienteCobrar({
       cliente: {
         clienteClave: clave,
@@ -163,11 +179,11 @@ export default function CuentasPorCobrarPage() {
         cantidadComprobantes: 1,
         saldoPendiente: saldoComprobante(c),
         fechaEmisionMasAntigua: c.fechaEmision,
-        fechaVencimientoMasAntigua: c.fechaVencimiento,
+        fechaVencimientoMasAntigua: vencimientoDe(c),
         sinDocumento: clave.startsWith('SD|'),
       },
       soloComprobanteId: c.comprobanteId,
-      modo: 'productos',
+      modo: 'monto',
     });
   };
 
@@ -178,20 +194,6 @@ export default function CuentasPorCobrarPage() {
     setHuboIntentoInicial(true)
     cargar()
   }, [user, accessToken, sucursalFiltro, sucursal?.codEstablecimiento])
-
-  const verCuotas = async (c: CuentaPorCobrar) => {
-    setComprobanteSeleccionado(c);
-    setCuotas([]);
-    void detalle.cargar([c.comprobanteId]);
-    const data = await hookCuotas.fetchCuotas(c.comprobanteId);
-    setCuotas(data);
-  };
-
-  const cerrarModal = () => {
-    setComprobanteSeleccionado(null);
-    setCuotas([]);
-    hookCuotas.reset();
-  };
 
   const buscarAvanzado = async () => {
     if (!avClienteDoc && !avFechaDesde && !avFechaHasta) {
@@ -244,58 +246,6 @@ export default function CuentasPorCobrarPage() {
     return t;
   }, [clientesFiltrados]);
 
-  const handlePagar = async (payload: PagarCuotaPayload) => {
-    const comp = comprobanteSeleccionado;
-    // Foto de las cuotas antes del pago: de ahí sale lo que se debía y lo ya pagado.
-    const cuotasAntes = cuotas;
-    const ok = await hookPagar.pagarCuota(payload.cuotaId, payload);
-    if (ok && comp) {
-      const data = await hookCuotas.fetchCuotas(comp.comprobanteId);
-      setCuotas(data);
-      setCuotaPagar(null);
-      // Refrescar listado para quitar comprobantes totalmente pagados
-      cargar();
-      // El abono se descuenta de los productos: cambia lo que falta de cada uno.
-      void detalle.recargar([comp.comprobanteId]);
-
-      const r2 = (n: number) => Math.round(n * 100) / 100;
-      const saldoAnterior = r2(cuotasAntes.reduce(
-        (t, c) => t + (getEstadoCuota(c) === 'PAGADO' ? 0 : c.monto - (c.montoPagado ?? 0)), 0));
-      const aplicado = r2(payload.montoPagado);
-      const saldoRestante = r2(Math.max(0, saldoAnterior - aplicado));
-      const clave = claveCliente(comp.clienteNumDoc, comp.clienteRznSocial);
-      const establecimientoAnexo = isSuperAdmin ? sucursalFiltro : (getCodEstablecimiento() ?? null);
-      // Lo que el cliente sigue debiendo en total (todas sus notas), para la constancia.
-      const pendientes = await hookClientes
-        .fetchComprobantesCliente(rucEmpresa, establecimientoAnexo, clave, comp.tipoMoneda)
-        .catch(() => null);
-
-      setPagoRegistrado({
-        empresaRuc: rucEmpresa,
-        clienteNombre: comp.clienteRznSocial || 'Cliente',
-        clienteDoc: clave.startsWith('SD|') ? null : comp.clienteNumDoc,
-        telefonoInicial: comp.clienteWhatsApp || null,
-        moneda: comp.tipoMoneda,
-        fechaPago: payload.fechaPago.slice(0, 10),
-        medioPago: payload.medioPago,
-        numeroOperacion: payload.numeroOperacion ?? null,
-        montoTotal: aplicado,
-        saldoClienteRestante: pendientes ? r2(pendientes.reduce((t, c) => t + c.saldo, 0)) : saldoRestante,
-        pagos: [{
-          comprobanteId: comp.comprobanteId,
-          numeroCompleto: comp.numeroCompleto,
-          fechaEmision: comp.fechaEmision,
-          importeTotal: comp.importeTotal,
-          pagadoAntes: r2(Math.max(0, comp.importeTotal - saldoAnterior)),
-          saldoAnterior,
-          montoAplicado: aplicado,
-          saldoRestante,
-          estado: saldoRestante > 0.004 ? 'PARCIAL' : 'PAGADO',
-        }],
-      });
-    }
-  };
-
   const loading = hookCuentas.loading || !huboIntentoInicial;
   const loadingClientes = hookClientes.loadingClientes || !huboIntentoInicial;
 
@@ -317,22 +267,6 @@ export default function CuentasPorCobrarPage() {
           empresaRuc={rucEmpresa}
           establecimientoAnexo={isSuperAdmin ? sucursalFiltro : (getCodEstablecimiento() ?? null)}
           onClose={cerrarCobroCliente}
-        />
-      )}
-
-      {pagoRegistrado && (
-        <ModalPagoRegistrado {...pagoRegistrado} onClose={() => setPagoRegistrado(null)} />
-      )}
-
-      {/* Modal Pagar */}
-      {cuotaPagar && comprobanteSeleccionado && (
-        <ModalPagarCuota
-          cuota={cuotaPagar}
-          tipoMoneda={comprobanteSeleccionado.tipoMoneda}
-          onClose={() => setCuotaPagar(null)}
-          onConfirm={handlePagar}
-          loading={hookPagar.loading}
-          usuarioId={Number(user?.id ?? 0)}
         />
       )}
 
@@ -577,7 +511,7 @@ export default function CuentasPorCobrarPage() {
                 <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Importe</th>
                 <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Crédito</th>
                 <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-32 text-right">Saldo</th>
-                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-20 text-center">Moneda</th>
+                <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-36">Vencimiento</th>
                 <th className="px-3 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wider w-40 text-center">Acciones</th>
               </tr>
             </thead>
@@ -619,24 +553,16 @@ export default function CuentasPorCobrarPage() {
                   <td className="px-3 py-2 text-xs font-bold text-gray-900 text-right whitespace-nowrap w-32">
                     {formatMoneda(saldoComprobante(c), c.tipoMoneda)}
                   </td>
-                  <td className="px-3 py-2 text-center w-20">
-                    <span className="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">{c.tipoMoneda}</span>
+                  <td className="px-3 py-2 w-36">
+                    <CeldaVencimiento fecha={vencimientoDe(c)} />
                   </td>
                   <td className="px-3 py-2 text-center w-40">
-                    <div className="inline-flex flex-col items-stretch gap-1">
-                      <button
-                        onClick={() => verCuotas(c)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap"
-                      >
-                        <CreditCard size={13} /> Pagar cuota
-                      </button>
-                      <button
-                        onClick={() => cobrarComprobantePorProductos(c)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap"
-                      >
-                        <ShoppingBasket size={13} /> Por productos
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => cobrarComprobante(c)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors whitespace-nowrap"
+                    >
+                      <CreditCard size={13} /> Pagar cuota
+                    </button>
                   </td>
                 </tr>
                 {abierto && (
@@ -663,259 +589,6 @@ export default function CuentasPorCobrarPage() {
           </table>
         </div>
       </div>
-      )}
-
-      {/* Modal detalle cuotas */}
-      {comprobanteSeleccionado && createPortal(
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 flex flex-col animate-in zoom-in-95 duration-200" style={{ maxHeight: '90vh' }}>
-
-            {/* Header */}
-            <div className="bg-white border-b border-gray-100 rounded-t-2xl px-6 py-4 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#EEF3FB] border border-[#D0E0F7] rounded-xl flex items-center justify-center shrink-0">
-                  <DollarSign size={18} className="text-brand-blue" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-gray-900">{comprobanteSeleccionado.numeroCompleto}</h3>
-                  <p className="text-gray-500 text-xs mt-0.5">
-                    {tipoComprobanteLabel(comprobanteSeleccionado.tipoComprobante)} · {formatFecha(comprobanteSeleccionado.fechaEmision)}
-                  </p>
-                </div>
-              </div>
-              <button onClick={cerrarModal} className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-lg transition-colors cursor-pointer">
-                <X size={17} />
-              </button>
-            </div>
-
-            {/* Datos cliente */}
-            <div className="px-6 py-4 border-b border-gray-100 flex gap-4">
-              <div className="flex-1">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Cliente</p>
-                <p className="text-sm font-bold text-gray-900">{comprobanteSeleccionado.clienteRznSocial}</p>
-                <div className="mt-1 space-y-0.5">
-                  <p className="text-xs text-gray-500">
-                    <span className="font-bold text-gray-400">
-                      {comprobanteSeleccionado.clienteNumDoc.length === 11 ? 'RUC' : 'DNI'}:
-                    </span>{' '}
-                    {comprobanteSeleccionado.clienteNumDoc}
-                  </p>
-                  {comprobanteSeleccionado.clienteCorreo?.trim() && (
-                    <p className="text-xs text-gray-500">
-                      <span className="font-bold text-gray-400">Correo:</span>{' '}
-                      {comprobanteSeleccionado.clienteCorreo}
-                    </p>
-                  )}
-                  {comprobanteSeleccionado.clienteWhatsApp?.trim() && (
-                    <p className="text-xs text-gray-500">
-                      <span className="font-bold text-gray-400">Tel:</span>{' '}
-                      {comprobanteSeleccionado.clienteWhatsApp}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-3 shrink-0">
-                <div className="bg-gray-50 rounded-xl px-4 py-3 flex flex-col items-center justify-center text-center min-w-24">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Importe Total</p>
-                  <p className="text-sm font-bold text-gray-900">{formatMoneda(comprobanteSeleccionado.importeTotal, comprobanteSeleccionado.tipoMoneda)}</p>
-                </div>
-                {comprobanteSeleccionado.montoCredito > 0 &&
-                 (comprobanteSeleccionado.importeTotal - comprobanteSeleccionado.montoCredito) > 0 && (
-                  <div className="bg-amber-50 rounded-xl px-4 py-3 flex flex-col items-center justify-center text-center min-w-24">
-                    <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-1">Pago Inicial</p>
-                    <p className="text-sm font-bold text-amber-600">{formatMoneda(comprobanteSeleccionado.importeTotal - comprobanteSeleccionado.montoCredito, comprobanteSeleccionado.tipoMoneda)}</p>
-                  </div>
-                )}
-                <div className="bg-blue-50 rounded-xl px-4 py-3 flex flex-col items-center justify-center text-center min-w-24">
-                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">Monto Crédito</p>
-                  <p className="text-sm font-bold text-blue-700">
-                    {formatMoneda(
-                      (!comprobanteSeleccionado.montoCredito || comprobanteSeleccionado.montoCredito === 0)
-                        ? comprobanteSeleccionado.importeTotal
-                        : comprobanteSeleccionado.montoCredito,
-                      comprobanteSeleccionado.tipoMoneda
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Lista cuotas */}
-            <div className="px-6 py-4 flex-1 overflow-y-auto">
-              {/* Productos de la venta: para responder "¿de qué es esta deuda?" */}
-              {(() => {
-                const productosNota = detalle.productos.get(comprobanteSeleccionado.comprobanteId);
-                const pendientes = productosPendientes(productosNota).length;
-                // Con las cuotas a la vista el saldo sale de ellas (ya incluye el último abono).
-                const saldoNota = cuotas.length > 0
-                  ? Math.round(cuotas.reduce((t, cu) => t + (getEstadoCuota(cu) === 'PAGADO' ? 0 : cu.monto - (cu.montoPagado ?? 0)), 0) * 100) / 100
-                  : saldoComprobante(comprobanteSeleccionado);
-                return (
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <button type="button" onClick={() => setProductosModalAbierto(o => !o)}
-                        className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        <Package size={13} className="text-gray-400" /> Productos
-                        {productosNota && (
-                          <span className="text-gray-400 font-semibold normal-case">
-                            ({productosNota.length}{pendientes < productosNota.length ? ` · ${productosNota.length - pendientes} pagado(s)` : ''})
-                          </span>
-                        )}
-                        <ChevronDown size={13} className={cn("transition-transform text-blue-600", productosModalAbierto && "rotate-180")} />
-                      </button>
-                      {pendientes > 0 && (
-                        <button type="button" onClick={() => cobrarComprobantePorProductos(comprobanteSeleccionado)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap">
-                          <ShoppingBasket size={13} /> Cobrar por productos
-                        </button>
-                      )}
-                    </div>
-                    {productosModalAbierto && (
-                      <DetalleProductosComprobante
-                        productos={productosNota}
-                        cargando={detalle.cargando.has(comprobanteSeleccionado.comprobanteId)}
-                        error={detalle.fallidos.has(comprobanteSeleccionado.comprobanteId)}
-                        onReintentar={() => void detalle.cargar([comprobanteSeleccionado.comprobanteId])}
-                        moneda={comprobanteSeleccionado.tipoMoneda}
-                        importeTotal={comprobanteSeleccionado.importeTotal}
-                        saldo={saldoNota}
-                      />
-                    )}
-                  </div>
-                );
-              })()}
-
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cuotas</h4>
-                <span className="text-xs text-gray-400">{cuotas.length} cuota(s)</span>
-              </div>
-
-              <div className="divide-y divide-gray-100">
-                {hookCuotas.loading ? (
-                  <div className="flex flex-col items-center gap-3 py-16">
-                    <RefreshCw size={24} className="animate-spin text-blue-400" />
-                    <span className="text-sm text-gray-400">Cargando cuotas...</span>
-                  </div>
-                ) : cuotas.length === 0 ? (
-                  <div className="py-16 text-center text-sm text-gray-400">
-                    No se encontraron cuotas.
-                  </div>
-                ) : cuotas.map((cuota, i) => {
-                  const estado         = getEstadoCuota(cuota)
-                  const colorBadge     = ESTADO_CUOTA_COLORS[estado] ?? ESTADO_CUOTA_COLORS.PENDIENTE
-                  const vencida        = getCuotaVencida(cuota.fechaVencimiento) && estado !== 'PAGADO'
-                  const diasVencida    = getDiasVencida(cuota.fechaVencimiento)
-                  const montoPagadoAnt = cuota.montoPagado ?? 0
-                  const progreso       = cuota.monto > 0 ? Math.min((montoPagadoAnt / cuota.monto) * 100, 100) : 0
-                  const yaEstaPagado   = estado === 'PAGADO'
-
-                  return (
-                    <div key={cuota.cuotaId} className={cn("py-4 transition-colors", vencida ? "bg-red-50/40 hover:bg-red-50" : "hover:bg-gray-50/50")}>
-                      <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-3 sm:gap-4">
-
-                        {/* Número + fecha */}
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className={cn(
-                            "w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0",
-                            yaEstaPagado ? "bg-emerald-100 text-emerald-700" :
-                            vencida ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
-                          )}>
-                            {i + 1}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">{cuota.numeroCuota}</p>
-                            <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
-                              <Calendar size={11} /> Vence: {formatFecha(cuota.fechaVencimiento)}
-                            </div>
-                            {vencida && (
-                              <p className="text-[10px] font-bold text-red-600 mt-0.5 flex items-center gap-1">
-                                <AlertTriangle size={11} /> Vencida hace {diasVencida} día(s)
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        {/* Montos */}
-                        <div className="flex-1 min-w-0 grid grid-cols-3 gap-1 sm:gap-3">
-                          <div className="text-center">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Monto</p>
-                            <p className="text-sm font-semibold text-gray-800">{formatMoneda(cuota.monto, comprobanteSeleccionado.tipoMoneda)}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Pagado</p>
-                            <p className="text-sm font-semibold text-emerald-600">{formatMoneda(montoPagadoAnt, comprobanteSeleccionado.tipoMoneda)}</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Restante</p>
-                            <p className="text-sm font-semibold text-blue-600">{formatMoneda(cuota.monto - montoPagadoAnt, comprobanteSeleccionado.tipoMoneda)}</p>
-                          </div>
-                        </div>
-
-                        {/* Estado + acción */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap", colorBadge)}>
-                            {estado}
-                          </span>
-                          {yaEstaPagado ? (
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 rounded-lg">
-                              <Check size={13} /> Pagado
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setCuotaPagar(cuota)}
-                              className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-colors",
-                                vencida ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
-                              )}
-                            >
-                              <CreditCard size={13} /> Pagar
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Barra progreso */}
-                      {progreso > 0 && (
-                        <div className="mt-3 ml-12">
-                          <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                            <span>Progreso de pago</span>
-                            <span>{progreso.toFixed(0)}%</span>
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div
-                              className={cn("h-1.5 rounded-full transition-all", yaEstaPagado ? "bg-emerald-500" : vencida ? "bg-red-500" : "bg-blue-500")}
-                              style={{ width: `${progreso}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Info último pago */}
-                      {cuota.fechaPago && (
-                        <div className="mt-2 ml-12 flex flex-wrap gap-3 text-[10px] text-gray-400">
-                          <span>Último pago: {formatFecha(cuota.fechaPago)}</span>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-3.5 border-t border-gray-100 flex justify-end shrink-0 bg-gray-50/40 rounded-b-2xl">
-              <button
-                onClick={cerrarModal}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 hover:border-red-300 active:scale-[0.98] transition-all shadow-xs cursor-pointer"
-              >
-                <X size={14} /> Cerrar
-              </button>
-            </div>
-          </div>
-        </div>,
-        // Portal a <body>: dentro del contenedor space-y-3 el fondo oscuro
-        // heredaba 12 px de margen inferior y no llegaba hasta abajo.
-        document.body,
       )}
     </div>
   );

@@ -1,14 +1,15 @@
 'use client'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  X, Wallet, Calendar, AlertTriangle, Check, RefreshCw, User, AlertCircle, ListTree, Banknote, ShoppingBasket,
+  X, Wallet, Calendar, AlertTriangle, Check, CheckCircle2, RefreshCw, User, AlertCircle, ListTree, Banknote, ShoppingBasket,
 } from 'lucide-react'
 import { cn } from '@/app/utils/cn'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/app/components/ui/Toast'
 import {
   ComprobantePendienteCliente,
+  Cuota,
   PagoClienteResultado,
   ResumenClienteCuenta,
 } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/CuentasPorCobrar'
@@ -18,6 +19,7 @@ import {
 import { useCobroCliente } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/UseCobroCliente'
 import { agruparPorComprobante } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/constanciaPago'
 import { useProductosComprobantes } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/UseProductosComprobantes'
+import { useCuotasComprobante } from '@/app/factufly/cuentasporcobrar/gestionCuentasPorCobrar/UseCuotasComprobante'
 import { ResultadoPago } from './ResultadoPago'
 import { BotonVerProductos, DetalleProductosComprobante, productosPendientes } from './DetalleProductosComprobante'
 
@@ -35,6 +37,63 @@ interface ModalCobrarClienteProps {
 }
 
 const redondear = (n: number) => Math.round(n * 100) / 100
+
+/**
+ * Cuotas de una nota con su vencimiento y lo que les toca de este pago: se pagan
+ * de la que vence primero a la última, igual que en el backend.
+ */
+const TablaCuotas = ({ cuotas, aplicado, moneda }: { cuotas: Cuota[]; aplicado: number; moneda: string }) => {
+  const ordenadas = [...cuotas].sort((a, b) =>
+    a.fechaVencimiento.localeCompare(b.fechaVencimiento) || a.numeroCuota.localeCompare(b.numeroCuota))
+  // Reparto del pago entre las cuotas, calculado antes de pintar.
+  const filas = ordenadas.reduce<{ cu: Cuota; pagada: boolean; debe: number; este: number; restante: number }[]>((acc, cu) => {
+    const restante = acc.length ? acc[acc.length - 1].restante : aplicado
+    const pagada = (cu.estado ?? '').toUpperCase() === 'PAGADO'
+    const debe = pagada ? 0 : redondear(cu.monto - (cu.montoPagado ?? 0))
+    const este = redondear(Math.min(debe, Math.max(restante, 0)))
+    return [...acc, { cu, pagada, debe, este, restante: redondear(restante - este) }]
+  }, [])
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+      <table className="w-full text-[11px]">
+        <thead>
+          <tr className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+            <th className="px-2.5 py-1.5 text-left">Cuota</th>
+            <th className="px-2.5 py-1.5 text-left">Vence</th>
+            <th className="px-2.5 py-1.5 text-right">Monto</th>
+            <th className="px-2.5 py-1.5 text-right">Debe</th>
+            <th className="px-2.5 py-1.5 text-right">Este pago</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {filas.map(({ cu, pagada, debe, este }) => {
+            const dias = !pagada ? getDiasVencida(cu.fechaVencimiento) : 0
+            return (
+              <tr key={cu.cuotaId} className={pagada ? 'text-gray-400' : 'text-gray-700'}>
+                <td className="px-2.5 py-1.5 font-semibold">{cu.numeroCuota}</td>
+                <td className="px-2.5 py-1.5 whitespace-nowrap">
+                  {formatFecha(`${cu.fechaVencimiento.split('T')[0]}T00:00:00`)}
+                  {dias > 0 && <span className="ml-1.5 text-[10px] font-bold text-red-600">vencida hace {dias} día(s)</span>}
+                </td>
+                <td className="px-2.5 py-1.5 text-right whitespace-nowrap">{formatMoneda(cu.monto, moneda)}</td>
+                <td className="px-2.5 py-1.5 text-right whitespace-nowrap font-semibold">
+                  {pagada
+                    ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check size={10} /> Pagada</span>
+                    : formatMoneda(debe, moneda)}
+                </td>
+                <td className="px-2.5 py-1.5 text-right whitespace-nowrap">
+                  {este > 0
+                    ? <span className={cn('font-semibold', este >= debe - 0.004 ? 'text-emerald-700' : 'text-amber-700')}>{formatMoneda(este, moneda)}</span>
+                    : <span className="text-gray-300">—</span>}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 const hoyLima = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date())
 
@@ -66,10 +125,13 @@ export const ModalCobrarCliente = ({
   const [abiertos, setAbiertos] = useState<Set<number>>(new Set())
   const detalle = useProductosComprobantes(empresaRuc)
 
-  // "Por monto": paga una cantidad y se descuenta de lo más antiguo.
+  // "Por monto": paga una cantidad y va primero a lo vencido y a lo que vence antes.
   // "Por productos": marca qué productos paga y quedan registrados como pagados.
   const [modo, setModo] = useState<ModoCobro>(modoInicial)
   const [productosSel, setProductosSel] = useState<Set<number>>(new Set())
+  // Cobro de una sola nota: sus cuotas, para ver cuándo vence cada una.
+  const [cuotas, setCuotas] = useState<Cuota[]>([])
+  const { fetchCuotas } = useCuotasComprobante()
 
   const moneda = cliente.tipoMoneda || 'PEN'
   const nombreCliente = cliente.clienteRznSocial || 'Cliente'
@@ -79,7 +141,14 @@ export const ModalCobrarCliente = ({
     setErrorCarga(null)
     try {
       const todos = await fetchComprobantesCliente(empresaRuc, establecimientoAnexo, cliente.clienteClave, moneda)
-      const data = soloComprobanteId ? todos.filter(c => c.comprobanteId === soloComprobanteId) : todos
+      // En el orden en que se cobran (como el backend): lo vencido y lo que vence antes,
+      // primero; a igual vencimiento, la nota más antigua.
+      const data = (soloComprobanteId ? todos.filter(c => c.comprobanteId === soloComprobanteId) : todos)
+        .slice()
+        .sort((a, b) =>
+          (a.fechaVencimientoProxima ?? '9999').localeCompare(b.fechaVencimientoProxima ?? '9999')
+          || (a.fechaEmision ?? '').localeCompare(b.fechaEmision ?? '')
+          || a.comprobanteId - b.comprobanteId)
       setComprobantes(data)
       setSeleccionados(new Set(data.map(c => c.comprobanteId)))
       setProductosSel(new Set())
@@ -88,6 +157,7 @@ export const ModalCobrarCliente = ({
       // Tras un cobro fallido se vuelven a pedir: lo pagado pudo cambiar.
       const ids = data.map(c => c.comprobanteId)
       void (refrescarProductos ? detalle.recargar(ids) : detalle.cargar(ids))
+      if (soloComprobanteId) void fetchCuotas(soloComprobanteId).then(setCuotas)
     } catch (err) {
       setErrorCarga(err instanceof Error ? err.message : 'Error al cargar los comprobantes')
     } finally {
@@ -113,7 +183,7 @@ export const ModalCobrarCliente = ({
 
   const montoNum = redondear(parseFloat(monto) || 0)
 
-  // Vista previa del reparto: del comprobante más antiguo al más nuevo, igual que el backend.
+  // Vista previa del reparto: en el orden de la lista (por vencimiento), igual que el backend.
   const reparto = useMemo(() => {
     const mapa = new Map<number, number>()
     let restante = montoNum
@@ -125,12 +195,6 @@ export const ModalCobrarCliente = ({
     }
     return mapa
   }, [comprobantes, seleccionados, montoNum])
-
-  const cantidadCompletos = comprobantes.filter(c => (reparto.get(c.comprobanteId) ?? 0) >= c.saldo - 0.004 && (reparto.get(c.comprobanteId) ?? 0) > 0).length
-  const parcial = comprobantes.find(c => {
-    const a = reparto.get(c.comprobanteId) ?? 0
-    return a > 0 && a < c.saldo - 0.004
-  })
 
   // ── Cobro por productos ──────────────────────────────────────────────────
   const pendientesDe = (comprobanteId: number) => productosPendientes(detalle.productos.get(comprobanteId))
@@ -175,13 +239,21 @@ export const ModalCobrarCliente = ({
     })
   }
 
+  // Lo que estaba desplegado antes de pasar a "Por productos", para dejarlo igual al volver.
+  const abiertosAntes = useRef<Set<number> | null>(null)
   const cambiarModo = (m: ModoCobro) => {
+    if (m === modo) return
     setModo(m)
     setErrorPago(null)
     if (m === 'productos') {
       // Para elegir productos hay que verlos: se despliegan todos.
+      abiertosAntes.current = abiertos
       void detalle.cargar(comprobantes.map(c => c.comprobanteId))
       setAbiertos(new Set(comprobantes.map(c => c.comprobanteId)))
+    } else {
+      // De vuelta a "Un monto": la lista vuelve a quedar como estaba (cerrada).
+      setAbiertos(abiertosAntes.current ?? new Set())
+      abiertosAntes.current = null
     }
   }
 
@@ -239,6 +311,77 @@ export const ModalCobrarCliente = ({
           : null
   const montoACobrar = porProductos ? totalProductos : montoNum
   const productosMarcados = todosPendientes.filter(p => productosSel.has(p.detalleId))
+  const deudaDespues = redondear(Math.max(0, saldoTotal - montoACobrar))
+  const vistaPrevia = !resultado && !cargando && !errorMonto && montoACobrar > 0
+  // A qué nota va cada parte del pago (de la más antigua a la más nueva, como el backend).
+  const repartoLista = comprobantes
+    .map(c => {
+      const aplicado = porProductos ? (cobroProductos.get(c.comprobanteId) ?? 0) : (reparto.get(c.comprobanteId) ?? 0)
+      const queda = redondear(Math.max(0, c.saldo - aplicado))
+      return { c, aplicado, queda, saldada: aplicado > 0 && queda <= 0.004 }
+    })
+    .filter(r => r.aplicado > 0 && (porProductos || seleccionados.has(r.c.comprobanteId)))
+
+  // "Así se reparten los S/ X": a qué nota va cada parte y cómo queda. En "Por productos"
+  // también qué productos se pagan de cada nota.
+  const notasSinAbono = porProductos
+    ? []
+    : comprobantes.filter(c => seleccionados.has(c.comprobanteId) && !(reparto.get(c.comprobanteId) ?? 0))
+  const desglose = repartoLista.length > 0 && (
+    <div className="rounded-xl border border-gray-200 overflow-hidden">
+      <p className="px-3 py-1.5 bg-gray-50 text-[11px] font-semibold text-gray-600">
+        Así se reparten los {formatMoneda(montoACobrar, moneda)}
+      </p>
+      <ul className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+        {repartoLista.map((r, i) => {
+          const productosNota = porProductos ? productosMarcados.filter(p => p.comprobanteId === r.c.comprobanteId) : []
+          return (
+            <li key={r.c.comprobanteId} className="px-3 py-1.5 flex items-start gap-2 text-[11px]">
+              <span className={cn('mt-0.5 w-4 h-4 shrink-0 rounded-full flex items-center justify-center text-[9px] font-bold',
+                r.saldada ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>
+                {i + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-800">
+                  {r.c.numeroCompleto} <span className="font-normal text-gray-400">· debía {formatMoneda(r.c.saldo, moneda)}</span>
+                </p>
+                {productosNota.length > 0 && (
+                  <ul className="my-0.5 space-y-px">
+                    {productosNota.map(p => (
+                      <li key={p.detalleId} className="flex justify-between gap-2 text-gray-500">
+                        <span className="truncate flex items-center gap-1">
+                          <Check size={10} className="text-blue-500 shrink-0" /> {p.descripcion || 'Producto'}
+                        </span>
+                        <span className="whitespace-nowrap">{formatMoneda(p.falta, moneda)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {r.saldada ? (
+                  <p className="text-emerald-700 font-semibold flex items-center gap-1"><CheckCircle2 size={11} /> Queda saldada</p>
+                ) : (
+                  <p className="text-amber-700 font-semibold">
+                    {porProductos ? 'Pago parcial' : 'Abono parcial'} · sigue debiendo {formatMoneda(r.queda, moneda)}
+                  </p>
+                )}
+              </div>
+              <span className="font-bold text-gray-900 whitespace-nowrap">{formatMoneda(r.aplicado, moneda)}</span>
+            </li>
+          )
+        })}
+        {notasSinAbono.map(c => (
+          <li key={c.comprobanteId} className="px-3 py-1.5 flex items-start gap-2 text-[11px] text-gray-400">
+            <span className="mt-0.5 w-4 h-4 shrink-0 rounded-full bg-gray-100" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold">{c.numeroCompleto}</p>
+              <p>No alcanza · sigue debiendo {formatMoneda(c.saldo, moneda)}</p>
+            </div>
+            <span className="whitespace-nowrap">{formatMoneda(0, moneda)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 
   const confirmar = async () => {
     if (errorMonto || !fechaPago || enviando || (porProductos && cargandoProductos)) return
@@ -310,11 +453,23 @@ export const ModalCobrarCliente = ({
             </div>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <div className="bg-blue-50 rounded-xl px-4 py-2 text-center">
-              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+            <div className={cn('rounded-xl px-4 py-2 text-center transition-colors', vistaPrevia && deudaDespues <= 0.004 ? 'bg-emerald-50' : 'bg-blue-50')}>
+              <p className={cn('text-[10px] font-bold uppercase tracking-wider', vistaPrevia && deudaDespues <= 0.004 ? 'text-emerald-600' : 'text-blue-400')}>
                 {soloComprobanteId && !resultado ? 'Saldo' : 'Deuda total'}
               </p>
-              <p className="text-base font-bold text-blue-700">{formatMoneda(resultado ? resultado.saldoClienteRestante : saldoTotal, moneda)}</p>
+              {vistaPrevia ? (
+                // Mientras arma el cobro: cuánto quedará debiendo si paga lo escrito.
+                <>
+                  <p className={cn('text-base font-bold', deudaDespues <= 0.004 ? 'text-emerald-700' : 'text-blue-700')}>
+                    {formatMoneda(deudaDespues, moneda)}
+                  </p>
+                  <p className="text-[10px] text-gray-500 whitespace-nowrap">
+                    <span className="line-through">{formatMoneda(saldoTotal, moneda)}</span> − {formatMoneda(montoACobrar, moneda)}
+                  </p>
+                </>
+              ) : (
+                <p className="text-base font-bold text-blue-700">{formatMoneda(resultado ? resultado.saldoClienteRestante : saldoTotal, moneda)}</p>
+              )}
             </div>
             <button onClick={cerrar} className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-lg transition-colors cursor-pointer">
               <X size={17} />
@@ -343,11 +498,14 @@ export const ModalCobrarCliente = ({
           </div>
         ) : (
           /* ── Selección y cobro ───────────────────────────────────────────── */
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
+          // flex-auto y no flex-1: con solo max-height en el modal, flex-1 dejaba el
+          // cuerpo en 0 px en pantallas angostas (quedaban solo cabecera y pie).
+          <div className="flex-auto min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
 
             {/* Comprobantes pendientes */}
             <div className="flex-1 min-w-0 flex flex-col lg:overflow-hidden border-b lg:border-b-0 lg:border-r border-gray-100">
-              <div className="px-6 py-3 flex items-center justify-between shrink-0">
+              {/* Con una sola nota y cobro por monto no hay nada que seleccionar. */}
+              <div className={cn('px-6 py-3 flex items-center justify-between shrink-0', soloComprobanteId && !porProductos && 'hidden')}>
                 <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 cursor-pointer select-none">
                   <input type="checkbox" checked={todosSeleccionados} onChange={alternarTodos}
                     disabled={cargando || comprobantes.length === 0 || (porProductos && todosPendientes.length === 0)}
@@ -358,7 +516,7 @@ export const ModalCobrarCliente = ({
                   <span className="text-xs text-gray-400">
                     {porProductos
                       ? `${productosMarcados.length} de ${todosPendientes.length} producto(s) pendientes`
-                      : `${seleccionados.size} de ${comprobantes.length} comprobante(s) · más antiguos primero`}
+                      : `${seleccionados.size} de ${comprobantes.length} comprobante(s) · los vencidos primero`}
                   </span>
                   {comprobantes.length > 1 && !porProductos && (
                     <button type="button" onClick={alternarTodosDetalles}
@@ -441,15 +599,18 @@ export const ModalCobrarCliente = ({
                               {!marcado || aplicado <= 0 ? (
                                 <span className="text-gray-300">—</span>
                               ) : completo ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                  <Check size={11} /> {formatMoneda(aplicado, moneda)}
+                                <span className="inline-flex flex-col items-end">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                    <Check size={11} /> {formatMoneda(aplicado, moneda)}
+                                  </span>
+                                  <span className="text-[10px] font-semibold text-emerald-600 mt-0.5">queda saldada</span>
                                 </span>
                               ) : (
                                 <span className="inline-flex flex-col items-end">
                                   <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
                                     Abono {formatMoneda(aplicado, moneda)}
                                   </span>
-                                  <span className="text-[10px] text-gray-400 mt-0.5">queda {formatMoneda(c.saldo - aplicado, moneda)}</span>
+                                  <span className="text-[10px] text-amber-700 mt-0.5">sigue debiendo {formatMoneda(c.saldo - aplicado, moneda)}</span>
                                 </span>
                               )}
                             </td>
@@ -472,6 +633,14 @@ export const ModalCobrarCliente = ({
                               </td>
                             </tr>
                           )}
+                          {soloComprobanteId === c.comprobanteId && cuotas.length > 1 && (
+                            <tr>
+                              <td></td>
+                              <td colSpan={5} className="px-2 pb-3 pt-0">
+                                <TablaCuotas cuotas={cuotas} aplicado={marcado ? aplicado : 0} moneda={moneda} />
+                              </td>
+                            </tr>
+                          )}
                           </React.Fragment>
                         )
                       })}
@@ -482,8 +651,9 @@ export const ModalCobrarCliente = ({
             </div>
 
             {/* Panel de cobro */}
-            <div className="w-full lg:w-96 shrink-0 flex flex-col lg:overflow-y-auto">
-              <div className="px-6 py-4 space-y-3.5 flex-1">
+            {/* El formulario se desplaza y el botón Cobrar queda siempre a la vista. */}
+            <div className="w-full lg:w-96 shrink-0 flex flex-col lg:min-h-0 lg:overflow-hidden">
+              <div className="px-6 py-4 space-y-3.5 flex-1 lg:min-h-0 lg:overflow-y-auto">
                 <div className="space-y-1.5">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">¿Cómo paga?</p>
                   <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-xl p-1">
@@ -501,7 +671,7 @@ export const ModalCobrarCliente = ({
                   <p className="text-[11px] text-gray-500">
                     {porProductos
                       ? 'Marca a la izquierda los productos que paga; quedan como pagados.'
-                      : 'Escribe cuánto paga; se descuenta de lo más antiguo.'}
+                      : 'Escribe cuánto paga; va primero a lo vencido y a lo que vence antes.'}
                   </p>
                 </div>
 
@@ -531,20 +701,13 @@ export const ModalCobrarCliente = ({
                         El servidor aún no tiene el cobro por productos. Hay que actualizar (reiniciar) la API.
                       </p>
                     ) : errorMonto ? (
-                      comprobantes.length > 0 && <p className="text-xs text-rose-500">{errorMonto}</p>
-                    ) : (
-                      <div className="text-[11px] text-gray-500 space-y-0.5">
-                        <p>Quedan pagados <b>{productosMarcados.length}</b> producto(s):</p>
-                        <ul className="max-h-24 overflow-y-auto pl-1">
-                          {productosMarcados.map(p => (
-                            <li key={p.detalleId} className="flex justify-between gap-2">
-                              <span className="truncate">{p.descripcion || 'Producto'}</span>
-                              <span className="font-semibold text-gray-700 whitespace-nowrap">{formatMoneda(p.falta, moneda)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                      comprobantes.length > 0 && (
+                        <p className="text-[11px] text-gray-500 bg-gray-50 border border-dashed border-gray-300 rounded-lg px-2.5 py-2 flex items-start gap-1.5">
+                          <ShoppingBasket size={13} className="text-gray-400 shrink-0 mt-px" />
+                          Marca a la izquierda los productos que el cliente paga.
+                        </p>
+                      )
+                    ) : desglose}
                   </div>
                 ) : (
                 <div className="space-y-1.5">
@@ -565,14 +728,7 @@ export const ModalCobrarCliente = ({
                         errorMonto && monto !== '' ? 'border-rose-400' : 'border-gray-200')} />
                   </div>
                   {errorMonto && (comprobantes.length > 0) && <p className="text-xs text-rose-500">{errorMonto}</p>}
-                  {!errorMonto && (
-                    <p className="text-[11px] text-gray-500">
-                      {cantidadCompletos > 0 && <>Quedan pagados <b>{cantidadCompletos}</b> comprobante(s)</>}
-                      {cantidadCompletos > 0 && parcial && ' y '}
-                      {parcial && <>abono parcial a <b>{parcial.numeroCompleto}</b></>}
-                      .
-                    </p>
-                  )}
+                  {!errorMonto && desglose}
                 </div>
                 )}
 

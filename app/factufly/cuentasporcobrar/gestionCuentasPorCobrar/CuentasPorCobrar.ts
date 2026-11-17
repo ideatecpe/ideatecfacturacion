@@ -22,6 +22,8 @@ export interface CuentaPorCobrar {
   tipoPago: string
   // Crédito menos los abonos ya registrados
   saldoPendiente: number | null
+  /** Vencimiento de la cuota pendiente más próxima (API nueva; si falta, usar fechaVencimiento). */
+  fechaVencimientoProxima?: string | null
 }
 
 // ── Cuota ─────────────────────────────────────────────────────────────────────
