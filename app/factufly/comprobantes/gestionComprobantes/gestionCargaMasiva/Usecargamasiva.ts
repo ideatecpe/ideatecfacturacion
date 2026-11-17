@@ -3,6 +3,7 @@ import { consultaDni } from "@/app/components/apiConsultasJsonPe/consultaDni";
 import { consultaRuc } from "@/app/components/apiConsultasJsonPe/consultaRuc";
 import { formatoFechaActual } from "@/app/components/ui/formatoFecha";
 import { numeroAlertas } from "@/app/components/ui/numeroAlertas";
+import { obtenerTipoCambioVenta } from "@/app/utils/tipoCambioJsonPe";
 import axios from "axios";
 import { CargaMasivaState, ComprobanteAgrupado, ResultadoCargaMasiva } from "./Cargamasivatypes";
 import { parsearExcel, validarFechaEmision, agruparComprobantes, calcularTotales } from "./Cargamasivautils";
@@ -348,8 +349,28 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
         return;
       }
 
+      // Si hay filas en USD con detracción, se necesita el tipo de cambio para validar
+      // el umbral de S/ 700 en soles.
+      let tipoCambioValidacion: number | undefined;
+      if (filas.some((f) => f.moneda === "USD" && f.aplicaDetraccion)) {
+        try {
+          const venta = await obtenerTipoCambioVenta(state.fechaEmision);
+          tipoCambioValidacion = parseFloat(venta.toFixed(3));
+        } catch {
+          setState((prev) => ({
+            ...prev,
+            cargando: false,
+            erroresGlobales: [
+              "No se pudo obtener el tipo de cambio para validar la detracción en USD. Intenta nuevamente.",
+            ],
+            comprobantes: [],
+          }));
+          return;
+        }
+      }
+
       // Agrupar y marcar como consultando
-      const agrupados = agruparComprobantes(filas);
+      const agrupados = agruparComprobantes(filas, tipoCambioValidacion);
       setState((prev) => ({
         ...prev,
         comprobantes: agrupados.map((c) => ({ ...c, consultandoApi: true })),
@@ -380,7 +401,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
         erroresGlobales: ["Error al leer el archivo Excel. Verifique el formato."],
       }));
     }
-  }, [consultarDocumento]);
+  }, [consultarDocumento, state.fechaEmision]);
 
   // ── Construir payload para la API ───────────────────────────────────────────
   const construirPayload = useCallback((
@@ -388,9 +409,20 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
     fechaEmision: string,
     sucursalActual: any,
     correlativo: number,
+    tipoCambioDetraccion?: number,
   ) => {
     const { gravadas, igv, importeTotal } = calcularTotales(comp);
     const moneda = comp.moneda === "USD" ? "DÓLARES" : "SOLES";
+
+    // Detracción: SIEMPRE en soles y redondeada al entero más cercano (≥ .50 sube),
+    // igual que en la emisión de facturas. En USD se convierte con el tipo de cambio.
+    const detraccionEnUsd = comp.moneda === "USD" && comp.detraccion.aplica;
+    const baseDetraccionSoles = detraccionEnUsd && tipoCambioDetraccion
+      ? importeTotal * tipoCambioDetraccion
+      : importeTotal;
+    const montoDetraccionFinal = Math.round(
+      (baseDetraccionSoles * comp.detraccion.porcentajeDetraccion) / 100
+    );
 
     const serie = comp.tipoComprobante === "03"
       ? sucursalActual?.serieBoleta
@@ -426,6 +458,8 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       tipoOperacion: "0101",
       tipoComprobante: comp.tipoComprobante,
       tipoMoneda: comp.moneda,
+      // Solo se envía el tipo de cambio cuando hay detracción en USD (no altera el resto de cargas)
+      ...(detraccionEnUsd && tipoCambioDetraccion ? { tipoCambio: tipoCambioDetraccion } : {}),
       fechaEmision: `${fechaEmision}T00:00:00`,
       horaEmision: `${fechaEmision}T00:00:00`,
       fechaVencimiento: fechaEmision,
@@ -468,7 +502,7 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
         codigoMedioPago: comp.detraccion.codigoMedioPago,
         cuentaBancoDetraccion: comp.detraccion.cuentaBancoDetraccion,
         porcentajeDetraccion: comp.detraccion.porcentajeDetraccion,
-        montoDetraccion: comp.detraccion.montoDetraccion,
+        montoDetraccion: montoDetraccionFinal,
         observacion: "",
       }] : [],
       totalOperacionesGravadas: gravadas,
@@ -512,6 +546,25 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
       let correlativoBoleta = sucursalData.correlativoBoleta;
       let correlativoFactura = sucursalData.correlativoFactura;
 
+      // Detracción en USD: se necesita el tipo de cambio (venta) de la fecha de emisión
+      let tipoCambioDetraccion: number | undefined;
+      if (validos.some((c) => c.moneda === "USD" && c.detraccion.aplica)) {
+        try {
+          const venta = await obtenerTipoCambioVenta(state.fechaEmision);
+          tipoCambioDetraccion = parseFloat(venta.toFixed(3));
+        } catch {
+          setState((prev) => ({
+            ...prev,
+            guardando: false,
+            progreso: 0,
+            erroresGlobales: [
+              "No se pudo obtener el tipo de cambio para calcular la detracción en USD. Intenta nuevamente.",
+            ],
+          }));
+          return;
+        }
+      }
+
       const payloads = validos.map((comp) => {
         const correlativo = comp.tipoComprobante === "03"
           ? correlativoBoleta++
@@ -520,7 +573,8 @@ export function useCargaMasiva(accessToken: string, empresa: any, user: any) {
           comp,
           state.fechaEmision,
           { ...sucursalActual, ...sucursalData },
-          correlativo
+          correlativo,
+          tipoCambioDetraccion
         );
       });
 

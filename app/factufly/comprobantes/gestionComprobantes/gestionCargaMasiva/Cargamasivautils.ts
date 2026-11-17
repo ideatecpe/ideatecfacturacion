@@ -210,7 +210,10 @@ export async function parsearExcel(file: File): Promise<{
 }
 
 // ─── Agrupar filas en comprobantes ───────────────────────────────────────────
-export function agruparComprobantes(filas: FilaExcel[]): ComprobanteAgrupado[] {
+export function agruparComprobantes(
+  filas: FilaExcel[],
+  tipoCambio?: number,
+): ComprobanteAgrupado[] {
   const grupos: ComprobanteAgrupado[] = [];
   let grupoActual: ComprobanteAgrupado | null = null;
 
@@ -289,10 +292,20 @@ export function agruparComprobantes(filas: FilaExcel[]): ComprobanteAgrupado[] {
     }
 
     const { importeTotal } = calcularTotales(g);
-    if (importeTotal < 700) {
-      g.errores.push("La detracción solo aplica cuando el importe supera S/ 700.00");
+    // El umbral de S/ 700 es en soles: si la factura es USD se compara el equivalente en soles.
+    const importeEnSoles =
+      g.moneda === "USD" && tipoCambio ? importeTotal * tipoCambio : importeTotal;
+    if (importeEnSoles < 700) {
+      g.errores.push(
+        g.moneda === "USD" && tipoCambio
+          ? `La detracción solo aplica cuando el importe supera S/ 700.00 (equivale a S/ ${importeEnSoles.toFixed(2)})`
+          : "La detracción solo aplica cuando el importe supera S/ 700.00"
+      );
     }
 
+    // Valor referencial. El monto FINAL de la detracción (en soles, redondeado al entero,
+    // convirtiendo con el tipo de cambio si la moneda es USD) se calcula al guardar,
+    // en Usecargamasiva.ts › construirPayload.
     g.detraccion.montoDetraccion = parseFloat(
       ((importeTotal * g.detraccion.porcentajeDetraccion) / 100).toFixed(2)
     );
