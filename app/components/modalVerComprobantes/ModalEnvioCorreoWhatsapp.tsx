@@ -14,7 +14,8 @@ export interface ModalEnvioCorreoWhatsappProps {
     ruc: string;
     accessToken: string;
     onClose: () => void;
-    onEnviado: (tipo: 'email' | 'whatsapp', destino: string) => void;
+    /** Se llama cuando el envío (en segundo plano) terminó bien; el modal ya está cerrado. */
+    onEnviado: (tipo: 'email' | 'whatsapp', destino: string, comprobanteId: number) => void;
 }
 
 // ─── Tipo interno para manejar destinos ───────────────────────────────────────
@@ -31,19 +32,50 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
     const [detalles, setDetalles] = useState<ComprobanteDetalleItem[]>([]);
     const yaEnviado = esEmail ? comprobante.cliente.enviadoPorCorreo : comprobante.cliente.enviadoPorWhatsApp;
 
-    // ── Inicializar destinos: los existentes arrancan sin seleccionar ──────────
+    // ── Inicializar destinos: si nunca se envió, los registrados van marcados por
+    // defecto; si ya se envió, arrancan sin marcar para elegir a quién reenviar ──
     const [destinos, setDestinos] = useState<Destino[]>(() => {
         const raw = esEmail
             ? (comprobante.cliente.correo ?? '').split(',').map(s => s.trim()).filter(Boolean)
             : (comprobante.cliente.whatsApp ?? '').split(',').map(s => s.trim()).filter(Boolean);
-        return raw.map(v => ({ valor: v, esNuevo: false, seleccionado: false }));
+        return raw.map(v => ({ valor: v, esNuevo: false, seleccionado: !yaEnviado }));
     });
+    const [buscandoCliente, setBuscandoCliente] = useState(false);
+    const destinoEditado = useRef(false);
+
+    // El comprobante casi nunca trae el WhatsApp/correo (en la venta no se pide):
+    // se toma el que el cliente tiene registrado en Clientes, buscándolo por documento.
+    useEffect(() => {
+        if (destinos.length > 0 || !accessToken || !ruc) return;
+        const doc = (comprobante.cliente.numeroDocumento ?? '').trim();
+        if (!doc || /^0+$/.test(doc)) return;
+        let cancelado = false;
+        setBuscandoCliente(true);
+        fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/api/Cliente/search/${ruc}?q=${encodeURIComponent(doc)}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+        )
+            .then(res => (res.ok ? res.json() : []))
+            .then((lista: { numeroDocumento?: string | null; telefono?: string | null; correo?: string | null }[]) => {
+                if (cancelado || destinoEditado.current) return;
+                const cliente = (lista ?? []).find(c => c.numeroDocumento?.trim() === doc);
+                if (!cliente) return;
+                const valores = esEmail
+                    ? (cliente.correo ?? '').split(',').map(s => s.trim()).filter(v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))
+                    : (cliente.telefono ?? '').split(',').map(s => s.replace(/\D/g, '')).filter(v => /^(51)?\d{9}$/.test(v));
+                if (valores.length === 0) return;
+                setDestinos(valores.map(v => ({ valor: v, esNuevo: false, seleccionado: true })));
+            })
+            .catch(() => { /* sin dato registrado: el usuario lo escribe */ })
+            .finally(() => { if (!cancelado) setBuscandoCliente(false); });
+        return () => { cancelado = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [comprobante.comprobanteId, accessToken, ruc, esEmail]);
 
     const [mostrarInput, setMostrarInput] = useState(false);
     const [inputActual, setInputActual] = useState('');
     const [errorInput, setErrorInput] = useState('');
     const [enviando, setEnviando] = useState(false);
-    const [exito, setExito] = useState(false);
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -86,6 +118,7 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
             return;
         }
         // Los nuevos arrancan siempre seleccionados (se van a enviar sí o sí)
+        destinoEditado.current = true;
         setDestinos(prev => [...prev, { valor: val, esNuevo: true, seleccionado: true }]);
         setInputActual('');
         setErrorInput('');
@@ -93,6 +126,7 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
     };
 
     const eliminarDestino = (i: number) => {
+        destinoEditado.current = true;
         setDestinos(prev => prev.filter((_, idx) => idx !== i));
     };
 
@@ -105,9 +139,22 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
     const hayExistentes = destinos.some(d => !d.esNuevo);
     const serieNum = `${comprobante.serie}-${padCorrelativo(comprobante.correlativo)}`;
 
-    const handleEnviar = async () => {
-        if (aEnviar.length === 0) return;
+    // El modal se cierra al instante y el envío sigue en segundo plano: el usuario
+    // puede seguir trabajando y la alerta aparece cuando termina (o si falla).
+    const handleEnviar = () => {
+        if (aEnviar.length === 0 || enviando) return;
         setEnviando(true);
+        showToast(
+            esEmail
+                ? `Enviando ${serieNum} por correo…`
+                : `Enviando ${serieNum} por WhatsApp…`,
+            'info'
+        );
+        void enviarEnSegundoPlano();
+        onClose();
+    };
+
+    const enviarEnSegundoPlano = async () => {
         try {
             const resPdf = await fetch(
                 `${process.env.NEXT_PUBLIC_API_URL}/api/Comprobantes/${comprobante.comprobanteId}/pdf?tamano=A4`,
@@ -171,9 +218,9 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                 );
 
                 const fallidos = resultados.filter(r => r.status === 'rejected').map((_, i) => aEnviar[i]);
-                if (fallidos.length === aEnviar.length) throw new Error('No se pudo enviar ningún correo');
-                else if (fallidos.length > 0) showToast(`Enviado, pero falló: ${fallidos.join(', ')}`, 'error');
-                else showToast('Correos enviados correctamente', 'success');
+                if (fallidos.length === aEnviar.length) throw new Error(`No se pudo enviar ${serieNum} por correo`);
+                else if (fallidos.length > 0) showToast(`${serieNum} enviado, pero falló: ${fallidos.join(', ')}`, 'error');
+                else showToast(`${serieNum} enviado por correo`, 'success');
 
             } else {
                 const whatsappApiKey = process.env.NEXT_PUBLIC_WHATSAPP_API_KEY!;
@@ -208,9 +255,9 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                 );
 
                 const fallidos = resultados.filter(r => r.status === 'rejected').map((_, i) => aEnviar[i]);
-                if (fallidos.length === aEnviar.length) throw new Error('No se pudo enviar a ningún número');
-                else if (fallidos.length > 0) showToast(`Enviado, pero falló: ${fallidos.join(', ')}`, 'error');
-                else showToast('WhatsApp enviados correctamente', 'success');
+                if (fallidos.length === aEnviar.length) throw new Error(`No se pudo enviar ${serieNum} por WhatsApp`);
+                else if (fallidos.length > 0) showToast(`${serieNum} enviado, pero falló: ${fallidos.join(', ')}`, 'error');
+                else showToast(`${serieNum} enviado por WhatsApp`, 'success');
             }
 
             // ── Guardar todos los destinos (existentes + nuevos) en el backend ─
@@ -233,13 +280,9 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                 });
             }
 
-            onEnviado(tipo, todosLosValores);
-            setExito(true);
-            setTimeout(() => { setExito(false); onClose(); }, 1500);
-        } catch (e: any) {
-            showToast(e?.message ?? (esEmail ? 'Error al enviar por correo' : 'Error al enviar por WhatsApp'), 'error');
-        } finally {
-            setEnviando(false);
+            onEnviado(tipo, todosLosValores, comprobante.comprobanteId);
+        } catch (e: unknown) {
+            showToast(e instanceof Error ? e.message : (esEmail ? `Error al enviar ${serieNum} por correo` : `Error al enviar ${serieNum} por WhatsApp`), 'error');
         }
     };
 
@@ -258,7 +301,7 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                             <p className="text-xs text-gray-500">{tipoLabel(comprobante.tipoComprobante)}: {comprobante.numeroCompleto}</p>
                         </div>
                     </div>
-                    <button onClick={onClose} disabled={enviando} className="p-1.5 hover:bg-white/70 rounded-lg transition-colors">
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/70 rounded-lg transition-colors">
                         <X size={16} className="text-gray-500" />
                     </button>
                 </div>
@@ -284,6 +327,13 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                         <p className="text-sm font-semibold text-gray-900">{comprobante.cliente.razonSocial}</p>
                         <p className="text-xs text-gray-500">{comprobante.cliente.numeroDocumento}</p>
                     </div>
+
+                    {buscandoCliente && destinos.length === 0 && (
+                        <p className="flex items-center gap-1.5 text-xs text-gray-400">
+                            <RefreshCw size={12} className="animate-spin" />
+                            {esEmail ? 'Buscando el correo del cliente…' : 'Buscando el número del cliente…'}
+                        </p>
+                    )}
 
                     {/* Lista de destinos con checkboxes para existentes */}
                     {destinos.length > 0 && (
@@ -450,17 +500,14 @@ export const ModalEnvioCorreoWhatsapp = ({ comprobante, tipo, ruc, accessToken, 
                     </button>
                     <button
                         onClick={handleEnviar}
-                        disabled={enviando || exito || aEnviar.length === 0}
+                        disabled={enviando || aEnviar.length === 0}
                         className={cn(
                             "flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 transition-all",
-                            exito ? "bg-emerald-500 text-white"
-                                : esEmail ? cn(COLORS.btnPrimary, "disabled:opacity-50")
-                                    : cn(COLORS.btnGreen, "disabled:opacity-50")
+                            esEmail ? cn(COLORS.btnPrimary, "disabled:opacity-50")
+                                : cn(COLORS.btnGreen, "disabled:opacity-50")
                         )}
                     >
-                        {exito ? <><CheckCircle2 size={16} /> Enviado</>
-                            : enviando ? <><RefreshCw size={16} className="animate-spin" /> Enviando {aEnviar.length > 1 ? `(${aEnviar.length})` : ''}...</>
-                                : <><Send size={16} /> Enviar {aEnviar.length > 0 ? `(${aEnviar.length})` : ''}</>}
+                        <Send size={16} /> Enviar {aEnviar.length > 0 ? `(${aEnviar.length})` : ''}
                     </button>
                 </div>
             </div>

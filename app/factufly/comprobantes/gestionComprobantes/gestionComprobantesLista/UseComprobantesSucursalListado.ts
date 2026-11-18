@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react"
+import React, { useState, useCallback } from "react"
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/app/components/ui/Toast'
 import { ComprobanteListado } from "../Comprobante"
@@ -20,6 +20,7 @@ interface UseComprobantesSucursalListadoReturn {
   hasMore: boolean
   fetchComprobantes: (params: UseComprobantesSucursalListadoParams) => Promise<ComprobanteListado[]>
   reset: () => void
+  setComprobantes: React.Dispatch<React.SetStateAction<ComprobanteListado[]>>
 }
 
 export const useComprobantesSucursalListado = (): UseComprobantesSucursalListadoReturn => {
@@ -72,5 +73,5 @@ export const useComprobantesSucursalListado = (): UseComprobantesSucursalListado
     setHasMore(true)
   }, [])
 
-  return { comprobantes, loading, error, hasMore, fetchComprobantes, reset }
+  return { comprobantes, loading, error, hasMore, fetchComprobantes, reset, setComprobantes }
 }

@@ -920,11 +920,12 @@ export default function VerComprobantesPage() {
           ruc={rucEmpresa}
           accessToken={accessToken ?? ""}
           onClose={() => setModalEnvio(null)}
-          onEnviado={(tipo, destinoUsado) => {
+          onEnviado={(tipo, destinoUsado, comprobanteId) => {
+            // El envío termina en segundo plano (el modal ya se cerró): solo se
+            // marca la fila; no se toca el modal por si se abrió otro.
             setComprobantes((prev) =>
               prev.map((c) => {
-                if (c.comprobanteId !== modalEnvio!.comprobante.comprobanteId)
-                  return c;
+                if (c.comprobanteId !== comprobanteId) return c;
                 return {
                   ...c,
                   cliente: {
@@ -936,7 +937,6 @@ export default function VerComprobantesPage() {
                 };
               }),
             );
-            setModalEnvio(null);
           }}
         />
       )}

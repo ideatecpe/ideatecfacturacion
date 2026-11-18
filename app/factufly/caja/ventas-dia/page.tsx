@@ -17,7 +17,10 @@ import {
   Minus,
   Plus,
   Printer,
+  MessageCircle,
+  CheckCircle2,
 } from "lucide-react";
+import { ModalEnvioCorreoWhatsapp } from "@/app/components/modalVerComprobantes/ModalEnvioCorreoWhatsapp";
 import { useAuth } from "@/context/AuthContext";
 import { useConfiguracion } from "@/hooks/useConfiguracion";
 import { useToast } from "@/app/components/ui/Toast";
@@ -88,8 +91,12 @@ export default function VentasDelDiaPage() {
   const [medioPago, setMedioPago] = useState<string>("");
   const [seleccionadoId, setSeleccionadoId] = useState<number | null>(null);
 
-  const { comprobantes, loading, fetchComprobantes } =
+  const { comprobantes, loading, fetchComprobantes, setComprobantes } =
     useComprobantesSucursalListado();
+
+  // Envío del PDF por WhatsApp (mismo modal que en Comprobantes)
+  const [envioWhatsapp, setEnvioWhatsapp] =
+    useState<ComprobanteListado | null>(null);
   const {
     detalles,
     loading: loadingDetalle,
@@ -724,6 +731,27 @@ export default function VentasDelDiaPage() {
                   <Printer className="w-3.5 h-3.5" />
                   {imprimiendo ? "Imprimiendo…" : "Imprimir"}
                 </Button>
+                {seleccionado.cliente && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setEnvioWhatsapp(seleccionado)}
+                    className="text-xs! py-1.5! text-green-700! border-green-200! hover:bg-green-50!"
+                    title={
+                      seleccionado.cliente.enviadoPorWhatsApp
+                        ? "Ya enviado por WhatsApp — clic para reenviar"
+                        : "Enviar PDF por WhatsApp"
+                    }
+                  >
+                    {seleccionado.cliente.enviadoPorWhatsApp ? (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <MessageCircle className="w-3.5 h-3.5" />
+                    )}
+                    {seleccionado.cliente.enviadoPorWhatsApp
+                      ? "Reenviar por WhatsApp"
+                      : "Enviar por WhatsApp"}
+                  </Button>
+                )}
                 {esFacturaOBoleta && (
                   <Button
                     variant="outline"
@@ -749,6 +777,33 @@ export default function VentasDelDiaPage() {
           )}
         </div>
       </div>
+
+      {envioWhatsapp && (
+        <ModalEnvioCorreoWhatsapp
+          comprobante={envioWhatsapp}
+          tipo="whatsapp"
+          ruc={user?.ruc ?? ""}
+          accessToken={accessToken ?? ""}
+          onClose={() => setEnvioWhatsapp(null)}
+          onEnviado={(_tipo, destinoUsado, id) => {
+            // Termina en segundo plano (el modal ya se cerró): solo se marca la venta.
+            setComprobantes((prev) =>
+              prev.map((c) =>
+                c.comprobanteId !== id
+                  ? c
+                  : {
+                      ...c,
+                      cliente: {
+                        ...c.cliente,
+                        whatsApp: destinoUsado,
+                        enviadoPorWhatsApp: true,
+                      },
+                    },
+              ),
+            );
+          }}
+        />
+      )}
 
       <Modal
         isOpen={!!confirmAnularNV}
